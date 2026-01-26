@@ -1,21 +1,158 @@
-
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BarChart, Upload, Users, DollarSign, Settings, Video, Image as ImageIcon, ChevronLeft } from 'lucide-react';
+import {
+  BarChart,
+  Upload,
+  Users,
+  DollarSign,
+  Settings,
+  Video,
+  Image as ImageIcon,
+  Trash2,
+  Clapperboard,
+  Loader2,
+  RefreshCcw,
+} from 'lucide-react';
 import MonetizationTab from '@/components/CreatorStudio/MonetizationTab';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import BackButton from '@/components/BackButton';
+import api from '@/api/homieshub';
+
+function safeArray(v) {
+  return Array.isArray(v) ? v : [];
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  try {
+    return new Date(d).toLocaleString();
+  } catch {
+    return '';
+  }
+}
 
 const CreatorStudioPage = ({ onLoginRequest }) => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("overview");
+
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Content tab state
+  const [contentCategory, setContentCategory] = useState('videos'); // videos | reels | posts
+  const [myContent, setMyContent] = useState({ videos: [], reels: [], posts: [] });
+  const [loadingMyContent, setLoadingMyContent] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [contentError, setContentError] = useState('');
+
+  const counts = useMemo(
+    () => ({
+      videos: safeArray(myContent.videos).length,
+      reels: safeArray(myContent.reels).length,
+      posts: safeArray(myContent.posts).length,
+    }),
+    [myContent]
+  );
+
+  const currentItems = useMemo(() => {
+    if (contentCategory === 'videos') return safeArray(myContent.videos);
+    if (contentCategory === 'reels') return safeArray(myContent.reels);
+    return safeArray(myContent.posts);
+  }, [contentCategory, myContent]);
+
+  const loadMyContent = async () => {
+    setLoadingMyContent(true);
+    setContentError('');
+    try {
+      const resp = await api.get('/user/my-content');
+      const result = resp?.data?.result || resp?.data || {};
+      setMyContent({
+        videos: safeArray(result?.videos),
+        reels: safeArray(result?.reels),
+        posts: safeArray(result?.posts),
+      });
+    } catch (e) {
+      console.error('Failed to load my content', e);
+      setContentError(e?.response?.data?.message || e?.message || 'Failed to load your content.');
+      setMyContent({ videos: [], reels: [], posts: [] });
+    } finally {
+      setLoadingMyContent(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'content') {
+      loadMyContent();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const handleDelete = async ({ type, id }) => {
+    if (!id) return;
+
+    const ok = window.confirm('Delete this content? This cannot be undone.');
+    if (!ok) return;
+
+    const endpoint =
+      type === 'videos'
+        ? `/user/videos/${id}`
+        : type === 'reels'
+        ? `/user/reels/${id}`
+        : `/user/posts/${id}`;
+
+    try {
+      setDeletingId(String(id));
+      await api.delete(endpoint);
+
+      // remove from UI
+      setMyContent((prev) => ({
+        ...prev,
+        [type]: safeArray(prev?.[type]).filter((x) => String(x?._id || x?.id) !== String(id)),
+      }));
+    } catch (e) {
+      console.error('Delete failed', e);
+      alert(e?.response?.data?.message || e?.message || 'Delete failed');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const getCardData = (item) => {
+    // Normalize display fields across types
+    const id = item?._id || item?.id;
+
+    if (contentCategory === 'videos') {
+      return {
+        id,
+        title: item?.title || 'Untitled video',
+        subtitle: item?.description || item?.caption || '',
+        thumb: item?.thumbnailUrl || item?.thumbnail || null,
+        createdAt: item?.createdAt,
+      };
+    }
+
+    if (contentCategory === 'reels') {
+      return {
+        id,
+        title: item?.title || 'Reel',
+        subtitle: item?.caption || '',
+        thumb: item?.thumbnailUrl || item?.thumbnail || null,
+        createdAt: item?.createdAt,
+      };
+    }
+
+    // posts
+    const firstMediaUrl = Array.isArray(item?.media) ? item.media?.[0]?.url : null;
+    return {
+      id,
+      title: item?.type ? String(item.type).toUpperCase() : 'Post',
+      subtitle: item?.text || '',
+      thumb: firstMediaUrl || null,
+      createdAt: item?.createdAt,
+    };
+  };
 
   if (!user) {
-    // Redirect or show login prompt if accessing directly
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 text-center px-4">
         <h2 className="text-2xl font-bold">Creator Studio Access</h2>
@@ -49,6 +186,7 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
+        {/* Overview tab (unchanged from your file) */}
         <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
@@ -71,7 +209,7 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
                 <p className="text-xs text-muted-foreground">+180.1% from last month</p>
               </CardContent>
             </Card>
-             <Card>
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Estimated Earnings</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -81,7 +219,7 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
                 <p className="text-xs text-muted-foreground">+12% from last month</p>
               </CardContent>
             </Card>
-             <Card>
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Engagement Rate</CardTitle>
                 <BarChart className="h-4 w-4 text-muted-foreground" />
@@ -92,60 +230,154 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
               </CardContent>
             </Card>
           </div>
-          
-           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4">
-                  <CardHeader>
-                    <CardTitle>Recent Content Performance</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pl-2">
-                    <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                        Chart Placeholder (Analytics)
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="col-span-4">
+              <CardHeader>
+                <CardTitle>Recent Content Performance</CardTitle>
+              </CardHeader>
+              <CardContent className="pl-2">
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  Chart Placeholder (Analytics)
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="col-span-3">
+              <CardHeader>
+                <CardTitle>Recent Comments</CardTitle>
+                <CardDescription>You made 265 sales this month.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-4 text-sm">
+                    <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">user123</p>
+                      <p className="text-muted-foreground">Great video! Keep it up.</p>
                     </div>
-                  </CardContent>
-                </Card>
-                <Card className="col-span-3">
-                  <CardHeader>
-                    <CardTitle>Recent Comments</CardTitle>
-                    <CardDescription>
-                      You made 265 sales this month.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                         <div className="flex items-start gap-4 text-sm">
-                             <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
-                             <div>
-                                 <p className="font-semibold">user123</p>
-                                 <p className="text-muted-foreground">Great video! Keep it up.</p>
-                             </div>
-                         </div>
-                         <div className="flex items-start gap-4 text-sm">
-                             <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
-                             <div>
-                                 <p className="font-semibold">travel_fan</p>
-                                 <p className="text-muted-foreground">Where is this location?</p>
-                             </div>
-                         </div>
+                  </div>
+                  <div className="flex items-start gap-4 text-sm">
+                    <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">travel_fan</p>
+                      <p className="text-muted-foreground">Where is this location?</p>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
+        {/* ✅ Content tab (new) */}
         <TabsContent value="content" className="space-y-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Your Content Library</CardTitle>
-                    <CardDescription>Manage your videos, posts, and Moments.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-center py-12 text-muted-foreground">
-                        <ImageIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>Content management tools would go here.</p>
-                    </div>
-                </CardContent>
-            </Card>
+          <Card>
+            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Your Content Library</CardTitle>
+                <CardDescription>Manage your videos, reels, and community posts.</CardDescription>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant={contentCategory === 'videos' ? 'default' : 'outline'}
+                  onClick={() => setContentCategory('videos')}
+                  className="gap-2"
+                >
+                  <Video className="h-4 w-4" />
+                  Videos ({counts.videos})
+                </Button>
+
+                <Button
+                  variant={contentCategory === 'reels' ? 'default' : 'outline'}
+                  onClick={() => setContentCategory('reels')}
+                  className="gap-2"
+                >
+                  <Clapperboard className="h-4 w-4" />
+                  Reels ({counts.reels})
+                </Button>
+
+                <Button
+                  variant={contentCategory === 'posts' ? 'default' : 'outline'}
+                  onClick={() => setContentCategory('posts')}
+                  className="gap-2"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  Posts ({counts.posts})
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={loadMyContent}
+                  disabled={loadingMyContent}
+                  className="gap-2"
+                  title="Refresh"
+                >
+                  {loadingMyContent ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              {contentError ? (
+                <div className="py-6 text-center text-red-500">{contentError}</div>
+              ) : null}
+
+              {loadingMyContent ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
+                  Loading your content...
+                </div>
+              ) : currentItems.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <ImageIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No items found in this category.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {currentItems.map((item) => {
+                    const { id, title, subtitle, thumb, createdAt } = getCardData(item);
+                    const busy = deletingId && String(deletingId) === String(id);
+
+                    return (
+                      <Card key={id} className="overflow-hidden">
+                        {thumb ? (
+                          <div className="h-40 w-full bg-muted">
+                            <img src={thumb} alt={title} className="h-full w-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="h-40 w-full bg-muted flex items-center justify-center text-muted-foreground">
+                            <ImageIcon className="h-8 w-8 opacity-50" />
+                          </div>
+                        )}
+
+                        <CardHeader className="space-y-1">
+                          <CardTitle className="text-base line-clamp-1">{title}</CardTitle>
+                          <CardDescription className="line-clamp-2">{subtitle || '—'}</CardDescription>
+                        </CardHeader>
+
+                        <CardContent className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">{fmtDate(createdAt)}</span>
+
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="gap-2"
+                            disabled={busy}
+                            onClick={() => handleDelete({ type: contentCategory, id })}
+                          >
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            {busy ? 'Deleting...' : 'Delete'}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="monetization">
@@ -153,18 +385,18 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
         </TabsContent>
 
         <TabsContent value="settings">
-             <Card>
-                <CardHeader>
-                    <CardTitle>Studio Settings</CardTitle>
-                    <CardDescription>Manage notifications and studio preferences.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-center py-12 text-muted-foreground">
-                        <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>General settings configuration.</p>
-                    </div>
-                </CardContent>
-            </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Studio Settings</CardTitle>
+              <CardDescription>Manage notifications and studio preferences.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground">
+                <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>General settings configuration.</p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
