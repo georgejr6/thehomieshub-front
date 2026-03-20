@@ -26,8 +26,11 @@ import PostModal from '@/components/PostModal';
 import FeatureLockedModal from '@/components/FeatureLockedModal';
 import PlaceView from '@/components/PlaceView';
 import MediaApp from '@/components/MediaMode/MediaApp';
-import MiniPlayer from '@/components/MediaMode/MiniPlayer';
+import MusicPlayer from '@/components/MediaMode/MusicPlayer';
 import WalletIsolationMode from '@/components/WalletIsolationMode';
+import WagersPage from '@/pages/WagersPage';
+import WagerDetailPage from '@/pages/WagerDetailPage';
+import { WagerProvider } from '@/contexts/WagerContext';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
@@ -168,7 +171,7 @@ const MainLayout = ({
         />
       )}
 
-      <MiniPlayer />
+      <MusicPlayer />
     </div>
   );
 };
@@ -177,7 +180,7 @@ const MediaLayout = () => {
   return (
     <div className="min-h-screen bg-black text-white">
       <Outlet />
-      <MiniPlayer />
+      <MusicPlayer />
     </div>
   );
 };
@@ -201,7 +204,7 @@ const StudioLayout = ({ handleLoginRequest }) => {
   );
 };
 
-const AppContent = () => {
+const AppContent = React.memo(() => {
   const [authModalState, setAuthModalState] = useState({ isOpen: false, view: 'main' });
   const [isPostModalOpen, setPostModalOpen] = useState(false);
   const [postModalType, setPostModalType] = useState(null);
@@ -263,6 +266,7 @@ const AppContent = () => {
   };
 
   return (
+    <WagerProvider>
     <ThemeProvider defaultTheme="dark" storageKey="homies-hub-theme">
         <Helmet>
             <title>The Homies Hub</title>
@@ -352,6 +356,8 @@ const AppContent = () => {
                 } />
                 
                 <Route path="/communities" element={<CommunitiesPage />} />
+                <Route path="/wagers" element={<WagersPage onLoginRequest={handleLoginRequest} />} />
+                <Route path="/wagers/:id" element={<WagerDetailPage onLoginRequest={handleLoginRequest} />} />
                 <Route path="/subscriptions" element={<SubscriptionsPage />} />
                 
                 <Route path="/search" element={
@@ -403,8 +409,9 @@ const AppContent = () => {
         <PlaceView />
         <Toaster />
     </ThemeProvider>
+    </WagerProvider>
   );
-}
+});
 
 function App() {
   return <AppContent />;

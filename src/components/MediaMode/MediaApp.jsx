@@ -1,32 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useMedia } from '@/contexts/MediaContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Plus, Info, Search, X, Minimize2, ListMusic, Maximize, Loader2, Volume2, VolumeX } from 'lucide-react';
+import { Play, Info, Search, X, Minimize2, ListMusic, Maximize, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ManagePlaylistsModal } from './PlaylistModals';
-import FullscreenPlayer from './FullscreenPlayer';
 import MediaRow from './MediaRow';
 import { cn } from '@/lib/utils';
 
 const MediaApp = () => {
-  const { 
-    minimizeMediaMode, 
+  const {
+    minimizeMediaMode,
     exitMediaMode,
-    newReleases, 
-    popularVideos, 
+    allTracks,
+    genreRows,
+    catalogLoading,
+    newReleases,
+    popularVideos,
     likedMedia,
     activeCategory,
     setActiveCategory,
     playMedia,
-    isFullscreenPlayer,
-    playlists
   } = useMedia();
   
   const [isScrolled, setIsScrolled] = useState(false);
   const [isPlaylistManagerOpen, setIsPlaylistManagerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
 
   // Scroll detection
   useEffect(() => {
@@ -48,31 +47,18 @@ const MediaApp = () => {
       }
   };
 
-  // Safe access to featured item (Hero)
-  // Ensure we have data before rendering
-  const featuredItem = (popularVideos && popularVideos.length > 0) ? popularVideos[0] : null;
-  const hasContent = featuredItem !== null;
+  const featuredItem = allTracks.length > 0 ? allTracks[0] : null;
+  const hasContent = !!featuredItem && !catalogLoading;
 
-  const filteredContent = (items) => {
-      if (!items) return [];
-      if (activeCategory === 'music') return items.filter(i => i.type === 'audio');
-      if (activeCategory === 'videos') return items.filter(i => i.type === 'video');
-      return items;
-  };
-
-  const allContent = [...(newReleases || []), ...(popularVideos || [])];
-  const searchResults = searchQuery 
-    ? allContent.filter(item => 
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        item.artist.toLowerCase().includes(searchQuery.toLowerCase())
+  const searchResults = searchQuery
+    ? allTracks.filter(t =>
+        t.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.artist?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
 
   return (
     <div className="fixed inset-0 z-[100] bg-[#141414] text-white font-sans overflow-hidden flex flex-col">
-      <AnimatePresence>
-          {isFullscreenPlayer && <FullscreenPlayer />}
-      </AnimatePresence>
 
       {/* Navigation Bar */}
       <nav className={cn(
@@ -149,18 +135,11 @@ const MediaApp = () => {
                 {/* HERO SECTION */}
                 {hasContent ? (
                     <div className="relative w-full h-[56.25vw] max-h-[85vh] min-h-[400px]">
-                        {/* Background Video/Image */}
+                        {/* Background — album art with blur */}
                         <div className="absolute inset-0 select-none">
-                            {featuredItem.videoUrl ? (
-                                <video 
-                                    src={featuredItem.videoUrl} 
-                                    className="w-full h-full object-cover" 
-                                    autoPlay loop muted={isMuted} playsInline 
-                                />
-                            ) : (
-                                <img src={featuredItem.cover} className="w-full h-full object-cover" alt="Hero" />
-                            )}
-                            <div className="absolute inset-0 bg-gradient-to-r from-[#141414]/80 via-transparent to-transparent" />
+                            <img src={featuredItem.cover} className="w-full h-full object-cover scale-110 blur-sm opacity-60" alt="Hero bg"
+                              onError={e => { e.target.src = `https://picsum.photos/seed/${featuredItem.id}/1200/630`; }} />
+                            <div className="absolute inset-0 bg-gradient-to-r from-[#141414]/90 via-[#141414]/50 to-transparent" />
                             <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#141414] via-[#141414]/40 to-transparent" />
                         </div>
 
@@ -187,29 +166,13 @@ const MediaApp = () => {
                                 </p>
 
                                 <div className="flex items-center gap-4 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500">
-                                    <Button 
-                                        size="lg" 
+                                    <Button
+                                        size="lg"
                                         className="bg-white text-black hover:bg-white/90 font-bold px-8 h-12 text-lg gap-2 rounded-md transition-transform hover:scale-105"
                                         onClick={() => playMedia(featuredItem)}
                                     >
                                         <Play className="fill-black h-6 w-6" /> Play
                                     </Button>
-                                    <Button 
-                                        size="lg" 
-                                        variant="secondary"
-                                        className="bg-zinc-500/30 hover:bg-zinc-500/40 text-white backdrop-blur-sm font-bold px-8 h-12 text-lg gap-2 rounded-md transition-transform hover:scale-105"
-                                        onClick={() => alert('More Info')}
-                                    >
-                                        <Info className="h-6 w-6" /> More Info
-                                    </Button>
-                                    
-                                    {/* Mute Toggle for Hero Video */}
-                                    <button 
-                                        onClick={() => setIsMuted(!isMuted)}
-                                        className="ml-auto md:ml-4 w-10 h-10 rounded-full border border-white/20 bg-black/20 backdrop-blur flex items-center justify-center hover:bg-white/10 hover:border-white transition-colors"
-                                    >
-                                        {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -222,19 +185,18 @@ const MediaApp = () => {
                 )}
 
                 {/* CONTENT ROWS */}
-                {/* Negative margin pulls the rows up to overlap the gradient at bottom of hero */}
-                <div className="relative z-10 -mt-24 md:-mt-32 pb-20 space-y-8 pl-4 md:pl-12 bg-transparent">
-                    {popularVideos && popularVideos.length > 0 && (
-                        <MediaRow title="Trending Now" items={filteredContent(popularVideos)} />
+                <div className="relative z-10 -mt-24 md:-mt-32 pb-36 space-y-8 pl-4 md:pl-12 bg-transparent">
+                    {allTracks.length > 0 && (
+                        <MediaRow title="All Tracks" items={allTracks} />
                     )}
-                    {newReleases && newReleases.length > 0 && (
-                        <MediaRow title="New Releases" items={filteredContent(newReleases)} />
+                    {allTracks.length >= 5 && (
+                        <MediaRow title="Top 10" items={allTracks.slice(0, 10)} isRanked />
                     )}
-                    {popularVideos && (
-                        <MediaRow title="Top 10 in Music" items={filteredContent([...popularVideos].reverse().slice(0, 10))} isRanked />
-                    )}
-                    {newReleases && (
-                        <MediaRow title="Watch It Again" items={filteredContent(newReleases)} />
+                    {genreRows.map(({ genre, items }) => (
+                        <MediaRow key={genre} title={genre} items={items} />
+                    ))}
+                    {likedMedia.length > 0 && (
+                        <MediaRow title="Liked Tracks" items={likedMedia} />
                     )}
                 </div>
             </>

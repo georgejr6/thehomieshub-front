@@ -1,131 +1,207 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mockCommunityPosts } from '@/data/mockCommunityPosts';
+import { musicApi } from '@/lib/digitvlApi';
 
 const MediaContext = createContext();
-
 export const useMedia = () => useContext(MediaContext);
 
 export const MediaProvider = ({ children }) => {
   const navigate = useNavigate();
-  const [currentTrack, setCurrentTrack] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isFullscreenPlayer, setIsFullscreenPlayer] = useState(false);
+
+  // ── Catalog ────────────────────────────────────────────────────────────────
+  const [allTracks,      setAllTracks]      = useState([]);
+  const [genreRows,      setGenreRows]      = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+
+  // ── Player ─────────────────────────────────────────────────────────────────
+  const [currentTrack,   setCurrentTrack]   = useState(null);
+  const [isPlaying,      setIsPlaying]      = useState(false);
+  const [isLoading,      setIsLoading]      = useState(false);
+  const [currentTime,    setCurrentTime]    = useState(0);
+  const [duration,       setDuration]       = useState(0);
+  const [volume,         setVolume]         = useState([80]);
+  const [isMuted,        setIsMuted]        = useState(false);
+
+  // ── UI ─────────────────────────────────────────────────────────────────────
+  const [showWarning,    setShowWarning]    = useState(false);
   const [activeCategory, setActiveCategory] = useState('home');
-  const [playlists, setPlaylists] = useState([]);
-  const [likedMediaIds, setLikedMediaIds] = useState([]);
-  const [showWarning, setShowWarning] = useState(false);
+  const [likedIds,       setLikedIds]       = useState([]);
+  const [playlists,      setPlaylists]      = useState([]);
 
-  // Reliable fallback data with high-quality images to prevent broken thumbnails
-  const fallbackVideos = [
-    {
-      id: 'fallback-1',
-      title: 'Neon Nights in Tokyo',
-      artist: 'Cyberpunk Vibes',
-      cover: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80',
-      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-neon-lights-in-the-city-at-night-1454-large.mp4',
-      duration: '3:15',
-      type: 'video',
-      tags: ['Electronic', 'Vibes']
-    },
-    {
-      id: 'fallback-2',
-      title: 'Ocean Drive',
-      artist: 'Summer Sounds',
-      cover: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
-      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4',
-      duration: '4:20',
-      type: 'video',
-      tags: ['Chill', 'Summer']
-    },
-    {
-      id: 'fallback-3',
-      title: 'Urban Flow',
-      artist: 'City Beats',
-      cover: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80',
-      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-traffic-in-an-underground-tunnel-4357-large.mp4',
-      duration: '2:45',
-      type: 'video',
-      tags: ['Urban', 'Flow']
-    },
-    {
-        id: 'fallback-4',
-        title: 'Mountain Echoes',
-        artist: 'Nature Lo-Fi',
-        cover: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=80',
-        videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-1610-large.mp4',
-        duration: '5:10',
-        type: 'video',
-        tags: ['Ambient', 'Focus']
+  // ── Refs ───────────────────────────────────────────────────────────────────
+  const audioRef     = useRef(null);
+  const isFirstRef   = useRef(true);
+  const tracksRef    = useRef([]);
+  const trackRef     = useRef(null);
+  const isPlayingRef = useRef(false);
+
+  useEffect(() => { tracksRef.current   = allTracks;    }, [allTracks]);
+  useEffect(() => { trackRef.current    = currentTrack; }, [currentTrack]);
+  useEffect(() => { isPlayingRef.current = isPlaying;   }, [isPlaying]);
+
+  // ── Fetch catalog ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    musicApi.getNew()
+      .then(tracks => {
+        setAllTracks(tracks);
+        const map = {};
+        tracks.forEach(t => {
+          if (t.genre) {
+            if (!map[t.genre]) map[t.genre] = [];
+            map[t.genre].push(t);
+          }
+        });
+        const rows = Object.entries(map)
+          .filter(([, items]) => items.length >= 2)
+          .map(([genre, items]) => ({ genre, items }));
+        setGenreRows(rows);
+        if (tracks.length > 0) setCurrentTrack(tracks[0]);
+      })
+      .catch(() => {})
+      .finally(() => setCatalogLoading(false));
+  }, []);
+
+  // ── Create audio element once ──────────────────────────────────────────────
+  useEffect(() => {
+    const audio = new Audio();
+    audioRef.current = audio;
+    audio.volume = 0.8;
+    audio.preload = 'none';
+
+    const onTime     = () => setCurrentTime(audio.currentTime);
+    const onDuration = () => { if (!isNaN(audio.duration)) setDuration(audio.duration); };
+    const onEnded    = () => {
+      setIsPlaying(false);
+      const tks = tracksRef.current;
+      const cur = trackRef.current;
+      if (!tks.length) return;
+      const idx = tks.findIndex(t => t.id === cur?.id);
+      _loadTrack(tks[(idx + 1) % tks.length], true);
+    };
+
+    audio.addEventListener('timeupdate',     onTime);
+    audio.addEventListener('durationchange', onDuration);
+    audio.addEventListener('ended',          onEnded);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('timeupdate',     onTime);
+      audio.removeEventListener('durationchange', onDuration);
+      audio.removeEventListener('ended',          onEnded);
+    };
+  }, []); // eslint-disable-line
+
+  // ── Volume ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
+  }, [volume, isMuted]);
+
+  // ── Load a track into the audio element ───────────────────────────────────
+  const _loadTrack = useCallback((track, autoplay) => {
+    const audio = audioRef.current;
+    if (!audio || !track?.audioUrl) return;
+
+    setCurrentTrack(track);
+    setIsLoading(true);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    audio.src = track.audioUrl;
+    audio.load();
+
+    const onCanPlay = () => {
+      audio.removeEventListener('canplay', onCanPlay);
+      audio.removeEventListener('error',   onError);
+      setIsLoading(false);
+      if (autoplay) audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    };
+    const onError = () => {
+      audio.removeEventListener('canplay', onCanPlay);
+      audio.removeEventListener('error',   onError);
+      setIsLoading(false);
+    };
+    audio.addEventListener('canplay', onCanPlay);
+    audio.addEventListener('error',   onError);
+  }, []);
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  const togglePlay = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || isLoading) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     }
-  ];
+  }, [isPlaying, isLoading]);
 
-  // Map community posts to media items, prioritizing valid images
-  let mappedVideos = (mockCommunityPosts || [])
-    .filter(p => p.type === 'video' || p.type === 'clip' || p.type === 'mint')
-    .map(p => {
-        // Determine the best available image source
-        let coverImage = p.thumbnail || p.content?.video || p.content?.image || p.mintData?.image;
-        
-        // If no image or if it's a blob/local path that might be broken in this context, use a random fallback
-        if (!coverImage || coverImage.startsWith('blob:') || coverImage.length < 10) {
-             coverImage = fallbackVideos[Math.floor(Math.random() * fallbackVideos.length)].cover;
-        }
+  const seek = useCallback((val) => {
+    if (audioRef.current) { audioRef.current.currentTime = val[0]; setCurrentTime(val[0]); }
+  }, []);
 
-        return {
-            id: p.id,
-            title: p.content?.text?.slice(0, 40) || p.content?.title || p.mintData?.title || "Untitled Video",
-            artist: p.user?.name || "Unknown Artist",
-            cover: coverImage,
-            videoUrl: p.videoUrl || p.content?.video || fallbackVideos[0].videoUrl,
-            duration: "3:45", // Mock duration
-            type: 'video',
-            tags: ['Music', 'Trending']
-        };
-    });
+  const skipForward = useCallback(() => {
+    const tks = tracksRef.current;
+    const cur = trackRef.current;
+    if (!tks.length) return;
+    const idx = tks.findIndex(t => t.id === cur?.id);
+    _loadTrack(tks[(idx + 1) % tks.length], true);
+  }, [_loadTrack]);
 
-  // Combine real (mapped) data with fallbacks to ensure the UI is populated
-  const popularVideos = [...mappedVideos, ...fallbackVideos];
-  
-  // Create derived lists
-  const newReleases = [...popularVideos].reverse();
-  const likedMedia = [...popularVideos].filter(item => likedMediaIds.includes(item.id));
+  const skipBack = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio && audio.currentTime > 3) { audio.currentTime = 0; return; }
+    const tks = tracksRef.current;
+    const cur = trackRef.current;
+    if (!tks.length) return;
+    const idx = tks.findIndex(t => t.id === cur?.id);
+    _loadTrack(tks[(idx - 1 + tks.length) % tks.length], true);
+  }, [_loadTrack]);
 
-  const enterMediaMode = () => setShowWarning(true);
+  const playMedia = useCallback((track) => {
+    isFirstRef.current = false;
+    _loadTrack(track, true);
+  }, [_loadTrack]);
+
+  // ── Navigation ─────────────────────────────────────────────────────────────
+  const enterMediaMode        = () => setShowWarning(true);
   const confirmEnterMediaMode = () => { setShowWarning(false); navigate('/media'); };
-  const cancelEnterMediaMode = () => setShowWarning(false);
-  const exitMediaMode = () => navigate('/');
-  const minimizeMediaMode = () => navigate('/'); 
-  const expandMediaMode = () => navigate('/media');
+  const cancelEnterMediaMode  = () => setShowWarning(false);
+  const exitMediaMode         = () => navigate('/');
+  const minimizeMediaMode     = () => navigate('/');
+  const expandMediaMode       = () => navigate('/media');
 
-  const playMedia = (media) => {
-      if(!media) return;
-      setCurrentTrack(media);
-      setIsPlaying(true);
-      setIsFullscreenPlayer(true);
-  };
+  // ── Likes / playlists ──────────────────────────────────────────────────────
+  const isLiked    = (id) => likedIds.includes(id);
+  const toggleLike = (item) => setLikedIds(p => p.includes(item.id) ? p.filter(x => x !== item.id) : [...p, item.id]);
+  const likedMedia = allTracks.filter(t => likedIds.includes(t.id));
 
-  const togglePlay = () => setIsPlaying(!isPlaying);
-  const closeFullscreen = () => setIsFullscreenPlayer(false);
-  
-  const createPlaylist = (name, image) => setPlaylists([...playlists, { id: Date.now(), name, image, items: [] }]);
-  const deletePlaylist = (id) => setPlaylists(playlists.filter(p => p.id !== id));
-  const addToPlaylist = (playlistId, item) => {
-      setPlaylists(playlists.map(p => p.id === playlistId ? { ...p, items: [...p.items, item] } : p));
-  };
+  const createPlaylist = (name) => setPlaylists(p => [...p, { id: Date.now(), name, items: [] }]);
+  const deletePlaylist = (id)   => setPlaylists(p => p.filter(x => x.id !== id));
+  const addToPlaylist  = (pid, item) => setPlaylists(p => p.map(x => x.id === pid ? { ...x, items: [...x.items, item] } : x));
 
-  const toggleLike = (item) => {
-      setLikedMediaIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
+  const fmtTime = (s) => {
+    const m = Math.floor((s || 0) / 60);
+    const sec = Math.floor((s || 0) % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
   };
-  const isLiked = (id) => likedMediaIds.includes(id);
 
   return (
     <MediaContext.Provider value={{
-      showWarning, enterMediaMode, confirmEnterMediaMode, cancelEnterMediaMode, exitMediaMode,
-      minimizeMediaMode, expandMediaMode, currentTrack, setCurrentTrack, isPlaying, togglePlay,
-      isFullscreenPlayer, closeFullscreen, activeCategory, setActiveCategory, playMedia,
-      popularVideos, newReleases, playlists, createPlaylist, deletePlaylist, addToPlaylist,
-      toggleLike, isLiked, likedMedia
+      allTracks, genreRows, catalogLoading,
+      audioRef, currentTrack, isPlaying, isLoading,
+      currentTime, duration, volume, isMuted, setVolume, setIsMuted,
+      togglePlay, seek, skipForward, skipBack, playMedia, fmtTime,
+      showWarning, enterMediaMode, confirmEnterMediaMode, cancelEnterMediaMode,
+      exitMediaMode, minimizeMediaMode, expandMediaMode,
+      likedMedia, likedIds, isLiked, toggleLike,
+      playlists, createPlaylist, deletePlaylist, addToPlaylist,
+      activeCategory, setActiveCategory,
+      // legacy shape kept so MediaRow/PlaylistModals don't break
+      popularVideos: allTracks,
+      newReleases: [...allTracks].slice().reverse(),
+      isFullscreenPlayer: false,
+      closeFullscreen: () => {},
     }}>
       {children}
     </MediaContext.Provider>
