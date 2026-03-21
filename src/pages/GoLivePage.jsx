@@ -331,19 +331,19 @@ const GoLivePage = ({ onLoginRequest }) => {
         }
     };
 
-    // ── WHIP WebRTC: sends browser MediaStream directly to Mux ──
+    // ── WHIP WebRTC: proxies SDP through our backend to avoid browser CORS ──
     const startWhipStream = async (stream) => {
-        if (!streamData.whipUrl) {
-            toast({ title: 'No WHIP URL', description: 'Save stream info first.', variant: 'destructive' });
+        if (!liveStreamId) {
+            toast({ title: 'Save stream info first.', variant: 'destructive' });
             return false;
         }
         try {
             const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:global-turn.mux.com:3478' },
-            ]
-        });
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:global-turn.mux.com:3478' },
+                ]
+            });
             pcRef.current = pc;
 
             stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -351,7 +351,7 @@ const GoLivePage = ({ onLoginRequest }) => {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            // Wait for ICE gathering to complete
+            // Wait for ICE gathering (max 4s)
             await new Promise((resolve) => {
                 if (pc.iceGatheringState === 'complete') { resolve(); return; }
                 const check = () => {
@@ -361,31 +361,22 @@ const GoLivePage = ({ onLoginRequest }) => {
                     }
                 };
                 pc.addEventListener('icegatheringstatechange', check);
-                setTimeout(resolve, 3000); // fallback timeout
+                setTimeout(resolve, 4000);
             });
 
-            const abortCtrl = new AbortController();
-            const timeoutId = setTimeout(() => abortCtrl.abort(), 15000);
-            let resp;
-            try {
-                resp = await fetch(streamData.whipUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/sdp' },
-                    body: pc.localDescription.sdp,
-                    signal: abortCtrl.signal,
-                });
-            } finally {
-                clearTimeout(timeoutId);
-            }
+            // Proxy through backend — avoids CORS with Mux's WHIP endpoint
+            const { data: answerSdp } = await api.post(
+                `/live/${liveStreamId}/whip-proxy`,
+                pc.localDescription.sdp,
+                { headers: { 'Content-Type': 'application/sdp' }, responseType: 'text' }
+            );
 
-            if (!resp.ok) throw new Error(`WHIP error ${resp.status}: ${await resp.text()}`);
-
-            const answerSdp = await resp.text();
             await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
             return true;
         } catch (err) {
             console.error('WHIP failed:', err);
-            toast({ title: 'Stream Connection Failed', description: err.message, variant: 'destructive' });
+            const msg = err.response?.data?.message || err.message || 'Connection failed';
+            toast({ title: 'Stream Connection Failed', description: msg, variant: 'destructive' });
             if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
             return false;
         }
