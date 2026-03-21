@@ -142,7 +142,9 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [permissionError, setPermissionError] = useState(null);
     const [usingFallback, setUsingFallback] = useState(false);
     const [videoDevices, setVideoDevices] = useState([]);
-    const [selectedDeviceId, setSelectedDeviceId] = useState('');
+    const [audioDevices, setAudioDevices] = useState([]);
+    const [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState('');
+    const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState('');
     const [activeTab, setActiveTab] = useState('setup');
 
     // Form State
@@ -157,11 +159,7 @@ const GoLivePage = ({ onLoginRequest }) => {
         }
     }, [mediaStream, cameraEnabled]);
 
-    // Auto-start camera when in webcam mode
     useEffect(() => {
-        if (streamMethod === 'webcam') {
-            toggleCamera();
-        }
         return () => stopMediaTracks();
     }, []);
 
@@ -214,58 +212,50 @@ const GoLivePage = ({ onLoginRequest }) => {
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
             const cams = devices.filter(d => d.kind === 'videoinput');
+            const mics = devices.filter(d => d.kind === 'audioinput');
             setVideoDevices(cams);
-            if (cams.length > 0 && !selectedDeviceId) {
-                setSelectedDeviceId(cams[0].deviceId);
-            }
+            setAudioDevices(mics);
+            if (cams.length > 0 && !selectedVideoDeviceId) setSelectedVideoDeviceId(cams[0].deviceId);
+            if (mics.length > 0 && !selectedAudioDeviceId) setSelectedAudioDeviceId(mics[0].deviceId);
         } catch (_) {}
     };
 
-    const toggleCamera = async () => {
+    const startCamera = async (videoId, audioId) => {
         setPermissionError(null);
-        setUsingFallback(false);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: videoId ? { deviceId: { exact: videoId }, width: 1280, height: 720 } : { width: 1280, height: 720 },
+                audio: audioId ? { deviceId: { exact: audioId } } : true,
+            });
+            if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+            setMediaStream(stream);
+            setCameraEnabled(true);
+            setMicEnabled(true);
+            await enumerateDevices();
+        } catch (err) {
+            console.error('Media Error:', err);
+            setPermissionError("Couldn't access camera or microphone. Check browser permissions.");
+        }
+    };
 
+    const toggleCamera = async () => {
         if (cameraEnabled) {
             stopMediaTracks();
             setCameraEnabled(false);
             setMicEnabled(false);
-            return;
-        }
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: selectedDeviceId
-                    ? { deviceId: { exact: selectedDeviceId }, width: 1280, height: 720 }
-                    : { width: 1280, height: 720 },
-                audio: true
-            });
-
-            setMediaStream(stream);
-            setCameraEnabled(true);
-            setMicEnabled(true);
-            // Enumerate after first permission grant so labels are available
-            await enumerateDevices();
-        } catch (err) {
-            console.error("Media Error:", err);
-            setPermissionError("We couldn't access your camera or microphone.");
+        } else {
+            await startCamera(selectedVideoDeviceId, selectedAudioDeviceId);
         }
     };
 
-    // Switch camera device without stopping the stream
     const switchCamera = async (deviceId) => {
-        setSelectedDeviceId(deviceId);
-        if (!cameraEnabled) return;
-        try {
-            const newStream = await navigator.mediaDevices.getUserMedia({
-                video: { deviceId: { exact: deviceId }, width: 1280, height: 720 },
-                audio: true,
-            });
-            if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
-            setMediaStream(newStream);
-            setMicEnabled(true);
-        } catch (err) {
-            toast({ title: 'Camera switch failed', description: err.message, variant: 'destructive' });
-        }
+        setSelectedVideoDeviceId(deviceId);
+        if (cameraEnabled) await startCamera(deviceId, selectedAudioDeviceId);
+    };
+
+    const switchMic = async (deviceId) => {
+        setSelectedAudioDeviceId(deviceId);
+        if (cameraEnabled) await startCamera(selectedVideoDeviceId, deviceId);
     };
 
     const toggleMic = () => {
@@ -530,28 +520,44 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                             Enable your camera to start previewing your stream setup. 
                                                             You can also go live with just audio.
                                                         </p>
-                                                        <Button onClick={toggleCamera} className="gap-2" variant="secondary">
-                                                            <Video className="h-4 w-4" /> Enable Camera & Mic
+                                                        <Button onClick={toggleCamera} size="lg" className="gap-2 text-base px-8">
+                                                            <Video className="h-5 w-5" /> Enable Camera & Mic
                                                         </Button>
+                                                        <p className="text-xs text-zinc-500 mt-2">Browser will ask for permission</p>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
 
-                                        {/* Camera selector */}
-                                        {videoDevices.length > 0 && (
-                                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-                                                <select
-                                                    value={selectedDeviceId}
-                                                    onChange={(e) => switchCamera(e.target.value)}
-                                                    className="h-8 text-xs bg-black/70 border border-white/20 text-white rounded px-2 backdrop-blur-sm"
-                                                >
-                                                    {videoDevices.map((d, i) => (
-                                                        <option key={d.deviceId} value={d.deviceId}>
-                                                            {d.label || `Camera ${i + 1}`}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                        {/* Device selectors overlay — top bar */}
+                                        {cameraEnabled && (videoDevices.length > 0 || audioDevices.length > 0) && (
+                                            <div className="absolute top-3 left-3 right-3 z-20 flex gap-2">
+                                                {videoDevices.length > 0 && (
+                                                    <select
+                                                        value={selectedVideoDeviceId}
+                                                        onChange={(e) => switchCamera(e.target.value)}
+                                                        className="flex-1 h-8 text-xs bg-black/70 border border-white/20 text-white rounded px-2 backdrop-blur-sm truncate"
+                                                    >
+                                                        {videoDevices.map((d, i) => (
+                                                            <option key={d.deviceId} value={d.deviceId}>
+                                                                {d.label || `Camera ${i + 1}`}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                                {audioDevices.length > 0 && (
+                                                    <select
+                                                        value={selectedAudioDeviceId}
+                                                        onChange={(e) => switchMic(e.target.value)}
+                                                        className="flex-1 h-8 text-xs bg-black/70 border border-white/20 text-white rounded px-2 backdrop-blur-sm truncate"
+                                                    >
+                                                        {audioDevices.map((d, i) => (
+                                                            <option key={d.deviceId} value={d.deviceId}>
+                                                                {d.label || `Mic ${i + 1}`}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
                                             </div>
                                         )}
 
@@ -858,9 +864,9 @@ const GoLivePage = ({ onLoginRequest }) => {
 
                             {/* CHAT TAB */}
                             <TabsContent value="chat" className="flex-1 flex flex-col h-full m-0 p-0 overflow-hidden">
-                                {isLive && liveStreamId ? (
+                                {liveStreamId ? (
                                     <LiveChat
-                                        streamId={liveStreamId}
+                                        streamId={String(liveStreamId)}
                                         isCollapsible={false}
                                         className="h-full"
                                     />
@@ -870,7 +876,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             <MessageSquare className="h-8 w-8 opacity-40" />
                                         </div>
                                         <h3 className="font-semibold text-lg mb-2">Chat is Offline</h3>
-                                        <p className="text-sm max-w-[200px]">Chat will appear here once you go live.</p>
+                                        <p className="text-sm max-w-[200px]">Save your stream info first to enable chat.</p>
                                     </div>
                                 )}
                             </TabsContent>
