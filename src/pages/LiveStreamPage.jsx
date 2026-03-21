@@ -168,7 +168,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
           <div className="relative bg-black flex-1 min-h-0">
             {stream.playbackId ? (
               <MuxPlayer
-                streamType="live"
+                streamType="ll-live"
                 playbackId={stream.playbackId}
                 autoPlay
                 muted={false}

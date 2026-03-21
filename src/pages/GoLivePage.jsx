@@ -695,7 +695,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                                     {softwareStreamStatus === 'active' && softwarePlaybackId && (
                                         <div className="aspect-video rounded-xl overflow-hidden border border-red-500/30 shadow-2xl shadow-red-900/20">
                                             <MuxPlayer
-                                                streamType="live"
+                                                streamType="ll-live"
                                                 playbackId={softwarePlaybackId}
                                                 autoPlay
                                                 muted
