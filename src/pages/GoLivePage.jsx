@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import BackButton from '@/components/BackButton';
 import LiveChat from '@/components/LiveChat';
 import api from '@/api/homieshub';
+import MuxPlayer from '@mux/mux-player-react';
 
 // --- Audio Level Indicator Component ---
 const AudioLevelIndicator = ({ stream }) => {
@@ -128,6 +129,9 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [liveStreamId, setLiveStreamId] = useState(null);
     const [isCreatingStream, setIsCreatingStream] = useState(false);
     const [isGoingLive, setIsGoingLive] = useState(false);
+    const [softwareStreamStatus, setSoftwareStreamStatus] = useState('idle'); // 'idle' | 'active'
+    const [softwarePlaybackId, setSoftwarePlaybackId] = useState(null);
+    const pollRef = useRef(null);
 
     // Webcam State
     const videoRef = useRef(null);
@@ -165,6 +169,34 @@ const GoLivePage = ({ onLoginRequest }) => {
     useEffect(() => {
         if (isLive) setActiveTab('chat');
     }, [isLive]);
+
+    // Poll my-stream in software mode to detect when Restream/OBS connects
+    useEffect(() => {
+        if (streamMethod !== 'software' || !isSaved) {
+            clearInterval(pollRef.current);
+            return;
+        }
+        const poll = async () => {
+            try {
+                const { data } = await api.get('/live/my-stream');
+                const s = data?.result?.stream;
+                if (!s) return;
+                setSoftwareStreamStatus(s.status);
+                setSoftwarePlaybackId(s.playbackId || null);
+                if (s.status === 'active' && !isLive) {
+                    setIsLive(true);
+                    toast({ title: '🔴 You are Live!', description: 'Restream connected. Your stream is live.', className: 'bg-red-600 text-white border-none' });
+                }
+                if (s.status === 'idle' && isLive) {
+                    setIsLive(false);
+                    toast({ title: 'Stream Disconnected', description: 'Restream stopped sending video.' });
+                }
+            } catch (_) {}
+        };
+        poll();
+        pollRef.current = setInterval(poll, 5000);
+        return () => clearInterval(pollRef.current);
+    }, [streamMethod, isSaved]);
 
     // --- Media Handling ---
     const stopMediaTracks = () => {
@@ -614,6 +646,37 @@ const GoLivePage = ({ onLoginRequest }) => {
                             {/* METHOD: SOFTWARE (OBS) */}
                             {streamMethod === 'software' && (
                                 <div className="w-full max-w-4xl space-y-8 animate-in fade-in zoom-in-95 duration-300">
+
+                                    {/* Live status indicator */}
+                                    <div className={cn(
+                                        "flex items-center justify-center gap-3 py-3 px-6 rounded-xl border text-sm font-medium transition-all",
+                                        softwareStreamStatus === 'active'
+                                            ? "bg-red-600/20 border-red-500/40 text-red-400"
+                                            : isSaved
+                                                ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"
+                                                : "bg-zinc-800/50 border-zinc-700 text-zinc-500"
+                                    )}>
+                                        <span className={cn("h-2.5 w-2.5 rounded-full", softwareStreamStatus === 'active' ? "bg-red-500 animate-pulse" : isSaved ? "bg-yellow-500 animate-pulse" : "bg-zinc-600")} />
+                                        {softwareStreamStatus === 'active'
+                                            ? "🔴 Connected — You're Live"
+                                            : isSaved
+                                                ? "Waiting for Restream/OBS to connect..."
+                                                : "Save stream info to get your RTMP key"}
+                                    </div>
+
+                                    {/* Live preview — shows your own stream once Restream connects */}
+                                    {softwareStreamStatus === 'active' && softwarePlaybackId && (
+                                        <div className="aspect-video rounded-xl overflow-hidden border border-red-500/30 shadow-2xl shadow-red-900/20">
+                                            <MuxPlayer
+                                                streamType="live"
+                                                playbackId={softwarePlaybackId}
+                                                autoPlay
+                                                muted
+                                                style={{ width: '100%', height: '100%' }}
+                                            />
+                                        </div>
+                                    )}
+
                                     <div className="text-center space-y-4">
                                         <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-3xl flex items-center justify-center mx-auto ring-1 ring-white/10">
                                             <Laptop className="h-10 w-10 text-primary" />
