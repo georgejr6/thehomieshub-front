@@ -6,7 +6,7 @@ import {
   Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff,
   MessageSquare, Radio, Share2, Copy, Check, Save,
   MonitorPlay, Laptop, AlertCircle, Signal, Info, HelpCircle,
-  Wifi, ShieldCheck, Globe, Loader2, Clock, ExternalLink
+  Wifi, ShieldCheck, Globe, Loader2, Clock, ExternalLink, ChevronDown
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -146,6 +146,7 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState('');
     const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState('');
     const [activeTab, setActiveTab] = useState('setup');
+    const [showDeviceSettings, setShowDeviceSettings] = useState(false);
 
     // Form State
     const [title, setTitle] = useState('');
@@ -363,13 +364,21 @@ const GoLivePage = ({ onLoginRequest }) => {
                 setTimeout(resolve, 3000); // fallback timeout
             });
 
-            const resp = await fetch(streamData.whipUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/sdp' },
-                body: pc.localDescription.sdp,
-            });
+            const abortCtrl = new AbortController();
+            const timeoutId = setTimeout(() => abortCtrl.abort(), 15000);
+            let resp;
+            try {
+                resp = await fetch(streamData.whipUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/sdp' },
+                    body: pc.localDescription.sdp,
+                    signal: abortCtrl.signal,
+                });
+            } finally {
+                clearTimeout(timeoutId);
+            }
 
-            if (!resp.ok) throw new Error(`WHIP error ${resp.status}`);
+            if (!resp.ok) throw new Error(`WHIP error ${resp.status}: ${await resp.text()}`);
 
             const answerSdp = await resp.text();
             await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
@@ -563,38 +572,6 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             </div>
                                         )}
 
-                                        {/* Device selectors overlay — top bar */}
-                                        {cameraEnabled && (videoDevices.length > 0 || audioDevices.length > 0) && (
-                                            <div className="absolute top-3 left-3 right-3 z-20 flex gap-2">
-                                                {videoDevices.length > 0 && (
-                                                    <select
-                                                        value={selectedVideoDeviceId}
-                                                        onChange={(e) => switchCamera(e.target.value)}
-                                                        className="flex-1 h-8 text-xs bg-black/70 border border-white/20 text-white rounded px-2 backdrop-blur-sm truncate"
-                                                    >
-                                                        {videoDevices.map((d, i) => (
-                                                            <option key={d.deviceId} value={d.deviceId}>
-                                                                {d.label || `Camera ${i + 1}`}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                )}
-                                                {audioDevices.length > 0 && (
-                                                    <select
-                                                        value={selectedAudioDeviceId}
-                                                        onChange={(e) => switchMic(e.target.value)}
-                                                        className="flex-1 h-8 text-xs bg-black/70 border border-white/20 text-white rounded px-2 backdrop-blur-sm truncate"
-                                                    >
-                                                        {audioDevices.map((d, i) => (
-                                                            <option key={d.deviceId} value={d.deviceId}>
-                                                                {d.label || `Mic ${i + 1}`}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                )}
-                                            </div>
-                                        )}
-
                                         {/* Bottom Controls Overlay */}
                                         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-between transition-opacity duration-300">
                                             <div className="flex items-center gap-3">
@@ -664,6 +641,58 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Collapsible device settings */}
+                                    {cameraEnabled && (videoDevices.length > 0 || audioDevices.length > 0) && (
+                                        <div className="rounded-xl border border-white/10 bg-zinc-900/60 overflow-hidden">
+                                            <button
+                                                onClick={() => setShowDeviceSettings(v => !v)}
+                                                className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Settings className="h-3.5 w-3.5" />
+                                                    Camera &amp; Mic Settings
+                                                </span>
+                                                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showDeviceSettings && "rotate-180")} />
+                                            </button>
+                                            {showDeviceSettings && (
+                                                <div className="px-4 pb-4 space-y-3 border-t border-white/5 pt-3">
+                                                    {videoDevices.length > 0 && (
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs text-zinc-500 font-medium">Camera</label>
+                                                            <select
+                                                                value={selectedVideoDeviceId}
+                                                                onChange={(e) => switchCamera(e.target.value)}
+                                                                className="w-full h-9 text-xs bg-zinc-800 border border-zinc-700 text-white rounded-lg px-2"
+                                                            >
+                                                                {videoDevices.map((d, i) => (
+                                                                    <option key={d.deviceId} value={d.deviceId}>
+                                                                        {d.label || `Camera ${i + 1}`}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                    {audioDevices.length > 0 && (
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs text-zinc-500 font-medium">Microphone</label>
+                                                            <select
+                                                                value={selectedAudioDeviceId}
+                                                                onChange={(e) => switchMic(e.target.value)}
+                                                                className="w-full h-9 text-xs bg-zinc-800 border border-zinc-700 text-white rounded-lg px-2"
+                                                            >
+                                                                {audioDevices.map((d, i) => (
+                                                                    <option key={d.deviceId} value={d.deviceId}>
+                                                                        {d.label || `Mic ${i + 1}`}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Educational Note - Webcam */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-zinc-500 px-2">
@@ -936,50 +965,87 @@ const GoLivePage = ({ onLoginRequest }) => {
                                     </div>
                                 ) : (
                                     liveHistory.map((s) => (
-                                        <div key={s.id} className="rounded-lg border bg-muted/20 p-3 space-y-2">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <p className="font-medium text-sm leading-snug line-clamp-2">{s.title}</p>
-                                                {s.status === 'active' ? (
-                                                    <span className="shrink-0 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded font-medium animate-pulse">LIVE</span>
-                                                ) : s.status === 'idle' ? (
-                                                    <span className="shrink-0 text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded font-medium">IDLE</span>
-                                                ) : (
-                                                    <span className="shrink-0 text-xs bg-muted text-muted-foreground border px-1.5 py-0.5 rounded">Ended</span>
+                                        <div key={s.id} className="rounded-lg border bg-muted/20 overflow-hidden">
+                                            {/* VOD thumbnail / player preview */}
+                                            {s.vodPlaybackId && (
+                                                <div className="aspect-video bg-black">
+                                                    <MuxPlayer
+                                                        playbackId={s.vodPlaybackId}
+                                                        streamType="on-demand"
+                                                        style={{ width: '100%', height: '100%' }}
+                                                        thumbnailTime={2}
+                                                    />
+                                                </div>
+                                            )}
+                                            {!s.vodPlaybackId && s.thumbnailUrl && (
+                                                <img src={s.thumbnailUrl} alt={s.title} className="w-full aspect-video object-cover" />
+                                            )}
+                                            <div className="p-3 space-y-2">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <p className="font-medium text-sm leading-snug line-clamp-2">{s.title}</p>
+                                                    {s.status === 'active' ? (
+                                                        <span className="shrink-0 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded font-medium animate-pulse">LIVE</span>
+                                                    ) : s.status === 'idle' ? (
+                                                        <span className="shrink-0 text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded font-medium">IDLE</span>
+                                                    ) : s.vodPlaybackId ? (
+                                                        <span className="shrink-0 text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded font-medium">VOD</span>
+                                                    ) : (
+                                                        <span className="shrink-0 text-xs bg-muted text-muted-foreground border px-1.5 py-0.5 rounded">Ended</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                                    <span>{new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                    <span className="capitalize">{s.streamMode}</span>
+                                                </div>
+                                                {(s.status === 'active' || s.status === 'idle') && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="w-full h-8 text-xs"
+                                                        onClick={() => {
+                                                            setStreamData({ url: 'rtmps://global-live.mux.com:443/app', key: s.streamKey || streamData.key, whipUrl: '' });
+                                                            setLiveStreamId(s.id);
+                                                            setIsSaved(true);
+                                                            setTitle(s.title);
+                                                            setDescription(s.description || '');
+                                                            if (s.streamMode === 'software') setStreamMethod('software');
+                                                            setActiveTab('setup');
+                                                            toast({ title: 'Stream resumed', description: 'Ready to go live.' });
+                                                        }}
+                                                    >
+                                                        Resume Stream
+                                                    </Button>
+                                                )}
+                                                {s.vodPlaybackId && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        className="w-full h-8 text-xs"
+                                                        onClick={async () => {
+                                                            if (!window.confirm('Delete this VOD? This cannot be undone.')) return;
+                                                            try {
+                                                                await api.delete(`/live/${s.id}/vod`);
+                                                                setLiveHistory(prev => prev.map(x => x.id === s.id ? { ...x, vodPlaybackId: null, vodAssetId: null } : x));
+                                                                toast({ title: 'VOD deleted.' });
+                                                            } catch {
+                                                                toast({ title: 'Error', description: 'Failed to delete VOD.', variant: 'destructive' });
+                                                            }
+                                                        }}
+                                                    >
+                                                        Delete VOD
+                                                    </Button>
+                                                )}
+                                                {s.status === 'disabled' && !s.vodPlaybackId && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="w-full h-8 text-xs text-muted-foreground"
+                                                        onClick={() => { setTitle(s.title); setDescription(s.description || ''); setActiveTab('setup'); }}
+                                                    >
+                                                        Reuse Title
+                                                    </Button>
                                                 )}
                                             </div>
-                                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                                <span>{new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                                <span className="capitalize">{s.streamMode}</span>
-                                            </div>
-                                            {(s.status === 'active' || s.status === 'idle') && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="w-full h-8 text-xs"
-                                                    onClick={() => {
-                                                        setStreamData({ url: 'rtmps://global-live.mux.com:443/app', key: s.streamKey || streamData.key, whipUrl: '' });
-                                                        setLiveStreamId(s.id);
-                                                        setIsSaved(true);
-                                                        setTitle(s.title);
-                                                        setDescription(s.description || '');
-                                                        if (s.streamMode === 'software') setStreamMethod('software');
-                                                        setActiveTab('setup');
-                                                        toast({ title: 'Stream resumed', description: 'Ready to go live.' });
-                                                    }}
-                                                >
-                                                    Resume Stream
-                                                </Button>
-                                            )}
-                                            {s.status === 'disabled' && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="w-full h-8 text-xs text-muted-foreground"
-                                                    onClick={() => { setTitle(s.title); setDescription(s.description || ''); setActiveTab('setup'); }}
-                                                >
-                                                    Reuse Title
-                                                </Button>
-                                            )}
                                         </div>
                                     ))
                                 )}

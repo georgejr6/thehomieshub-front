@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useWallet as useAlgoWallet } from '@txnlab/use-wallet-react';
-import { PeraWalletConnect } from '@perawallet/connect-beta';
+import { PeraWalletConnect } from '@perawallet/connect';
 
 const WC_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '7703ab56cc3bc2f4eaf6fac95ffff4e6';
 
@@ -10,8 +10,7 @@ let _peraInstance = null;
 const getPeraWallet = () => {
   if (!_peraInstance) {
     _peraInstance = new PeraWalletConnect({
-      projectId: WC_PROJECT_ID,
-      network:   'mainnet',
+      shouldShowSignTxnToast: false,
     });
   }
   return _peraInstance;
