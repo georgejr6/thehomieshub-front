@@ -30,11 +30,14 @@ import {
   Lock,
   Crown,
   MessageCircle,
+  Diamond,
+  Gift,
 } from 'lucide-react';
 
 import FeedItem from '@/components/FeedItem';
 import VideoPost from '@/components/VideoPost';
 import EditProfileModal from '@/components/EditProfileModal';
+import GiftDialog from '@/components/GiftDialog';
 
 const UserProfilePage = () => {
   const { username } = useParams();
@@ -44,6 +47,7 @@ const UserProfilePage = () => {
   const { user: currentUser, isPremium, triggerLockedFeature } = useAuth();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isGiftOpen, setIsGiftOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -467,8 +471,45 @@ const UserProfilePage = () => {
                 )}
               </div>
             )}
+
+            {/* Points row */}
+            <div className="flex items-center gap-4 mt-4">
+              {isOwnProfile ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
+                  <Diamond className="h-4 w-4 text-primary fill-primary" />
+                  <span className="text-sm font-bold text-primary">{(profileUser.walletPoints || 0).toLocaleString()} pts</span>
+                </div>
+              ) : (
+                <>
+                  {(profileUser.stats?.giftsReceived > 0) && (
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Diamond className="h-4 w-4 text-primary/60" />
+                      <span>{(profileUser.stats.giftsReceived).toLocaleString()} pts received</span>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500 h-8 px-3"
+                    onClick={() => setIsGiftOpen(true)}
+                  >
+                    <Gift className="h-3.5 w-3.5 mr-1.5" /> Gift Points
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
+
+        <GiftDialog
+          isOpen={isGiftOpen}
+          onOpenChange={setIsGiftOpen}
+          recipientId={profileUser._id}
+          recipientName={profileUser.name}
+          recipientUsername={profileUser.username}
+          targetType="profile"
+          targetId={profileUser._id}
+        />
 
         <div className="mt-8">
           <Tabs defaultValue="posts" className="w-full">

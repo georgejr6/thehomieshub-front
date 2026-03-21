@@ -543,7 +543,11 @@ const likeCount = post?.engagement?.likes ?? 0;
             <GiftDialog
                 isOpen={isGiftDialogOpen}
                 onOpenChange={setIsGiftDialogOpen}
+                recipientId={post.user._id}
                 recipientName={post.user.name}
+                recipientUsername={post.user.username}
+                targetType="reel"
+                targetId={post._id}
             />
 
             <MintedCollectibleModal

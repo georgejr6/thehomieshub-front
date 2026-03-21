@@ -10,66 +10,41 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Heart, Gift, Share2, CheckCircle, Loader2, Radio, Users, ShieldX, StopCircle, Pencil, Settings } from 'lucide-react';
+import { Heart, Gift, Share2, CheckCircle, Loader2, Radio, Users, ShieldX, StopCircle, Pencil, Settings, Diamond } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWallet } from '@/contexts/WalletContext';
 import LiveChat from '@/components/LiveChat';
+import GiftDialogComponent from '@/components/GiftDialog';
 import MuxPlayer from '@mux/mux-player-react';
 import api from '@/api/homieshub';
 
-const giftTiers = [10, 50, 100, 500, 1000];
-
-const GiftDialog = ({ creatorName, onLoginRequest }) => {
-  const { user } = useAuth();
-  const { balance, spendPoints } = useWallet();
-  const { toast } = useToast();
-  const [selected, setSelected] = useState(giftTiers[1]);
-  const [custom, setCustom] = useState('');
-
-  const amount = custom ? Number(custom) : selected;
-
-  const handleSend = () => {
-    if (!user) { onLoginRequest(); return; }
-    if (balance < amount) {
-      toast({ title: 'Insufficient Balance', description: `You need ${amount} points but only have ${balance}.`, variant: 'destructive' });
-      return;
-    }
-    spendPoints(amount);
-    toast({ title: '🎁 Gift Sent!', description: `You sent ${amount} points to ${creatorName}.` });
-  };
-
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500">
-          <Gift className="mr-2 h-4 w-4" /> Gift
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Gift to {creatorName}</DialogTitle>
-          <DialogDescription>Balance: {balance} pts</DialogDescription>
-        </DialogHeader>
-        <div className="py-3 space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            {giftTiers.map((t) => (
-              <Button key={t} size="sm" variant={selected === t && !custom ? 'default' : 'outline'} onClick={() => { setSelected(t); setCustom(''); }}>
-                {t}
-              </Button>
+// Receiver gift overlay — shown to everyone in the stream room
+const GiftOverlay = ({ gift, onDone }) => (
+  <AnimatePresence>
+    {gift && (
+      <motion.div
+        key={gift.timestamp}
+        initial={{ opacity: 0, y: 40, scale: 0.8 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -30, scale: 0.9 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        onAnimationComplete={onDone}
+        className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+      >
+        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-black/80 border border-primary/40 shadow-xl backdrop-blur-sm">
+          <div className="flex gap-0.5">
+            {Array.from({ length: Math.min(5, Math.ceil(gift.amount / 100) + 1) }).map((_, i) => (
+              <Diamond key={i} className="w-5 h-5 text-primary fill-primary" style={{ animationDelay: `${i * 80}ms` }} />
             ))}
           </div>
-          <Input type="number" placeholder="Custom amount" value={custom} onChange={(e) => { setCustom(e.target.value); setSelected(null); }} className="mt-1" />
+          <div>
+            <p className="text-white font-bold text-sm">{gift.fromUsername} sent {gift.amount} pts!</p>
+          </div>
         </div>
-        <DialogFooter>
-          <Button onClick={handleSend} disabled={!amount || amount <= 0} className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold">
-            Send {amount || '?'} pts
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-};
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
 
 const LiveStreamPage = ({ onLoginRequest }) => {
   const { username } = useParams();
@@ -82,6 +57,9 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   const [error, setError] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+
+  const [isGiftOpen, setIsGiftOpen] = useState(false);
+  const [liveGiftEvent, setLiveGiftEvent] = useState(null);
 
   // Owner controls
   const isOwner = user && stream && user.username === stream.creator?.username;
@@ -344,7 +322,16 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                     </>
                   )}
                 </Button>
-                <GiftDialog creatorName={stream.creator?.name || username} onLoginRequest={onLoginRequest} />
+                {!isOwner && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500"
+                    onClick={() => { if (!user) { onLoginRequest(); return; } setIsGiftOpen(true); }}
+                  >
+                    <Gift className="mr-2 h-4 w-4" /> Gift
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" onClick={handleShare} className="text-white/50 hover:text-white">
                   <Share2 className="h-4 w-4" />
                 </Button>
@@ -359,9 +346,30 @@ const LiveStreamPage = ({ onLoginRequest }) => {
 
         {/* ── RIGHT: Live Chat ── */}
         <aside className="w-full lg:w-[340px] h-[45vh] lg:h-screen shrink-0 border-t lg:border-t-0 lg:border-l border-white/5">
-          <LiveChat streamId={String(stream.id)} isCollapsible />
+          <LiveChat
+            streamId={String(stream._id || stream.id)}
+            isCollapsible
+            onGiftMessage={(msg) => {
+              setLiveGiftEvent(msg);
+              setTimeout(() => setLiveGiftEvent(null), 3500);
+            }}
+          />
         </aside>
       </div>
+
+      {/* Gift overlay — visible to all stream viewers */}
+      <GiftOverlay gift={liveGiftEvent} onDone={() => {}} />
+
+      {/* Gift dialog — sender only */}
+      <GiftDialogComponent
+        isOpen={isGiftOpen}
+        onOpenChange={setIsGiftOpen}
+        recipientId={stream.creator?._id}
+        recipientName={stream.creator?.name || username}
+        recipientUsername={stream.creator?.username || username}
+        targetType="live_stream"
+        targetId={stream._id || stream.id}
+      />
     </>
   );
 };

@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const WS_BASE = import.meta.env.VITE_WS_URL || 'wss://backend.thehomies.app';
 
-export default function LiveChat({ streamId, isCollapsible = true, className }) {
+export default function LiveChat({ streamId, isCollapsible = true, className, onGiftMessage }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -39,6 +39,13 @@ export default function LiveChat({ streamId, isCollapsible = true, className }) 
         const msg = JSON.parse(e.data);
         if (msg.type === 'viewer_count') {
           setViewerCount(msg.count);
+        } else if (msg.type === 'gift') {
+          if (onGiftMessage) onGiftMessage(msg);
+          // Also show gift as a system message in chat
+          setMessages((prev) => {
+            const next = [...prev, { type: 'system', content: `🎁 ${msg.fromUsername} sent ${msg.amount} pts!`, timestamp: msg.timestamp }];
+            return next.length > 200 ? next.slice(-200) : next;
+          });
         } else if (msg.type === 'chat' || msg.type === 'system') {
           setMessages((prev) => {
             const next = [...prev, msg];

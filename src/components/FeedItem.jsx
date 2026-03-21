@@ -451,7 +451,15 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
           </ShareDialog>
         </div>
       </motion.article>
-      <GiftDialog isOpen={isGiftDialogOpen} onOpenChange={setIsGiftDialogOpen} recipientName={post.user.name} recipientUsername={post.user.username} />
+      <GiftDialog
+        isOpen={isGiftDialogOpen}
+        onOpenChange={setIsGiftDialogOpen}
+        recipientId={post.user._id}
+        recipientName={post.user.name}
+        recipientUsername={post.user.username}
+        targetType="video"
+        targetId={post._id}
+      />
       <MintedCollectibleModal isOpen={isMintModalOpen} onClose={() => setIsMintModalOpen(false)} data={post.mintData} />
     </>
   );
