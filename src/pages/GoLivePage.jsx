@@ -2,12 +2,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff, 
-  MessageSquare, Radio, Share2, Copy, Check, Save, 
+import {
+  Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff,
+  MessageSquare, Radio, Share2, Copy, Check, Save,
   MonitorPlay, Laptop, AlertCircle, Signal, Info, HelpCircle,
-  Wifi, ShieldCheck, Globe, Loader2
+  Wifi, ShieldCheck, Globe, Loader2, ChevronDown
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -137,11 +138,26 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [micEnabled, setMicEnabled] = useState(false);
     const [permissionError, setPermissionError] = useState(null);
     const [usingFallback, setUsingFallback] = useState(false);
+    const [videoDevices, setVideoDevices] = useState([]);
+    const [selectedDeviceId, setSelectedDeviceId] = useState('');
+    const [activeTab, setActiveTab] = useState('setup');
 
     // Form State
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [notifyFollowers, setNotifyFollowers] = useState(true);
+
+    // Attach stream to video element whenever mediaStream changes
+    useEffect(() => {
+        if (videoRef.current && mediaStream) {
+            videoRef.current.srcObject = mediaStream;
+        }
+    }, [mediaStream]);
+
+    // Auto-switch to chat tab when going live
+    useEffect(() => {
+        if (isLive) setActiveTab('chat');
+    }, [isLive]);
 
     // --- Media Handling ---
     const stopMediaTracks = () => {
@@ -152,13 +168,24 @@ const GoLivePage = ({ onLoginRequest }) => {
     };
 
     useEffect(() => {
-        return () => stopMediaTracks(); // Cleanup on unmount
+        return () => stopMediaTracks();
     }, []);
+
+    const enumerateDevices = async () => {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cams = devices.filter(d => d.kind === 'videoinput');
+            setVideoDevices(cams);
+            if (cams.length > 0 && !selectedDeviceId) {
+                setSelectedDeviceId(cams[0].deviceId);
+            }
+        } catch (_) {}
+    };
 
     const toggleCamera = async () => {
         setPermissionError(null);
         setUsingFallback(false);
-        
+
         if (cameraEnabled) {
             stopMediaTracks();
             setCameraEnabled(false);
@@ -167,23 +194,38 @@ const GoLivePage = ({ onLoginRequest }) => {
         }
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: 1280, height: 720 }, // 720p preference
-                audio: true 
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: selectedDeviceId
+                    ? { deviceId: { exact: selectedDeviceId }, width: 1280, height: 720 }
+                    : { width: 1280, height: 720 },
+                audio: true
             });
-            
+
             setMediaStream(stream);
             setCameraEnabled(true);
             setMicEnabled(true);
-            
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-            }
+            // Enumerate after first permission grant so labels are available
+            await enumerateDevices();
         } catch (err) {
             console.error("Media Error:", err);
             setPermissionError("We couldn't access your camera or microphone.");
-            // Allow "fallback" mode automatically if permission fails? 
-            // Better to let user decide, but we enable controls.
+        }
+    };
+
+    // Switch camera device without stopping the stream
+    const switchCamera = async (deviceId) => {
+        setSelectedDeviceId(deviceId);
+        if (!cameraEnabled) return;
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: { exact: deviceId }, width: 1280, height: 720 },
+                audio: true,
+            });
+            if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+            setMediaStream(newStream);
+            setMicEnabled(true);
+        } catch (err) {
+            toast({ title: 'Camera switch failed', description: err.message, variant: 'destructive' });
         }
     };
 
@@ -204,7 +246,8 @@ const GoLivePage = ({ onLoginRequest }) => {
         }
         setIsCreatingStream(true);
         try {
-            const { data } = await api.post('/live/create', { title: title.trim(), description });
+            const streamMode = streamMethod === 'webcam' ? 'browser' : 'software';
+            const { data } = await api.post('/live/create', { title: title.trim(), description, streamMode });
             if (data.status) {
                 setStreamData({
                     url: data.result.rtmpUrl,
@@ -231,7 +274,12 @@ const GoLivePage = ({ onLoginRequest }) => {
             return false;
         }
         try {
-            const pc = new RTCPeerConnection({ iceServers: [] });
+            const pc = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:global-turn.mux.com:3478' },
+            ]
+        });
             pcRef.current = pc;
 
             stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -444,10 +492,28 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                             You can also go live with just audio.
                                                         </p>
                                                         <Button onClick={toggleCamera} className="gap-2" variant="secondary">
-                                                            <Video className="h-4 w-4" /> Enable Camera
+                                                            <Video className="h-4 w-4" /> Enable Camera & Mic
                                                         </Button>
                                                     </div>
                                                 )}
+                                            </div>
+                                        )}
+
+                                        {/* Camera selector */}
+                                        {videoDevices.length > 1 && (
+                                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
+                                                <Select value={selectedDeviceId} onValueChange={switchCamera}>
+                                                    <SelectTrigger className="h-8 text-xs bg-black/60 border-white/20 text-white backdrop-blur-sm w-48">
+                                                        <SelectValue placeholder="Select camera" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {videoDevices.map(d => (
+                                                            <SelectItem key={d.deviceId} value={d.deviceId}>
+                                                                {d.label || `Camera ${videoDevices.indexOf(d) + 1}`}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
                                         )}
 
@@ -643,19 +709,17 @@ const GoLivePage = ({ onLoginRequest }) => {
 
                     {/* RIGHT PANEL: SIDEBAR */}
                     <div className="w-full lg:w-[400px] bg-card border-l flex flex-col h-[50vh] lg:h-auto border-t lg:border-t-0 shadow-xl z-10">
-                        <Tabs defaultValue="setup" value={isLive ? "chat" : "setup"} className="flex-1 flex flex-col">
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
                             <TabsList className="grid w-full grid-cols-2 rounded-none h-14 border-b bg-background p-0">
-                                <TabsTrigger 
-                                    value="setup" 
+                                <TabsTrigger
+                                    value="setup"
                                     className="rounded-none h-full data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-muted/50 transition-colors"
-                                    disabled={isLive}
                                 >
                                     Stream Setup
                                 </TabsTrigger>
-                                <TabsTrigger 
-                                    value="chat" 
+                                <TabsTrigger
+                                    value="chat"
                                     className="rounded-none h-full data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-muted/50 transition-colors"
-                                    disabled={!isLive && !isSaved} 
                                 >
                                     Live Chat
                                 </TabsTrigger>
