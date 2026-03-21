@@ -370,11 +370,20 @@ const GoLivePage = ({ onLoginRequest }) => {
 
             console.log('[WHIP] posting SDP, candidates:', (pc.localDescription.sdp.match(/a=candidate:/g) || []).length);
 
-            const resp = await fetch(streamData.whipUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/sdp' },
-                body: pc.localDescription.sdp,
-            });
+            // POST with 15s timeout
+            const abort = new AbortController();
+            const fetchTimer = setTimeout(() => abort.abort(), 15000);
+            let resp;
+            try {
+                resp = await fetch(streamData.whipUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/sdp' },
+                    body: pc.localDescription.sdp,
+                    signal: abort.signal,
+                });
+            } finally {
+                clearTimeout(fetchTimer);
+            }
             if (!resp.ok) {
                 const e = await resp.text().catch(() => resp.statusText);
                 throw new Error(`Mux WHIP ${resp.status}: ${e}`);
@@ -384,38 +393,22 @@ const GoLivePage = ({ onLoginRequest }) => {
             console.log('[WHIP] got answer, length:', answerSdp?.length);
             await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
-            // Wait for WebRTC connection (ICE + DTLS)
-            await new Promise((resolve, reject) => {
-                if (pc.connectionState === 'connected') { resolve(); return; }
-                if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-                    reject(new Error(`WebRTC ${pc.connectionState}`)); return;
+            // Monitor connection state in background — don't block going live on this
+            pc.addEventListener('connectionstatechange', () => {
+                console.log('[WHIP] connectionState:', pc.connectionState);
+                if (pc.connectionState === 'failed') {
+                    toast({ title: 'Stream Connection Lost', description: 'WebRTC connection failed — viewers may not see you.', variant: 'destructive' });
                 }
-                const check = () => {
-                    console.log('[WHIP] connectionState:', pc.connectionState);
-                    if (pc.connectionState === 'connected') {
-                        pc.removeEventListener('connectionstatechange', check);
-                        resolve();
-                    } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-                        pc.removeEventListener('connectionstatechange', check);
-                        reject(new Error(`WebRTC connection ${pc.connectionState} — try again`));
-                    }
-                };
-                pc.addEventListener('connectionstatechange', check);
-                setTimeout(() => {
-                    pc.removeEventListener('connectionstatechange', check);
-                    console.log('[WHIP] timeout, final state:', pc.connectionState);
-                    reject(new Error('WebRTC connection timed out — check camera/network'));
-                }, 20000);
             });
 
-            // Log bytes sent after a moment to confirm data is flowing
+            // Log bytes sent after 3s to confirm data is flowing to Mux
             setTimeout(async () => {
                 if (!pcRef.current) return;
                 const stats = await pcRef.current.getStats().catch(() => null);
                 let sent = 0;
                 stats?.forEach(s => { if (s.type === 'outbound-rtp') sent += s.bytesSent || 0; });
-                console.log('[WHIP] bytes sent 2s after connect:', sent);
-            }, 2000);
+                console.log('[WHIP] bytes sent 3s after answer:', sent, '| connectionState:', pcRef.current?.connectionState);
+            }, 3000);
 
             return true;
         } catch (err) {
