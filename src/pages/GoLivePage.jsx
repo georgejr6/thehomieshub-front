@@ -330,55 +330,77 @@ const GoLivePage = ({ onLoginRequest }) => {
         }
     };
 
-    // ── WHIP WebRTC: browser posts SDP directly to Mux (WHIP is browser-native, supports CORS) ──
+    // Parse ICE servers from Mux WHIP response Link header (contains TURN credentials)
+    const parseWhipLinkServers = (link) => {
+        if (!link) return [];
+        return link.split(/,\s*(?=<)/).flatMap(part => {
+            const url = part.match(/<([^>]+)>/)?.[1];
+            const rel = part.match(/\brel="([^"]+)"/)?.[1];
+            if (!url || rel !== 'ice-server') return [];
+            const s = { urls: url };
+            const u = part.match(/\busername="([^"]+)"/)?.[1];
+            const c = part.match(/\bcredential="([^"]+)"/)?.[1];
+            if (u) s.username = u;
+            if (c) s.credential = c;
+            return [s];
+        });
+    };
+
+    const doWhipSession = async (iceServers, mediaStream) => {
+        const pc = new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle' });
+        mediaStream.getTracks().forEach(t => pc.addTrack(t, mediaStream));
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        // Wait for ICE gathering (max 8s)
+        await new Promise(resolve => {
+            if (pc.iceGatheringState === 'complete') { resolve(); return; }
+            const h = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', h); resolve(); } };
+            pc.addEventListener('icegatheringstatechange', h);
+            setTimeout(resolve, 8000);
+        });
+        const resp = await fetch(streamData.whipUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/sdp' },
+            body: pc.localDescription.sdp,
+        });
+        if (!resp.ok) {
+            pc.close();
+            const e = await resp.text().catch(() => resp.statusText);
+            throw new Error(`Mux WHIP ${resp.status}: ${e}`);
+        }
+        return { pc, resp };
+    };
+
+    // ── WHIP WebRTC: browser posts SDP directly to Mux ──
+    // Phase 1: probe session to get Mux TURN credentials from Link header
+    // Phase 2: real session using those TURN credentials for reliable NAT traversal
     const startWhipStream = async (stream) => {
         if (!liveStreamId || !streamData.whipUrl) {
             toast({ title: 'Save stream info first.', variant: 'destructive' });
             return false;
         }
         try {
-            const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global-turn.mux.com:3478' },
-                ]
-            });
+            const baseServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+            // Phase 1: probe WHIP to collect TURN credentials from Mux Link header
+            const { pc: probePc, resp: probeResp } = await doWhipSession(baseServers, stream);
+            probePc.close(); // abandon — only needed the response headers
+            // Properly terminate the probe session on Mux
+            const probeLocation = probeResp.headers.get('location');
+            if (probeLocation) fetch(probeLocation, { method: 'DELETE' }).catch(() => {});
+
+            const turnServers = parseWhipLinkServers(probeResp.headers.get('link'));
+            console.log('[WHIP] TURN servers from Mux:', turnServers.map(s => s.urls));
+
+            // Phase 2: real session with TURN credentials for reliable connectivity
+            const iceServers = [...baseServers, ...(turnServers.length ? turnServers : [{ urls: 'stun:global-turn.mux.com:3478' }])];
+            const { pc, resp } = await doWhipSession(iceServers, stream);
             pcRef.current = pc;
-
-            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            // Wait for ICE gathering to complete (max 8s)
-            await new Promise((resolve) => {
-                if (pc.iceGatheringState === 'complete') { resolve(); return; }
-                const check = () => {
-                    if (pc.iceGatheringState === 'complete') {
-                        pc.removeEventListener('icegatheringstatechange', check);
-                        resolve();
-                    }
-                };
-                pc.addEventListener('icegatheringstatechange', check);
-                setTimeout(resolve, 8000);
-            });
-
-            // Post SDP offer directly to Mux WHIP endpoint from the browser
-            const resp = await fetch(streamData.whipUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/sdp' },
-                body: pc.localDescription.sdp,
-            });
-
-            if (!resp.ok) {
-                const errText = await resp.text().catch(() => resp.statusText);
-                throw new Error(`Mux WHIP ${resp.status}: ${errText}`);
-            }
 
             const answerSdp = await resp.text();
             await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
-            // Wait for actual WebRTC media connection — SDP exchange alone doesn't mean data flows
+            // Wait for actual WebRTC media connection
             await new Promise((resolve, reject) => {
                 if (pc.connectionState === 'connected') { resolve(); return; }
                 if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
@@ -396,8 +418,8 @@ const GoLivePage = ({ onLoginRequest }) => {
                 pc.addEventListener('connectionstatechange', check);
                 setTimeout(() => {
                     pc.removeEventListener('connectionstatechange', check);
-                    reject(new Error('WebRTC connection timed out — check your camera/network and try again'));
-                }, 15000);
+                    reject(new Error('WebRTC connection timed out — check camera/network and try again'));
+                }, 20000);
             });
 
             return true;
