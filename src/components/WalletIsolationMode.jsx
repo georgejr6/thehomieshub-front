@@ -69,7 +69,7 @@ const SettingsTab = () => {
                   <div className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e]" />
                   <div>
                     <span className="text-green-400 font-medium block">Connected via {connectedWallet.type}</span>
-                    <span className="text-xs text-white/50 font-mono">{connectedWallet.address}</span>
+                    <span className="text-xs text-white/50 font-mono">{connectedWallet.address.slice(0, 10)}...{connectedWallet.address.slice(-6)}</span>
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => {
@@ -266,9 +266,11 @@ const [loadingTx, setLoadingTx] = useState(false);
                 <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center overflow-hidden">
                   <Wallet className="h-5 w-5 text-black" />
                 </div>
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0">
                   <span className="text-xs text-muted-foreground">{connectedWallet.type}</span>
-                  <span className="text-sm font-mono text-white tracking-wider">{connectedWallet.address}</span>
+                  <span className="text-sm font-mono text-white truncate max-w-[180px] md:max-w-[260px]">
+                    {connectedWallet.address.slice(0, 8)}...{connectedWallet.address.slice(-6)}
+                  </span>
                 </div>
               </div>
               <Button size="icon" variant="ghost" className="text-primary hover:text-white hover:bg-white/10" onClick={copyAddress}>
