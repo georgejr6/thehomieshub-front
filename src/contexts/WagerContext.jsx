@@ -20,7 +20,7 @@ export const WagerProvider = ({ children }) => {
     setLoadingWagers(true);
     try {
       const res = await getWagers(params);
-      const data = res.data?.wagers || res.data?.result?.items || res.data?.result || [];
+      const data = res.data?.result?.wagers || res.data?.wagers || res.data?.result?.items || [];
       setWagers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.warn('fetchWagers: falling back to mock data', err?.message);

@@ -135,7 +135,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg bg-zinc-950 border-white/10 text-white p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-lg bg-zinc-950 border-white/10 text-white p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader className="px-6 pt-6 pb-0">
           <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
             <Swords className="h-5 w-5 text-primary" />
