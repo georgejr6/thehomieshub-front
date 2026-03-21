@@ -136,7 +136,9 @@ const GoLivePage = ({ onLoginRequest }) => {
 
     // Webcam State
     const videoRef = useRef(null);
-    const pcRef = useRef(null); // WebRTC peer connection for WHIP
+    const pcRef = useRef(null); // kept for cleanup compat
+    const mediaRecorderRef = useRef(null);
+    const broadcastWsRef = useRef(null);
     const [mediaStream, setMediaStream] = useState(null);
     const [cameraEnabled, setCameraEnabled] = useState(false);
     const [micEnabled, setMicEnabled] = useState(false);
@@ -330,77 +332,55 @@ const GoLivePage = ({ onLoginRequest }) => {
         }
     };
 
-    // ── WHIP WebRTC: single session, browser → Mux directly ──
-    const startWhipStream = async (stream) => {
-        if (!liveStreamId || !streamData.whipUrl) {
+    // ── Browser streaming: MediaRecorder → WebSocket → ffmpeg → Mux RTMP ──
+    // Bypasses all WHIP/WebRTC issues. Server pipes webm chunks to Mux via RTMP.
+    const startBrowserStream = async (stream) => {
+        if (!liveStreamId) {
             toast({ title: 'Save stream info first.', variant: 'destructive' });
             return false;
         }
         try {
-            const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global-turn.mux.com:3478' },
-                ],
-            });
-            pcRef.current = pc;
+            const token = localStorage.getItem('access_token');
+            if (!token) throw new Error('Not authenticated');
 
-            stream.getTracks().forEach(t => pc.addTrack(t, stream));
+            const wsUrl = `${import.meta.env.VITE_WS_URL || 'wss://backend.thehomies.app'}/ws/broadcast?streamId=${liveStreamId}&token=${encodeURIComponent(token)}`;
 
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            // Wait for ICE gathering (up to 8s)
-            await new Promise(resolve => {
-                if (pc.iceGatheringState === 'complete') { resolve(); return; }
-                const h = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', h); resolve(); } };
-                pc.addEventListener('icegatheringstatechange', h);
-                setTimeout(resolve, 8000);
-            });
-
-            console.log('[WHIP] posting SDP, candidates:', (pc.localDescription.sdp.match(/a=candidate:/g) || []).length);
-
-            // Use XHR instead of fetch — MuxPlayer's service worker intercepts fetch()
-            // causing ERR_EMPTY_RESPONSE on cross-origin SDP posts. XHR bypasses it.
-            const answerSdp = await new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', streamData.whipUrl);
-                xhr.setRequestHeader('Content-Type', 'application/sdp');
-                xhr.timeout = 15000;
-                xhr.onload = () => {
-                    if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.responseText);
-                    else reject(new Error(`Mux WHIP ${xhr.status}: ${xhr.responseText}`));
+            // Connect WebSocket
+            await new Promise((resolve, reject) => {
+                const ws = new WebSocket(wsUrl);
+                ws.binaryType = 'arraybuffer';
+                const timeout = setTimeout(() => { ws.close(); reject(new Error('Broadcast connection timed out')); }, 10000);
+                ws.onopen = () => console.log('[broadcast] WS connected');
+                ws.onmessage = (e) => {
+                    try {
+                        const msg = JSON.parse(e.data);
+                        if (msg.type === 'ready') { clearTimeout(timeout); resolve(ws); }
+                    } catch (_) {}
                 };
-                xhr.onerror = () => reject(new Error('WHIP request failed — network error'));
-                xhr.ontimeout = () => reject(new Error('WHIP request timed out'));
-                xhr.send(pc.localDescription.sdp);
-            });
+                ws.onerror = () => { clearTimeout(timeout); reject(new Error('Broadcast connection failed')); };
+                ws.onclose = (e) => { if (e.code !== 1000) clearTimeout(timeout); };
+            }).then(ws => { broadcastWsRef.current = ws; });
 
-            console.log('[WHIP] got answer, length:', answerSdp?.length);
-            await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+            // Pick best supported codec
+            const mimeType = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp9,opus', 'video/webm']
+                .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
 
-            // Monitor connection state in background — don't block going live on this
-            pc.addEventListener('connectionstatechange', () => {
-                console.log('[WHIP] connectionState:', pc.connectionState);
-                if (pc.connectionState === 'failed') {
-                    toast({ title: 'Stream Connection Lost', description: 'WebRTC connection failed — viewers may not see you.', variant: 'destructive' });
+            const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2500000 });
+            mediaRecorderRef.current = recorder;
+
+            recorder.ondataavailable = (e) => {
+                if (e.data?.size > 0 && broadcastWsRef.current?.readyState === WebSocket.OPEN) {
+                    e.data.arrayBuffer().then(buf => broadcastWsRef.current?.send(buf));
                 }
-            });
+            };
 
-            // Log bytes sent after 3s to confirm data is flowing to Mux
-            setTimeout(async () => {
-                if (!pcRef.current) return;
-                const stats = await pcRef.current.getStats().catch(() => null);
-                let sent = 0;
-                stats?.forEach(s => { if (s.type === 'outbound-rtp') sent += s.bytesSent || 0; });
-                console.log('[WHIP] bytes sent 3s after answer:', sent, '| connectionState:', pcRef.current?.connectionState);
-            }, 3000);
-
+            recorder.start(500); // send a chunk every 500ms
             return true;
         } catch (err) {
-            console.error('WHIP failed:', err);
+            console.error('[broadcast] failed:', err);
             toast({ title: 'Stream Connection Failed', description: err.message || 'Connection failed', variant: 'destructive' });
-            if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+            broadcastWsRef.current?.close();
+            broadcastWsRef.current = null;
             return false;
         }
     };
@@ -415,7 +395,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                 if (!cameraEnabled && !mediaStream) {
                     setUsingFallback(true);
                 } else if (mediaStream) {
-                    const ok = await startWhipStream(mediaStream);
+                    const ok = await startBrowserStream(mediaStream);
                     if (!ok) { setIsGoingLive(false); return; }
                 }
             }
@@ -437,7 +417,9 @@ const GoLivePage = ({ onLoginRequest }) => {
     const handleEndStream = async () => {
         setIsLive(false);
         setUsingFallback(false);
-        // Close WHIP peer connection
+        // Stop browser stream (MediaRecorder + WebSocket)
+        if (mediaRecorderRef.current) { try { mediaRecorderRef.current.stop(); } catch (_) {} mediaRecorderRef.current = null; }
+        if (broadcastWsRef.current) { broadcastWsRef.current.close(); broadcastWsRef.current = null; }
         if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
         stopMediaTracks();
         setCameraEnabled(false);
