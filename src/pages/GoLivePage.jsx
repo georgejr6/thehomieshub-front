@@ -6,7 +6,7 @@ import {
   Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff,
   MessageSquare, Radio, Share2, Copy, Check, Save,
   MonitorPlay, Laptop, AlertCircle, Signal, Info, HelpCircle,
-  Wifi, ShieldCheck, Globe, Loader2
+  Wifi, ShieldCheck, Globe, Loader2, Clock, ExternalLink
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -152,7 +152,11 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [description, setDescription] = useState('');
     const [notifyFollowers, setNotifyFollowers] = useState(true);
 
-    // On mount: check if there's already an active/idle stream and resume it
+    // History
+    const [liveHistory, setLiveHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    // On mount: check if there's already an active/idle stream and resume it, also load history
     useEffect(() => {
         const resume = async () => {
             try {
@@ -170,7 +174,16 @@ const GoLivePage = ({ onLoginRequest }) => {
                 if (s.streamMode === 'software') setStreamMethod('software');
             } catch (_) {}
         };
+        const fetchHistory = async () => {
+            setHistoryLoading(true);
+            try {
+                const { data } = await api.get('/live/history');
+                setLiveHistory(data?.result?.streams || []);
+            } catch (_) {}
+            finally { setHistoryLoading(false); }
+        };
         resume();
+        fetchHistory();
     }, []);
 
     // Attach stream to video element whenever mediaStream changes
@@ -807,7 +820,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                     {/* RIGHT PANEL: SIDEBAR */}
                     <div className="w-full lg:w-[400px] bg-card border-l flex flex-col h-[50vh] lg:h-auto border-t lg:border-t-0 shadow-xl z-10">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                            <TabsList className="grid w-full grid-cols-2 rounded-none h-14 border-b bg-background p-0">
+                            <TabsList className="grid w-full grid-cols-3 rounded-none h-14 border-b bg-background p-0">
                                 <TabsTrigger
                                     value="setup"
                                     className="rounded-none h-full data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-muted/50 transition-colors"
@@ -819,6 +832,12 @@ const GoLivePage = ({ onLoginRequest }) => {
                                     className="rounded-none h-full data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-muted/50 transition-colors"
                                 >
                                     Live Chat
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="history"
+                                    className="rounded-none h-full data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-muted/50 transition-colors"
+                                >
+                                    History
                                 </TabsTrigger>
                             </TabsList>
 
@@ -900,6 +919,69 @@ const GoLivePage = ({ onLoginRequest }) => {
                                         <h3 className="font-semibold text-lg mb-2">Chat is Offline</h3>
                                         <p className="text-sm max-w-[200px]">Save your stream info first to enable chat.</p>
                                     </div>
+                                )}
+                            </TabsContent>
+
+                            {/* HISTORY TAB */}
+                            <TabsContent value="history" className="flex-1 overflow-y-auto p-4 space-y-3">
+                                {historyLoading ? (
+                                    <div className="flex items-center justify-center py-12">
+                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                    </div>
+                                ) : liveHistory.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                                        <Clock className="h-10 w-10 mb-3 opacity-30" />
+                                        <p className="font-medium">No streams yet</p>
+                                        <p className="text-xs mt-1">Your past broadcasts will appear here.</p>
+                                    </div>
+                                ) : (
+                                    liveHistory.map((s) => (
+                                        <div key={s.id} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <p className="font-medium text-sm leading-snug line-clamp-2">{s.title}</p>
+                                                {s.status === 'active' ? (
+                                                    <span className="shrink-0 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded font-medium animate-pulse">LIVE</span>
+                                                ) : s.status === 'idle' ? (
+                                                    <span className="shrink-0 text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded font-medium">IDLE</span>
+                                                ) : (
+                                                    <span className="shrink-0 text-xs bg-muted text-muted-foreground border px-1.5 py-0.5 rounded">Ended</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                                <span>{new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                <span className="capitalize">{s.streamMode}</span>
+                                            </div>
+                                            {(s.status === 'active' || s.status === 'idle') && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="w-full h-8 text-xs"
+                                                    onClick={() => {
+                                                        setStreamData({ url: 'rtmps://global-live.mux.com:443/app', key: s.streamKey || streamData.key, whipUrl: '' });
+                                                        setLiveStreamId(s.id);
+                                                        setIsSaved(true);
+                                                        setTitle(s.title);
+                                                        setDescription(s.description || '');
+                                                        if (s.streamMode === 'software') setStreamMethod('software');
+                                                        setActiveTab('setup');
+                                                        toast({ title: 'Stream resumed', description: 'Ready to go live.' });
+                                                    }}
+                                                >
+                                                    Resume Stream
+                                                </Button>
+                                            )}
+                                            {s.status === 'disabled' && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="w-full h-8 text-xs text-muted-foreground"
+                                                    onClick={() => { setTitle(s.title); setDescription(s.description || ''); setActiveTab('setup'); }}
+                                                >
+                                                    Reuse Title
+                                                </Button>
+                                            )}
+                                        </div>
+                                    ))
                                 )}
                             </TabsContent>
                         </Tabs>
