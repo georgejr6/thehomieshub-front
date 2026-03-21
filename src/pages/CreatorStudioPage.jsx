@@ -3,21 +3,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  BarChart,
-  Upload,
-  Users,
-  DollarSign,
-  Settings,
-  Video,
-  Image as ImageIcon,
-  Trash2,
-  Clapperboard,
-  Loader2,
-  RefreshCcw,
+  BarChart, Upload, Users, DollarSign, Settings, Video,
+  Image as ImageIcon, Trash2, Clapperboard, Loader2, RefreshCcw,
+  Radio, MonitorPlay, Laptop, StopCircle, ExternalLink, Clock,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import MonetizationTab from '@/components/CreatorStudio/MonetizationTab';
 import { useAuth } from '@/contexts/AuthContext';
 import BackButton from '@/components/BackButton';
+import { useNavigate } from 'react-router-dom';
 import api from '@/api/homieshub';
 
 function safeArray(v) {
@@ -35,8 +29,39 @@ function fmtDate(d) {
 
 const CreatorStudioPage = ({ onLoginRequest }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Live tab state
+  const [liveHistory, setLiveHistory] = useState([]);
+  const [activeStream, setActiveStream] = useState(null);
+  const [loadingLive, setLoadingLive] = useState(false);
+  const [endingStreamId, setEndingStreamId] = useState(null);
+
+  const loadLiveData = async () => {
+    setLoadingLive(true);
+    try {
+      const [myStream, history] = await Promise.all([
+        api.get('/live/my-stream'),
+        api.get('/live/history'),
+      ]);
+      const s = myStream.data?.result?.stream;
+      setActiveStream(s && s.status !== 'disabled' ? s : null);
+      setLiveHistory(history.data?.result?.streams || []);
+    } catch (_) {}
+    finally { setLoadingLive(false); }
+  };
+
+  const handleEndStream = async (streamId) => {
+    if (!window.confirm('End this live stream?')) return;
+    setEndingStreamId(streamId);
+    try {
+      await api.delete(`/live/${streamId}`);
+      await loadLiveData();
+    } catch (_) {}
+    finally { setEndingStreamId(null); }
+  };
 
   // Content tab state
   const [contentCategory, setContentCategory] = useState('videos'); // videos | reels | posts
@@ -81,9 +106,8 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
   };
 
   useEffect(() => {
-    if (activeTab === 'content') {
-      loadMyContent();
-    }
+    if (activeTab === 'content') loadMyContent();
+    if (activeTab === 'live') loadLiveData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -178,10 +202,17 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
         </Button>
       </div>
 
-      <Tabs defaultValue="monetization" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:grid-cols-4 lg:w-[600px]">
+      <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 md:w-auto md:grid-cols-5 lg:w-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="live" className="flex items-center gap-1.5">
+            <Radio className="h-3.5 w-3.5" />
+            Live
+            {activeStream?.status === 'active' && (
+              <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+            )}
+          </TabsTrigger>
           <TabsTrigger value="monetization">Monetization</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
@@ -270,6 +301,112 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
         </TabsContent>
 
         {/* ✅ Content tab (new) */}
+        {/* ── LIVE TAB ── */}
+        <TabsContent value="live" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Live Streams</h2>
+              <p className="text-sm text-muted-foreground">Manage your active stream and view your history.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={loadLiveData} disabled={loadingLive}>
+                <RefreshCcw className={`h-4 w-4 ${loadingLive ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button onClick={() => navigate('/studio/stream')} className="gap-2">
+                <Radio className="h-4 w-4" /> Go Live
+              </Button>
+            </div>
+          </div>
+
+          {loadingLive ? (
+            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          ) : (
+            <>
+              {/* Active / Idle stream */}
+              {activeStream ? (
+                <Card className={activeStream.status === 'active' ? 'border-red-500/50 bg-red-500/5' : 'border-yellow-500/30 bg-yellow-500/5'}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          {activeStream.status === 'active' ? (
+                            <Badge className="bg-red-600 text-white animate-pulse">● LIVE</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-yellow-500 text-yellow-500">IDLE</Badge>
+                          )}
+                          <span className="font-bold text-lg">{activeStream.title || 'Untitled Stream'}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                          {activeStream.streamMode === 'browser' ? (
+                            <span className="flex items-center gap-1"><MonitorPlay className="h-3.5 w-3.5" /> Browser Stream</span>
+                          ) : (
+                            <span className="flex items-center gap-1"><Laptop className="h-3.5 w-3.5" /> Software Stream</span>
+                          )}
+                          {activeStream.status === 'active' && (
+                            <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {activeStream.viewerCount || 0} watching</span>
+                          )}
+                          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {fmtDate(activeStream.createdAt)}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button variant="outline" size="sm" onClick={() => navigate('/studio/stream')} className="gap-1.5">
+                          <ExternalLink className="h-3.5 w-3.5" /> Manage
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleEndStream(activeStream.id)}
+                          disabled={endingStreamId === activeStream.id}
+                          className="gap-1.5"
+                        >
+                          {endingStreamId === activeStream.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5" />}
+                          End Stream
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+              ) : (
+                <Card className="border-dashed">
+                  <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-4">
+                    <Radio className="h-10 w-10 text-muted-foreground/30" />
+                    <div>
+                      <p className="font-medium text-muted-foreground">No active stream</p>
+                      <p className="text-sm text-muted-foreground/60 mt-1">Start a new stream from the Go Live page</p>
+                    </div>
+                    <Button onClick={() => navigate('/studio/stream')} className="gap-2">
+                      <Radio className="h-4 w-4" /> Go Live Now
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Stream history */}
+              {liveHistory.filter(s => s.status === 'disabled').length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Past Streams</h3>
+                  <div className="space-y-2">
+                    {liveHistory.filter(s => s.status === 'disabled').map((s) => (
+                      <Card key={s.id} className="bg-muted/20">
+                        <CardContent className="py-3 px-4 flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{s.title || 'Untitled'}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                              {s.streamMode === 'browser' ? <MonitorPlay className="h-3 w-3" /> : <Laptop className="h-3 w-3" />}
+                              {fmtDate(s.createdAt)}
+                            </p>
+                          </div>
+                          <Badge variant="secondary" className="text-xs shrink-0">Ended</Badge>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </TabsContent>
+
         <TabsContent value="content" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

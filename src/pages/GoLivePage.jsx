@@ -152,6 +152,27 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [description, setDescription] = useState('');
     const [notifyFollowers, setNotifyFollowers] = useState(true);
 
+    // On mount: check if there's already an active/idle stream and resume it
+    useEffect(() => {
+        const resume = async () => {
+            try {
+                const { data } = await api.get('/live/my-stream');
+                const s = data?.result?.stream;
+                if (!s) return;
+                setStreamData({ url: 'rtmps://global-live.mux.com:443/app', key: s.streamKey || '', whipUrl: s.whipEndpointUrl || '' });
+                setLiveStreamId(s.id);
+                setIsSaved(true);
+                if (s.status === 'active') {
+                    setIsLive(true);
+                    setSoftwareStreamStatus('active');
+                    setSoftwarePlaybackId(s.playbackId || null);
+                }
+                if (s.streamMode === 'software') setStreamMethod('software');
+            } catch (_) {}
+        };
+        resume();
+    }, []);
+
     // Attach stream to video element whenever mediaStream changes
     useEffect(() => {
         if (videoRef.current && mediaStream) {
