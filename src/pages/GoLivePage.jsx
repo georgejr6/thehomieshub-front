@@ -737,8 +737,8 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                         </Tooltip>
                                                     </div>
                                                     <div className="flex gap-2">
-                                                        <Input readOnly value={streamData.url} className="bg-black/40 border-zinc-700 font-mono text-sm h-11" />
-                                                        <Button size="icon" variant="secondary" onClick={() => copyToClipboard(streamData.url)}>
+                                                        <Input readOnly value={streamData.url} placeholder="Save your stream to get RTMP URL" className="bg-black/40 border-zinc-700 font-mono text-sm h-11" />
+                                                        <Button size="icon" variant="secondary" onClick={() => copyToClipboard(streamData.url)} disabled={!streamData.url}>
                                                             <Copy className="h-4 w-4" />
                                                         </Button>
                                                     </div>
@@ -754,13 +754,14 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                         </button>
                                                     </div>
                                                     <div className="flex gap-2">
-                                                        <Input 
-                                                            type={showStreamKey ? "text" : "password"} 
-                                                            readOnly 
-                                                            value={streamData.key} 
-                                                            className="bg-black/40 border-zinc-700 font-mono text-sm h-11" 
+                                                        <Input
+                                                            type={showStreamKey ? "text" : "password"}
+                                                            readOnly
+                                                            value={streamData.key}
+                                                            placeholder="Save your stream to get stream key"
+                                                            className="bg-black/40 border-zinc-700 font-mono text-sm h-11"
                                                         />
-                                                        <Button size="icon" variant="secondary" onClick={() => copyToClipboard(streamData.key)}>
+                                                        <Button size="icon" variant="secondary" onClick={() => copyToClipboard(streamData.key)} disabled={!streamData.key}>
                                                             <Copy className="h-4 w-4" />
                                                         </Button>
                                                     </div>

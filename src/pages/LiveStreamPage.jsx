@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Heart, Gift, Share2, CheckCircle, Loader2, Radio, Users, ShieldX } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Heart, Gift, Share2, CheckCircle, Loader2, Radio, Users, ShieldX, StopCircle, Pencil, Settings } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
@@ -81,6 +83,15 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
 
+  // Owner controls
+  const isOwner = user && stream && user.username === stream.creator?.username;
+  const [isEndingStream, setIsEndingStream] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editThumbnail, setEditThumbnail] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   useEffect(() => {
     if (!username) return;
     const load = async () => {
@@ -125,6 +136,47 @@ const LiveStreamPage = ({ onLoginRequest }) => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
     toast({ title: 'Link copied!', description: 'Share it with your friends.' });
+  };
+
+  const handleEndStream = async () => {
+    if (!stream?.id) return;
+    if (!window.confirm('End your live stream?')) return;
+    setIsEndingStream(true);
+    try {
+      await api.delete(`/live/${stream.id}`);
+      toast({ title: 'Stream ended.' });
+      navigate('/studio');
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to end stream.', variant: 'destructive' });
+    } finally {
+      setIsEndingStream(false);
+    }
+  };
+
+  const openEdit = () => {
+    setEditTitle(stream?.title || '');
+    setEditDescription(stream?.description || '');
+    setEditThumbnail(stream?.thumbnailUrl || '');
+    setIsEditOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!stream?.id) return;
+    setIsSavingEdit(true);
+    try {
+      await api.patch(`/live/${stream.id}`, {
+        title: editTitle,
+        description: editDescription,
+        thumbnailUrl: editThumbnail,
+      });
+      setStream(prev => ({ ...prev, title: editTitle, description: editDescription, thumbnailUrl: editThumbnail }));
+      setIsEditOpen(false);
+      toast({ title: 'Stream updated.' });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to update stream.', variant: 'destructive' });
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   // Loading state
@@ -192,6 +244,65 @@ const LiveStreamPage = ({ onLoginRequest }) => {
               </div>
             </div>
           </div>
+
+          {/* Owner control bar */}
+          {isOwner && (
+            <div className="px-4 py-2 bg-zinc-900 border-t border-white/10 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/40 font-medium uppercase tracking-wide">Your Stream</span>
+                <Badge className="bg-red-600 text-white text-xs animate-pulse">● LIVE</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={openEdit} className="text-white/60 hover:text-white gap-1.5">
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => navigate('/studio')} className="text-white/60 hover:text-white gap-1.5">
+                  <Settings className="h-3.5 w-3.5" /> Studio
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleEndStream}
+                  disabled={isEndingStream}
+                  className="gap-1.5"
+                >
+                  {isEndingStream ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5" />}
+                  End Stream
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Edit stream dialog */}
+          <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Edit Stream</DialogTitle>
+                <DialogDescription>Update your stream info while live.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label>Title</Label>
+                  <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} maxLength={100} placeholder="Stream title" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Description</Label>
+                  <Textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} className="resize-none h-24" placeholder="What are you streaming?" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Thumbnail URL</Label>
+                  <Input value={editThumbnail} onChange={e => setEditThumbnail(e.target.value)} placeholder="https://..." />
+                  {editThumbnail && <img src={editThumbnail} alt="preview" className="w-full aspect-video object-cover rounded-md mt-1" />}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+                <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
+                  {isSavingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Changes'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Stream info bar */}
           <div className="p-4 border-t border-white/5 bg-[#111] shrink-0">
