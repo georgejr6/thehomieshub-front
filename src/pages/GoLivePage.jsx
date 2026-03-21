@@ -132,6 +132,7 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [softwareStreamStatus, setSoftwareStreamStatus] = useState('idle'); // 'idle' | 'active'
     const [softwarePlaybackId, setSoftwarePlaybackId] = useState(null);
     const pollRef = useRef(null);
+    const wentLiveRef = useRef(false);
 
     // Webcam State
     const videoRef = useRef(null);
@@ -216,11 +217,13 @@ const GoLivePage = ({ onLoginRequest }) => {
                 if (!s) return;
                 setSoftwareStreamStatus(s.status);
                 setSoftwarePlaybackId(s.playbackId || null);
-                if (s.status === 'active' && !isLive) {
+                if (s.status === 'active' && !wentLiveRef.current) {
+                    wentLiveRef.current = true;
                     setIsLive(true);
-                    toast({ title: '🔴 You are Live!', description: 'Restream connected. Your stream is live.', className: 'bg-red-600 text-white border-none' });
+                    toast({ title: '🔴 You are Live!', description: 'Restream connected. Your stream is live.', className: 'bg-red-600 text-white border-none', duration: 10000 });
                 }
-                if (s.status === 'idle' && isLive) {
+                if (s.status === 'idle' && wentLiveRef.current) {
+                    wentLiveRef.current = false;
                     setIsLive(false);
                     toast({ title: 'Stream Disconnected', description: 'Restream stopped sending video.' });
                 }
@@ -304,14 +307,10 @@ const GoLivePage = ({ onLoginRequest }) => {
     };
 
     const handleSaveInfo = async () => {
-        if (!title.trim()) {
-            toast({ title: "Title Required", description: "Please enter a stream title.", variant: "destructive" });
-            return;
-        }
         setIsCreatingStream(true);
         try {
             const streamMode = streamMethod === 'webcam' ? 'browser' : 'software';
-            const { data } = await api.post('/live/create', { title: title.trim(), description, streamMode });
+            const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode });
             if (data.status) {
                 setStreamData({
                     url: data.result.rtmpUrl,
@@ -871,7 +870,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                                 <div className="space-y-4">
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
-                                            <Label htmlFor="title">Title <span className="text-red-500">*</span></Label>
+                                            <Label htmlFor="title">Title <span className="text-muted-foreground text-xs">(optional)</span></Label>
                                             <span className="text-xs text-muted-foreground">{title.length}/100</span>
                                         </div>
                                         <Input 
@@ -918,7 +917,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                                         {isCreatingStream ? <span className="flex items-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Creating Stream...</span> : isSaved ? <span className="flex items-center gap-2"><Check className="h-5 w-5" /> Saved</span> : "Save Stream Info"}
                                     </Button>
                                     <p className="text-xs text-center text-muted-foreground mt-4">
-                                        You must save your stream info before the <br/> "Go Live" button becomes active.
+                                        Title is optional — defaults to "@username is live"
                                     </p>
                                 </div>
                             </TabsContent>
