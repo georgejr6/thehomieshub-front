@@ -6,9 +6,8 @@ import {
   Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff,
   MessageSquare, Radio, Share2, Copy, Check, Save,
   MonitorPlay, Laptop, AlertCircle, Signal, Info, HelpCircle,
-  Wifi, ShieldCheck, Globe, Loader2, ChevronDown
+  Wifi, ShieldCheck, Globe, Loader2
 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -152,7 +151,15 @@ const GoLivePage = ({ onLoginRequest }) => {
         if (videoRef.current && mediaStream) {
             videoRef.current.srcObject = mediaStream;
         }
-    }, [mediaStream]);
+    }, [mediaStream, cameraEnabled]);
+
+    // Auto-start camera when in webcam mode
+    useEffect(() => {
+        if (streamMethod === 'webcam') {
+            toggleCamera();
+        }
+        return () => stopMediaTracks();
+    }, []);
 
     // Auto-switch to chat tab when going live
     useEffect(() => {
@@ -500,20 +507,19 @@ const GoLivePage = ({ onLoginRequest }) => {
                                         )}
 
                                         {/* Camera selector */}
-                                        {videoDevices.length > 1 && (
+                                        {videoDevices.length > 0 && (
                                             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-                                                <Select value={selectedDeviceId} onValueChange={switchCamera}>
-                                                    <SelectTrigger className="h-8 text-xs bg-black/60 border-white/20 text-white backdrop-blur-sm w-48">
-                                                        <SelectValue placeholder="Select camera" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {videoDevices.map(d => (
-                                                            <SelectItem key={d.deviceId} value={d.deviceId}>
-                                                                {d.label || `Camera ${videoDevices.indexOf(d) + 1}`}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                <select
+                                                    value={selectedDeviceId}
+                                                    onChange={(e) => switchCamera(e.target.value)}
+                                                    className="h-8 text-xs bg-black/70 border border-white/20 text-white rounded px-2 backdrop-blur-sm"
+                                                >
+                                                    {videoDevices.map((d, i) => (
+                                                        <option key={d.deviceId} value={d.deviceId}>
+                                                            {d.label || `Camera ${i + 1}`}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         )}
 
