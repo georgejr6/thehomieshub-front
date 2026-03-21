@@ -377,6 +377,29 @@ const GoLivePage = ({ onLoginRequest }) => {
 
             const answerSdp = await resp.text();
             await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+            // Wait for actual WebRTC media connection — SDP exchange alone doesn't mean data flows
+            await new Promise((resolve, reject) => {
+                if (pc.connectionState === 'connected') { resolve(); return; }
+                if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                    reject(new Error(`WebRTC connection ${pc.connectionState}`)); return;
+                }
+                const check = () => {
+                    if (pc.connectionState === 'connected') {
+                        pc.removeEventListener('connectionstatechange', check);
+                        resolve();
+                    } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                        pc.removeEventListener('connectionstatechange', check);
+                        reject(new Error(`WebRTC connection ${pc.connectionState}`));
+                    }
+                };
+                pc.addEventListener('connectionstatechange', check);
+                setTimeout(() => {
+                    pc.removeEventListener('connectionstatechange', check);
+                    reject(new Error('WebRTC connection timed out — check your camera/network and try again'));
+                }, 15000);
+            });
+
             return true;
         } catch (err) {
             console.error('WHIP failed:', err);
