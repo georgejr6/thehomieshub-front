@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useWager } from '@/contexts/WagerContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 import { formatAlgo } from '@/lib/algorand';
 
 const WAGER_TYPES = [
@@ -69,6 +70,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
   const { createWager } = useWager();
   const { connectedWallet } = useWallet();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const selectedType = WAGER_TYPES.find((t) => t.id === form.type);
   const feePercent = selectedType?.defaultFee ?? 3;
@@ -95,6 +97,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
     if (!connectedWallet) return;
     setIsSubmitting(true);
     try {
+      const expiresAt = new Date(Date.now() + Number(form.expiryDays) * 24 * 60 * 60 * 1000).toISOString();
       await createWager({
         type: form.type,
         bettingMode: form.bettingMode,
@@ -102,17 +105,19 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
         terms: form.terms,
         outcomeOptions: form.outcomeOptions,
         resolutionMethod: form.resolution,
+        feePercent,
         arbiterAddress: form.arbiterAddress || undefined,
         stakeAmount: Number(form.amount),
         minStake: form.bettingMode === 'POOL' ? Number(form.minStake) : Number(form.amount),
         challengedUsername: form.bettingMode === 'P2P' ? form.challengedUsername || undefined : undefined,
-        expiryDays: Number(form.expiryDays),
+        expiresAt,
         creatorAddress: connectedWallet.address,
       });
       onOpenChange(false);
       resetForm();
     } catch (err) {
       console.error(err);
+      toast({ title: 'Failed to create wager', description: err?.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
@@ -284,7 +289,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                   {isP2P && (
                     <>
                       <div className="space-y-1.5">
-                        <Label className="text-white text-sm">Your Stake (ALGO) — opponent matches this exactly</Label>
+                        <Label className="text-white text-sm">Your Stake (USDC) — opponent matches this exactly</Label>
                         <div className="relative">
                           <Input
                             type="number" min="0.1" step="0.1"
@@ -293,7 +298,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                             placeholder="0.00"
                             className="bg-zinc-900 border-white/10 text-white text-xl font-bold pr-20 focus:border-primary/50"
                           />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">ALGO</span>
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">USDC</span>
                         </div>
                         <div className="flex gap-2 mt-2">
                           {[1, 5, 10, 25].map((v) => (
@@ -317,15 +322,15 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-zinc-900 border border-white/10 space-y-2 text-sm">
                           <div className="flex justify-between text-muted-foreground">
                             <span>Total pot (you + opponent)</span>
-                            <span className="text-white font-medium">{formatAlgo(Number(form.amount) * 2)}</span>
+                            <span className="text-white font-medium">${(Number(form.amount) * 2).toFixed(2)} USDC</span>
                           </div>
                           <div className="flex justify-between text-muted-foreground">
                             <span>Platform fee ({feePercent}%)</span>
-                            <span className="text-white">{platformFee} ALGO</span>
+                            <span className="text-white">${platformFee} USDC</span>
                           </div>
                           <div className="flex justify-between border-t border-white/10 pt-2 font-bold">
                             <span className="text-white">Winner receives</span>
-                            <span className="text-primary">{potAfterFee} ALGO</span>
+                            <span className="text-primary">${potAfterFee} USDC</span>
                           </div>
                         </motion.div>
                       )}
@@ -336,7 +341,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                   {!isP2P && (
                     <>
                       <div className="space-y-1.5">
-                        <Label className="text-white text-sm">Your Stake (ALGO)</Label>
+                        <Label className="text-white text-sm">Your Stake (USDC)</Label>
                         <div className="relative">
                           <Input
                             type="number" min="0.1" step="0.1"
@@ -345,7 +350,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                             placeholder="0.00"
                             className="bg-zinc-900 border-white/10 text-white text-xl font-bold pr-20 focus:border-primary/50"
                           />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">ALGO</span>
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">USDC</span>
                         </div>
                         <div className="flex gap-2 mt-2">
                           {[1, 5, 10, 25].map((v) => (
@@ -355,7 +360,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label className="text-white text-sm">Minimum stake per participant (ALGO)</Label>
+                        <Label className="text-white text-sm">Minimum stake per participant (USDC)</Label>
                         <div className="relative">
                           <Input
                             type="number" min="0.1" step="0.1"
@@ -364,7 +369,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                             placeholder="0.10"
                             className="bg-zinc-900 border-white/10 text-white text-lg font-bold pr-20 focus:border-primary/50"
                           />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">ALGO</span>
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">USDC</span>
                         </div>
                         <p className="text-[10px] text-muted-foreground">Participants can bet more than this. Winnings are split proportionally to each winner's stake.</p>
                       </div>
@@ -373,11 +378,11 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-zinc-900 border border-green-500/20 space-y-2 text-sm">
                           <div className="flex justify-between text-muted-foreground">
                             <span>Starting pot (your stake)</span>
-                            <span className="text-white font-medium">{formatAlgo(Number(form.amount))}</span>
+                            <span className="text-white font-medium">${Number(form.amount).toFixed(2)} USDC</span>
                           </div>
                           <div className="flex justify-between text-muted-foreground">
                             <span>Platform fee ({feePercent}%)</span>
-                            <span className="text-white">{platformFee} ALGO</span>
+                            <span className="text-white">${platformFee} USDC</span>
                           </div>
                           <div className="flex justify-between border-t border-white/10 pt-2">
                             <span className="text-muted-foreground">Payout split</span>
@@ -434,7 +439,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Your stake</span>
-                      <span className="text-primary font-bold">{formatAlgo(Number(form.amount))}</span>
+                      <span className="text-primary font-bold">${Number(form.amount).toFixed(2)} USDC</span>
                     </div>
                     {isP2P && form.challengedUsername && (
                       <div className="flex justify-between">
@@ -445,7 +450,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                     {!isP2P && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Min stake / participant</span>
-                        <span className="text-white font-medium">{formatAlgo(Number(form.minStake))}</span>
+                        <span className="text-white font-medium">${Number(form.minStake).toFixed(2)} USDC</span>
                       </div>
                     )}
                     <div className="flex justify-between">
@@ -458,7 +463,7 @@ const CreateWagerModal = ({ isOpen, onOpenChange }) => {
                     </div>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    By creating this wager, {formatAlgo(Number(form.amount))} will be locked in escrow on Algorand. Funds are only released on resolution.
+                    By creating this wager, ${Number(form.amount).toFixed(2)} USDC will be locked in escrow on Algorand. Funds are only released on resolution.
                     The platform fee is taken from the total pot on settlement.
                   </p>
                 </div>
