@@ -345,17 +345,7 @@ const GoLivePage = ({ onLoginRequest }) => {
             });
             pcRef.current = pc;
 
-            // Add tracks — prefer H.264 for Mux compatibility
             stream.getTracks().forEach(t => pc.addTrack(t, stream));
-            if (RTCRtpSender.getCapabilities) {
-                pc.getTransceivers().forEach(tc => {
-                    if (tc.sender.track?.kind === 'video') {
-                        const caps = RTCRtpSender.getCapabilities('video')?.codecs || [];
-                        const h264 = caps.filter(c => c.mimeType === 'video/H264');
-                        if (h264.length) try { tc.setCodecPreferences([...h264, ...caps.filter(c => c.mimeType !== 'video/H264')]); } catch (_) {}
-                    }
-                });
-            }
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
@@ -370,26 +360,22 @@ const GoLivePage = ({ onLoginRequest }) => {
 
             console.log('[WHIP] posting SDP, candidates:', (pc.localDescription.sdp.match(/a=candidate:/g) || []).length);
 
-            // POST with 15s timeout
-            const abort = new AbortController();
-            const fetchTimer = setTimeout(() => abort.abort(), 15000);
-            let resp;
-            try {
-                resp = await fetch(streamData.whipUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/sdp' },
-                    body: pc.localDescription.sdp,
-                    signal: abort.signal,
-                });
-            } finally {
-                clearTimeout(fetchTimer);
-            }
-            if (!resp.ok) {
-                const e = await resp.text().catch(() => resp.statusText);
-                throw new Error(`Mux WHIP ${resp.status}: ${e}`);
-            }
+            // Use XHR instead of fetch — MuxPlayer's service worker intercepts fetch()
+            // causing ERR_EMPTY_RESPONSE on cross-origin SDP posts. XHR bypasses it.
+            const answerSdp = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', streamData.whipUrl);
+                xhr.setRequestHeader('Content-Type', 'application/sdp');
+                xhr.timeout = 15000;
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.responseText);
+                    else reject(new Error(`Mux WHIP ${xhr.status}: ${xhr.responseText}`));
+                };
+                xhr.onerror = () => reject(new Error('WHIP request failed — network error'));
+                xhr.ontimeout = () => reject(new Error('WHIP request timed out'));
+                xhr.send(pc.localDescription.sdp);
+            });
 
-            const answerSdp = await resp.text();
             console.log('[WHIP] got answer, length:', answerSdp?.length);
             await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
