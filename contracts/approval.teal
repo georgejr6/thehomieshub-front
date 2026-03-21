@@ -1,0 +1,515 @@
+#pragma version 9
+txn ApplicationID
+int 0
+==
+bnz main_l38
+txn OnCompletion
+int OptIn
+==
+bnz main_l37
+txna ApplicationArgs 0
+byte "join"
+==
+bnz main_l23
+txna ApplicationArgs 0
+byte "resolve"
+==
+bnz main_l22
+txna ApplicationArgs 0
+byte "claim"
+==
+bnz main_l12
+txna ApplicationArgs 0
+byte "refund"
+==
+bnz main_l11
+txna ApplicationArgs 0
+byte "dispute"
+==
+bnz main_l10
+txna ApplicationArgs 0
+byte "asset_optin"
+==
+bnz main_l9
+err
+main_l9:
+txn Sender
+byte "creator"
+app_global_get
+==
+assert
+itxn_begin
+int axfer
+itxn_field TypeEnum
+int 10458941
+itxn_field XferAsset
+global CurrentApplicationAddress
+itxn_field AssetReceiver
+int 0
+itxn_field AssetAmount
+int 0
+itxn_field Fee
+itxn_submit
+int 1
+return
+main_l10:
+byte "status"
+app_global_get
+byte "ACTIVE"
+==
+byte "status"
+app_global_get
+byte "OPEN"
+==
+||
+assert
+txn Sender
+byte "amount"
+app_local_get
+int 0
+>
+assert
+byte "status"
+byte "DISPUTED"
+app_global_put
+int 1
+return
+main_l11:
+global LatestTimestamp
+byte "expires_at"
+app_global_get
+>=
+byte "status"
+app_global_get
+byte "EXPIRED"
+==
+||
+assert
+byte "status"
+app_global_get
+byte "RESOLVED"
+!=
+assert
+txn Sender
+byte "claimed"
+app_local_get
+int 0
+==
+assert
+txn Sender
+byte "amount"
+app_local_get
+int 0
+>
+assert
+byte "status"
+byte "EXPIRED"
+app_global_put
+itxn_begin
+int axfer
+itxn_field TypeEnum
+int 10458941
+itxn_field XferAsset
+txn Sender
+itxn_field AssetReceiver
+txn Sender
+byte "amount"
+app_local_get
+itxn_field AssetAmount
+int 0
+itxn_field Fee
+itxn_submit
+txn Sender
+byte "claimed"
+int 1
+app_local_put
+int 1
+return
+main_l12:
+byte "status"
+app_global_get
+byte "RESOLVED"
+==
+assert
+txn Sender
+byte "claimed"
+app_local_get
+int 0
+==
+assert
+txn Sender
+byte "side"
+app_local_get
+byte "winner"
+app_global_get
+==
+assert
+itxn_begin
+int axfer
+itxn_field TypeEnum
+int 10458941
+itxn_field XferAsset
+txn Sender
+itxn_field AssetReceiver
+txn Sender
+byte "amount"
+app_local_get
+byte "total_pot"
+app_global_get
+byte "total_pot"
+app_global_get
+byte "fee_bps"
+app_global_get
+*
+int 10000
+/
+-
+*
+byte "winner"
+app_global_get
+int 0
+==
+bnz main_l21
+byte "winner"
+app_global_get
+int 1
+==
+bnz main_l20
+byte "winner"
+app_global_get
+int 2
+==
+bnz main_l19
+byte "winner"
+app_global_get
+int 3
+==
+bnz main_l17
+err
+main_l17:
+byte "out_3"
+app_global_get
+main_l18:
+/
+itxn_field AssetAmount
+int 0
+itxn_field Fee
+itxn_submit
+txn Sender
+byte "claimed"
+int 1
+app_local_put
+int 1
+return
+main_l19:
+byte "out_2"
+app_global_get
+b main_l18
+main_l20:
+byte "out_1"
+app_global_get
+b main_l18
+main_l21:
+byte "out_0"
+app_global_get
+b main_l18
+main_l22:
+byte "status"
+app_global_get
+byte "OPEN"
+==
+byte "status"
+app_global_get
+byte "ACTIVE"
+==
+||
+byte "status"
+app_global_get
+byte "DISPUTED"
+==
+||
+assert
+txn Sender
+byte "arbiter"
+app_global_get
+==
+assert
+txna ApplicationArgs 1
+btoi
+byte "num_outcomes"
+app_global_get
+<
+assert
+byte "winner"
+txna ApplicationArgs 1
+btoi
+app_global_put
+byte "status"
+byte "RESOLVED"
+app_global_put
+itxn_begin
+int axfer
+itxn_field TypeEnum
+int 10458941
+itxn_field XferAsset
+addr ZHKTZUB7T7IDPUWN3EFJIMTPM5GYAFEQXBBOGZQWC4MUFWYCVDDXYPVR6Q
+itxn_field AssetReceiver
+byte "total_pot"
+app_global_get
+byte "fee_bps"
+app_global_get
+*
+int 10000
+/
+itxn_field AssetAmount
+int 0
+itxn_field Fee
+itxn_submit
+int 1
+return
+main_l23:
+byte "status"
+app_global_get
+byte "OPEN"
+==
+assert
+global LatestTimestamp
+byte "expires_at"
+app_global_get
+<
+assert
+txna ApplicationArgs 1
+btoi
+byte "num_outcomes"
+app_global_get
+<
+assert
+txn GroupIndex
+int 1
+-
+gtxns TypeEnum
+int axfer
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns XferAsset
+int 10458941
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns AssetReceiver
+global CurrentApplicationAddress
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns AssetAmount
+int 0
+>
+assert
+byte "mode"
+app_global_get
+byte "P2P"
+==
+bnz main_l36
+main_l24:
+txn Sender
+byte "side"
+txna ApplicationArgs 1
+btoi
+app_local_put
+txn Sender
+byte "amount"
+txn GroupIndex
+int 1
+-
+gtxns AssetAmount
+app_local_put
+txna ApplicationArgs 1
+btoi
+int 0
+==
+bnz main_l35
+txna ApplicationArgs 1
+btoi
+int 1
+==
+bnz main_l34
+txna ApplicationArgs 1
+btoi
+int 2
+==
+bnz main_l33
+txna ApplicationArgs 1
+btoi
+int 3
+==
+bnz main_l29
+err
+main_l29:
+byte "out_3"
+byte "out_3"
+app_global_get
+txn GroupIndex
+int 1
+-
+gtxns AssetAmount
++
+app_global_put
+main_l30:
+byte "total_pot"
+byte "total_pot"
+app_global_get
+txn GroupIndex
+int 1
+-
+gtxns AssetAmount
++
+app_global_put
+byte "total_pot"
+app_global_get
+byte "stake_amt"
+app_global_get
+int 2
+*
+>=
+bnz main_l32
+main_l31:
+int 1
+return
+main_l32:
+byte "status"
+byte "ACTIVE"
+app_global_put
+b main_l31
+main_l33:
+byte "out_2"
+byte "out_2"
+app_global_get
+txn GroupIndex
+int 1
+-
+gtxns AssetAmount
++
+app_global_put
+b main_l30
+main_l34:
+byte "out_1"
+byte "out_1"
+app_global_get
+txn GroupIndex
+int 1
+-
+gtxns AssetAmount
++
+app_global_put
+b main_l30
+main_l35:
+byte "out_0"
+byte "out_0"
+app_global_get
+txn GroupIndex
+int 1
+-
+gtxns AssetAmount
++
+app_global_put
+b main_l30
+main_l36:
+txn GroupIndex
+int 1
+-
+gtxns AssetAmount
+byte "stake_amt"
+app_global_get
+==
+assert
+b main_l24
+main_l37:
+byte "status"
+app_global_get
+byte "OPEN"
+==
+byte "status"
+app_global_get
+byte "ACTIVE"
+==
+||
+assert
+global LatestTimestamp
+byte "expires_at"
+app_global_get
+<
+assert
+txn Sender
+byte "side"
+int 0
+app_local_put
+txn Sender
+byte "amount"
+int 0
+app_local_put
+txn Sender
+byte "claimed"
+int 0
+app_local_put
+int 1
+return
+main_l38:
+txn NumAppArgs
+int 5
+==
+assert
+byte "creator"
+txn Sender
+app_global_put
+byte "arbiter"
+addr ZHKTZUB7T7IDPUWN3EFJIMTPM5GYAFEQXBBOGZQWC4MUFWYCVDDXYPVR6Q
+app_global_put
+byte "expires_at"
+txna ApplicationArgs 0
+btoi
+app_global_put
+byte "mode"
+txna ApplicationArgs 1
+app_global_put
+byte "fee_bps"
+txna ApplicationArgs 2
+btoi
+app_global_put
+byte "stake_amt"
+txna ApplicationArgs 3
+btoi
+app_global_put
+byte "num_outcomes"
+txna ApplicationArgs 4
+btoi
+app_global_put
+byte "status"
+byte "OPEN"
+app_global_put
+byte "total_pot"
+int 0
+app_global_put
+byte "out_0"
+int 0
+app_global_put
+byte "out_1"
+int 0
+app_global_put
+byte "out_2"
+int 0
+app_global_put
+byte "out_3"
+int 0
+app_global_put
+byte "winner"
+int 0
+app_global_put
+int 1
+return

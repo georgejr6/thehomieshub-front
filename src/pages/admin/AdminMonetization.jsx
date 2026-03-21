@@ -1,377 +1,257 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    Check, 
-    X, 
-    AlertTriangle, 
-    Search, 
-    Loader2, 
-    Calendar, 
-    FileText, 
-    MoreHorizontal,
-    DollarSign
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Check, X, Search, Loader2, Calendar, DollarSign, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import api from '@/api/homieshub';
+
+const statusBadge = (status) => {
+  if (status === 'approved') return <Badge className="bg-green-500 hover:bg-green-600">Approved</Badge>;
+  if (status === 'rejected') return <Badge variant="destructive">Rejected</Badge>;
+  return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Pending</Badge>;
+};
 
 const AdminMonetization = () => {
-    const { toast } = useToast();
-    const [applications, setApplications] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [filterStatus, setFilterStatus] = useState("pending");
-    
-    // Rejection Modal State
-    const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-    const [selectedApplicant, setSelectedApplicant] = useState(null);
-    const [rejectionReason, setRejectionReason] = useState("");
-    const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('pending');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 20;
 
-    // Simulated API: GET /api/admin/monetization/pending
-    useEffect(() => {
-        const fetchApplications = async () => {
-            setLoading(true);
-            // Simulate network delay
-            await new Promise(resolve => setTimeout(resolve, 1000));
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [selectedApp, setSelectedApp] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-            // Mock Data
-            const mockData = [
-                {
-                    id: 'app_1',
-                    user: {
-                        id: 'u_101',
-                        username: 'fitness_guru',
-                        email: 'sarah@fitness.com',
-                        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=faces',
-                        postsCount: 142,
-                        joinedDate: '2023-04-12'
-                    },
-                    status: 'pending',
-                    submittedAt: '2025-12-01',
-                    flags: []
-                },
-                {
-                    id: 'app_2',
-                    user: {
-                        id: 'u_102',
-                        username: 'crypto_king',
-                        email: 'invest@crypto.net',
-                        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=faces',
-                        postsCount: 23,
-                        joinedDate: '2023-11-05'
-                    },
-                    status: 'pending',
-                    submittedAt: '2025-12-02',
-                    flags: ['High Risk Content', 'Multiple Reports']
-                },
-                {
-                    id: 'app_3',
-                    user: {
-                        id: 'u_103',
-                        username: 'travel_vlogs',
-                        email: 'mike@travel.com',
-                        avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=150&h=150&fit=crop&crop=faces',
-                        postsCount: 89,
-                        joinedDate: '2023-01-20'
-                    },
-                    status: 'approved',
-                    submittedAt: '2025-11-15',
-                    flags: []
-                },
-                {
-                    id: 'app_4',
-                    user: {
-                        id: 'u_104',
-                        username: 'newbie_gamer',
-                        email: 'game@play.com',
-                        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=faces',
-                        postsCount: 2,
-                        joinedDate: '2025-11-30'
-                    },
-                    status: 'rejected',
-                    submittedAt: '2025-12-01',
-                    flags: ['Insufficient Content']
-                }
-            ];
+  const loadApplications = useCallback(async (status = filterStatus, p = page) => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/admin/monetization', { params: { status, page: p, limit } });
+      if (data.status) {
+        setApplications(data.result.items || []);
+        setTotal(data.result.pagination?.total || 0);
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to load applications.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [filterStatus, page]);
 
-            setApplications(mockData);
-            setLoading(false);
-        };
+  useEffect(() => {
+    loadApplications(filterStatus, 1);
+    setPage(1);
+  }, [filterStatus]);
 
-        fetchApplications();
-    }, []);
+  const handleApprove = async (app) => {
+    setIsProcessing(true);
+    try {
+      const { data } = await api.post(`/admin/monetization/${app._id}/approve`);
+      if (data.status) {
+        setApplications((prev) => prev.filter((a) => a._id !== app._id));
+        toast({ title: 'Creator Approved', description: `@${app.user?.username} is now a creator.`, className: 'bg-green-600 text-white border-none' });
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to approve.', variant: 'destructive' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-    const handleApprove = async (appId) => {
-        setIsProcessing(true);
-        // Simulated API: PATCH /api/admin/monetization/approve/:userId
-        try {
-            await new Promise(resolve => setTimeout(resolve, 800));
-            
-            setApplications(prev => prev.map(app => 
-                app.id === appId ? { ...app, status: 'approved' } : app
-            ));
+  const handleConfirmReject = async () => {
+    if (!selectedApp) return;
+    setIsProcessing(true);
+    try {
+      const { data } = await api.post(`/admin/monetization/${selectedApp._id}/reject`, { reason: rejectionReason });
+      if (data.status) {
+        setApplications((prev) => prev.filter((a) => a._id !== selectedApp._id));
+        toast({ title: 'Application Rejected', description: `@${selectedApp.user?.username} notified.` });
+        setRejectDialogOpen(false);
+        setSelectedApp(null);
+        setRejectionReason('');
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to reject.', variant: 'destructive' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-            toast({
-                title: "Creator Approved",
-                description: "Monetization features enabled for this user.",
-                className: "bg-green-600 text-white border-none"
-            });
-        } catch (error) {
-            toast({
-                title: "Action Failed",
-                description: "Could not approve application.",
-                variant: "destructive"
-            });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
+  const filtered = applications.filter((app) => {
+    const q = searchTerm.toLowerCase();
+    return app.user?.username?.toLowerCase().includes(q) || app.user?.email?.toLowerCase().includes(q);
+  });
 
-    const initiateReject = (app) => {
-        setSelectedApplicant(app);
-        setRejectionReason("");
-        setRejectDialogOpen(true);
-    };
+  const totalPages = Math.ceil(total / limit);
 
-    const handleConfirmReject = async () => {
-        if (!selectedApplicant) return;
-        
-        setIsProcessing(true);
-        // Simulated API: PATCH /api/admin/monetization/reject/:userId
-        try {
-            await new Promise(resolve => setTimeout(resolve, 800));
-            
-            setApplications(prev => prev.map(app => 
-                app.id === selectedApplicant.id ? { ...app, status: 'rejected' } : app
-            ));
+  return (
+    <div className="space-y-6 p-4 md:p-8">
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
+          <DollarSign className="h-8 w-8 text-primary" />
+          Creator Monetization
+        </h1>
+        <p className="text-muted-foreground mt-1">Review and manage creator applications.</p>
+      </header>
 
-            toast({
-                title: "Creator Rejected",
-                description: "Application rejected and user notified.",
-            });
-            setRejectDialogOpen(false);
-        } catch (error) {
-             toast({
-                title: "Action Failed",
-                description: "Could not reject application.",
-                variant: "destructive"
-            });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const filteredApplications = applications.filter(app => {
-        const matchesSearch = 
-            app.user.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            app.user.email.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = app.status === filterStatus;
-        return matchesSearch && matchesStatus;
-    });
-
-    const getStatusBadge = (status) => {
-        switch(status) {
-            case 'approved': return <Badge className="bg-green-500 hover:bg-green-600">Approved</Badge>;
-            case 'rejected': return <Badge variant="destructive">Rejected</Badge>;
-            default: return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Pending Review</Badge>;
-        }
-    };
-
-    return (
-        <div className="space-y-6 p-4 md:p-8">
-            <header>
-                <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                    <DollarSign className="h-8 w-8 text-primary" />
-                    Monetization Requests
-                </h1>
-                <p className="text-muted-foreground mt-1">Review and manage creator applications for the partner program.</p>
-            </header>
-
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <Tabs value={filterStatus} onValueChange={setFilterStatus} className="w-full sm:w-auto">
-                    <TabsList>
-                        <TabsTrigger value="pending">Pending</TabsTrigger>
-                        <TabsTrigger value="approved">Approved</TabsTrigger>
-                        <TabsTrigger value="rejected">Rejected</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-
-                <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                        placeholder="Search creators..." 
-                        className="pl-10" 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
+      <Tabs value={filterStatus} onValueChange={setFilterStatus}>
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="pending">Pending</TabsTrigger>
+            <TabsTrigger value="approved">Approved</TabsTrigger>
+            <TabsTrigger value="rejected">Rejected</TabsTrigger>
+          </TabsList>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search applicants..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-
-            <Card>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Creator</TableHead>
-                                <TableHead>Stats</TableHead>
-                                <TableHead>Submitted</TableHead>
-                                <TableHead>Risk Analysis</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">
-                                        <div className="flex justify-center items-center gap-2">
-                                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                                            <span className="text-muted-foreground">Loading requests...</span>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ) : filteredApplications.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                                        No {filterStatus} applications found.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                filteredApplications.map((app) => (
-                                    <TableRow key={app.id}>
-                                        <TableCell>
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="h-9 w-9 border">
-                                                    <AvatarImage src={app.user.avatar} />
-                                                    <AvatarFallback>{app.user.username.charAt(0).toUpperCase()}</AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <div className="font-medium">{app.user.username}</div>
-                                                    <div className="text-xs text-muted-foreground">{app.user.email}</div>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col text-sm">
-                                                <span className="flex items-center gap-1 text-muted-foreground">
-                                                    <FileText className="h-3 w-3" /> {app.user.postsCount} posts
-                                                </span>
-                                                <span className="flex items-center gap-1 text-muted-foreground text-xs">
-                                                    <Calendar className="h-3 w-3" /> Joined {new Date(app.user.joinedDate).toLocaleDateString()}
-                                                </span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground">
-                                            {new Date(app.submittedAt).toLocaleDateString()}
-                                        </TableCell>
-                                        <TableCell>
-                                            {app.flags && app.flags.length > 0 ? (
-                                                <div className="flex flex-col gap-1">
-                                                    {app.flags.map((flag, idx) => (
-                                                        <Badge key={idx} variant="outline" className="w-fit border-red-200 text-red-600 bg-red-50 flex gap-1 items-center text-[10px] py-0">
-                                                            <AlertTriangle className="h-3 w-3" /> {flag}
-                                                        </Badge>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-green-600 flex items-center gap-1">
-                                                    <Check className="h-3 w-3" /> Clean
-                                                </span>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {getStatusBadge(app.status)}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {app.status === 'pending' ? (
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button 
-                                                        size="sm" 
-                                                        className="bg-green-600 hover:bg-green-700 h-8"
-                                                        onClick={() => handleApprove(app.id)}
-                                                        disabled={isProcessing}
-                                                    >
-                                                        <Check className="h-4 w-4 mr-1" /> Approve
-                                                    </Button>
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="destructive"
-                                                        className="h-8"
-                                                        onClick={() => initiateReject(app)}
-                                                        disabled={isProcessing}
-                                                    >
-                                                        <X className="h-4 w-4 mr-1" /> Reject
-                                                    </Button>
-                                                </div>
-                                            ) : (
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" className="h-8 w-8 p-0">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem onClick={() => toast({ title: "Not implemented", description: "View details coming soon" })}>
-                                                            View Application Details
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-
-            <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Reject Application</DialogTitle>
-                        <DialogDescription>
-                            Please provide a reason for rejecting @{selectedApplicant?.user.username}. This will be sent to the user.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Textarea 
-                            placeholder="Reason for rejection (e.g. Insufficient content, Copyright violations)..."
-                            value={rejectionReason}
-                            onChange={(e) => setRejectionReason(e.target.value)}
-                            className="min-h-[100px]"
-                        />
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
-                        <Button 
-                            variant="destructive" 
-                            onClick={handleConfirmReject}
-                            disabled={!rejectionReason.trim() || isProcessing}
-                        >
-                            {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Confirm Rejection
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <Button variant="ghost" size="icon" onClick={() => loadApplications()} disabled={loading}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-    );
+
+        {['pending', 'approved', 'rejected'].map((status) => (
+          <TabsContent key={status} value={status}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg capitalize">{status} Applications</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-12">No {status} applications.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Applicant</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Submitted</TableHead>
+                        <TableHead>Status</TableHead>
+                        {status === 'pending' && <TableHead className="text-right">Actions</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filtered.map((app) => (
+                        <TableRow key={app._id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={app.user?.avatarUrl} />
+                                <AvatarFallback>{app.user?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium text-sm">{app.user?.name || app.user?.username}</p>
+                                <p className="text-xs text-muted-foreground">@{app.user?.username}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{app.user?.email}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : '—'}
+                            </div>
+                          </TableCell>
+                          <TableCell>{statusBadge(app.status)}</TableCell>
+                          {status === 'pending' && (
+                            <TableCell className="text-right">
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => handleApprove(app)}
+                                  disabled={isProcessing}
+                                >
+                                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => { setSelectedApp(app); setRejectionReason(''); setRejectDialogOpen(true); }}
+                                  disabled={isProcessing}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-muted-foreground">{total} applications total</p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => { setPage((p) => Math.max(1, p - 1)); loadApplications(filterStatus, page - 1); }} disabled={page === 1 || loading}>
+                        Previous
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); loadApplications(filterStatus, page + 1); }} disabled={page === totalPages || loading}>
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Reject Application</DialogTitle>
+            <DialogDescription>
+              Provide a reason for rejecting @{selectedApp?.user?.username}'s application.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label>Reason (optional)</Label>
+            <Textarea
+              placeholder="e.g. Insufficient content, policy violation..."
+              className="min-h-[100px]"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmReject} disabled={isProcessing}>
+              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+              Confirm Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 };
 
 export default AdminMonetization;

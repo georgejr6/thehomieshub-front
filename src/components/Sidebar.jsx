@@ -2,7 +2,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize } from 'lucide-react';
+import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,7 +52,8 @@ const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick }) =>
 
 const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onPostClick, toggleImmersiveMode, isMobile }) => {
   const { user, isPremium, triggerLockedFeature } = useAuth();
-  const { showWarning, confirmEnterMediaMode, cancelEnterMediaMode, enterMediaMode } = useMedia();
+  const { showWarning, confirmEnterMediaMode, cancelEnterMediaMode, enterMediaMode, hasEnteredMediaMode, isPlaying, currentTrack } = useMedia();
+  const isMediaActive = hasEnteredMediaMode && !!currentTrack;
   const { checkAccess } = useFeatures();
   const location = useLocation();
   const isLivestreamPage = location.pathname.startsWith('/live-stream');
@@ -64,6 +65,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
     { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming' },
     { to: '/library', icon: Library, label: 'Library', featureKey: 'library' },
     { to: '/communities', icon: Users, label: 'Communities' },
+    { to: '/wagers', icon: Swords, label: 'Wagers' },
   ];
 
   if (user) {
@@ -90,13 +92,28 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
     <motion.button
         onClick={enterMediaMode}
         className={cn(
-          "flex items-center w-full h-12 px-4 rounded-lg cursor-pointer transition-colors text-muted-foreground hover:bg-accent hover:text-red-500",
+          "flex items-center w-full h-12 px-4 rounded-lg cursor-pointer transition-colors hover:bg-accent relative",
+          isMediaActive ? "text-red-500" : "text-muted-foreground hover:text-red-500",
           isCollapsed && !isMobile ? "justify-center" : ""
         )}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
     >
-        <Music className="h-6 w-6" />
+        {/* Pulsing glow when media is minimized and active */}
+        {isMediaActive && (
+          <motion.span
+            className="absolute left-4 w-6 h-6 rounded-full bg-red-500/30"
+            animate={{ scale: [1, 1.8, 1], opacity: [0.7, 0, 0.7] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )}
+        <motion.div
+          animate={isMediaActive && isPlaying ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+          transition={{ duration: 0.8, repeat: isMediaActive && isPlaying ? Infinity : 0, ease: 'easeInOut' }}
+          className="relative z-10"
+        >
+          <Music className="h-6 w-6" />
+        </motion.div>
         <AnimatePresence>
           {(!isCollapsed || isMobile) && (
             <motion.span
@@ -104,9 +121,9 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
               animate={{ opacity: 1, width: 'auto' }}
               exit={{ opacity: 0, width: 0 }}
               transition={{ duration: 0.2 }}
-              className="font-medium whitespace-nowrap ml-4"
+              className="font-medium whitespace-nowrap ml-4 relative z-10"
             >
-              Media Mode
+              {isMediaActive ? 'Now Playing' : 'Media Mode'}
             </motion.span>
           )}
         </AnimatePresence>

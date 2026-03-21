@@ -7,12 +7,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import MuxPlayer from '@mux/mux-player-react';
+import { useMedia } from '@/contexts/MediaContext';
 
 const VideoPost = ({ post }) => {
   const { username } = useParams();
   const navigate = useNavigate();
 
   const { isPremium, triggerLockedFeature } = useAuth();
+  const { isPlaying: musicIsPlaying } = useMedia();
 
   const playerRef = useRef(null);
 
@@ -33,6 +35,17 @@ const VideoPost = ({ post }) => {
   const playbackId = post?.muxPlaybackId || post?.videoUrl || null;
   const isMux = !!playbackId && typeof playbackId === 'string' && playbackId.length > 10;
   const muxPoster = isMux ? `https://image.mux.com/${playbackId}/thumbnail.jpg?time=1` : null;
+
+  // Pause video when music player is active
+  useEffect(() => {
+    if (musicIsPlaying) {
+      const media = getMediaEl();
+      if (media && !media.paused) {
+        media.pause();
+        setIsPlaying(false);
+      }
+    }
+  }, [musicIsPlaying]); // eslint-disable-line
 
   // ✅ Always use the real HTMLMediaElement for controls/events
   const getMediaEl = () => {

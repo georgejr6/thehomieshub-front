@@ -343,7 +343,7 @@ const AppContent = React.memo(() => {
                     </FeatureGuard>
                 } />
                 
-                <Route path="/live-stream/:id" element={
+                <Route path="/live-stream/:username" element={
                     <FeatureGuard feature="live_streaming">
                         <LiveStreamPage onLoginRequest={handleLoginRequest} />
                     </FeatureGuard>

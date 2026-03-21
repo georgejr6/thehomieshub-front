@@ -10,9 +10,14 @@
     "eslint": "eslint src --ext .js,.jsx"
   },
   "dependencies": {
+    "@agoralabs-sh/avm-web-provider": "^1.7.0",
     "@babel/traverse": "^7.26.4",
+    "@blockshake/defly-connect": "^1.2.1",
+    "@coinbase/wallet-sdk": "^4.3.7",
     "@emotion/is-prop-valid": "^1.2.1",
     "@mux/mux-player-react": "^3.10.2",
+    "@perawallet/connect": "^1.5.1",
+    "@perawallet/connect-beta": "^2.0.21",
     "@radix-ui/react-alert-dialog": "^1.0.5",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-checkbox": "^1.0.4",
@@ -31,6 +36,10 @@
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
     "@radix-ui/react-tooltip": "^1.0.7",
+    "@txnlab/use-wallet-react": "^4.6.0",
+    "@walletconnect/modal": "^2.7.0",
+    "@walletconnect/sign-client": "^2.23.8",
+    "algosdk": "^3.5.2",
     "axios": "^1.13.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
@@ -38,12 +47,14 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^10.16.4",
     "lucide-react": "^0.292.0",
+    "lute-connect": "^1.7.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-helmet": "^6.1.0",
     "react-router-dom": "^6.16.0",
     "tailwind-merge": "^1.14.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "vite-plugin-node-polyfills": "^0.25.0"
   },
   "devDependencies": {
     "@babel/generator": "^7.27.0",

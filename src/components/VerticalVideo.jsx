@@ -29,7 +29,7 @@ const OVERLAY_HIDE_MS = 800;
 const VerticalVideo = ({ post, index, isVisible, onLoginRequest }) => {
     const { user, isPremium, triggerLockedFeature } = useAuth();
     const { users, isPostLiked, togglePostLike, isPostSaved, togglePostSave,toggleContentLike } = useContent();
-    const { toggleLike: toggleMediaLike, isLiked: isMediaLiked } = useMedia();
+    const { toggleLike: toggleMediaLike, isLiked: isMediaLiked, isPlaying: musicIsPlaying } = useMedia();
     const { toast } = useToast();
 
     // Works for both <video> and <MuxPlayer>
@@ -124,10 +124,9 @@ const commentTargetType =
         }
     }, [isVisible, post.isNSFW]);
 
-    // ✅ Autoplay when visible, pause when not visible
+    // ✅ Autoplay when visible, pause when not visible or when music is playing
 useEffect(() => {
-  if (!isVisible || isBlurred) {
-    // Pause when not visible
+  if (!isVisible || isBlurred || musicIsPlaying) {
     if (isMux) setIsPlaying(false);
     else videoRef.current?.pause?.();
     return;
@@ -152,7 +151,7 @@ useEffect(() => {
   }, 200);
 
   return () => clearTimeout(timer);
-}, [isVisible, isBlurred, isMux]);
+}, [isVisible, isBlurred, isMux, musicIsPlaying]);
 
     // Sync time updates (works for video & mux-player element)
     useEffect(() => {

@@ -22,7 +22,7 @@ const InboxPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { threads, requests, sendMessage, getThread, createThread, acceptRequest, archiveRequest, searchUsers, markAsRead, muteThread, archiveThread, deleteThread } = useMessages();
+  const { threads, requests, sendMessage, getThread, createThread, acceptRequest, archiveRequest, searchUsers, markAsRead, muteThread, archiveThread, deleteThread, loadMessages } = useMessages();
   
   const isMobile = useMediaQuery('(max-width: 768px)');
   const fileInputRef = useRef(null);
@@ -45,17 +45,21 @@ const InboxPage = () => {
     if (activeUserParam) {
       const thread = getThread(activeUserParam) || createThread(activeUserParam);
       setActiveThread(thread);
-      if (thread.id !== 'temp') markAsRead(thread.id);
+      if (thread.id && thread.id !== 'temp') {
+        markAsRead(thread.id);
+        loadMessages(thread.id);
+      }
     } else {
-        setActiveThread(null);
+      setActiveThread(null);
     }
   }, [activeUserParam, threads]);
 
-  const handleSearch = (e) => {
+  const handleSearch = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
     if (query) {
-      setSearchResults(searchUsers(query));
+      const results = await searchUsers(query);
+      setSearchResults(results);
     } else {
       setSearchResults([]);
     }
@@ -135,17 +139,19 @@ const InboxPage = () => {
   
   const getOtherParticipant = (thread) => {
       const other = thread.participants.find(p => p !== user.username);
-      // Mocking user details fetch
+      const otherObj = thread.participantObjects?.find(p =>
+        (typeof p === 'object' ? p.username : p) === other
+      );
       return {
           username: other,
-          avatar: `https://avatar.vercel.sh/${other}.png`, // Placeholder
-          name: other // Placeholder
-      }
+          avatar: otherObj?.avatarUrl || `https://avatar.vercel.sh/${other}.png`,
+          name: otherObj?.name || other,
+      };
   }
   
   const filteredThreads = threads.filter(t => {
       if (t.archived) return false;
-      const other = t.participants.find(p => p !== user.username);
+      const other = t.participants.find(p => p !== user.username) || '';
       return other.toLowerCase().includes(searchQuery.toLowerCase());
   });
 

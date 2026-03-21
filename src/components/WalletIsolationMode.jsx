@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Minimize2, Wallet, CreditCard, History,
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from "@/api/homieshub";
+import WalletConnectModal from '@/components/WalletConnectModal';
 
 // --- Mock Data (kept for non-wallet related visuals) ---
 const MOCK_ASAS = [
@@ -45,30 +46,94 @@ const TabButton = ({ active, icon: Icon, label, onClick }) => (
   </button>
 );
 
-const DarkModeWalletOption = ({ name, onClick, disabled, connecting, isSelected }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={cn(
-      "flex items-center justify-between w-full p-4 rounded-xl border transition-all duration-200",
-      isSelected
-        ? "bg-primary/20 border-primary/50"
-        : "bg-black/40 border-white/10 hover:bg-white/5 hover:border-white/30",
-      disabled && "opacity-50 cursor-not-allowed"
-    )}
-  >
-    <div className="flex items-center gap-4">
-      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center overflow-hidden shrink-0">
-        <div className={cn("w-6 h-6 rounded-full", name.includes('Pera') ? 'bg-yellow-400' : name.includes('Coinbase') ? 'bg-blue-500' : 'bg-purple-500')} />
-      </div>
-      <div className="flex flex-col items-start">
-        <span className="font-semibold text-white">{name}</span>
-        {connecting && isSelected && <span className="text-xs text-primary animate-pulse">Connecting...</span>}
-      </div>
+// ── Settings Tab — standalone component to prevent remount-on-parent-rerender ──
+const SettingsTab = () => {
+  const { connectedWallet, disconnectWallet } = useWallet();
+  const { toast } = useToast();
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <Card className="bg-zinc-900 border-primary/30">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Wallet className="w-5 h-5 text-primary" />
+            Wallet Connection
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {connectedWallet ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-black/40 rounded-lg border border-green-500/30">
+                <div className="flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e]" />
+                  <div>
+                    <span className="text-green-400 font-medium block">Connected via {connectedWallet.type}</span>
+                    <span className="text-xs text-white/50 font-mono">{connectedWallet.address}</span>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => {
+                  navigator.clipboard.writeText(connectedWallet.address);
+                  toast({ title: "Copied!", description: "Wallet address copied." });
+                }}>
+                  <Copy className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" className="border-white/10 hover:bg-white/5 text-white" onClick={() => setWalletModalOpen(true)}>
+                  Switch Wallet
+                </Button>
+                <Button variant="destructive" className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20" onClick={disconnectWallet}>
+                  Disconnect
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Connect your Algorand wallet to place and sign wagers.</p>
+              <Button
+                className="w-full bg-primary text-black hover:bg-primary/90 font-bold h-12"
+                onClick={() => setWalletModalOpen(true)}
+              >
+                <Wallet className="h-4 w-4 mr-2" />
+                Connect Algorand Wallet
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-zinc-900 border-white/10">
+        <CardHeader><CardTitle className="text-white">Security Preferences</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors cursor-pointer">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <div className="flex flex-col">
+                <span className="text-white text-sm font-medium">Auto-Lock Wallet Mode</span>
+                <span className="text-xs text-muted-foreground">Require PIN after 15 minutes of inactivity</span>
+              </div>
+            </div>
+            <div className="h-6 w-11 bg-primary rounded-full relative cursor-pointer"><div className="absolute right-1 top-1 h-4 w-4 bg-black rounded-full" /></div>
+          </div>
+          <div className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors cursor-pointer">
+            <div className="flex items-center gap-3">
+              <Lock className="h-5 w-5 text-primary" />
+              <div className="flex flex-col">
+                <span className="text-white text-sm font-medium">Hide Balances</span>
+                <span className="text-xs text-muted-foreground">Mask amounts when in public view</span>
+              </div>
+            </div>
+            <div className="h-6 w-11 bg-zinc-700 rounded-full relative cursor-pointer"><div className="absolute left-1 top-1 h-4 w-4 bg-white rounded-full" /></div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <WalletConnectModal isOpen={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </div>
-    {isSelected && <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_rgba(234,179,8,0.5)]" />}
-  </button>
-);
+  );
+};
+
 
 const WalletIsolationMode = ({ activeTab: initialTab }) => {
   const {
@@ -76,9 +141,6 @@ const WalletIsolationMode = ({ activeTab: initialTab }) => {
     exitWalletMode,
     minimizeWalletMode,
     connectedWallet,
-    disconnectWallet,
-    connectWallet,
-    isConnecting
   } = useWallet();
 
   const { user } = useAuth();
@@ -402,125 +464,6 @@ const [loadingTx, setLoadingTx] = useState(false);
       </div>
     </div>
   );
-
-  const SettingsTab = () => {
-    const [connectingTo, setConnectingTo] = useState(null);
-
-    const handleConnect = async (walletName) => {
-      if (isConnecting) return;
-      setConnectingTo(walletName);
-      try {
-        await connectWallet(walletName);
-        toast({ title: "Connected", description: `Wallet connected successfully.` });
-      } catch (e) {
-        toast({ title: "Error", description: "Failed to connect wallet." });
-      } finally {
-        setConnectingTo(null);
-      }
-    };
-
-    return (
-      <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <Card className="bg-zinc-900 border-primary/30">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-primary" />
-              Wallet Connection
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {connectedWallet ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-black/40 rounded-lg border border-green-500/30">
-                  <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e]" />
-                    <div>
-                      <span className="text-green-400 font-medium block">Connected to {connectedWallet.type}</span>
-                      <span className="text-xs text-white/50">{connectedWallet.address}</span>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => {
-                    navigator.clipboard.writeText(connectedWallet.address);
-                    toast({ title: "Copied!", description: "Wallet address copied." });
-                  }}>
-                    <Copy className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Button variant="outline" className="border-white/10 hover:bg-white/5 text-white" onClick={disconnectWallet}>
-                    Switch Wallet
-                  </Button>
-                  <Button variant="destructive" className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20" onClick={disconnectWallet}>
-                    Disconnect
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Select a wallet provider to connect securely.</p>
-                <div className="grid gap-3">
-                  <DarkModeWalletOption
-                    name="Pera Wallet"
-                    onClick={() => handleConnect('Pera Wallet')}
-                    connecting={isConnecting}
-                    isSelected={connectingTo === 'Pera Wallet'}
-                    disabled={isConnecting && connectingTo !== 'Pera Wallet'}
-                  />
-                  <DarkModeWalletOption
-                    name="Coinbase Wallet"
-                    onClick={() => handleConnect('Coinbase Wallet')}
-                    connecting={isConnecting}
-                    isSelected={connectingTo === 'Coinbase Wallet'}
-                    disabled={isConnecting && connectingTo !== 'Coinbase Wallet'}
-                  />
-                  <DarkModeWalletOption
-                    name="Exodus"
-                    onClick={() => handleConnect('Exodus')}
-                    connecting={isConnecting}
-                    isSelected={connectingTo === 'Exodus'}
-                    disabled={isConnecting && connectingTo !== 'Exodus'}
-                  />
-                </div>
-                {isConnecting && (
-                  <div className="flex items-center justify-center gap-2 text-xs text-primary animate-pulse mt-2">
-                    <RefreshCw className="h-3 w-3 animate-spin" />
-                    Establishing secure connection...
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-zinc-900 border-white/10">
-          <CardHeader><CardTitle className="text-white">Security Preferences</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors cursor-pointer">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                <div className="flex flex-col">
-                  <span className="text-white text-sm font-medium">Auto-Lock Wallet Mode</span>
-                  <span className="text-xs text-muted-foreground">Require PIN after 15 minutes of inactivity</span>
-                </div>
-              </div>
-              <div className="h-6 w-11 bg-primary rounded-full relative cursor-pointer"><div className="absolute right-1 top-1 h-4 w-4 bg-black rounded-full" /></div>
-            </div>
-            <div className="flex items-center justify-between p-2 hover:bg-white/5 rounded-lg transition-colors cursor-pointer">
-              <div className="flex items-center gap-3">
-                <Lock className="h-5 w-5 text-primary" />
-                <div className="flex flex-col">
-                  <span className="text-white text-sm font-medium">Hide Balances</span>
-                  <span className="text-xs text-muted-foreground">Mask amounts when in public view</span>
-                </div>
-              </div>
-              <div className="h-6 w-11 bg-zinc-700 rounded-full relative cursor-pointer"><div className="absolute left-1 top-1 h-4 w-4 bg-white rounded-full" /></div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black text-white flex flex-col font-sans overflow-hidden">

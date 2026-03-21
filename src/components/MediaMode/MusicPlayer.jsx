@@ -13,7 +13,7 @@ const MusicPlayer = () => {
     audioRef, currentTrack, isPlaying, isLoading,
     currentTime, duration, volume, isMuted, setVolume, setIsMuted,
     togglePlay, seek, skipForward, skipBack, fmtTime,
-    isLiked, toggleLike, exitMediaMode,
+    isLiked, toggleLike, exitMediaMode, closePlayer, hasEnteredMediaMode, currentVideo,
   } = useMedia();
 
   const [isExpanded,  setIsExpanded]  = useState(false);
@@ -126,7 +126,12 @@ const MusicPlayer = () => {
     else navigator.clipboard.writeText(url).catch(() => {});
   };
 
-  if (!currentTrack) return null;
+  // Track whether the user has ever hit play in this session
+  const hasStartedRef = useRef(false);
+  if (isPlaying) hasStartedRef.current = true;
+
+  // Hide until user explicitly plays something, and hide while a video is open
+  if (!currentTrack || !hasEnteredMediaMode || !hasStartedRef.current || currentVideo) return null;
 
   return (
     <>
@@ -136,14 +141,32 @@ const MusicPlayer = () => {
           <motion.div
             key="viz-full"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[95] bg-black flex flex-col"
+            className="fixed inset-0 z-[115] bg-black flex flex-col"
           >
             <div className="absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-20"
               style={{ backgroundImage: `url(${currentTrack.cover})` }} />
             <canvas ref={canvasFullRef} className="relative z-10 w-full flex-1" />
-            <div className="relative z-10 text-center py-6 px-4">
+            <div className="relative z-10 text-center py-6 px-4 space-y-4">
               <p className="text-white text-2xl font-bold truncate">{currentTrack.title}</p>
               <p className="text-gray-400 text-lg">{currentTrack.artist}</p>
+              <div className="flex items-center justify-center gap-6 pt-2">
+                <button onClick={skipBack} className="text-white/70 hover:text-white transition-colors">
+                  <SkipBack className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={togglePlay}
+                  disabled={isLoading}
+                  className="bg-white hover:bg-white/90 text-black rounded-full w-12 h-12 flex items-center justify-center disabled:opacity-50"
+                >
+                  {isLoading
+                    ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    : isPlaying ? <Pause className="w-6 h-6 fill-black" /> : <Play className="w-6 h-6 fill-black ml-0.5" />
+                  }
+                </button>
+                <button onClick={skipForward} className="text-white/70 hover:text-white transition-colors">
+                  <SkipForward className="w-6 h-6" />
+                </button>
+              </div>
             </div>
             <button onClick={() => setVizFull(false)}
               className="absolute top-5 right-5 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white">
@@ -157,7 +180,7 @@ const MusicPlayer = () => {
       <motion.div
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-[90]"
+        className="fixed bottom-0 left-0 right-0 z-[105]"
       >
         {/* Viz strip */}
         <AnimatePresence>
@@ -279,7 +302,7 @@ const MusicPlayer = () => {
                 <button onClick={() => setIsExpanded(e => !e)} className="text-white hover:text-gray-300 transition-colors">
                   {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
                 </button>
-                <button onClick={exitMediaMode} className="text-gray-400 hover:text-red-400 transition-colors ml-1" title="Exit media mode">
+                <button onClick={closePlayer} className="text-gray-400 hover:text-red-400 transition-colors ml-1" title="Close player">
                   <X className="w-4 h-4" />
                 </button>
               </div>

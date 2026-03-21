@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { musicApi } from '@/lib/digitvlApi';
+import { musicApi, videoApi } from '@/lib/digitvlApi';
 
 const MediaContext = createContext();
 export const useMedia = () => useContext(MediaContext);
@@ -8,12 +8,23 @@ export const useMedia = () => useContext(MediaContext);
 export const MediaProvider = ({ children }) => {
   const navigate = useNavigate();
 
-  // ── Catalog ────────────────────────────────────────────────────────────────
+  // ── Music Catalog ──────────────────────────────────────────────────────────
   const [allTracks,      setAllTracks]      = useState([]);
   const [genreRows,      setGenreRows]      = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
-  // ── Player ─────────────────────────────────────────────────────────────────
+  // ── Video Catalog ──────────────────────────────────────────────────────────
+  const [featuredVideo,   setFeaturedVideo]   = useState(null);
+  const [trendingVideos,  setTrendingVideos]  = useState([]);
+  const [newVideos,       setNewVideos]       = useState([]);
+  const [movies,          setMovies]          = useState([]);
+  const [series,          setSeries]          = useState([]);
+  const [videoLoading,    setVideoLoading]    = useState(true);
+
+  // ── Current Video Player ───────────────────────────────────────────────────
+  const [currentVideo,    setCurrentVideo]    = useState(null);
+
+  // ── Audio Player ───────────────────────────────────────────────────────────
   const [currentTrack,   setCurrentTrack]   = useState(null);
   const [isPlaying,      setIsPlaying]      = useState(false);
   const [isLoading,      setIsLoading]      = useState(false);
@@ -23,10 +34,11 @@ export const MediaProvider = ({ children }) => {
   const [isMuted,        setIsMuted]        = useState(false);
 
   // ── UI ─────────────────────────────────────────────────────────────────────
-  const [showWarning,    setShowWarning]    = useState(false);
-  const [activeCategory, setActiveCategory] = useState('home');
-  const [likedIds,       setLikedIds]       = useState([]);
-  const [playlists,      setPlaylists]      = useState([]);
+  const [showWarning,         setShowWarning]         = useState(false);
+  const [hasEnteredMediaMode, setHasEnteredMediaMode] = useState(false);
+  const [activeCategory,      setActiveCategory]      = useState('home');
+  const [likedIds,            setLikedIds]            = useState([]);
+  const [playlists,           setPlaylists]           = useState([]);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const audioRef     = useRef(null);
@@ -35,11 +47,11 @@ export const MediaProvider = ({ children }) => {
   const trackRef     = useRef(null);
   const isPlayingRef = useRef(false);
 
-  useEffect(() => { tracksRef.current   = allTracks;    }, [allTracks]);
-  useEffect(() => { trackRef.current    = currentTrack; }, [currentTrack]);
-  useEffect(() => { isPlayingRef.current = isPlaying;   }, [isPlaying]);
+  useEffect(() => { tracksRef.current    = allTracks;    }, [allTracks]);
+  useEffect(() => { trackRef.current     = currentTrack; }, [currentTrack]);
+  useEffect(() => { isPlayingRef.current = isPlaying;    }, [isPlaying]);
 
-  // ── Fetch catalog ──────────────────────────────────────────────────────────
+  // ── Fetch music catalog ────────────────────────────────────────────────────
   useEffect(() => {
     musicApi.getNew()
       .then(tracks => {
@@ -59,6 +71,23 @@ export const MediaProvider = ({ children }) => {
       })
       .catch(() => {})
       .finally(() => setCatalogLoading(false));
+  }, []);
+
+  // ── Fetch video catalog ────────────────────────────────────────────────────
+  useEffect(() => {
+    Promise.all([
+      videoApi.getFeatured().catch(() => null),
+      videoApi.getTrending().catch(() => []),
+      videoApi.getNew().catch(() => []),
+      videoApi.getMovies().catch(() => []),
+      videoApi.getSeries().catch(() => []),
+    ]).then(([featured, trending, newVids, movs, sers]) => {
+      setFeaturedVideo(featured);
+      setTrendingVideos(trending);
+      setNewVideos(newVids);
+      setMovies(movs);
+      setSeries(sers);
+    }).finally(() => setVideoLoading(false));
   }, []);
 
   // ── Create audio element once ──────────────────────────────────────────────
@@ -96,7 +125,7 @@ export const MediaProvider = ({ children }) => {
     if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
   }, [volume, isMuted]);
 
-  // ── Load a track into the audio element ───────────────────────────────────
+  // ── Load a track ───────────────────────────────────────────────────────────
   const _loadTrack = useCallback((track, autoplay) => {
     const audio = audioRef.current;
     if (!audio || !track?.audioUrl) return;
@@ -124,7 +153,7 @@ export const MediaProvider = ({ children }) => {
     audio.addEventListener('error',   onError);
   }, []);
 
-  // ── Controls ───────────────────────────────────────────────────────────────
+  // ── Audio controls ─────────────────────────────────────────────────────────
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || isLoading) return;
@@ -163,13 +192,33 @@ export const MediaProvider = ({ children }) => {
     _loadTrack(track, true);
   }, [_loadTrack]);
 
+  // ── Video controls ─────────────────────────────────────────────────────────
+  const playVideo = useCallback((video) => {
+    // Pause music when video starts
+    if (audioRef.current && isPlayingRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+    setCurrentVideo(video);
+    videoApi.logView(video.id);
+  }, []);
+
+  const closeVideo = useCallback(() => setCurrentVideo(null), []);
+
   // ── Navigation ─────────────────────────────────────────────────────────────
   const enterMediaMode        = () => setShowWarning(true);
-  const confirmEnterMediaMode = () => { setShowWarning(false); navigate('/media'); };
+  const confirmEnterMediaMode = () => { setShowWarning(false); setHasEnteredMediaMode(true); navigate('/media'); };
   const cancelEnterMediaMode  = () => setShowWarning(false);
-  const exitMediaMode         = () => navigate('/');
+  const exitMediaMode         = () => { setHasEnteredMediaMode(false); navigate('/'); };
   const minimizeMediaMode     = () => navigate('/');
   const expandMediaMode       = () => navigate('/media');
+
+  // Close just the player bar without navigating away
+  const closePlayer = useCallback(() => {
+    if (audioRef.current) { audioRef.current.pause(); }
+    setIsPlaying(false);
+    setHasEnteredMediaMode(false);
+  }, []);
 
   // ── Likes / playlists ──────────────────────────────────────────────────────
   const isLiked    = (id) => likedIds.includes(id);
@@ -188,16 +237,22 @@ export const MediaProvider = ({ children }) => {
 
   return (
     <MediaContext.Provider value={{
+      // Music
       allTracks, genreRows, catalogLoading,
       audioRef, currentTrack, isPlaying, isLoading,
       currentTime, duration, volume, isMuted, setVolume, setIsMuted,
       togglePlay, seek, skipForward, skipBack, playMedia, fmtTime,
-      showWarning, enterMediaMode, confirmEnterMediaMode, cancelEnterMediaMode,
-      exitMediaMode, minimizeMediaMode, expandMediaMode,
+      // Video
+      featuredVideo, trendingVideos, newVideos, movies, series, videoLoading,
+      currentVideo, playVideo, closeVideo,
+      // UI
+      showWarning, hasEnteredMediaMode,
+      enterMediaMode, confirmEnterMediaMode, cancelEnterMediaMode,
+      exitMediaMode, minimizeMediaMode, expandMediaMode, closePlayer,
       likedMedia, likedIds, isLiked, toggleLike,
       playlists, createPlaylist, deletePlaylist, addToPlaylist,
       activeCategory, setActiveCategory,
-      // legacy shape kept so MediaRow/PlaylistModals don't break
+      // legacy compat
       popularVideos: allTracks,
       newReleases: [...allTracks].slice().reverse(),
       isFullscreenPlayer: false,

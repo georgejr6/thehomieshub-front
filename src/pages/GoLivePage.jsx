@@ -6,7 +6,7 @@ import {
   Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff, 
   MessageSquare, Radio, Share2, Copy, Check, Save, 
   MonitorPlay, Laptop, AlertCircle, Signal, Info, HelpCircle,
-  Wifi, ShieldCheck, Globe
+  Wifi, ShieldCheck, Globe, Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import BackButton from '@/components/BackButton';
-import CommentsSheet from '@/components/CommentsSheet';
+import LiveChat from '@/components/LiveChat';
+import api from '@/api/homieshub';
 
 // --- Audio Level Indicator Component ---
 const AudioLevelIndicator = ({ stream }) => {
@@ -123,13 +124,14 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [isLive, setIsLive] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
     const [showStreamKey, setShowStreamKey] = useState(false);
-    const [streamData] = useState({
-        url: "rtmp://ingest.homieshub.com/live",
-        key: `live_${user?.id || 'guest'}_${Math.random().toString(36).substr(2, 9)}`
-    });
+    const [streamData, setStreamData] = useState({ url: '', key: '', whipUrl: '' });
+    const [liveStreamId, setLiveStreamId] = useState(null);
+    const [isCreatingStream, setIsCreatingStream] = useState(false);
+    const [isGoingLive, setIsGoingLive] = useState(false);
 
     // Webcam State
     const videoRef = useRef(null);
+    const pcRef = useRef(null); // WebRTC peer connection for WHIP
     const [mediaStream, setMediaStream] = useState(null);
     const [cameraEnabled, setCameraEnabled] = useState(false);
     const [micEnabled, setMicEnabled] = useState(false);
@@ -195,34 +197,124 @@ const GoLivePage = ({ onLoginRequest }) => {
         }
     };
 
-    const handleSaveInfo = () => {
+    const handleSaveInfo = async () => {
         if (!title.trim()) {
             toast({ title: "Title Required", description: "Please enter a stream title.", variant: "destructive" });
             return;
         }
-        setIsSaved(true);
-        toast({ title: "Ready to Broadcast", description: "Your stream settings have been saved." });
-    };
-
-    const handleGoLive = () => {
-        if (!isSaved) return;
-        
-        if (!cameraEnabled && streamMethod === 'webcam') {
-             // If webcam is off, we are in "Audio Only" or "Fallback" mode
-             setUsingFallback(true);
+        setIsCreatingStream(true);
+        try {
+            const { data } = await api.post('/live/create', { title: title.trim(), description });
+            if (data.status) {
+                setStreamData({
+                    url: data.result.rtmpUrl,
+                    key: data.result.streamKey,
+                    whipUrl: data.result.whipEndpointUrl || ''
+                });
+                setLiveStreamId(data.result.id);
+                setIsSaved(true);
+                toast({ title: "Ready to Broadcast", description: "Stream key generated. You're ready to go live." });
+            } else {
+                toast({ title: 'Error', description: data.message || 'Failed to create stream.', variant: 'destructive' });
+            }
+        } catch (err) {
+            toast({ title: 'Error', description: err.response?.data?.message || 'Failed to create stream.', variant: 'destructive' });
+        } finally {
+            setIsCreatingStream(false);
         }
-
-        setIsLive(true);
-        toast({ title: "🔴 You are Live!", description: "Broadcasting started successfully.", className: "bg-red-600 text-white border-none" });
     };
 
-    const handleEndStream = () => {
+    // ── WHIP WebRTC: sends browser MediaStream directly to Mux ──
+    const startWhipStream = async (stream) => {
+        if (!streamData.whipUrl) {
+            toast({ title: 'No WHIP URL', description: 'Save stream info first.', variant: 'destructive' });
+            return false;
+        }
+        try {
+            const pc = new RTCPeerConnection({ iceServers: [] });
+            pcRef.current = pc;
+
+            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            // Wait for ICE gathering to complete
+            await new Promise((resolve) => {
+                if (pc.iceGatheringState === 'complete') { resolve(); return; }
+                const check = () => {
+                    if (pc.iceGatheringState === 'complete') {
+                        pc.removeEventListener('icegatheringstatechange', check);
+                        resolve();
+                    }
+                };
+                pc.addEventListener('icegatheringstatechange', check);
+                setTimeout(resolve, 3000); // fallback timeout
+            });
+
+            const resp = await fetch(streamData.whipUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/sdp' },
+                body: pc.localDescription.sdp,
+            });
+
+            if (!resp.ok) throw new Error(`WHIP error ${resp.status}`);
+
+            const answerSdp = await resp.text();
+            await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+            return true;
+        } catch (err) {
+            console.error('WHIP failed:', err);
+            toast({ title: 'Stream Connection Failed', description: err.message, variant: 'destructive' });
+            if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+            return false;
+        }
+    };
+
+    const handleGoLive = async () => {
+        if (!isSaved) return;
+        setIsGoingLive(true);
+
+        try {
+            // For webcam mode, establish WHIP WebRTC connection first
+            if (streamMethod === 'webcam') {
+                if (!cameraEnabled && !mediaStream) {
+                    setUsingFallback(true);
+                } else if (mediaStream) {
+                    const ok = await startWhipStream(mediaStream);
+                    if (!ok) { setIsGoingLive(false); return; }
+                }
+            }
+
+            // Tell the backend we're live → triggers follower email notifications
+            if (liveStreamId) {
+                await api.post(`/live/${liveStreamId}/go-live`);
+            }
+
+            setIsLive(true);
+            toast({ title: "🔴 You are Live!", description: "Broadcasting started successfully.", className: "bg-red-600 text-white border-none" });
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to go live.', variant: 'destructive' });
+        } finally {
+            setIsGoingLive(false);
+        }
+    };
+
+    const handleEndStream = async () => {
         setIsLive(false);
         setUsingFallback(false);
-        stopMediaTracks(); 
-        setCameraEnabled(false); 
+        // Close WHIP peer connection
+        if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+        stopMediaTracks();
+        setCameraEnabled(false);
         setMicEnabled(false);
         setMediaStream(null);
+        if (liveStreamId) {
+            try { await api.delete(`/live/${liveStreamId}`); } catch (_) {}
+            setLiveStreamId(null);
+        }
+        setStreamData({ url: '', key: '', whipUrl: '' });
+        setIsSaved(false);
         toast({ title: "Stream Ended", description: "Your broadcast has finished." });
     };
 
@@ -411,18 +503,18 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                             Save Info to Go Live
                                                         </span>
                                                     )}
-                                                    <Button 
-                                                        size="lg" 
+                                                    <Button
+                                                        size="lg"
                                                         onClick={handleGoLive}
-                                                        disabled={!isSaved}
+                                                        disabled={!isSaved || isGoingLive}
                                                         className={cn(
                                                             "font-bold text-lg shadow-xl min-w-[160px]",
-                                                            isSaved 
-                                                                ? "bg-[#FE2C55] hover:bg-[#FE2C55]/90" 
+                                                            isSaved
+                                                                ? "bg-[#FE2C55] hover:bg-[#FE2C55]/90"
                                                                 : "bg-zinc-700 text-zinc-400"
                                                         )}
                                                     >
-                                                        GO LIVE
+                                                        {isGoingLive ? <Loader2 className="h-5 w-5 animate-spin" /> : 'GO LIVE'}
                                                     </Button>
                                                 </div>
                                             )}
@@ -537,9 +629,9 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             
                                             <Alert className="bg-blue-950/30 border-blue-900/50">
                                                 <Info className="h-4 w-4 text-blue-400" />
-                                                <AlertTitle className="text-blue-400">Backend Connection Info</AlertTitle>
+                                                <AlertTitle className="text-blue-400">Powered by Mux</AlertTitle>
                                                 <AlertDescription className="text-blue-300/80 text-xs mt-1">
-                                                    This is a simulation. In a production environment, this would connect to a service like Mux, AWS IVS, or Cloudflare Stream to handle RTMP ingestion.
+                                                    Your stream key is generated via Mux Live Streams. The RTMP ingest URL and stream key update each time you save a new stream.
                                                 </AlertDescription>
                                             </Alert>
                                         </div>
@@ -622,8 +714,8 @@ const GoLivePage = ({ onLoginRequest }) => {
                                 </div>
 
                                 <div className="pt-4 mt-auto">
-                                    <Button onClick={handleSaveInfo} className="w-full h-12 text-lg font-semibold" size="lg">
-                                        {isSaved ? <span className="flex items-center gap-2"><Check className="h-5 w-5" /> Saved</span> : "Save Stream Info"}
+                                    <Button onClick={handleSaveInfo} className="w-full h-12 text-lg font-semibold" size="lg" disabled={isSaved || isCreatingStream}>
+                                        {isCreatingStream ? <span className="flex items-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Creating Stream...</span> : isSaved ? <span className="flex items-center gap-2"><Check className="h-5 w-5" /> Saved</span> : "Save Stream Info"}
                                     </Button>
                                     <p className="text-xs text-center text-muted-foreground mt-4">
                                         You must save your stream info before the <br/> "Go Live" button becomes active.
@@ -632,29 +724,20 @@ const GoLivePage = ({ onLoginRequest }) => {
                             </TabsContent>
 
                             {/* CHAT TAB */}
-                            <TabsContent value="chat" className="flex-1 flex flex-col h-full m-0 p-0 overflow-hidden relative">
-                                {isLive || isSaved ? (
-                                    <>
-                                        <div className="absolute top-0 left-0 right-0 z-10 bg-background/80 backdrop-blur-md p-2 border-b flex justify-between items-center px-4 text-xs font-medium text-muted-foreground">
-                                            <span>LIVE CHAT</span>
-                                            <span>0 Viewers</span>
-                                        </div>
-                                        <div className="pt-8 h-full">
-                                            <CommentsSheet 
-                                                isLiveChat={true} 
-                                                isOpen={true} 
-                                                post={{ id: 'live_session_1', title: title }} 
-                                                onLoginRequest={onLoginRequest} 
-                                            />
-                                        </div>
-                                    </>
+                            <TabsContent value="chat" className="flex-1 flex flex-col h-full m-0 p-0 overflow-hidden">
+                                {isLive && liveStreamId ? (
+                                    <LiveChat
+                                        streamId={liveStreamId}
+                                        isCollapsible={false}
+                                        className="h-full"
+                                    />
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8 text-center bg-muted/10">
                                         <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
                                             <MessageSquare className="h-8 w-8 opacity-40" />
                                         </div>
                                         <h3 className="font-semibold text-lg mb-2">Chat is Offline</h3>
-                                        <p className="text-sm max-w-[200px]">Chat will automatically appear here once you save your stream info or go live.</p>
+                                        <p className="text-sm max-w-[200px]">Chat will appear here once you go live.</p>
                                     </div>
                                 )}
                             </TabsContent>

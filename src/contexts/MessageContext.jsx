@@ -1,185 +1,240 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { mockUsers } from '@/data/mockUsers';
+import api from '@/api/homieshub';
 
 const MessageContext = createContext();
 
 export const useMessages = () => {
   const context = useContext(MessageContext);
-  if (!context) {
-    throw new Error('useMessages must be used within a MessageProvider');
-  }
+  if (!context) throw new Error('useMessages must be used within a MessageProvider');
   return context;
 };
+
+// Normalize API thread → shape InboxPage expects
+function normalizeThread(t, myUsername) {
+  const participantObjects = t.participants || [];
+  // participants as username strings: [other, ...me] — InboxPage finds p !== me
+  const otherUsernames = participantObjects
+    .map((p) => (typeof p === 'object' ? p.username : p))
+    .filter((u) => u && u !== myUsername);
+  const participants = [...otherUsernames, myUsername];
+
+  const lastMsg = t.lastMessage
+    ? {
+        ...t.lastMessage,
+        sender:
+          typeof t.lastMessage.sender === 'object'
+            ? t.lastMessage.sender?.username
+            : t.lastMessage.sender,
+        timestamp: t.lastMessage.createdAt || t.lastMessage.timestamp,
+        read: (t.unreadCount || 0) === 0,
+      }
+    : null;
+
+  return {
+    ...t,
+    id: t._id || t.id,
+    participants,
+    participantObjects, // raw objects with avatarUrl, name
+    lastMessage: lastMsg,
+    muted: !!t.muted,
+    archived: !!t.archived,
+    messages: [], // populated separately via loadMessages
+  };
+}
+
+// Normalize API message → shape InboxPage expects
+function normalizeMessage(msg, myUsername) {
+  return {
+    ...msg,
+    id: msg._id || msg.id,
+    sender:
+      typeof msg.sender === 'object' ? msg.sender?.username : msg.sender,
+    timestamp: msg.createdAt || msg.timestamp,
+    mediaUrl: msg.attachmentUrl || null,
+  };
+}
 
 export const MessageProvider = ({ children }) => {
   const { user } = useAuth();
   const [threads, setThreads] = useState([]);
   const [requests, setRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [messagesByThread, setMessagesByThread] = useState({});
 
-  // Load messages from local storage
-  useEffect(() => {
-    if (user) {
-      const storedThreads = localStorage.getItem(`homies_threads_${user.username}`);
-      const storedRequests = localStorage.getItem(`homies_requests_${user.username}`);
-      
-      if (storedThreads) setThreads(JSON.parse(storedThreads));
-      else {
-        // Initial mock data for demonstration
-        const mockThread = [
-           {
-             id: 't1',
-             participants: ['alexnomad'],
-             muted: false,
-             archived: false,
-             lastMessage: { content: 'Hey, loved your latest video!', sender: 'alexnomad', timestamp: new Date(Date.now() - 3600000).toISOString(), read: false, type: 'text' },
-             messages: [
-                { id: 'm1', content: 'Hey, loved your latest video!', sender: 'alexnomad', timestamp: new Date(Date.now() - 3600000).toISOString(), type: 'text' }
-             ],
-             updatedAt: new Date(Date.now() - 3600000).toISOString()
-           }
-        ];
-        setThreads(mockThread);
+  const loadThreads = useCallback(async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      const { data } = await api.get('/messages');
+      if (data.status) {
+        setThreads((data.result.threads || []).map((t) => normalizeThread(t, user.username)));
+        setRequests((data.result.requests || []).map((t) => normalizeThread(t, user.username)));
       }
-
-      if (storedRequests) setRequests(JSON.parse(storedRequests));
-      else {
-         // Mock request
-         const mockReq = [
-            {
-             id: 'r1',
-             participants: ['unknown_user'],
-             muted: false,
-             archived: false,
-             lastMessage: { content: 'Can we collab?', sender: 'unknown_user', timestamp: new Date(Date.now() - 86400000).toISOString(), read: false, type: 'text' },
-             messages: [
-                { id: 'm2', content: 'Can we collab?', sender: 'unknown_user', timestamp: new Date(Date.now() - 86400000).toISOString(), type: 'text' }
-             ],
-             updatedAt: new Date(Date.now() - 86400000).toISOString()
-            }
-         ];
-         setRequests(mockReq);
-      }
+    } catch (err) {
+      console.error('Failed to load threads', err);
+    } finally {
+      setIsLoading(false);
     }
   }, [user]);
 
-  // Persist to local storage
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(`homies_threads_${user.username}`, JSON.stringify(threads));
-      localStorage.setItem(`homies_requests_${user.username}`, JSON.stringify(requests));
-    }
-  }, [threads, requests, user]);
+    loadThreads();
+  }, [loadThreads]);
 
-  const sendMessage = (recipientUsername, content, type = 'text', attachment = null) => {
-    const newMessage = {
-      id: `msg_${Date.now()}`,
-      content,
+  const loadMessages = useCallback(async (threadId) => {
+    if (!threadId || threadId === 'temp') return [];
+    try {
+      const { data } = await api.get(`/messages/${threadId}`);
+      if (data.status) {
+        const msgs = (data.result.messages || []).map((m) =>
+          normalizeMessage(m, user?.username)
+        );
+        setMessagesByThread((prev) => ({ ...prev, [threadId]: msgs }));
+        return msgs;
+      }
+    } catch (err) {
+      console.error('Failed to load messages', err);
+    }
+    return [];
+  }, [user]);
+
+  const sendMessage = async (recipientUsername, content, type = 'text', attachment = null) => {
+    // Optimistic update
+    const existing = threads.find((t) => t.participants.includes(recipientUsername));
+    const tempMsg = {
+      id: `temp_${Date.now()}`,
+      content: content || '',
       sender: user.username,
       timestamp: new Date().toISOString(),
-      read: true, // Sender always reads their own message
+      read: true,
       type,
-      // Handle legacy 'mediaUrl' by mapping attachment to it if needed by older components, 
-      // but prefer 'attachment' prop for clarity on new types
-      attachment: attachment, 
-      mediaUrl: typeof attachment === 'string' ? attachment : null 
+      mediaUrl: typeof attachment === 'string' ? attachment : null,
     };
+    if (existing) {
+      setMessagesByThread((prev) => ({
+        ...prev,
+        [existing.id]: [...(prev[existing.id] || []), tempMsg],
+      }));
+    }
 
-    setThreads(prev => {
-      // Check if thread exists
-      const existingThreadIndex = prev.findIndex(t => t.participants.includes(recipientUsername));
-      
-      if (existingThreadIndex >= 0) {
-        const updatedThreads = [...prev];
-        const thread = { ...updatedThreads[existingThreadIndex] }; // Shallow copy
-        thread.messages = [...thread.messages, newMessage]; // Create new array for messages
-        thread.lastMessage = newMessage;
-        thread.updatedAt = new Date().toISOString();
-        thread.archived = false; // Unarchive on new message
-        
-        // Move to top
-        updatedThreads.splice(existingThreadIndex, 1);
-        updatedThreads.unshift(thread);
-        return updatedThreads;
-      } else {
-        // Create new thread
-        const newThread = {
-          id: `thread_${Date.now()}`,
-          participants: [recipientUsername],
-          lastMessage: newMessage,
-          messages: [newMessage],
-          updatedAt: new Date().toISOString(),
-          muted: false,
-          archived: false
-        };
-        return [newThread, ...prev];
+    try {
+      const { data } = await api.post('/messages/send', {
+        recipientUsername,
+        content,
+        type,
+        attachmentUrl: typeof attachment === 'string' ? attachment : null,
+      });
+      if (data.status) {
+        await loadThreads();
+        return data.result;
       }
-    });
+    } catch (err) {
+      console.error('Failed to send message', err);
+    }
+    return null;
   };
 
   const getThread = (username) => {
-    return threads.find(t => t.participants.includes(username));
+    const thread = threads.find((t) => t.participants?.includes(username));
+    if (!thread) return null;
+    return { ...thread, messages: messagesByThread[thread.id] || [] };
   };
-  
-  const createThread = (username) => {
-      const existing = getThread(username);
-      if (existing) return existing;
-      
-      return {
-          id: 'temp',
-          participants: [username],
-          messages: [],
-          lastMessage: null,
-          muted: false,
-          archived: false
-      }
-  }
 
-  const acceptRequest = (requestId) => {
-    const request = requests.find(r => r.id === requestId);
-    if (request) {
-      setThreads(prev => [request, ...prev]);
-      setRequests(prev => prev.filter(r => r.id !== requestId));
+  const createThread = (username) => {
+    const existing = getThread(username);
+    if (existing) return existing;
+    return {
+      id: 'temp',
+      _id: null,
+      participants: [username, user?.username].filter(Boolean),
+      participantObjects: [],
+      messages: [],
+      lastMessage: null,
+      muted: false,
+      archived: false,
+    };
+  };
+
+  const acceptRequest = async (threadId) => {
+    try {
+      await api.post(`/messages/${threadId}/accept`);
+      setRequests((prev) => prev.filter((r) => r.id !== threadId));
+      await loadThreads();
+    } catch (err) {
+      console.error('Failed to accept request', err);
     }
   };
 
-  const archiveRequest = (requestId) => {
-    setRequests(prev => prev.filter(r => r.id !== requestId));
+  const archiveRequest = async (threadId) => {
+    setRequests((prev) => prev.filter((r) => r.id !== threadId));
   };
 
-  const searchUsers = (query) => {
+  const markAsRead = async (threadId) => {
+    if (!threadId || threadId === 'temp') return;
+    try {
+      await api.post(`/messages/${threadId}/read`);
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === threadId
+            ? {
+                ...t,
+                unreadCount: 0,
+                lastMessage: t.lastMessage ? { ...t.lastMessage, read: true } : null,
+              }
+            : t
+        )
+      );
+    } catch (err) {
+      console.error('Failed to mark as read', err);
+    }
+  };
+
+  const muteThread = async (threadId, muted) => {
+    if (!threadId || threadId === 'temp') return;
+    try {
+      await api.post(`/messages/${threadId}/mute`, { muted });
+      setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, muted } : t)));
+    } catch (err) {
+      console.error('Failed to mute thread', err);
+    }
+  };
+
+  const archiveThread = async (threadId) => {
+    if (!threadId || threadId === 'temp') return;
+    try {
+      await api.post(`/messages/${threadId}/archive`, { archived: true });
+      setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, archived: true } : t)));
+    } catch (err) {
+      console.error('Failed to archive thread', err);
+    }
+  };
+
+  const deleteThread = async (threadId) => {
+    if (!threadId || threadId === 'temp') return;
+    try {
+      await api.delete(`/messages/${threadId}`);
+      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+    } catch (err) {
+      console.error('Failed to delete thread', err);
+    }
+  };
+
+  const searchUsers = async (query) => {
     if (!query) return [];
-    return Object.values(mockUsers).filter(u => 
-      u.username.toLowerCase().includes(query.toLowerCase()) || 
-      u.name.toLowerCase().includes(query.toLowerCase())
-    ).filter(u => u.username !== user?.username);
-  };
-  
-  const markAsRead = (threadId) => {
-      setThreads(prev => prev.map(t => {
-          if (t.id === threadId) {
-              return { ...t, lastMessage: { ...t.lastMessage, read: true }};
-          }
-          return t;
-      }))
-  }
-
-  const muteThread = (threadId, muted) => {
-      setThreads(prev => prev.map(t => t.id === threadId ? { ...t, muted } : t));
-  };
-
-  const archiveThread = (threadId) => {
-      setThreads(prev => prev.map(t => t.id === threadId ? { ...t, archived: true } : t));
-  };
-
-  const deleteThread = (threadId) => {
-      setThreads(prev => prev.filter(t => t.id !== threadId));
+    try {
+      const { data } = await api.get('/messages/search-users', { params: { q: query } });
+      return data.result?.users || [];
+    } catch (err) {
+      console.error('Failed to search users', err);
+      return [];
+    }
   };
 
   const value = {
     threads,
     requests,
+    isLoading,
     sendMessage,
     getThread,
     createThread,
@@ -189,7 +244,9 @@ export const MessageProvider = ({ children }) => {
     markAsRead,
     muteThread,
     archiveThread,
-    deleteThread
+    deleteThread,
+    loadThreads,
+    loadMessages,
   };
 
   return (
