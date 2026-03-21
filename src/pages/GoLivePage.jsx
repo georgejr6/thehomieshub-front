@@ -330,9 +330,9 @@ const GoLivePage = ({ onLoginRequest }) => {
         }
     };
 
-    // ── WHIP WebRTC: proxies SDP through our backend to avoid browser CORS ──
+    // ── WHIP WebRTC: browser posts SDP directly to Mux (WHIP is browser-native, supports CORS) ──
     const startWhipStream = async (stream) => {
-        if (!liveStreamId) {
+        if (!liveStreamId || !streamData.whipUrl) {
             toast({ title: 'Save stream info first.', variant: 'destructive' });
             return false;
         }
@@ -350,7 +350,7 @@ const GoLivePage = ({ onLoginRequest }) => {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            // Wait for ICE gathering (max 4s)
+            // Wait for ICE gathering to complete (max 8s)
             await new Promise((resolve) => {
                 if (pc.iceGatheringState === 'complete') { resolve(); return; }
                 const check = () => {
@@ -360,21 +360,27 @@ const GoLivePage = ({ onLoginRequest }) => {
                     }
                 };
                 pc.addEventListener('icegatheringstatechange', check);
-                setTimeout(resolve, 4000);
+                setTimeout(resolve, 8000);
             });
 
-            // Proxy through backend — avoids CORS with Mux's WHIP endpoint
-            const { data: answerSdp } = await api.post(
-                `/live/${liveStreamId}/whip-proxy`,
-                pc.localDescription.sdp,
-                { headers: { 'Content-Type': 'application/sdp' }, responseType: 'text' }
-            );
+            // Post SDP offer directly to Mux WHIP endpoint from the browser
+            const resp = await fetch(streamData.whipUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/sdp' },
+                body: pc.localDescription.sdp,
+            });
 
+            if (!resp.ok) {
+                const errText = await resp.text().catch(() => resp.statusText);
+                throw new Error(`Mux WHIP ${resp.status}: ${errText}`);
+            }
+
+            const answerSdp = await resp.text();
             await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
             return true;
         } catch (err) {
             console.error('WHIP failed:', err);
-            const msg = err.response?.data?.message || err.message || 'Connection failed';
+            const msg = err.message || 'Connection failed';
             toast({ title: 'Stream Connection Failed', description: msg, variant: 'destructive' });
             if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
             return false;
