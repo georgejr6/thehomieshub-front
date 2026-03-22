@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clapperboard, ShieldAlert } from 'lucide-react';
+import { Clapperboard, ShieldAlert, Loader2 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import AuthModal from '@/components/AuthModal';
+import api from '@/api/homieshub';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
-  const [authOpen, setAuthOpen] = useState(false);
+  const { toast } = useToast();
+  const { user, loading, setAccessToken } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!loading && user?.isAdmin) {
@@ -38,6 +44,25 @@ const AdminLogin = () => {
     );
   }
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    setSubmitting(true);
+    try {
+      const { data } = await api.post('/auth/login', { email, password });
+      const token = data?.result?.access_token || data?.access_token;
+      if (!token) throw new Error('No token returned');
+      const loggedInUser = await setAccessToken(token);
+      if (!loggedInUser?.isAdmin) {
+        toast({ title: 'Access Denied', description: 'This account does not have admin privileges.', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Login Failed', description: err.response?.data?.message || 'Invalid credentials.', variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/30 p-4">
       <Card className="w-full max-w-sm mx-auto shadow-xl">
@@ -46,20 +71,40 @@ const AdminLogin = () => {
             <Clapperboard className="h-8 w-8" />
           </div>
           <CardTitle className="text-2xl">Admin Portal</CardTitle>
-          <CardDescription>Sign in with your admin account to continue.</CardDescription>
+          <CardDescription>Sign in with your admin account.</CardDescription>
         </CardHeader>
-        <CardFooter>
-          <Button className="w-full" onClick={() => setAuthOpen(true)}>
-            Sign In
-          </Button>
-        </CardFooter>
+        <form onSubmit={handleLogin}>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Sign In
+            </Button>
+          </CardFooter>
+        </form>
       </Card>
-
-      <AuthModal
-        isOpen={authOpen}
-        onOpenChange={setAuthOpen}
-        initialView="main"
-      />
     </div>
   );
 };
