@@ -7,6 +7,7 @@ import { Send, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const WS_BASE = import.meta.env.VITE_WS_URL || 'wss://backend.thehomies.app';
+const SYSTEM_MSG_TTL = 5000; // system messages disappear after 5s
 
 export default function LiveChat({ streamId, isCollapsible = true, className, onGiftMessage }) {
   const { user } = useAuth();
@@ -16,21 +17,51 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
   const [viewerCount, setViewerCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const wsRef = useRef(null);
-  const bottomRef = useRef(null);
   const reconnectTimer = useRef(null);
+  const reconnectDelay = useRef(3000);
 
+  // Keep user data in refs so connect() doesn't get recreated on every user render
+  const usernameRef = useRef(user?.username || 'Guest');
+  const avatarUrlRef = useRef(user?.avatarUrl || null);
+  useEffect(() => {
+    usernameRef.current = user?.username || 'Guest';
+    avatarUrlRef.current = user?.avatarUrl || null;
+  }, [user?.username, user?.avatarUrl]);
+
+  const bottomRef = useRef(null);
+
+  const addMessage = useCallback((msg) => {
+    setMessages((prev) => {
+      // Deduplicate: skip if last message is identical system content
+      if (msg.type === 'system') {
+        const last = prev[prev.length - 1];
+        if (last?.type === 'system' && last.content === msg.content) return prev;
+      }
+      const next = [...prev, msg];
+      return next.length > 200 ? next.slice(-200) : next;
+    });
+
+    // Auto-expire system messages after TTL
+    if (msg.type === 'system') {
+      setTimeout(() => {
+        setMessages((prev) => prev.filter((m) => m !== msg && m.id !== msg.id && m._key !== msg._key));
+      }, SYSTEM_MSG_TTL);
+    }
+  }, []);
+
+  // stable connect — reads user data from refs, not closure
   const connect = useCallback(() => {
     if (!streamId) return;
-    const params = new URLSearchParams({
-      streamId,
-      username: user?.username || 'Guest',
-      ...(user?.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
-    });
+
+    const params = new URLSearchParams({ streamId, username: usernameRef.current });
+    if (avatarUrlRef.current) params.set('avatarUrl', avatarUrlRef.current);
+
     const ws = new WebSocket(`${WS_BASE}/ws/live-chat?${params}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
       setConnected(true);
+      reconnectDelay.current = 3000; // reset backoff on success
       clearTimeout(reconnectTimer.current);
     };
 
@@ -41,35 +72,31 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
           setViewerCount(msg.count);
         } else if (msg.type === 'gift') {
           if (onGiftMessage) onGiftMessage(msg);
-          // Also show gift as a system message in chat
-          setMessages((prev) => {
-            const next = [...prev, { type: 'system', content: `🎁 ${msg.fromUsername} sent ${msg.amount} pts!`, timestamp: msg.timestamp }];
-            return next.length > 200 ? next.slice(-200) : next;
-          });
+          addMessage({ type: 'system', content: `🎁 ${msg.fromUsername} sent ${msg.amount} pts!`, timestamp: msg.timestamp, _key: Math.random() });
         } else if (msg.type === 'chat' || msg.type === 'system') {
-          setMessages((prev) => {
-            const next = [...prev, msg];
-            // Keep last 200 messages
-            return next.length > 200 ? next.slice(-200) : next;
-          });
+          addMessage({ ...msg, _key: msg.id || Math.random() });
         }
       } catch (_) {}
     };
 
     ws.onclose = () => {
       setConnected(false);
-      // Reconnect after 3s
-      reconnectTimer.current = setTimeout(connect, 3000);
+      // Exponential backoff: 3s → 6s → 12s → cap at 30s
+      reconnectTimer.current = setTimeout(() => {
+        if (wsRef.current === ws) connect();
+      }, reconnectDelay.current);
+      reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
     };
 
     ws.onerror = () => ws.close();
-  }, [streamId, user]);
+  }, [streamId, addMessage]); // no user dependency — reads from refs
 
   useEffect(() => {
     connect();
     return () => {
       clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
+      wsRef.current = null;
     };
   }, [connect]);
 
@@ -123,7 +150,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
         {messages.map((msg, i) => {
           if (msg.type === 'system') {
             return (
-              <div key={`sys-${i}`} className="text-center text-white/25 text-xs py-1 italic">
+              <div key={msg._key || `sys-${i}`} className="text-center text-white/25 text-xs py-1 italic">
                 {msg.content}
               </div>
             );
