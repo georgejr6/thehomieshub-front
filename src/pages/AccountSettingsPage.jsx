@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { Button } from '@/components/ui/button';
@@ -10,13 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2 } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import api from '@/api/homieshub';
 
 const AccountSettingsPage = () => {
-  const { user, updateUser } = useAuth();
+  const { user, refreshMe } = useAuth();
   const { walletMode, exitWalletMode } = useWallet();
   const { toast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState(user?.email || '');
   const [password, setPassword] = useState('');
@@ -42,6 +45,23 @@ const AccountSettingsPage = () => {
   // Confirmation Dialog States
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
+  // Discord connect state
+  const [discordLoading, setDiscordLoading] = useState(false);
+  const [showDiscordOnProfile, setShowDiscordOnProfile] = useState(user?.showDiscordOnProfile ?? true);
+
+  // Handle redirect back from Discord connect
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('discord') === 'connected') {
+      refreshMe();
+      toast({ title: 'Discord Connected!', description: 'Your Discord account is now linked.' });
+      navigate('/settings', { replace: true });
+    } else if (params.get('discord_error') === 'already_linked') {
+      toast({ title: 'Already Linked', description: 'This Discord account is linked to another user.', variant: 'destructive' });
+      navigate('/settings', { replace: true });
+    }
+  }, []);
 
   const handleNotificationToggle = (key) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
@@ -73,6 +93,41 @@ const AccountSettingsPage = () => {
           description: "Your wallet has been disconnected from your account."
       })
   }
+
+  const handleConnectDiscord = async () => {
+    setDiscordLoading(true);
+    try {
+      const { data } = await api.post('/auth/discord/connect');
+      window.location.href = data.result.url;
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to start Discord connection.', variant: 'destructive' });
+      setDiscordLoading(false);
+    }
+  };
+
+  const handleDisconnectDiscord = async () => {
+    setDiscordLoading(true);
+    try {
+      await api.delete('/auth/discord/disconnect');
+      await refreshMe();
+      toast({ title: 'Discord Disconnected', description: 'Your Discord account has been unlinked.' });
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to disconnect Discord.', variant: 'destructive' });
+    } finally {
+      setDiscordLoading(false);
+    }
+  };
+
+  const handleDiscordProfileToggle = async () => {
+    const newVal = !showDiscordOnProfile;
+    setShowDiscordOnProfile(newVal);
+    try {
+      await api.patch('/profile/me', { showDiscordOnProfile: newVal });
+      toast({ title: 'Updated', description: newVal ? 'Discord username visible on profile.' : 'Discord username hidden from profile.' });
+    } catch {
+      setShowDiscordOnProfile(!newVal);
+    }
+  };
 
   const handleDeactivate = () => {
       setIsDeactivateOpen(false);
@@ -277,6 +332,76 @@ const AccountSettingsPage = () => {
                     <span className="text-sm font-medium">Community Guidelines</span>
                 </div>
             </Link>
+        </CardContent>
+      </Card>
+
+      {/* 5b. Connected Accounts */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-primary" />
+            <CardTitle>Connected Accounts</CardTitle>
+          </div>
+          <CardDescription>Link your Discord so others can find you.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {/* Discord logo */}
+              <div className="w-9 h-9 rounded-lg bg-[#5865F2] flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 127.14 96.36" fill="white">
+                  <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/>
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium text-sm">Discord</p>
+                {user?.discordUsername ? (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                    <span className="text-xs text-muted-foreground">@{user.discordUsername}</span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Not connected</p>
+                )}
+              </div>
+            </div>
+            {user?.discordUsername ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnectDiscord}
+                disabled={discordLoading || user?.sub?.startsWith('discord:')}
+                title={user?.sub?.startsWith('discord:') ? "This is your login method" : ""}
+              >
+                {discordLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Disconnect'}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="bg-[#5865F2] hover:bg-[#4752C4] text-white"
+                onClick={handleConnectDiscord}
+                disabled={discordLoading}
+              >
+                {discordLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                Connect
+              </Button>
+            )}
+          </div>
+
+          {user?.discordUsername && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="discord-profile" className="flex-1 text-sm">Show Discord username on my profile</Label>
+                <Switch
+                  id="discord-profile"
+                  checked={showDiscordOnProfile}
+                  onCheckedChange={handleDiscordProfileToggle}
+                  className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
+                />
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
