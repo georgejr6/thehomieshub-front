@@ -24,15 +24,16 @@ const AccountSettingsPage = () => {
   const [email, setEmail] = useState(user?.email || '');
   const [password, setPassword] = useState('');
   
-  // Notification States
+  // Notification States — seeded from real user prefs
   const [notifications, setNotifications] = useState({
-    likes: true,
-    comments: true,
-    followers: true,
-    mentions: true,
-    dms: true,
-    events: false,
-    wallet: true,
+    likes:     user?.emailNotifications?.likes     ?? true,
+    comments:  user?.emailNotifications?.comments  ?? true,
+    followers: user?.emailNotifications?.followers ?? true,
+    mentions:  user?.emailNotifications?.mentions  ?? true,
+    dms:       user?.emailNotifications?.dms       ?? true,
+    events:    user?.emailNotifications?.events    ?? false,
+    wallet:    user?.emailNotifications?.wallet    ?? true,
+    wagers:    user?.emailNotifications?.wagers    ?? true,
   });
 
   // Privacy States
@@ -63,12 +64,19 @@ const AccountSettingsPage = () => {
     }
   }, []);
 
-  const handleNotificationToggle = (key) => {
-    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
-    toast({
+  const handleNotificationToggle = async (key) => {
+    const newVal = !notifications[key];
+    setNotifications(prev => ({ ...prev, [key]: newVal }));
+    try {
+      await api.patch('/profile/me/notifications', { [key]: newVal });
+      toast({
         title: "Settings Updated",
-        description: `${key.charAt(0).toUpperCase() + key.slice(1)} notifications ${!notifications[key] ? 'enabled' : 'disabled'}.`,
-    });
+        description: `${key.charAt(0).toUpperCase() + key.slice(1)} notifications ${newVal ? 'enabled' : 'disabled'}.`,
+      });
+    } catch {
+      setNotifications(prev => ({ ...prev, [key]: !newVal }));
+      toast({ title: "Error", description: "Failed to update notification preference.", variant: "destructive" });
+    }
   };
 
   const handlePrivacyChange = (key, value) => {
@@ -207,6 +215,7 @@ const AccountSettingsPage = () => {
             { key: 'dms', label: 'Direct Messages' },
             { key: 'events', label: 'Event Reminders' },
             { key: 'wallet', label: 'Wallet Activity' },
+            { key: 'wagers', label: 'Wager Alerts' },
           ].map((item) => (
             <div key={item.key} className="flex items-center justify-between space-x-2">
               <Label htmlFor={item.key} className="flex-1">{item.label}</Label>
