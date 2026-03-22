@@ -38,6 +38,7 @@ import AdminContent from '@/pages/admin/AdminContent';
 import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminMonetization from '@/pages/admin/AdminMonetization';
 import AdminFeatures from '@/pages/admin/AdminFeatures';
+import AdminInvite from '@/pages/admin/AdminInvite';
 import AdminLogin from '@/pages/admin/AdminLogin';
 import AdminLayout from '@/pages/admin/AdminLayout';
 import TermsPage from '@/pages/TermsPage';
@@ -317,6 +318,7 @@ const AppContent = React.memo(() => {
             <Route path="/admin/users" element={<AdminRouteWrapper><AdminUsers /></AdminRouteWrapper>} />
             <Route path="/admin/monetization" element={user?.isAdmin ? <AdminRouteWrapper><AdminMonetization /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/features" element={user?.isAdmin ? <AdminRouteWrapper><AdminFeatures /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
+            <Route path="/admin/invite" element={<AdminRouteWrapper><AdminInvite /></AdminRouteWrapper>} />
 
             {/* --- Main App Routes --- */}
             <Route element={<MainLayout 

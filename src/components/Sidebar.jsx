@@ -2,7 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords } from 'lucide-react';
+import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -59,6 +61,61 @@ const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, live
   );
 };
 
+const AdminPopupButton = ({ items, isCollapsed, onClose }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminActive = location.pathname.startsWith('/admin');
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <motion.button
+          className={cn(
+            "flex items-center w-full h-12 px-4 rounded-lg cursor-pointer transition-colors",
+            isAdminActive ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            isCollapsed ? "justify-center" : ""
+          )}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <ShieldCheck className={cn("h-6 w-6 shrink-0", isAdminActive ? "text-primary" : "text-muted-foreground")} />
+          <AnimatePresence>
+            {!isCollapsed && (
+              <motion.span
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.2 }}
+                className={cn("font-medium whitespace-nowrap ml-4", isAdminActive ? "text-primary" : "text-foreground")}
+              >
+                Admin
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="end" className="w-52 p-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase px-2 pb-2">Admin Panel</p>
+        {items.map(({ to, icon: Icon, label }) => (
+          <button
+            key={to}
+            onClick={() => { navigate(to); onClose?.(); }}
+            className={cn(
+              "flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
+              location.pathname === to || (to === '/admin/dashboard' && location.pathname.startsWith('/admin') && !items.slice(1).some(i => location.pathname === i.to))
+                ? "bg-primary/15 text-primary"
+                : "text-foreground hover:bg-accent"
+            )}
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            {label}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onPostClick, toggleImmersiveMode, isMobile }) => {
   const { user, isPremium, triggerLockedFeature } = useAuth();
   const { showWarning, confirmEnterMediaMode, cancelEnterMediaMode, enterMediaMode, hasEnteredMediaMode, isPlaying, currentTrack } = useMedia();
@@ -99,9 +156,12 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
   }
   
   const adminNavItems = [
-    { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/admin/content', icon: FolderKanban, label: 'Content' },
-    { to: '/admin/users', icon: Users, label: 'Users' },
+    { to: '/admin/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/admin/users',        icon: Users,           label: 'Users' },
+    { to: '/admin/content',      icon: FolderKanban,    label: 'Content' },
+    { to: '/admin/monetization', icon: DollarSign,      label: 'Monetization' },
+    { to: '/admin/features',     icon: Settings,        label: 'Features' },
+    { to: '/admin/invite',       icon: UserPlus,        label: 'Invite Users' },
   ];
 
   const handleUpgradeClick = () => {
@@ -225,20 +285,11 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
         )}
 
         {user?.isAdmin && (
-            <>
-                <div className="px-4 pt-4 pb-2">
-                    {(!isCollapsed || isMobile) && <span className="text-xs font-semibold text-muted-foreground uppercase">Admin</span>}
-                    {(isCollapsed && !isMobile) && <ShieldCheck className="h-6 w-6 mx-auto text-muted-foreground" />}
-                </div>
-                {adminNavItems.map(item => (
-                    <NavItem 
-                        key={item.to} 
-                        {...item} 
-                        isCollapsed={isMobile ? false : isCollapsed}
-                        onClick={isMobile ? onMobileClose : undefined}
-                    />
-                ))}
-            </>
+            <AdminPopupButton
+              items={adminNavItems}
+              isCollapsed={isCollapsed && !isMobile}
+              onClose={isMobile ? onMobileClose : undefined}
+            />
         )}
       </nav>
       
