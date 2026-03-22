@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -112,6 +112,19 @@ const AdminUsers = () => {
       }
     } catch (err) {
       toast({ title: 'Error', description: 'Failed to update user.', variant: 'destructive' });
+    }
+  };
+
+  const handlePromote = async (user) => {
+    const endpoint = user.isAdmin ? `/admin/users/${user._id}/demote` : `/admin/users/${user._id}/promote`;
+    try {
+      const { data } = await api.post(endpoint);
+      if (data.status) {
+        setUsers((prev) => prev.map((u) => u._id === user._id ? { ...u, isAdmin: data.result.isAdmin } : u));
+        toast({ title: data.result.isAdmin ? 'Promoted to Admin' : 'Admin Role Removed', description: `@${user.username}` });
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to update role.', variant: 'destructive' });
     }
   };
 
@@ -226,6 +239,11 @@ const AdminUsers = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleMute(user)}>
                             {user.isMuted ? <><Mic className="mr-2 h-4 w-4" /> Unmute</> : <><MicOff className="mr-2 h-4 w-4" /> Mute</>}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handlePromote(user)}>
+                            {user.isAdmin
+                              ? <><ShieldOff className="mr-2 h-4 w-4" /> Remove Admin</>
+                              : <><ShieldCheck className="mr-2 h-4 w-4" /> Make Admin</>}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className={user.isBanned ? '' : 'text-destructive focus:text-destructive'}
