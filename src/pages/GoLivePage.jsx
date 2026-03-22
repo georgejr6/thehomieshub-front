@@ -334,16 +334,18 @@ const GoLivePage = ({ onLoginRequest }) => {
 
     // ── Browser streaming: MediaRecorder → WebSocket → ffmpeg → Mux RTMP ──
     // Bypasses all WHIP/WebRTC issues. Server pipes webm chunks to Mux via RTMP.
-    const startBrowserStream = async (stream) => {
-        if (!liveStreamId) {
-            toast({ title: 'Save stream info first.', variant: 'destructive' });
+    const startBrowserStream = async (stream, streamId = liveStreamId) => {
+        if (!streamId) {
+            toast({ title: 'Stream not initialized.', variant: 'destructive' });
             return false;
         }
         try {
-            const token = localStorage.getItem('access_token');
-            if (!token) throw new Error('Not authenticated');
+            // Get a short-lived broadcast token from the backend (avoids passing full JWT in WS URL)
+            const tokenResp = await api.get(`/live/${streamId}/broadcast-token`);
+            const bcastToken = tokenResp.data?.result?.token;
+            if (!bcastToken) throw new Error('Failed to get broadcast token');
 
-            const wsUrl = `${import.meta.env.VITE_WS_URL || 'wss://backend.thehomies.app'}/ws/broadcast?streamId=${liveStreamId}&token=${encodeURIComponent(token)}`;
+            const wsUrl = `${import.meta.env.VITE_WS_URL || 'wss://backend.thehomies.app'}/ws/broadcast?bcast=${bcastToken}`;
 
             // Connect WebSocket
             await new Promise((resolve, reject) => {
@@ -386,23 +388,38 @@ const GoLivePage = ({ onLoginRequest }) => {
     };
 
     const handleGoLive = async () => {
-        if (!isSaved) return;
         setIsGoingLive(true);
 
         try {
-            // For webcam mode, establish WHIP WebRTC connection first
+            // Auto-save if not yet saved (webcam mode one-click flow)
+            let streamId = liveStreamId;
+            if (!isSaved) {
+                const streamMode = streamMethod === 'webcam' ? 'browser' : 'software';
+                const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode });
+                if (!data.status) {
+                    toast({ title: 'Error', description: data.message || 'Failed to create stream.', variant: 'destructive' });
+                    setIsGoingLive(false);
+                    return;
+                }
+                streamId = data.result.id;
+                setStreamData({ url: data.result.rtmpUrl, key: data.result.streamKey, whipUrl: data.result.whipEndpointUrl || '' });
+                setLiveStreamId(streamId);
+                setIsSaved(true);
+            }
+
+            // For webcam mode, start MediaRecorder → WebSocket → ffmpeg pipeline
             if (streamMethod === 'webcam') {
                 if (!cameraEnabled && !mediaStream) {
                     setUsingFallback(true);
                 } else if (mediaStream) {
-                    const ok = await startBrowserStream(mediaStream);
+                    const ok = await startBrowserStream(mediaStream, streamId);
                     if (!ok) { setIsGoingLive(false); return; }
                 }
             }
 
             // Tell the backend we're live → triggers follower email notifications
-            if (liveStreamId) {
-                await api.post(`/live/${liveStreamId}/go-live`);
+            if (streamId) {
+                await api.post(`/live/${streamId}/go-live`);
             }
 
             setIsLive(true);
@@ -615,21 +632,11 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             {/* Action Button */}
                                             {!isLive && (
                                                 <div className="flex flex-col items-end gap-2">
-                                                    {!isSaved && (
-                                                        <span className="text-xs text-yellow-500 font-medium bg-black/60 px-2 py-1 rounded backdrop-blur-md">
-                                                            Save Info to Go Live
-                                                        </span>
-                                                    )}
                                                     <Button
                                                         size="lg"
                                                         onClick={handleGoLive}
-                                                        disabled={!isSaved || isGoingLive}
-                                                        className={cn(
-                                                            "font-bold text-lg shadow-xl min-w-[160px]",
-                                                            isSaved
-                                                                ? "bg-[#FE2C55] hover:bg-[#FE2C55]/90"
-                                                                : "bg-zinc-700 text-zinc-400"
-                                                        )}
+                                                        disabled={isGoingLive}
+                                                        className="font-bold text-lg shadow-xl min-w-[160px] bg-[#FE2C55] hover:bg-[#FE2C55]/90"
                                                     >
                                                         {isGoingLive ? <Loader2 className="h-5 w-5 animate-spin" /> : 'GO LIVE'}
                                                     </Button>
