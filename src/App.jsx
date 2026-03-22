@@ -49,6 +49,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import FeatureGuard from '@/components/FeatureGuard';
 import WatchPage from './pages/WatchPage';
+import OAuthCallbackPage from '@/pages/OAuthCallbackPage';
 
 // --- Layout Components ---
 
@@ -309,6 +310,7 @@ const AppContent = React.memo(() => {
             </Route>
 
             {/* --- Admin Routes --- */}
+            <Route path="/auth/callback" element={<OAuthCallbackPage />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminRouteWrapper><AdminDashboard /></AdminRouteWrapper>} />
             <Route path="/admin/content" element={<AdminRouteWrapper><AdminContent /></AdminRouteWrapper>} />
