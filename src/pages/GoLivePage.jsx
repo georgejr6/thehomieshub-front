@@ -674,7 +674,8 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             </div>
                                         )}
 
-                                        {/* Bottom Controls Overlay */}
+                                        {/* Bottom Controls Overlay — hide on mobile when camera is off and not live */}
+                                        {(cameraEnabled || usingFallback || isLive) && (
                                         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-between transition-opacity duration-300">
                                             <div className="flex items-center gap-3">
                                                 <Tooltip>
@@ -751,6 +752,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                 </div>
                                             )}
                                         </div>
+                                        )}
                                     </div>
 
                                     {/* Mobile GO LIVE button — full width below video, only on small screens */}

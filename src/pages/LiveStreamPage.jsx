@@ -61,6 +61,19 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   const [isGiftOpen, setIsGiftOpen] = useState(false);
   const [liveGiftEvent, setLiveGiftEvent] = useState(null);
 
+  // Player warm-up retry
+  const [playerKey, setPlayerKey] = useState(1);
+  const [isWarmingUp, setIsWarmingUp] = useState(false);
+  const retryTimerRef = useRef(null);
+  const handlePlayerError = () => {
+    setIsWarmingUp(true);
+    retryTimerRef.current = setTimeout(() => {
+      setPlayerKey((k) => k + 1);
+      setIsWarmingUp(false);
+    }, 5000);
+  };
+  useEffect(() => () => clearTimeout(retryTimerRef.current), []);
+
   // Owner controls
   const isOwner = user && stream && user.username === stream.creator?.username;
   const [isEndingStream, setIsEndingStream] = useState(false);
@@ -197,14 +210,25 @@ const LiveStreamPage = ({ onLoginRequest }) => {
           {/* Video player */}
           <div className="relative bg-black flex-1 min-h-0">
             {stream.playbackId ? (
-              <MuxPlayer
-                streamType="ll-live"
-                playbackId={stream.playbackId}
-                autoPlay
-                muted={false}
-                style={{ width: '100%', height: '100%', aspectRatio: '16/9' }}
-                className="w-full h-full object-contain"
-              />
+              <>
+                <MuxPlayer
+                  key={playerKey}
+                  streamType="ll-live"
+                  playbackId={stream.playbackId}
+                  autoPlay
+                  muted={false}
+                  style={{ width: '100%', height: '100%', aspectRatio: '16/9' }}
+                  className="w-full h-full object-contain"
+                  onError={handlePlayerError}
+                />
+                {isWarmingUp && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 gap-3">
+                    <Radio className="h-10 w-10 text-primary animate-pulse" />
+                    <p className="text-white/70 text-sm font-medium">Stream warming up…</p>
+                    <p className="text-white/30 text-xs">Retrying in a moment</p>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <Loader2 className="h-10 w-10 text-white/30 animate-spin" />
