@@ -22,8 +22,9 @@ const normalizeUser = (raw) => {
   const email = safe(raw.email);
   const emailName = email ? email.split("@")[0] : "User";
 
-  const name = safe(raw.name, emailName);
   const username = safe(raw.username, emailName);
+  // Use displayName (user-chosen) over real OAuth name. Fall back to username, never expose raw.name.
+  const name = safe(raw.displayName) || username;
 
   const avatar =
     safe(raw.avatar) ||
@@ -50,6 +51,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLockedModalOpen, setIsLockedModalOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // forces refresh when token changes
   const [tokenVersion, setTokenVersion] = useState(0);
@@ -87,7 +89,25 @@ export const AuthProvider = ({ children }) => {
   /** 🔑 use this after login/register */
   const setAccessToken = async (token) => {
     setToken(token);
-    return await refreshMe();
+    const u = await refreshMe();
+    if (u && !localStorage.getItem('hh_onboarding_done')) {
+      // Only show for accounts created after onboarding shipped (2026-03-22).
+      // Existing users get silently skipped so they never see it unexpectedly.
+      const SHIP_DATE = new Date('2026-03-22T00:00:00Z');
+      const isExistingUser = !u.createdAt || new Date(u.createdAt) < SHIP_DATE;
+      if (isExistingUser) {
+        localStorage.setItem('hh_onboarding_done', '1');
+      } else {
+        setShowOnboarding(true);
+      }
+    }
+    return u;
+  };
+
+  const startTutorial = () => setShowOnboarding(true);
+  const stopTutorial = () => {
+    localStorage.setItem('hh_onboarding_done', '1');
+    setShowOnboarding(false);
   };
 
   // initial + token-change load
@@ -152,6 +172,10 @@ export const AuthProvider = ({ children }) => {
     isLockedModalOpen,
     setIsLockedModalOpen,
     handleUpgradeRedirect: async () => true,
+
+    showOnboarding,
+    startTutorial,
+    stopTutorial,
   };
 
   return (

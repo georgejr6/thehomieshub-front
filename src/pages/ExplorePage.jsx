@@ -167,7 +167,7 @@ const ExplorePage = ({ onLoginRequest }) => {
       </Helmet>
 
       <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
-        <header className="space-y-4 sticky bg-background/95 backdrop-blur z-40 pb-4 pt-2 -mt-2 top-[3.5rem] md:top-0">
+        <header className="space-y-4 sticky bg-background/95 backdrop-blur z-40 pb-4 pt-2 -mt-2 top-0">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight text-primary flex items-center gap-3">
               <Compass className="h-10 w-10" />

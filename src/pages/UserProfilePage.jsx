@@ -15,7 +15,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import {
-  Mail,
   Link as LinkIcon,
   Calendar,
   CheckCircle,
@@ -429,12 +428,6 @@ const UserProfilePage = () => {
             <p className="mt-4 text-base whitespace-pre-wrap">{profileUser.bio}</p>
 
             <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 text-sm text-muted-foreground">
-              {profileUser.email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  <span>{profileUser.email}</span>
-                </div>
-              )}
               {profileUser.website && (
                 <div className="flex items-center gap-2">
                   <LinkIcon className="h-4 w-4" />

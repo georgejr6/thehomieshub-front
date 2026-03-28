@@ -3,11 +3,11 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, ChevronRight } from 'lucide-react';
+import { Send, ChevronRight, Volume2, VolumeX, Diamond, CreditCard } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import api from '@/api/homieshub';
 
 const WS_BASE = import.meta.env.VITE_WS_URL || 'wss://backend.thehomies.app';
-const SYSTEM_MSG_TTL = 5000; // system messages disappear after 5s
 
 export default function LiveChat({ streamId, isCollapsible = true, className, onGiftMessage }) {
   const { user } = useAuth();
@@ -16,11 +16,28 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
   const [connected, setConnected] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(true);
+  const ttsEnabledRef = useRef(true);
   const wsRef = useRef(null);
   const reconnectTimer = useRef(null);
   const reconnectDelay = useRef(3000);
+  const historyLoadedRef = useRef(false);
 
-  // Keep user data in refs so connect() doesn't get recreated on every user render
+  useEffect(() => { ttsEnabledRef.current = ttsEnabled; }, [ttsEnabled]);
+
+  const speakDonation = useCallback((msg) => {
+    if (!ttsEnabledRef.current || !window.speechSynthesis) return;
+    const text = msg.ttsMessage?.trim()
+      ? `${msg.fromUsername} says: ${msg.ttsMessage}`
+      : msg.type === 'card_donation'
+        ? `${msg.fromUsername} just donated with a card!`
+        : `${msg.fromUsername} just sent ${msg.amount} points!`;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1; u.pitch = 1; u.volume = 1;
+    window.speechSynthesis.speak(u);
+  }, []);
+
   const usernameRef = useRef(user?.username || 'Guest');
   const avatarUrlRef = useRef(user?.avatarUrl || null);
   useEffect(() => {
@@ -32,27 +49,25 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
   const addMessage = useCallback((msg) => {
     setMessages((prev) => {
-      // Deduplicate: skip if last message is identical system content
-      if (msg.type === 'system') {
-        const last = prev[prev.length - 1];
-        if (last?.type === 'system' && last.content === msg.content) return prev;
-      }
       const next = [...prev, msg];
-      return next.length > 200 ? next.slice(-200) : next;
+      return next.length > 300 ? next.slice(-300) : next;
     });
-
-    // Auto-expire system messages after TTL
-    if (msg.type === 'system') {
-      setTimeout(() => {
-        setMessages((prev) => prev.filter((m) => m !== msg && m.id !== msg.id && m._key !== msg._key));
-      }, SYSTEM_MSG_TTL);
-    }
   }, []);
 
-  // stable connect — reads user data from refs, not closure
+  // Load chat history once on mount
+  useEffect(() => {
+    if (!streamId || historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
+    api.get(`/live/${streamId}/chat`)
+      .then(({ data }) => {
+        const history = data?.result?.messages || [];
+        if (history.length) setMessages(history);
+      })
+      .catch(() => {});
+  }, [streamId]);
+
   const connect = useCallback(() => {
     if (!streamId) return;
-
     const params = new URLSearchParams({ streamId, username: usernameRef.current });
     if (avatarUrlRef.current) params.set('avatarUrl', avatarUrlRef.current);
 
@@ -61,7 +76,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
     ws.onopen = () => {
       setConnected(true);
-      reconnectDelay.current = 3000; // reset backoff on success
+      reconnectDelay.current = 3000;
       clearTimeout(reconnectTimer.current);
     };
 
@@ -72,7 +87,13 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
           setViewerCount(msg.count);
         } else if (msg.type === 'gift') {
           if (onGiftMessage) onGiftMessage(msg);
-          addMessage({ type: 'system', content: `🎁 ${msg.fromUsername} sent ${msg.amount} pts!`, timestamp: msg.timestamp, _key: Math.random() });
+          speakDonation(msg);
+          addMessage({ ...msg, _key: `gift_${Date.now()}` });
+        } else if (msg.type === 'card_donation') {
+          speakDonation(msg);
+          addMessage({ ...msg, _key: msg.id || `cd_${Date.now()}` });
+        } else if (msg.type === 'join') {
+          addMessage({ ...msg, _key: `join_${Date.now()}` });
         } else if (msg.type === 'chat' || msg.type === 'system') {
           addMessage({ ...msg, _key: msg.id || Math.random() });
         }
@@ -81,7 +102,6 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
     ws.onclose = () => {
       setConnected(false);
-      // Exponential backoff: 3s → 6s → 12s → cap at 30s
       reconnectTimer.current = setTimeout(() => {
         if (wsRef.current === ws) connect();
       }, reconnectDelay.current);
@@ -89,7 +109,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
     };
 
     ws.onerror = () => ws.close();
-  }, [streamId, addMessage]); // no user dependency — reads from refs
+  }, [streamId, addMessage]);
 
   useEffect(() => {
     connect();
@@ -100,7 +120,6 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
     };
   }, [connect]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -115,11 +134,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
   if (collapsed && isCollapsible) {
     return (
       <div className="flex flex-col items-center bg-[#0e0e0e] border-l border-white/5 h-full py-4">
-        <button
-          onClick={() => setCollapsed(false)}
-          className="text-white/40 hover:text-white transition-colors p-2"
-          title="Open Chat"
-        >
+        <button onClick={() => setCollapsed(false)} className="text-white/40 hover:text-white transition-colors p-2" title="Open Chat">
           <ChevronRight className="h-5 w-5 rotate-180" />
         </button>
       </div>
@@ -135,11 +150,20 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
           <span className="text-xs text-white/40 bg-white/5 rounded px-1.5 py-0.5">{viewerCount.toLocaleString()} watching</span>
           <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-green-500" : "bg-white/20")} title={connected ? "Connected" : "Connecting..."} />
         </div>
-        {isCollapsible && (
-          <button onClick={() => setCollapsed(true)} className="text-white/40 hover:text-white transition-colors">
-            <ChevronRight className="h-4 w-4" />
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setTtsEnabled(v => !v)}
+            title={ttsEnabled ? "Mute donation TTS" : "Enable donation TTS"}
+            className={cn("p-1.5 rounded transition-colors", ttsEnabled ? "text-primary hover:text-primary/80" : "text-white/20 hover:text-white/50")}
+          >
+            {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
           </button>
-        )}
+          {isCollapsible && (
+            <button onClick={() => setCollapsed(true)} className="text-white/40 hover:text-white transition-colors p-1.5">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -148,6 +172,50 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
           <p className="text-white/20 text-xs text-center pt-8">Chat is empty. Be the first to say something!</p>
         )}
         {messages.map((msg, i) => {
+
+          // User joined
+          if (msg.type === 'join') {
+            return (
+              <div key={msg._key || `join-${i}`} className="flex items-center gap-1.5 px-1 py-0.5">
+                <span className="text-xs font-semibold" style={{ color: msg.color || '#aaa' }}>{msg.username}</span>
+                <span className="text-xs text-white/25">joined</span>
+              </div>
+            );
+          }
+
+          // Point gift
+          if (msg.type === 'gift') {
+            return (
+              <div key={msg._key || `gift-${i}`} className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                <Diamond className="h-3.5 w-3.5 text-primary fill-primary shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <span className="font-bold text-xs text-primary mr-1">{msg.fromUsername}</span>
+                  <span className="text-xs text-white/60">sent {msg.amount} pts</span>
+                  {msg.ttsMessage && (
+                    <p className="text-sm text-white/90 mt-0.5 break-words">"{msg.ttsMessage}"</p>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // Card (Stripe) donation
+          if (msg.type === 'card_donation') {
+            return (
+              <div key={msg._key || `cd-${i}`} className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20">
+                <CreditCard className="h-3.5 w-3.5 text-green-400 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <span className="font-bold text-xs text-green-400 mr-1">{msg.fromUsername}</span>
+                  <span className="text-xs text-white/60">donated via card</span>
+                  {msg.ttsMessage && (
+                    <p className="text-sm text-white/90 mt-0.5 break-words">"{msg.ttsMessage}"</p>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // System (fallback)
           if (msg.type === 'system') {
             return (
               <div key={msg._key || `sys-${i}`} className="text-center text-white/25 text-xs py-1 italic">
@@ -155,17 +223,19 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
               </div>
             );
           }
+
+          // Regular chat
           const isMe = msg.username === user?.username;
           return (
-            <div key={msg.id || i} className="flex items-start gap-2 group hover:bg-white/[0.03] px-1 py-0.5 rounded">
+            <div key={msg._key || msg.id || i} className="flex items-start gap-2 group hover:bg-white/[0.03] px-1 py-0.5 rounded">
               <Avatar className="h-5 w-5 shrink-0 mt-0.5">
                 <AvatarImage src={msg.avatarUrl} />
-                <AvatarFallback className="text-[8px]" style={{ backgroundColor: msg.color + '33' }}>
+                <AvatarFallback className="text-[8px]" style={{ backgroundColor: (msg.color || '#888') + '33' }}>
                   {msg.username?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <span className="font-semibold text-xs mr-1.5" style={{ color: msg.color }}>
+                <span className="font-semibold text-xs mr-1.5" style={{ color: msg.color || '#aaa' }}>
                   {isMe ? 'You' : msg.username}
                 </span>
                 <span className="text-sm text-white/80 break-words">{msg.content}</span>
@@ -188,12 +258,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
               maxLength={300}
               className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-primary rounded-full text-sm h-9"
             />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={!input.trim() || !connected}
-              className="h-9 w-9 rounded-full shrink-0 bg-primary hover:bg-primary/90"
-            >
+            <Button type="submit" size="icon" disabled={!input.trim() || !connected} className="h-9 w-9 rounded-full shrink-0 bg-primary hover:bg-primary/90">
               <Send className="h-4 w-4" />
             </Button>
           </form>

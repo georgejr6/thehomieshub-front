@@ -45,6 +45,7 @@ import TermsPage from '@/pages/TermsPage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import CommunityGuidelinesPage from '@/pages/CommunityGuidelinesPage';
 import BackButton from '@/components/BackButton';
+import OnboardingFlow from '@/components/OnboardingFlow';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -65,45 +66,10 @@ const MainLayout = ({
   const shouldHideHeader = isImmersiveMode;
   const isMobile = useMediaQuery('(max-width: 768px)');
   
-  // Swipe Detection Logic
-  const touchStart = useRef(null);
-  const touchEnd = useRef(null);
-  const minSwipeDistance = 50;
-
-  const onTouchStart = (e) => {
-    touchEnd.current = null; 
-    touchStart.current = e.targetTouches[0].clientX;
-  }
-
-  const onTouchMove = (e) => {
-    touchEnd.current = e.targetTouches[0].clientX;
-  }
-
-  const onTouchEnd = () => {
-    if (!touchStart.current || !touchEnd.current) return;
-    
-    const distance = touchStart.current - touchEnd.current;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-    
-    // Only apply on mobile
-    if (isMobile) {
-      if (isRightSwipe) {
-        // Swipe Right -> Open Menu
-        setSidebarOpen(true);
-      } else if (isLeftSwipe) {
-        // Swipe Left -> Close Menu
-        setSidebarOpen(false);
-      }
-    }
-  }
 
   return (
     <div 
       className="min-h-screen bg-background text-foreground font-sans antialiased flex flex-col md:block overscroll-none"
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
     >
       {/* Desktop Header */}
       {!shouldHideHeader && !isMobile && (
@@ -214,7 +180,7 @@ const AppContent = React.memo(() => {
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isImmersiveMode, setIsImmersiveMode] = useState(false);
   
-  const { user, loading, isLockedModalOpen, setIsLockedModalOpen, isPremium } = useAuth();
+  const { user, loading, isLockedModalOpen, setIsLockedModalOpen, isPremium, showOnboarding, stopTutorial } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -410,6 +376,7 @@ const AppContent = React.memo(() => {
             isOpen={isLockedModalOpen} 
             onOpenChange={setIsLockedModalOpen}
         />
+        <OnboardingFlow isOpen={showOnboarding} onClose={stopTutorial} />
         <PlaceView />
         <Toaster />
     </ThemeProvider>

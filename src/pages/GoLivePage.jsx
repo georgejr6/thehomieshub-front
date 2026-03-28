@@ -6,7 +6,7 @@ import {
   Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff,
   MessageSquare, Radio, Share2, Copy, Check, Save,
   MonitorPlay, Laptop, AlertCircle, Signal, Info, HelpCircle,
-  Wifi, ShieldCheck, Globe, Loader2, Clock, ExternalLink, ChevronDown
+  Wifi, ShieldCheck, Globe, Loader2, Clock, ExternalLink, ChevronDown, RotateCcw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -150,6 +150,7 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState('');
     const [activeTab, setActiveTab] = useState('setup');
     const [showDeviceSettings, setShowDeviceSettings] = useState(false);
+    const [facingMode, setFacingMode] = useState('user'); // 'user' = front, 'environment' = rear
 
     // Form State
     const [title, setTitle] = useState('');
@@ -160,6 +161,13 @@ const GoLivePage = ({ onLoginRequest }) => {
     // History
     const [liveHistory, setLiveHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+
+    // Admin-only features
+    const isAdmin = user?.email === 'forthehomies96@gmail.com';
+    const [donationBotEnabled, setDonationBotEnabled] = useState(false);
+    const donationBotRef = useRef(null);
+    const [viewerBoostInput, setViewerBoostInput] = useState('0');
+    const [viewerBoostApplied, setViewerBoostApplied] = useState(0);
 
     // On mount: check if there's already an active/idle stream and resume it, also load history
     useEffect(() => {
@@ -208,6 +216,41 @@ const GoLivePage = ({ onLoginRequest }) => {
     useEffect(() => {
         if (isLive) setActiveTab('chat');
     }, [isLive]);
+
+    // Donation bot — fires every 5 min while enabled + live (admin only)
+    const DONATION_MESSAGES = [
+        "💛 Enjoying the stream? Show some love and send a donation! CashApp: $Homieshub or donate here → https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09",
+        "🙏 Your support keeps us going! Drop a donation to CashApp: $Homieshub or click → https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09",
+        "🔥 If you're vibing with this stream, show support! CashApp: $Homieshub | Donate: https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09",
+        "❤️ Every donation helps us keep building! Send to CashApp: $Homieshub or use the link → https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09",
+    ];
+    const donationMsgIndexRef = useRef(0);
+
+    useEffect(() => {
+        if (!isAdmin || !isLive || !liveStreamId || !donationBotEnabled) {
+            if (donationBotRef.current) { clearInterval(donationBotRef.current); donationBotRef.current = null; }
+            return;
+        }
+        const sendBotMsg = () => {
+            const msg = DONATION_MESSAGES[donationMsgIndexRef.current % DONATION_MESSAGES.length];
+            donationMsgIndexRef.current += 1;
+            api.post(`/live/${liveStreamId}/bot-message`, { content: msg }).catch(() => {});
+        };
+        sendBotMsg(); // fire once immediately
+        donationBotRef.current = setInterval(sendBotMsg, 5 * 60 * 1000);
+        return () => { clearInterval(donationBotRef.current); donationBotRef.current = null; };
+    }, [isAdmin, isLive, liveStreamId, donationBotEnabled]);
+
+    const applyViewerBoost = async () => {
+        const boost = Math.max(0, parseInt(viewerBoostInput, 10) || 0);
+        try {
+            await api.post(`/live/${liveStreamId}/viewer-boost`, { boost });
+            setViewerBoostApplied(boost);
+            toast({ title: boost > 0 ? `Viewer boost set to +${boost}` : 'Viewer boost cleared' });
+        } catch {
+            toast({ title: 'Failed to apply boost', variant: 'destructive' });
+        }
+    };
 
     // Poll my-stream in software mode to detect when Restream/OBS connects
     useEffect(() => {
@@ -263,11 +306,14 @@ const GoLivePage = ({ onLoginRequest }) => {
         } catch (_) {}
     };
 
-    const startCamera = async (videoId, audioId) => {
+    const startCamera = async (videoId, audioId, facing = facingMode) => {
         setPermissionError(null);
         try {
+            const videoConstraints = videoId
+                ? { deviceId: { exact: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                : { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } };
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: videoId ? { deviceId: { exact: videoId }, width: 1280, height: 720 } : { width: 1280, height: 720 },
+                video: videoConstraints,
                 audio: audioId ? { deviceId: { exact: audioId } } : true,
             });
             if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
@@ -283,9 +329,16 @@ const GoLivePage = ({ onLoginRequest }) => {
 
     const toggleCamera = async () => {
         if (cameraEnabled) {
-            stopMediaTracks();
-            setCameraEnabled(false);
-            setMicEnabled(false);
+            if (isLive && mediaStream) {
+                // During live: stop video tracks only — keep audio flowing so stream stays up
+                mediaStream.getVideoTracks().forEach(t => t.stop());
+                setCameraEnabled(false);
+                setUsingFallback(true);
+            } else {
+                stopMediaTracks();
+                setCameraEnabled(false);
+                setMicEnabled(false);
+            }
         } else {
             await startCamera(selectedVideoDeviceId, selectedAudioDeviceId);
         }
@@ -299,6 +352,13 @@ const GoLivePage = ({ onLoginRequest }) => {
     const switchMic = async (deviceId) => {
         setSelectedAudioDeviceId(deviceId);
         if (cameraEnabled) await startCamera(selectedVideoDeviceId, deviceId);
+    };
+
+    const flipCamera = async () => {
+        const newFacing = facingMode === 'user' ? 'environment' : 'user';
+        setFacingMode(newFacing);
+        setSelectedVideoDeviceId('');
+        if (cameraEnabled) await startCamera('', selectedAudioDeviceId, newFacing);
     };
 
     const toggleMic = () => {
@@ -425,10 +485,21 @@ const GoLivePage = ({ onLoginRequest }) => {
 
             // For webcam mode, start MediaRecorder → WebSocket → ffmpeg pipeline
             if (streamMethod === 'webcam') {
-                if (!cameraEnabled && !mediaStream) {
+                let streamToUse = mediaStream;
+                if (!cameraEnabled || !mediaStream) {
+                    // No camera — request audio-only so the stream still goes live
+                    try {
+                        const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                        setMediaStream(audioOnly);
+                        setMicEnabled(true);
+                        streamToUse = audioOnly;
+                    } catch (_) {
+                        streamToUse = null;
+                    }
                     setUsingFallback(true);
-                } else if (mediaStream) {
-                    const ok = await startBrowserStream(mediaStream, streamId);
+                }
+                if (streamToUse) {
+                    const ok = await startBrowserStream(streamToUse, streamId);
                     if (!ok) { setIsGoingLive(false); return; }
                 }
             }
@@ -450,6 +521,8 @@ const GoLivePage = ({ onLoginRequest }) => {
     const handleEndStream = async () => {
         setIsLive(false);
         setUsingFallback(false);
+        setDonationBotEnabled(false);
+        if (donationBotRef.current) { clearInterval(donationBotRef.current); donationBotRef.current = null; }
         // Stop browser stream (MediaRecorder + WebSocket)
         if (mediaRecorderRef.current) { try { mediaRecorderRef.current.stop(); } catch (_) {} mediaRecorderRef.current = null; }
         if (broadcastWsRef.current) { broadcastWsRef.current.close(); broadcastWsRef.current = null; }
@@ -554,12 +627,12 @@ const GoLivePage = ({ onLoginRequest }) => {
 
                                         {/* Main Video Feed */}
                                         {cameraEnabled ? (
-                                            <video 
-                                                ref={videoRef} 
-                                                autoPlay 
-                                                muted 
-                                                playsInline 
-                                                className="w-full h-full object-cover transform scale-x-[-1]" 
+                                            <video
+                                                ref={videoRef}
+                                                autoPlay
+                                                muted
+                                                playsInline
+                                                className={cn("w-full h-full object-cover", facingMode === 'user' && "scale-x-[-1]")}
                                             />
                                         ) : (
                                             /* Offline / Fallback State */
@@ -606,9 +679,9 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             <div className="flex items-center gap-3">
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                        <Button 
-                                                            variant={cameraEnabled ? "secondary" : "destructive"} 
-                                                            size="icon" 
+                                                        <Button
+                                                            variant={cameraEnabled ? "secondary" : "destructive"}
+                                                            size="icon"
                                                             onClick={toggleCamera}
                                                             className="rounded-full h-12 w-12 shadow-lg ring-2 ring-black/20"
                                                         >
@@ -619,12 +692,12 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                         <p>{cameraEnabled ? "Turn Off Camera" : "Turn On Camera"}</p>
                                                     </TooltipContent>
                                                 </Tooltip>
-                                                
+
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                        <Button 
-                                                            variant={micEnabled ? "secondary" : "destructive"} 
-                                                            size="icon" 
+                                                        <Button
+                                                            variant={micEnabled ? "secondary" : "destructive"}
+                                                            size="icon"
                                                             onClick={toggleMic}
                                                             className="rounded-full h-12 w-12 shadow-lg ring-2 ring-black/20"
                                                             disabled={!cameraEnabled && !usingFallback}
@@ -637,17 +710,36 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                     </TooltipContent>
                                                 </Tooltip>
 
+                                                {/* Flip Camera — shown when multiple cameras available */}
+                                                {cameraEnabled && videoDevices.length > 1 && (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="secondary"
+                                                                size="icon"
+                                                                onClick={flipCamera}
+                                                                className="rounded-full h-12 w-12 shadow-lg ring-2 ring-black/20"
+                                                            >
+                                                                <RotateCcw className="h-5 w-5" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="top">
+                                                            <p>Flip Camera ({facingMode === 'user' ? 'Switch to Rear' : 'Switch to Front'})</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
+
                                                 {/* Audio Visualizer */}
                                                 {(micEnabled && (cameraEnabled || usingFallback)) && (
-                                                    <div className="h-12 px-4 bg-black/40 rounded-full flex items-center border border-white/10 backdrop-blur-md ml-2">
+                                                    <div className="hidden sm:flex h-12 px-4 bg-black/40 rounded-full items-center border border-white/10 backdrop-blur-md ml-2">
                                                         <AudioLevelIndicator stream={mediaStream} />
                                                     </div>
                                                 )}
                                             </div>
 
-                                            {/* Action Button */}
+                                            {/* GO LIVE — desktop overlay only */}
                                             {!isLive && (
-                                                <div className="flex flex-col items-end gap-2">
+                                                <div className="hidden sm:flex flex-col items-end gap-2">
                                                     <Button
                                                         size="lg"
                                                         onClick={handleGoLive}
@@ -660,6 +752,18 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Mobile GO LIVE button — full width below video, only on small screens */}
+                                    {!isLive && (
+                                        <Button
+                                            size="lg"
+                                            onClick={handleGoLive}
+                                            disabled={isGoingLive}
+                                            className="sm:hidden w-full h-14 font-bold text-xl shadow-xl bg-[#FE2C55] hover:bg-[#FE2C55]/90"
+                                        >
+                                            {isGoingLive ? <Loader2 className="h-6 w-6 animate-spin" /> : '🔴 GO LIVE'}
+                                        </Button>
+                                    )}
 
                                     {/* Collapsible device settings */}
                                     {cameraEnabled && (videoDevices.length > 0 || audioDevices.length > 0) && (
@@ -714,7 +818,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                                     )}
 
                                     {/* Educational Note - Webcam */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-zinc-500 px-2">
+                                    <div className="hidden sm:grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-zinc-500 px-2">
                                         <div className="flex items-start gap-2">
                                             <Wifi className="h-4 w-4 mt-0.5 text-blue-500" />
                                             <p>Requires a stable internet connection (min 5Mbps upload recommended).</p>
@@ -955,6 +1059,60 @@ const GoLivePage = ({ onLoginRequest }) => {
                                         />
                                     </div>
                                 </div>
+
+                                {/* Admin Panel — visible only to forthehomies96@gmail.com */}
+                                {isAdmin && (
+                                    <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-4">
+                                        <p className="text-xs font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-2">
+                                            <ShieldCheck className="h-3.5 w-3.5" /> Admin Controls
+                                        </p>
+
+                                        {/* Donation Bot Toggle */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <Label className="text-sm">Donation Bot</Label>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Posts donation prompts every 5 min{donationBotEnabled && isLive ? ' · Active' : ''}
+                                                </p>
+                                            </div>
+                                            <Switch
+                                                checked={donationBotEnabled}
+                                                onCheckedChange={setDonationBotEnabled}
+                                            />
+                                        </div>
+                                        {donationBotEnabled && !isLive && (
+                                            <p className="text-xs text-yellow-400/70">Will start posting when you go live.</p>
+                                        )}
+
+                                        {/* Viewer Count Boost */}
+                                        <div className="space-y-2">
+                                            <Label className="text-sm">Viewer Count Boost</Label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Add to displayed viewer count{viewerBoostApplied > 0 ? ` · Currently +${viewerBoostApplied}` : ''}
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={viewerBoostInput}
+                                                    onChange={(e) => setViewerBoostInput(e.target.value)}
+                                                    className="h-9 text-sm bg-background"
+                                                    placeholder="0"
+                                                    disabled={!liveStreamId}
+                                                />
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={applyViewerBoost}
+                                                    disabled={!liveStreamId}
+                                                    className="shrink-0"
+                                                >
+                                                    Apply
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="pt-4 mt-auto">
                                     <Button

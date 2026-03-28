@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Diamond, Gift, ShoppingCart, ArrowLeft, Loader2 } from 'lucide-react';
+import { Diamond, Gift, ShoppingCart, ArrowLeft, Loader2, Volume2, CreditCard } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,7 @@ const GiftDialog = ({
 }) => {
   const [balance, setBalance] = useState(0);
   const [selectedAmount, setSelectedAmount] = useState(null);
+  const [ttsMessage, setTtsMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [particles, setParticles] = useState([]);
   const [showBuyPoints, setShowBuyPoints] = useState(false);
@@ -61,8 +64,10 @@ const GiftDialog = ({
     if (!isOpen) {
       setParticles([]);
       setSelectedAmount(null);
+      setTtsMessage('');
       setShowBuyPoints(false);
       setCheckoutLoading(null);
+      setCardDonating(false);
       clearTimeout(particleTimer.current);
     }
   }, [isOpen]);
@@ -101,6 +106,7 @@ const GiftDialog = ({
         targetType,
         targetId,
         points: selectedAmount,
+        ttsMessage: ttsMessage.trim() || undefined,
       });
 
       setBalance((b) => Math.max(0, b - selectedAmount));
@@ -149,7 +155,24 @@ const GiftDialog = ({
     }
   };
 
+  const [cardDonating, setCardDonating] = useState(false);
   const needsTopUp = selectedAmount !== null && balance < selectedAmount;
+
+  const handleCardDonate = async () => {
+    if (!targetId || targetType !== 'live_stream') {
+      window.open('https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09', '_blank');
+      return;
+    }
+    setCardDonating(true);
+    try {
+      if (user) {
+        await api.post(`/live/${targetId}/card-donation`, { ttsMessage: ttsMessage.trim() || undefined });
+      }
+    } catch (_) {}
+    setCardDonating(false);
+    window.open('https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09', '_blank');
+    onOpenChange(false);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -247,6 +270,24 @@ const GiftDialog = ({
               })}
             </div>
 
+            {/* TTS message — only on live stream gifts */}
+            {targetType === 'live_stream' && (
+              <div className="space-y-1.5">
+                <Label className="text-sm flex items-center gap-1.5">
+                  <Volume2 className="h-3.5 w-3.5 text-primary" />
+                  Message to read aloud <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <Input
+                  value={ttsMessage}
+                  onChange={(e) => setTtsMessage(e.target.value)}
+                  placeholder="Say something to the streamer..."
+                  maxLength={150}
+                  className="text-sm"
+                />
+                <p className="text-xs text-muted-foreground">Your message will be read out loud in the stream when your gift is received.</p>
+              </div>
+            )}
+
             <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg border border-border/50">
               <span className="text-sm text-muted-foreground">Your Balance:</span>
               <div className="flex items-center gap-2">
@@ -272,6 +313,24 @@ const GiftDialog = ({
                   onClick={() => setShowBuyPoints(true)}
                 >
                   Buy Points
+                </Button>
+              </div>
+            )}
+
+            {/* Donate with Card — only on live streams */}
+            {targetType === 'live_stream' && (
+              <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4 space-y-3">
+                <p className="text-xs font-semibold text-green-400 flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5" /> Donate with Card
+                </p>
+                <p className="text-xs text-muted-foreground">Skip the points — donate directly via Stripe. Your message will be read aloud in the stream.</p>
+                <Button
+                  type="button"
+                  onClick={handleCardDonate}
+                  disabled={cardDonating}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white border-0 h-10"
+                >
+                  {cardDonating ? <Loader2 className="h-4 w-4 animate-spin" /> : '💳 Donate with Card'}
                 </Button>
               </div>
             )}
