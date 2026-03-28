@@ -498,10 +498,13 @@ const GoLivePage = ({ onLoginRequest }) => {
                     }
                     setUsingFallback(true);
                 }
-                if (streamToUse) {
-                    const ok = await startBrowserStream(streamToUse, streamId);
-                    if (!ok) { setIsGoingLive(false); return; }
+                if (!streamToUse) {
+                    toast({ title: 'Microphone required', description: 'Could not access your mic. Check browser permissions and try again.', variant: 'destructive' });
+                    setIsGoingLive(false);
+                    return;
                 }
+                const ok = await startBrowserStream(streamToUse, streamId);
+                if (!ok) { setIsGoingLive(false); return; }
             }
 
             // Tell the backend we're live → triggers follower email notifications
@@ -512,7 +515,7 @@ const GoLivePage = ({ onLoginRequest }) => {
             setIsLive(true);
             toast({ title: "🔴 You are Live!", description: "Broadcasting started successfully.", className: "bg-red-600 text-white border-none" });
         } catch (err) {
-            toast({ title: 'Error', description: 'Failed to go live.', variant: 'destructive' });
+            toast({ title: 'Failed to go live', description: err.message || 'Something went wrong. Try again.', variant: 'destructive' });
         } finally {
             setIsGoingLive(false);
         }
