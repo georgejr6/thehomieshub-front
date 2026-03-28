@@ -139,6 +139,7 @@ const GoLivePage = ({ onLoginRequest }) => {
     const pcRef = useRef(null); // kept for cleanup compat
     const mediaRecorderRef = useRef(null);
     const broadcastWsRef = useRef(null);
+    const mediaStreamRef = useRef(null); // ref so cleanup always sees current stream
     const [mediaStream, setMediaStream] = useState(null);
     const [cameraEnabled, setCameraEnabled] = useState(false);
     const [micEnabled, setMicEnabled] = useState(false);
@@ -282,16 +283,25 @@ const GoLivePage = ({ onLoginRequest }) => {
         return () => clearInterval(pollRef.current);
     }, [streamMethod, isSaved]);
 
+    // Keep ref in sync so cleanup always has the current stream
+    useEffect(() => { mediaStreamRef.current = mediaStream; }, [mediaStream]);
+
     // --- Media Handling ---
     const stopMediaTracks = () => {
-        if (mediaStream) {
-            mediaStream.getTracks().forEach(track => track.stop());
+        const s = mediaStreamRef.current;
+        if (s) {
+            s.getTracks().forEach(track => track.stop());
+            mediaStreamRef.current = null;
             setMediaStream(null);
         }
     };
 
     useEffect(() => {
-        return () => stopMediaTracks();
+        return () => {
+            // Use ref so this always sees the latest stream even if called at unmount
+            const s = mediaStreamRef.current;
+            if (s) s.getTracks().forEach(t => t.stop());
+        };
     }, []);
 
     const enumerateDevices = async () => {
@@ -440,8 +450,15 @@ const GoLivePage = ({ onLoginRequest }) => {
             }).then(ws => { broadcastWsRef.current = ws; });
 
             // Pick best supported codec
-            const mimeType = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp9,opus', 'video/webm']
-                .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+            if (typeof MediaRecorder === 'undefined') {
+                throw new Error('Your browser does not support live streaming. Try Chrome or Firefox on desktop.');
+            }
+            const supportedMime = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp9,opus', 'video/webm']
+                .find(m => MediaRecorder.isTypeSupported(m));
+            if (!supportedMime) {
+                throw new Error('Your browser does not support the required video format. Try Chrome or Firefox on desktop.');
+            }
+            const mimeType = supportedMime;
 
             const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2500000 });
             mediaRecorderRef.current = recorder;

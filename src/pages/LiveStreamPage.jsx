@@ -61,11 +61,19 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   const [isGiftOpen, setIsGiftOpen] = useState(false);
   const [liveGiftEvent, setLiveGiftEvent] = useState(null);
 
-  // Player warm-up retry
+  // Player warm-up retry (max 6 attempts = ~30s)
   const [playerKey, setPlayerKey] = useState(1);
   const [isWarmingUp, setIsWarmingUp] = useState(false);
+  const [playerGaveUp, setPlayerGaveUp] = useState(false);
   const retryTimerRef = useRef(null);
+  const retryCountRef = useRef(0);
   const handlePlayerError = () => {
+    if (retryCountRef.current >= 6) {
+      setIsWarmingUp(false);
+      setPlayerGaveUp(true);
+      return;
+    }
+    retryCountRef.current += 1;
     setIsWarmingUp(true);
     retryTimerRef.current = setTimeout(() => {
       setPlayerKey((k) => k + 1);
@@ -226,6 +234,15 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                     <Radio className="h-10 w-10 text-primary animate-pulse" />
                     <p className="text-white/70 text-sm font-medium">Stream warming up…</p>
                     <p className="text-white/30 text-xs">Retrying in a moment</p>
+                  </div>
+                )}
+                {playerGaveUp && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-10 gap-4">
+                    <ShieldX className="h-12 w-12 text-white/20" />
+                    <p className="text-white/60 text-sm font-medium">Stream unavailable</p>
+                    <Button size="sm" variant="outline" onClick={() => { retryCountRef.current = 0; setPlayerGaveUp(false); setPlayerKey(k => k + 1); }}>
+                      Try again
+                    </Button>
                   </div>
                 )}
               </>
