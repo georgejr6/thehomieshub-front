@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Heart, MessageCircle, Share2, Music, Play, Pause, Volume2, VolumeX,
-    Bookmark, Plus, ShieldAlert, Lock, Eye, Check, Crown
+    Bookmark, Plus, ShieldAlert, Lock, Eye, Check, Crown, MoreVertical, Trash2, EyeOff
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import api from '@/api/homieshub';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -31,7 +33,7 @@ const LONG_VIDEO_LIMIT = 180; // 3 minutes — nudge long-form to media mode
 
 const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }) => {
     const { user, isPremium, triggerLockedFeature } = useAuth();
-    const { users, isPostLiked, togglePostLike, isPostSaved, togglePostSave,toggleContentLike } = useContent();
+    const { users, isPostLiked, togglePostLike, isPostSaved, togglePostSave, toggleContentLike, deletePost } = useContent();
     const { toggleLike: toggleMediaLike, isLiked: isMediaLiked, isPlaying: musicIsPlaying } = useMedia();
     const { toast } = useToast();
     const navigate = useNavigate();
@@ -286,6 +288,35 @@ const togglePlayPause = () => {
         if (post.isNSFW) setIsUnlocked(true);
     };
 
+    // Admin: delete or hide a vertical video
+    const handleAdminDelete = async (e) => {
+        e.stopPropagation();
+        if (!window.confirm(`Delete "${post.title || post.description?.slice(0,40) || 'this video'}"? This cannot be undone.`)) return;
+        try {
+            await api.delete(`/admin/videos/${post.id}`, {
+                params: { collectionType: post.backendType || 'reel' },
+            });
+            deletePost(post.id);
+            toast({ title: 'Deleted', description: 'Video removed.' });
+        } catch {
+            toast({ title: 'Error', description: 'Failed to delete.', variant: 'destructive' });
+        }
+    };
+
+    const handleAdminHide = async (e) => {
+        e.stopPropagation();
+        try {
+            await api.patch(`/admin/videos/${post.id}`, {
+                visibility: 'private',
+                _collectionType: post.backendType || 'reel',
+            });
+            deletePost(post.id); // remove from local feed
+            toast({ title: 'Hidden', description: 'Video set to private.' });
+        } catch {
+            toast({ title: 'Error', description: 'Failed to hide.', variant: 'destructive' });
+        }
+    };
+
     // Unified handler for all "watch full / open media mode" CTAs
     const handleMediaMode = () => {
         if (!user) { onLoginRequest?.(); return; }
@@ -458,6 +489,26 @@ const togglePlayPause = () => {
 
                 {/* SIDE CONTROLS — absolute on mobile, relative column on desktop */}
                 <div className="absolute bottom-4 right-2 md:relative md:bottom-auto md:right-auto z-40 flex flex-col items-center gap-5 w-[60px] md:w-[72px] md:self-end md:pb-4 md:shrink-0">
+
+                    {/* Admin quick-actions */}
+                    {user?.isAdmin && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                    <MoreVertical className="h-7 w-7 text-white drop-shadow-md" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="z-[200]">
+                                <DropdownMenuItem onClick={handleAdminHide}>
+                                    <EyeOff className="mr-2 h-4 w-4" /> Make Private
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleAdminDelete}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Video
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
 
                     <div className="relative mb-1">
                         <Link to={`/profile/${post.user.username}`} onClick={(e) => e.stopPropagation()}>
