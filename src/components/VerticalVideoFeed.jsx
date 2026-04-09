@@ -24,9 +24,9 @@ function wrapPosts(posts, loopIndex) {
   }));
 }
 
-const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange }) => {
+const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, initialIndex = 0 }) => {
   const containerRef = useRef(null);
-  const [visibleIndex, setVisibleIndex] = useState(0);
+  const [visibleIndex, setVisibleIndex] = useState(initialIndex);
   const loopCountRef = useRef(0);
 
   // Internal expanded list: each entry is { post, instanceKey, startFraction }
@@ -37,6 +37,13 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange }) 
     loopCountRef.current = 0;
     setItems(wrapPosts(posts, 0));
   }, [posts]);
+
+  // Scroll to initialIndex on mount
+  useEffect(() => {
+    if (!initialIndex || !containerRef.current) return;
+    // Use instant scroll so there's no animation on first load
+    containerRef.current.scrollTop = initialIndex * containerRef.current.clientHeight;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Append a shuffled loop when nearing the end
   const maybeRefill = useCallback((currentIndex, totalItems) => {

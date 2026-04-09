@@ -16,6 +16,7 @@ import SubscriptionDialog from '@/components/SubscriptionDialog';
 import GiftDialog from '@/components/GiftDialog';
 import { useContent } from '@/contexts/ContentContext';
 import MintedCollectibleModal from '@/components/MintedCollectibleModal';
+import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 import { useMedia } from '@/contexts/MediaContext';
 import MuxPlayer from '@mux/mux-player-react';
 import { useNavigate } from 'react-router-dom';
@@ -57,7 +58,7 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
 
     // Preview gate for subscriber content
     const [previewExpired, setPreviewExpired] = useState(false);
-    const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
     // Long-video gate (>3 min) — nudge to media mode
     const [longVideoExpired, setLongVideoExpired] = useState(false);
@@ -285,12 +286,11 @@ const togglePlayPause = () => {
         if (post.isNSFW) setIsUnlocked(true);
     };
 
-    const handlePaywallCTA = () => {
-        if (!user) {
-            onLoginRequest?.();
-        } else {
-            setShowSubscribeModal(true);
-        }
+    // Unified handler for all "watch full / open media mode" CTAs
+    const handleMediaMode = () => {
+        if (!user) { onLoginRequest?.(); return; }
+        if (post.isSubscriberOnly && !isMember) { setShowUpgradeModal(true); return; }
+        navigate(`/media/${post.id}`);
     };
 
     const toggleMute = (e) => {
@@ -431,7 +431,7 @@ const togglePlayPause = () => {
                                 <p className="text-white/50 text-xs mt-1">@{post.user.username}</p>
                             </div>
                             <p className="text-white/70 text-sm mb-5 leading-relaxed">You've watched the free preview.<br/>Become a member to watch in full.</p>
-                            <Button onClick={handlePaywallCTA} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                            <Button onClick={handleMediaMode} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
                                 Watch Full Video
                             </Button>
                             <p className="text-white/30 text-xs mt-4">or <button onClick={() => setPreviewExpired(false)} className="underline hover:text-white/60">rewatch preview</button></p>
@@ -447,7 +447,7 @@ const togglePlayPause = () => {
                                 <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Full Video'}</h3>
                             </div>
                             <p className="text-white/70 text-sm mb-5 leading-relaxed">Continue watching in Media Mode<br/>for the full experience.</p>
-                            <Button onClick={() => navigate(`/media/${post.id}`)} className="bg-white hover:bg-white/90 text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                            <Button onClick={handleMediaMode} className="bg-white hover:bg-white/90 text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
                                 Open in Media Mode
                             </Button>
                             <p className="text-white/30 text-xs mt-4">or <button onClick={() => setLongVideoExpired(false)} className="underline hover:text-white/60">keep watching here</button></p>
@@ -532,7 +532,7 @@ const togglePlayPause = () => {
                     </Link>
                     {isLongVideo && !longVideoExpired && !previewExpired && (
                         <button
-                            onClick={(e) => { e.stopPropagation(); navigate(`/media/${post.id}`); }}
+                            onClick={(e) => { e.stopPropagation(); handleMediaMode(); }}
                             className="shrink-0 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition-colors backdrop-blur-sm"
                         >
                             <Play className="h-3 w-3 fill-white" />
@@ -622,43 +622,11 @@ const togglePlayPause = () => {
                 data={post.mintData}
             />
 
-            {/* SUBSCRIBE TO WATCH MODAL */}
-            {showSubscribeModal && (
-                <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowSubscribeModal(false)}>
-                    <div className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-                        {/* Video meta header */}
-                        <div className="flex items-center gap-3 p-4 border-b border-white/10">
-                            {post.thumbnail && <img src={post.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover opacity-80 shrink-0" />}
-                            <div className="min-w-0">
-                                <p className="text-white font-semibold text-sm leading-snug line-clamp-2">{post.title || post.description?.slice(0, 80) || 'Exclusive Content'}</p>
-                                <p className="text-white/40 text-xs mt-0.5">@{post.user.username}</p>
-                            </div>
-                        </div>
-                        {/* Body */}
-                        <div className="p-5">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Crown className="h-5 w-5 text-[#F0B94D] shrink-0" />
-                                <h3 className="text-white font-bold text-base">Members Only</h3>
-                            </div>
-                            <p className="text-white/60 text-sm leading-relaxed mb-5">
-                                You've watched the 1-minute free preview. Subscribe to watch the full video and unlock all member content.
-                            </p>
-                            <Button
-                                className="w-full bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold h-12 text-base rounded-xl mb-3"
-                                onClick={() => { setShowSubscribeModal(false); navigate('/subscribe'); }}
-                            >
-                                Become a Member
-                            </Button>
-                            <p className="text-center text-white/30 text-xs">
-                                Already a member?{' '}
-                                <button className="underline hover:text-white/60" onClick={() => { setShowSubscribeModal(false); onLoginRequest?.(); }}>
-                                    Log in
-                                </button>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <MembershipUpgradeModal
+                open={showUpgradeModal}
+                onClose={() => setShowUpgradeModal(false)}
+                post={post}
+            />
         </div>
     );
 };

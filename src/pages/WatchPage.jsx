@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet";
 import { useLocation, useParams, Navigate } from "react-router-dom";
 import VerticalVideoFeed from "@/components/VerticalVideoFeed";
+import { useContent } from "@/contexts/ContentContext";
 import api from "@/api/homieshub";
 
 // helpers
@@ -82,66 +83,73 @@ const mapReelToFeedPost = (r) => {
 const WatchPage = ({ onLoginRequest }) => {
   const { postId } = useParams();
   const location = useLocation();
+  const { verticalPosts: globalPosts } = useContent();
 
-  // We will pass this when user clicks a video on profile page
+  // username is passed as state when navigating from a profile page
   const username = location?.state?.username || null;
 
   const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState([]);
   const [initialIndex, setInitialIndex] = useState(0);
 
-  // If someone hits /watch/:id directly without state, redirect home (or you can show an error)
-  if (!username) {
-    return <Navigate to="/" replace />;
-  }
-
   useEffect(() => {
     let cancelled = false;
 
-    const loadProfileContent = async () => {
+    const loadContent = async () => {
       try {
         setLoading(true);
 
-        // ✅ Use your existing profile content endpoint
-        // (same one UserProfilePage uses)
-        const resp = await api.get(`/profile/${username}/content`, {
-          params: { page: 1, limit: 100 },
-        });
+        if (username) {
+          // ── Profile-originated navigation: load that creator's content ──
+          const resp = await api.get(`/profile/${username}/content`, {
+            params: { page: 1, limit: 100 },
+          });
+          const result = resp?.data?.result || {};
+          const mapped = [
+            ...safeArray(result?.videos).map(mapVideoToFeedPost),
+            ...safeArray(result?.reels).map(mapReelToFeedPost),
+          ]
+            .filter((p) => p?.id)
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-        const result = resp?.data?.result || {};
-        const videos = safeArray(result?.videos);
-        const reels = safeArray(result?.reels);
+          if (!cancelled) {
+            setPosts(mapped);
+            const idx = mapped.findIndex((p) => String(p.id) === String(postId));
+            setInitialIndex(idx >= 0 ? idx : 0);
+          }
+        } else {
+          // ── Shared link: use global feed, target post first ─────────────
+          const all = safeArray(globalPosts).filter((p) => p?.id);
+          const idx = all.findIndex((p) => String(p.id) === String(postId));
 
-        const mapped = [
-          ...videos.map(mapVideoToFeedPost),
-          ...reels.map(mapReelToFeedPost),
-        ]
-          .filter((p) => p?.id)
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-        if (cancelled) return;
-
-        setPosts(mapped);
-
-        // Start feed at clicked postId if exists
-        const idx = mapped.findIndex((p) => String(p.id) === String(postId));
-        setInitialIndex(idx >= 0 ? idx : 0);
+          if (idx >= 0) {
+            // Rotate so shared post is first, rest follows in order
+            const ordered = [...all.slice(idx), ...all.slice(0, idx)];
+            if (!cancelled) { setPosts(ordered); setInitialIndex(0); }
+          } else {
+            // Post not yet in global feed — fallback: show all from top
+            if (!cancelled) { setPosts(all); setInitialIndex(0); }
+          }
+        }
       } catch (e) {
-        console.error("WatchPage: failed to load profile content", e);
-        if (!cancelled) setPosts([]);
+        console.error("WatchPage: failed to load content", e);
+        if (!cancelled) setPosts(safeArray(globalPosts));
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
-    loadProfileContent();
+    // Wait until global posts have loaded before running the shared-link path
+    if (!username && globalPosts.length === 0) return;
+    loadContent();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [username, postId]);
+    return () => { cancelled = true; };
+  }, [username, postId, globalPosts]);
 
-  const title = useMemo(() => `Watch @${username} - The Homies Hub`, [username]);
+  const title = useMemo(
+    () => username ? `Watch @${username} - The Homies Hub` : "The Homies Hub",
+    [username]
+  );
 
   return (
     <>
