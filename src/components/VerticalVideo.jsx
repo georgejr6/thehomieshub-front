@@ -526,11 +526,22 @@ const togglePlayPause = () => {
                                 <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Exclusive Content'}</h3>
                                 <p className="text-white/50 text-xs mt-1">@{post.user.username}</p>
                             </div>
-                            <p className="text-white/70 text-sm mb-5 leading-relaxed">You've watched the free preview.<br/>Become a member to watch in full.</p>
-                            <Button onClick={handleMediaMode} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
-                                Watch Full Video
+                            <p className="text-white/70 text-sm mb-5 leading-relaxed">
+                                You've watched the free preview.<br/>
+                                {user ? 'Become a member to watch in full.' : 'Become a member or log in to watch in full.'}
+                            </p>
+                            <Button onClick={user ? handleMediaMode : onLoginRequest} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                                {user ? 'Become a Member' : 'Log In / Sign Up'}
                             </Button>
-                            <p className="text-white/30 text-xs mt-4">or <button onClick={() => setPreviewExpired(false)} className="underline hover:text-white/60">rewatch preview</button></p>
+                            <p className="text-white/30 text-xs mt-4">or <button onClick={() => {
+                                const video = videoRef.current;
+                                if (video && playbackStartRef.current != null) {
+                                    video.currentTime = playbackStartRef.current;
+                                    video.play?.();
+                                    setIsPlaying(true);
+                                }
+                                setPreviewExpired(false);
+                            }} className="underline hover:text-white/60">rewatch preview</button></p>
                         </div>
                     )}
 
