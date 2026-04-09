@@ -557,7 +557,7 @@ const togglePlayPause = () => {
                         <span className="text-xs font-semibold text-white drop-shadow-md">{saved ? "Saved" : "Save"}</span>
                     </button>
 
-                    <ShareDialog postUrl={postUrl} postTitle={post.description}>
+                    <ShareDialog postUrl={postUrl} postTitle={post.description} post={post}>
                         <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
                             <Share2 className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
                             <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.shares}</span>

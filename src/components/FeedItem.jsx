@@ -452,7 +452,7 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
             )}
             
           </div>
-          <ShareDialog postUrl={postUrl} postTitle={post.content?.text || post.title || 'Check this out!'}>
+          <ShareDialog postUrl={postUrl} postTitle={post.content?.text || post.title || 'Check this out!'} post={post}>
               <Button variant="ghost" size="sm" className={cn("flex items-center gap-1.5 px-2 text-muted-foreground hover:text-primary hover:bg-primary/10", compact ? "h-8" : "")}>
                   <Share2 className={cn(compact ? "h-4 w-4" : "h-5 w-5")} /><span className={cn("font-medium", compact ? "hidden" : "text-sm")}>{post.engagement.shares.toLocaleString()}</span>
               </Button>
