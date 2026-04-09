@@ -396,7 +396,20 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
                               {fmtDate(s.createdAt)}
                             </p>
                           </div>
-                          <Badge variant="secondary" className="text-xs shrink-0">Ended</Badge>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {s.vodPlaybackId ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-xs"
+                                onClick={() => navigate(`/live-stream/${user.username}`)}
+                              >
+                                <ExternalLink className="h-3 w-3" /> Watch VOD
+                              </Button>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">Ended</Badge>
+                            )}
+                          </div>
                         </CardContent>
                       </Card>
                     ))}

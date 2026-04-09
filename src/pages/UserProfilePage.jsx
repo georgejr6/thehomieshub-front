@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMedia } from '@/contexts/MediaContext';
 
 import api from '@/api/homieshub';
 
@@ -44,6 +45,7 @@ import GiftDialog from '@/components/GiftDialog';
 // ── FreakyFrogz virtual profile ───────────────────────────────────────────────
 const FrogzProfile = () => {
   const { user } = useAuth();
+  const { playVideo, confirmEnterMediaMode } = useMedia();
   const hasFrogzAccess = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz');
   const hasFrogzFan    = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz_fan');
 
@@ -103,7 +105,7 @@ const FrogzProfile = () => {
                 <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Freaky Frogz</h1>
                 <p className="text-muted-foreground">@freakyfrogz</p>
                 <p className="mt-2 text-sm text-muted-foreground max-w-md">
-                  Exclusive adult content. Public shorts available for all — full access requires a membership.
+                  Exclusive content for the Frogz. Free shorts available for all — full access requires a membership.
                 </p>
               </div>
               {!hasFrogzAccess && (
@@ -134,7 +136,14 @@ const FrogzProfile = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {clips.map((clip, i) => (
                 <div key={clip.id || i} className="aspect-video rounded-lg overflow-hidden bg-zinc-900 relative group cursor-pointer"
-                  onClick={() => !hasFrogzAccess && setModalOpen(true)}>
+                  onClick={() => {
+                    if (hasFrogzAccess) {
+                      playVideo(clip);
+                      confirmEnterMediaMode();
+                    } else {
+                      setModalOpen(true);
+                    }
+                  }}>
                   {clip.cover
                     ? <img src={clip.cover} alt={clip.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     : <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-3xl">🐸</div>

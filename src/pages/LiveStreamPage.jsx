@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Heart, Gift, Share2, CheckCircle, Loader2, Radio, Users, ShieldX, StopCircle, Pencil, Settings, Diamond } from 'lucide-react';
+import { Heart, Gift, Share2, CheckCircle, Loader2, Radio, Users, ShieldX, StopCircle, Pencil, Settings, Diamond, Clock, PlayCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import LiveChat from '@/components/LiveChat';
@@ -204,6 +204,23 @@ const LiveStreamPage = ({ onLoginRequest }) => {
     );
   }
 
+  // Stream is set up but not broadcasting yet
+  if (stream.status === 'idle') {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-black text-white">
+        <div className="flex flex-col items-center text-center gap-4 max-w-sm">
+          <Clock className="h-16 w-16 text-primary/60 animate-pulse" />
+          <h2 className="text-xl font-bold">Stream Starting Soon</h2>
+          <p className="text-white/40 text-sm">@{username} is setting up. Hang tight — the page will refresh automatically.</p>
+          <Button variant="outline" onClick={() => navigate('/live')}>Browse Live Streams</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Stream ended — show VOD recording
+  const isVod = stream.status === 'disabled' && stream.vodPlaybackId;
+
   return (
     <>
       <Helmet>
@@ -217,12 +234,12 @@ const LiveStreamPage = ({ onLoginRequest }) => {
 
           {/* Video player */}
           <div className="relative bg-black flex-1 min-h-0">
-            {stream.playbackId ? (
+            {(isVod ? stream.vodPlaybackId : stream.playbackId) ? (
               <>
                 <MuxPlayer
                   key={playerKey}
-                  streamType="ll-live"
-                  playbackId={stream.playbackId}
+                  streamType={isVod ? "on-demand" : "ll-live"}
+                  playbackId={isVod ? stream.vodPlaybackId : stream.playbackId}
                   autoPlay
                   muted={false}
                   style={{ width: '100%', height: '100%', aspectRatio: '16/9' }}
@@ -252,20 +269,28 @@ const LiveStreamPage = ({ onLoginRequest }) => {
               </div>
             )}
 
-            {/* LIVE badge overlay */}
+            {/* LIVE / RECORDED badge overlay */}
             <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
-              <Badge className="bg-red-600 text-white animate-pulse font-bold px-2 py-1 text-xs tracking-widest">
-                ● LIVE
-              </Badge>
-              <div className="bg-black/60 backdrop-blur-sm rounded px-2 py-1 flex items-center gap-1.5 text-xs text-white/80">
-                <Users className="h-3 w-3" />
-                {(stream.viewerCount || 0).toLocaleString()} watching
-              </div>
+              {isVod ? (
+                <Badge className="bg-zinc-700 text-white font-bold px-2 py-1 text-xs tracking-widest flex items-center gap-1">
+                  <PlayCircle className="h-3 w-3" /> RECORDED
+                </Badge>
+              ) : (
+                <>
+                  <Badge className="bg-red-600 text-white animate-pulse font-bold px-2 py-1 text-xs tracking-widest">
+                    ● LIVE
+                  </Badge>
+                  <div className="bg-black/60 backdrop-blur-sm rounded px-2 py-1 flex items-center gap-1.5 text-xs text-white/80">
+                    <Users className="h-3 w-3" />
+                    {(stream.viewerCount || 0).toLocaleString()} watching
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* Owner control bar */}
-          {isOwner && (
+          {isOwner && !isVod && (
             <div className="px-4 py-2 bg-zinc-900 border-t border-white/10 flex items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-white/40 font-medium uppercase tracking-wide">Your Stream</span>

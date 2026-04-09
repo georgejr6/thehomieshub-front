@@ -6,7 +6,7 @@ import {
   Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff,
   MessageSquare, Radio, Share2, Copy, Check, Save,
   MonitorPlay, Laptop, AlertCircle, Signal, Info, HelpCircle,
-  Wifi, ShieldCheck, Globe, Loader2, Clock, ExternalLink, ChevronDown, RotateCcw
+  Wifi, ShieldCheck, ShieldX, CheckCircle, Globe, Loader2, Clock, ExternalLink, ChevronDown, RotateCcw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -162,6 +162,10 @@ const GoLivePage = ({ onLoginRequest }) => {
     // History
     const [liveHistory, setLiveHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+
+    // Connection health warning
+    const [connectionWarning, setConnectionWarning] = useState(null); // null | 'checking' | 'ok' | 'failed'
+    const muxCheckRef = useRef(null);
 
     // Admin-only features
     const isAdmin = user?.email === 'forthehomies96@gmail.com';
@@ -531,6 +535,27 @@ const GoLivePage = ({ onLoginRequest }) => {
 
             setIsLive(true);
             toast({ title: "🔴 You are Live!", description: "Broadcasting started successfully.", className: "bg-red-600 text-white border-none" });
+
+            // Verify Mux is actually receiving video — check at 12s and 24s
+            const capturedStreamId = streamId;
+            setConnectionWarning('checking');
+            const check = async () => {
+                try {
+                    const { data } = await api.get(`/live/${capturedStreamId}/mux-status`);
+                    if (data.result?.muxStatus === 'active') {
+                        setConnectionWarning('ok');
+                    } else {
+                        setConnectionWarning('failed');
+                        toast({
+                            title: 'Connection issue detected',
+                            description: 'Mux is not receiving your video. Viewers cannot see the stream. Try ending and restarting, or use OBS/software mode.',
+                            variant: 'destructive',
+                            duration: 12000,
+                        });
+                    }
+                } catch (_) {}
+            };
+            muxCheckRef.current = setTimeout(check, 12000);
         } catch (err) {
             toast({ title: 'Failed to go live', description: err.message || 'Something went wrong. Try again.', variant: 'destructive' });
         } finally {
@@ -540,6 +565,8 @@ const GoLivePage = ({ onLoginRequest }) => {
 
     const handleEndStream = async () => {
         setIsLive(false);
+        setConnectionWarning(null);
+        if (muxCheckRef.current) { clearTimeout(muxCheckRef.current); muxCheckRef.current = null; }
         setUsingFallback(false);
         setDonationBotEnabled(false);
         if (donationBotRef.current) { clearInterval(donationBotRef.current); donationBotRef.current = null; }
@@ -588,8 +615,28 @@ const GoLivePage = ({ onLoginRequest }) => {
                     )}
                 </header>
 
+                {/* Connection warning banner */}
+                {isLive && connectionWarning === 'checking' && (
+                    <div className="bg-yellow-500/10 border-b border-yellow-500/30 px-4 py-2 flex items-center gap-2 text-yellow-400 text-sm">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                        Verifying viewers can see your stream…
+                    </div>
+                )}
+                {isLive && connectionWarning === 'failed' && (
+                    <div className="bg-red-500/10 border-b border-red-500/40 px-4 py-2 flex items-center gap-2 text-red-400 text-sm">
+                        <ShieldX className="h-3.5 w-3.5 shrink-0" />
+                        <span><strong>Viewers cannot see you.</strong> Your video is not reaching Mux. End the stream and try again, or switch to OBS/software mode.</span>
+                    </div>
+                )}
+                {isLive && connectionWarning === 'ok' && (
+                    <div className="bg-green-500/10 border-b border-green-500/30 px-4 py-2 flex items-center gap-2 text-green-400 text-sm">
+                        <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                        Stream confirmed — viewers can see you live.
+                    </div>
+                )}
+
                 <main className="flex-1 overflow-hidden flex flex-col lg:flex-row">
-                    
+
                     {/* LEFT PANEL: MAIN STAGE */}
                     <div className="flex-1 bg-zinc-950 relative flex flex-col min-h-[50vh] lg:min-h-full overflow-y-auto lg:overflow-hidden">
                         
