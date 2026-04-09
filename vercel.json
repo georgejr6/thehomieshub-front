@@ -1,18 +1,18 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
+  "routes": [
     {
-      "source": "/watch/:id",
+      "src": "/watch/(?<id>[^/]+)",
       "has": [
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i)(twitterbot|facebookexternalhit|facebot|linkedinbot|slackbot|telegrambot|whatsapp|discordbot|googlebot|bingbot|embedly|applebot|pinterest|iframely|baiduspider|duckduckbot|yandexbot|rogerbot|sogou)"
+          "value": "(Twitterbot|facebookexternalhit|facebot|LinkedInBot|Slackbot|TelegramBot|WhatsApp|Discordbot|Googlebot|bingbot|Embedly|Applebot|Pinterest|iframely|Baiduspider|DuckDuckBot|YandexBot|rogerbot)"
         }
       ],
-      "destination": "/api/og/:id"
+      "dest": "/api/og/$id"
     },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
