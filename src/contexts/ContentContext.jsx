@@ -3,6 +3,8 @@ import { verticalMockPosts as initialVerticalPosts } from '@/data/verticalMockPo
 import { mockCommunityPosts as initialCommunityPosts } from '@/data/mockCommunityPosts';
 import { mockUsers as initialUsers } from '@/data/mockUsers';
 import api from "@/api/homieshub";
+import { useAuth } from '@/contexts/AuthContext';
+import { frogzApi } from '@/lib/frogzApi';
 
 const ContentContext = createContext();
 
@@ -105,6 +107,44 @@ function mapVideoToVerticalPost(v) {
   };
 }
 
+const FROGZ_CREATOR = {
+  name: 'Freaky Frogz',
+  username: 'freakyfrogz',
+  avatar: 'https://em-content.zobj.net/source/apple/391/frog_1f438.png',
+  verified: false,
+};
+
+function mapFrogzClipToVerticalPost(c) {
+  return {
+    id: `frogz_${c.id}`,
+    type: 'clip',
+    backendType: 'frogz_clip',
+    videoUrl: c.muxPlaybackId || '',
+    muxPlaybackId: c.muxPlaybackId || null,
+    thumbnail: c.cover || '',
+    title: c.title || '',
+    description: c.description || '',
+    content: { title: c.title || '', description: c.description || '' },
+    user: FROGZ_CREATOR,
+    engagement: { likes: 0, comments: 0, shares: 0, saves: 0 },
+    tags: [],
+    timestamp: new Date().toISOString(),
+    isNew: false,
+    isNSFW: false,
+    isSubscriberOnly: false,
+    isFrogzClip: true, // flag so UI can suppress follow/comment actions
+  };
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 function mapCommunityPostToFeedItem(p) {
   const author = p?.author || p?.user || {}; // depending on backend population naming
 
@@ -178,6 +218,10 @@ function mapCommunityPostToFeedItem(p) {
 
 
 export const ContentProvider = ({ children }) => {
+  const { user } = useAuth();
+  const hasFrogzFeed = Array.isArray(user?.tags) &&
+    (user.tags.includes('freakyfrogz_fan') || user.tags.includes('freakyfrogz'));
+
   const [verticalPosts, setVerticalPosts] = useState([]);
   const [communityPosts, setCommunityPosts] = useState([]);
   const [users, setUsers] = useState(initialUsers);
@@ -269,31 +313,32 @@ const loadMyLibrary = async () => {
 
     const loadVerticalFeed = async () => {
       try {
-        const [reelsResp, videosResp] = await Promise.all([
-          api.get("/user/reels", { params: { page: 1, limit: 50 } }),
+        const fetches = [
+          api.get("/user/reels",  { params: { page: 1, limit: 50 } }),
           api.get("/user/videos", { params: { page: 1, limit: 50 } }),
-        ]);
+          hasFrogzFeed ? frogzApi.getClips() : Promise.resolve([]),
+        ];
 
-        // Your backend response format is { status, message, result, error }
-        // It may return `result` as array OR {items: []}
-        const reelsResult = reelsResp?.data?.result;
+        const [reelsResp, videosResp, frogzClips] = await Promise.all(fetches);
+
+        const reelsResult  = reelsResp?.data?.result;
         const videosResult = videosResp?.data?.result;
 
-        const reels = safeArray(reelsResult?.items ?? reelsResult);
+        const reels  = safeArray(reelsResult?.items  ?? reelsResult);
         const videos = safeArray(videosResult?.items ?? videosResult);
+        const clips  = safeArray(frogzClips);
 
         const mapped = [
           ...reels.map(mapReelToVerticalPost),
           ...videos.map(mapVideoToVerticalPost),
+          ...clips.map(mapFrogzClipToVerticalPost),
         ].filter(p => p?.id && p?.videoUrl);
 
-        // newest first
-        mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        // Shuffle instead of chronological sort
+        const mixed = shuffle(mapped);
 
-        if (!cancelled && mapped.length) {
-          // If you want ONLY backend data, replace initialVerticalPosts with mapped.
-          // Keeping fallback to mocks after real content:
-          setVerticalPosts([...mapped]);
+        if (!cancelled && mixed.length) {
+          setVerticalPosts([...mixed]);
         }
       } catch (err) {
         console.error("Failed to load reels/videos feed:", err);
@@ -307,7 +352,7 @@ const loadMyLibrary = async () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasFrogzFeed]);
 
   const addReel = (newReel) => setVerticalPosts(prev => [newReel, ...prev]);
   const addPost = (newPost) => {
