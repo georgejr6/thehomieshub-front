@@ -343,42 +343,43 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
   // Mobile specific: Drawer Overlay
   if (isMobile) {
       return (
-        <AnimatePresence>
-            {isMobileOpen && (
-                <>
-                    {/* Backdrop */}
-                    <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm"
-                        onClick={onMobileClose}
-                    />
-                    
-                    {/* Drawer */}
-                    <motion.div
-                        initial={{ x: "-100%" }}
-                        animate={{ x: 0 }}
-                        exit={{ x: "-100%" }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="fixed inset-y-0 left-0 w-3/4 max-w-[300px] bg-background z-[70] shadow-xl border-r border-border h-full"
-                        drag="x"
-                        dragConstraints={{ left: 0, right: 0 }}
-                        dragElastic={{ left: 0.2, right: 0 }}
-                        onDragEnd={(e, { offset, velocity }) => {
-                             // Swipe left to close logic on the drawer itself
-                             if (offset.x < -100 || velocity.x < -100) {
-                                 onMobileClose();
-                             }
-                        }}
-                    >
-                        {desktopSidebarContent}
-                    </motion.div>
-                </>
-            )}
-        </AnimatePresence>
-        <MembershipUpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+        <>
+          <AnimatePresence>
+              {isMobileOpen && (
+                  <>
+                      {/* Backdrop */}
+                      <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm"
+                          onClick={onMobileClose}
+                      />
+
+                      {/* Drawer */}
+                      <motion.div
+                          initial={{ x: "-100%" }}
+                          animate={{ x: 0 }}
+                          exit={{ x: "-100%" }}
+                          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                          className="fixed inset-y-0 left-0 w-3/4 max-w-[300px] bg-background z-[70] shadow-xl border-r border-border h-full"
+                          drag="x"
+                          dragConstraints={{ left: 0, right: 0 }}
+                          dragElastic={{ left: 0.2, right: 0 }}
+                          onDragEnd={(e, { offset, velocity }) => {
+                               if (offset.x < -100 || velocity.x < -100) {
+                                   onMobileClose();
+                               }
+                          }}
+                      >
+                          {desktopSidebarContent}
+                      </motion.div>
+                  </>
+              )}
+          </AnimatePresence>
+          <MembershipUpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+        </>
       );
   }
 
