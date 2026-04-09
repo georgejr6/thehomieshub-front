@@ -28,7 +28,7 @@ const OVERLAY_HIDE_MS = 800;
 const PREVIEW_LIMIT_SECONDS = 60;
 const LONG_VIDEO_LIMIT = 180; // 3 minutes — nudge long-form to media mode
 
-const VerticalVideo = ({ post, index, isVisible, onLoginRequest }) => {
+const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }) => {
     const { user, isPremium, triggerLockedFeature } = useAuth();
     const { users, isPostLiked, togglePostLike, isPostSaved, togglePostSave,toggleContentLike } = useContent();
     const { toggleLike: toggleMediaLike, isLiked: isMediaLiked, isPlaying: musicIsPlaying } = useMedia();
@@ -61,6 +61,8 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest }) => {
 
     // Long-video gate (>3 min) — nudge to media mode
     const [longVideoExpired, setLongVideoExpired] = useState(false);
+    // True once we know this video is longer than 3 min (shows persistent media mode pill)
+    const [isLongVideo, setIsLongVideo] = useState(false);
 
     // Blur logic — only NSFW gets immediate blur; subscriber content uses 60s preview gate
     const [isUnlocked, setIsUnlocked] = useState(false);
@@ -206,7 +208,15 @@ useEffect(() => {
         };
 
         const handleLoadedMetadata = () => {
-            setDuration(video.duration || 0);
+            const d = video.duration || 0;
+            setDuration(d);
+            if (d > LONG_VIDEO_LIMIT) setIsLongVideo(true);
+            // Bottomless scroll: resume at a fractional point through the video
+            if (startFraction && d > 0) {
+                const target = startFraction * d;
+                // Always land at least 10s before the end so playback isn't immediately over
+                video.currentTime = Math.min(target, Math.max(d - 10, 0));
+            }
         };
 
         const handlePlay = () => setIsPlaying(true);
@@ -223,7 +233,7 @@ useEffect(() => {
             video.removeEventListener('play', handlePlay);
             video.removeEventListener('pause', handlePause);
         };
-    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly]);
+    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly, startFraction]);
 
     const handleSeek = (value) => {
         const newTime = (value[0] / 100) * duration;
@@ -407,6 +417,19 @@ const togglePlayPause = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
+                {/* FULL VIDEO PILL — shown as soon as we know duration > 3min */}
+                {isLongVideo && !longVideoExpired && !previewExpired && (
+                    <div className="absolute top-4 right-4 z-40 pointer-events-auto">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); navigate(`/media/${post.id}`); }}
+                            className="flex items-center gap-1.5 bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+                        >
+                            <Play className="h-3 w-3 fill-white" />
+                            Full video
+                        </button>
+                    </div>
+                )}
 
                 {/* BOTTOM LEFT METADATA */}
                 <div className="absolute bottom-6 left-0 right-16 md:right-4 p-4 z-40 pointer-events-none mb-1">
