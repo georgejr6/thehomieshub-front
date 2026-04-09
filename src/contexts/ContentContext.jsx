@@ -43,11 +43,11 @@ function mapReelToVerticalPost(r) {
     // optional thumb - if you later generate via mux image, place it here
     thumbnail: r?.thumbnailUrl || r?.thumbnail || '',
 
-    title: r?.title || '',
+    title: r?.title || r?.caption || '',
     description: r?.caption || '',
 
     content: {
-      title: r?.title || '',
+      title: r?.title || r?.caption || '',
       description: r?.caption || ''
     },
 
