@@ -3,7 +3,7 @@ import { useMedia } from '@/contexts/MediaContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Info, Search, X, Minimize2, ListMusic,
-  Maximize, Loader2, ArrowLeft, Film, Music2,
+  Maximize, Loader2, ArrowLeft, Film, Music2, Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ManagePlaylistsModal } from './PlaylistModals';
@@ -64,7 +64,7 @@ const HeroBackground = ({ slides, staticFallback }) => {
   );
 };
 
-const TABS = ['Home', 'Videos', 'Music', 'Likes'];
+const BASE_TABS = ['Home', 'Videos', 'Music', 'Likes'];
 
 const MediaApp = () => {
   const {
@@ -73,7 +73,10 @@ const MediaApp = () => {
     featuredVideo, trendingVideos, newVideos, movies, series, videoLoading, playVideo, currentVideo,
     likedMedia,
     activeCategory, setActiveCategory,
+    hasFrogzAccess, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
   } = useMedia();
+
+  const TABS = hasFrogzAccess ? [...BASE_TABS, 'private'] : BASE_TABS;
 
   const [isScrolled, setIsScrolled]           = useState(false);
   const [isPlaylistManagerOpen, setPlaylistManagerOpen] = useState(false);
@@ -95,7 +98,7 @@ const MediaApp = () => {
   };
 
   // ── Unified search ────────────────────────────────────────────────────────
-  const allContent = useMemo(() => [...allTracks, ...newVideos, ...trendingVideos, ...movies, ...series], [allTracks, newVideos, trendingVideos, movies, series]);
+  const allContent = useMemo(() => [...allTracks, ...newVideos, ...trendingVideos, ...movies, ...series, ...frogzTrending, ...frogzNew], [allTracks, newVideos, trendingVideos, movies, series, frogzTrending, frogzNew]);
   const searchResults = useMemo(() => searchQuery
     ? allContent.filter(item =>
         item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -108,11 +111,12 @@ const MediaApp = () => {
 
   // ── Hero resolution per tab ───────────────────────────────────────────────
   const heroItem = useMemo(() => {
-    if (activeCategory === 'videos') return featuredVideo || newVideos[0] || trendingVideos[0] || null;
-    if (activeCategory === 'music')  return allTracks[0] || null;
+    if (activeCategory === 'videos')  return featuredVideo || newVideos[0] || trendingVideos[0] || null;
+    if (activeCategory === 'music')   return allTracks[0] || null;
+    if (activeCategory === 'private') return frogzFeatured || frogzTrending[0] || frogzNew[0] || null;
     // home: prefer featured video, fallback to first track
     return featuredVideo || newVideos[0] || allTracks[0] || null;
-  }, [activeCategory, featuredVideo, newVideos, trendingVideos, allTracks]);
+  }, [activeCategory, featuredVideo, newVideos, trendingVideos, allTracks, frogzFeatured, frogzTrending, frogzNew]);
 
   const heroIsVideo = heroItem?.mediaKind === 'video';
 
@@ -166,10 +170,10 @@ const MediaApp = () => {
           <ul className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-300">
             {TABS.map(tab => (
               <li key={tab}
-                className={cn("hover:text-white cursor-pointer transition-colors",
-                  activeCategory === tab.toLowerCase() && "text-white font-bold")}
-                onClick={() => setActiveCategory(tab.toLowerCase())}>
-                {tab}
+                className={cn("hover:text-white cursor-pointer transition-colors flex items-center gap-1",
+                  activeCategory === tab && "text-white font-bold")}
+                onClick={() => setActiveCategory(tab)}>
+                {tab === 'private' ? <Lock className="w-3.5 h-3.5" /> : tab}
               </li>
             ))}
           </ul>
@@ -178,10 +182,10 @@ const MediaApp = () => {
           <div className="flex md:hidden items-center gap-3 text-xs font-medium overflow-x-auto scrollbar-hide">
             {TABS.map(tab => (
               <button key={tab}
-                className={cn("whitespace-nowrap transition-colors",
-                  activeCategory === tab.toLowerCase() ? "text-white font-bold" : "text-zinc-400")}
-                onClick={() => setActiveCategory(tab.toLowerCase())}>
-                {tab}
+                className={cn("whitespace-nowrap transition-colors flex items-center gap-1",
+                  activeCategory === tab ? "text-white font-bold" : "text-zinc-400")}
+                onClick={() => setActiveCategory(tab)}>
+                {tab === 'private' ? <Lock className="w-3 h-3" /> : tab}
               </button>
             ))}
           </div>
@@ -364,6 +368,23 @@ const MediaApp = () => {
                   {catalogLoading && (
                     <div className="flex items-center justify-center py-16">
                       <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+                    </div>
+                  )}
+                </>
+              )}
+              {activeCategory === 'private' && hasFrogzAccess && (
+                <>
+                  {frogzLoading && (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+                    </div>
+                  )}
+                  {!frogzLoading && frogzTrending.length > 0 && <MediaRow title="Trending" items={frogzTrending} onPlay={playVideo} />}
+                  {!frogzLoading && frogzNew.length > 0 && <MediaRow title="New" items={frogzNew} onPlay={playVideo} />}
+                  {!frogzLoading && !frogzTrending.length && !frogzNew.length && (
+                    <div className="text-center py-20 text-zinc-500">
+                      <Lock className="w-10 h-10 mx-auto mb-4 text-zinc-700" />
+                      <p>No content yet. Check back soon.</p>
                     </div>
                   )}
                 </>

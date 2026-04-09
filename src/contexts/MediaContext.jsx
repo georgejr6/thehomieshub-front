@@ -1,12 +1,16 @@
 import React, { createContext, useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { musicApi, videoApi } from '@/lib/digitvlApi';
+import { frogzApi } from '@/lib/frogzApi';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MediaContext = createContext();
 export const useMedia = () => useContext(MediaContext);
 
 export const MediaProvider = ({ children }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const hasFrogzAccess = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz');
 
   // ── Music Catalog ──────────────────────────────────────────────────────────
   const [allTracks,      setAllTracks]      = useState([]);
@@ -20,6 +24,12 @@ export const MediaProvider = ({ children }) => {
   const [movies,          setMovies]          = useState([]);
   const [series,          setSeries]          = useState([]);
   const [videoLoading,    setVideoLoading]    = useState(true);
+
+  // ── Frogz Catalog (gated) ─────────────────────────────────────────────────
+  const [frogzFeatured,  setFrogzFeatured]  = useState(null);
+  const [frogzTrending,  setFrogzTrending]  = useState([]);
+  const [frogzNew,       setFrogzNew]       = useState([]);
+  const [frogzLoading,   setFrogzLoading]   = useState(false);
 
   // ── Current Video Player ───────────────────────────────────────────────────
   const [currentVideo,    setCurrentVideo]    = useState(null);
@@ -89,6 +99,21 @@ export const MediaProvider = ({ children }) => {
       setSeries(sers);
     }).finally(() => setVideoLoading(false));
   }, []);
+
+  // ── Fetch frogz catalog (only if user has access) ─────────────────────────
+  useEffect(() => {
+    if (!hasFrogzAccess) return;
+    setFrogzLoading(true);
+    Promise.all([
+      frogzApi.getFeatured().catch(() => null),
+      frogzApi.getTrending().catch(() => []),
+      frogzApi.getNew().catch(() => []),
+    ]).then(([featured, trending, newVids]) => {
+      setFrogzFeatured(featured);
+      setFrogzTrending(trending);
+      setFrogzNew(newVids);
+    }).finally(() => setFrogzLoading(false));
+  }, [hasFrogzAccess]);
 
   // ── Create audio element once ──────────────────────────────────────────────
   useEffect(() => {
@@ -245,6 +270,8 @@ export const MediaProvider = ({ children }) => {
       // Video
       featuredVideo, trendingVideos, newVideos, movies, series, videoLoading,
       currentVideo, playVideo, closeVideo,
+      // Frogz (gated)
+      hasFrogzAccess, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
       // UI
       showWarning, hasEnteredMediaMode,
       enterMediaMode, confirmEnterMediaMode, cancelEnterMediaMode,
