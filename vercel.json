@@ -2,6 +2,17 @@
   "installCommand": "npm install --legacy-peer-deps",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
+    {
+      "source": "/watch/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i)(twitterbot|facebookexternalhit|facebot|linkedinbot|slackbot|telegrambot|whatsapp|discordbot|googlebot|bingbot|embedly|applebot|pinterest|iframely|baiduspider|duckduckbot|yandexbot|rogerbot|sogou)"
+        }
+      ],
+      "destination": "/api/og/:id"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
