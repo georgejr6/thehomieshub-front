@@ -94,6 +94,9 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     const [previewExpired, setPreviewExpired] = useState(false);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+    // Track where playback started so gates are based on elapsed time, not absolute position
+    const playbackStartRef = useRef(null);
+
     // Long-video gate (>3 min) — nudge to media mode
     const [longVideoExpired, setLongVideoExpired] = useState(false);
     // True once we know this video is longer than 3 min (shows persistent media mode pill)
@@ -166,6 +169,7 @@ const commentTargetType =
         if (!isVisible) {
             setPreviewExpired(false);
             setLongVideoExpired(false);
+            playbackStartRef.current = null;
         }
     }, [isVisible]);
 
@@ -221,15 +225,18 @@ useEffect(() => {
                 setCurrentTime(video.currentTime);
                 setDuration(video.duration);
             }
+            // Gate checks use elapsed time from where playback started, not absolute position
+            const start = playbackStartRef.current ?? 0;
+            const elapsed = video.currentTime - start;
             // 60-second preview gate for subscriber content (non-members)
-            if (post.isSubscriberOnly && !isMember && video.currentTime >= PREVIEW_LIMIT_SECONDS) {
+            if (post.isSubscriberOnly && !isMember && elapsed >= PREVIEW_LIMIT_SECONDS) {
                 video.pause?.();
                 setIsPlaying(false);
                 setPreviewExpired(true);
                 return;
             }
             // 3-minute gate — long-form videos prompt media mode
-            if (video.duration > LONG_VIDEO_LIMIT && video.currentTime >= LONG_VIDEO_LIMIT) {
+            if (video.duration > LONG_VIDEO_LIMIT && elapsed >= LONG_VIDEO_LIMIT) {
                 video.pause?.();
                 setIsPlaying(false);
                 setLongVideoExpired(true);
@@ -241,7 +248,9 @@ useEffect(() => {
             setDuration(d);
             if (d > LONG_VIDEO_LIMIT) setIsLongVideo(true);
             // Session-aware random window: pick an unseen 60-second slice for this video
-            video.currentTime = pickStartTime(post.id, d);
+            const start = pickStartTime(post.id, d);
+            playbackStartRef.current = start;
+            video.currentTime = start;
         };
 
         const handlePlay = () => setIsPlaying(true);
