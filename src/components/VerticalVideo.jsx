@@ -96,6 +96,11 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
 
     // Track where playback started so gates are based on elapsed time, not absolute position
     const playbackStartRef = useRef(null);
+    // Deferred play — set true when we're waiting for a seek to land before calling play()
+    const pendingPlayRef = useRef(false);
+    // Ref-copy of isVisible so event handlers inside the sync effect see the current value
+    const isVisibleRef = useRef(isVisible);
+    useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
 
     // Long-video gate (>3 min) — nudge to media mode
     const [longVideoExpired, setLongVideoExpired] = useState(false);
@@ -170,6 +175,7 @@ const commentTargetType =
             setPreviewExpired(false);
             setLongVideoExpired(false);
             playbackStartRef.current = null;
+            pendingPlayRef.current = false;
         }
     }, [isVisible]);
 
@@ -189,21 +195,40 @@ const commentTargetType =
     // Autoplay when visible, pause when not visible or when music is playing
 useEffect(() => {
   if (!isVisible || isBlurred || musicIsPlaying) {
+    pendingPlayRef.current = false;
     try { videoRef.current?.pause?.(); } catch (_) {}
     setIsPlaying(false);
     return;
   }
 
-  // Call play() imperatively on the element — faster than waiting for a
-  // React re-render to flip the `paused` prop on MuxPlayer
   const el = videoRef.current;
-  if (el) {
-    const p = el.play?.();
-    if (p instanceof Promise) {
-      p.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-    } else {
-      setIsPlaying(true);
+  if (!el) { setIsPlaying(true); return; }
+
+  // readyState < 1 means metadata hasn't loaded yet.
+  // Don't call play() now — it would start buffering at t=0 only for us to
+  // immediately seek away once loadedmetadata fires, causing a double-buffer stall.
+  // Instead set pendingPlayRef; handleSeeked (or handleLoadedMetadata for t=0 videos)
+  // will call play() once the seek has landed.
+  if (el.readyState < 1) {
+    pendingPlayRef.current = true;
+    return;
+  }
+
+  // Metadata already loaded (e.g. cached from a previous render) but start
+  // position hasn't been set yet — seek now, play after seeked fires.
+  if (playbackStartRef.current === null && el.duration > 1) {
+    const start = pickStartTime(post.id, el.duration);
+    playbackStartRef.current = start;
+    if (start > 1) {
+      pendingPlayRef.current = true;
+      el.currentTime = start;
+      return;
     }
+  }
+
+  const p = el.play?.();
+  if (p instanceof Promise) {
+    p.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
   } else {
     setIsPlaying(true);
   }
@@ -247,10 +272,26 @@ useEffect(() => {
             const d = video.duration || 0;
             setDuration(d);
             if (d > LONG_VIDEO_LIMIT) setIsLongVideo(true);
-            // Session-aware random window: pick an unseen 60-second slice for this video
             const start = pickStartTime(post.id, d);
             playbackStartRef.current = start;
-            video.currentTime = start;
+            if (start > 1) {
+                // Seek first — handleSeeked will call play() once the seek lands,
+                // so the browser only buffers at the correct position (no wasted t=0 fetch).
+                video.currentTime = start;
+            } else {
+                // No seek needed — play immediately if autoplay was waiting
+                if (pendingPlayRef.current && isVisibleRef.current) {
+                    pendingPlayRef.current = false;
+                    video.play?.().then(() => setIsPlaying(true)).catch(() => {});
+                }
+            }
+        };
+
+        const handleSeeked = () => {
+            if (pendingPlayRef.current && isVisibleRef.current) {
+                pendingPlayRef.current = false;
+                video.play?.().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+            }
         };
 
         const handlePlay = () => setIsPlaying(true);
@@ -258,12 +299,14 @@ useEffect(() => {
 
         video.addEventListener('timeupdate', handleTimeUpdate);
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('seeked', handleSeeked);
         video.addEventListener('play', handlePlay);
         video.addEventListener('pause', handlePause);
 
         return () => {
             video.removeEventListener('timeupdate', handleTimeUpdate);
             video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            video.removeEventListener('seeked', handleSeeked);
             video.removeEventListener('play', handlePlay);
             video.removeEventListener('pause', handlePause);
         };
