@@ -1,7 +1,7 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
   "routes": [
-    { "src": "/watch/(?<id>[^/]+)", "dest": "/api/og/$id" },
+    { "src": "/watch/([^/]+)", "dest": "/api/og/$1" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
