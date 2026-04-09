@@ -153,6 +153,7 @@ export const AuthProvider = ({ children }) => {
   const isPremium = useMemo(() => {
     if (!user) return false;
     if (user.subscription?.isActive) return true;
+    if ((user.tags || []).includes('member')) return true;
     return user.tier !== "Free";
   }, [user]);
 

@@ -65,7 +65,7 @@ function mapReelToVerticalPost(r) {
 
     isNew: false,
     isNSFW: !!r?.isNSFW,
-    isSubscriberOnly: !!r?.isSubscriberOnly
+    isSubscriberOnly: r?.visibility === "subscribers" || !!r?.isSubscriberOnly,
   };
 }
 
@@ -103,7 +103,7 @@ function mapVideoToVerticalPost(v) {
 
     isNew: false,
     isNSFW: !!v?.isNSFW,
-    isSubscriberOnly: !!v?.isSubscriberOnly
+    isSubscriberOnly: v?.visibility === "subscribers" || !!v?.isSubscriberOnly,
   };
 }
 

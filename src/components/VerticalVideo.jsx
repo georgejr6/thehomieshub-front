@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Heart, MessageCircle, Share2, Music, Play, Pause, Volume2, VolumeX,
-    Bookmark, Plus, ShieldAlert, Lock, Eye, Check
+    Bookmark, Plus, ShieldAlert, Lock, Eye, Check, Crown
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -18,18 +18,21 @@ import { useContent } from '@/contexts/ContentContext';
 import MintedCollectibleModal from '@/components/MintedCollectibleModal';
 import { useMedia } from '@/contexts/MediaContext';
 import MuxPlayer from '@mux/mux-player-react';
+import { useNavigate } from 'react-router-dom';
 
 // Global mute state tracking outside component to persist across renders
 let consecutiveMuteCount = 0;
 let globalIsMuted = false;
 
 const OVERLAY_HIDE_MS = 800;
+const PREVIEW_LIMIT_SECONDS = 60;
 
 const VerticalVideo = ({ post, index, isVisible, onLoginRequest }) => {
     const { user, isPremium, triggerLockedFeature } = useAuth();
     const { users, isPostLiked, togglePostLike, isPostSaved, togglePostSave,toggleContentLike } = useContent();
     const { toggleLike: toggleMediaLike, isLiked: isMediaLiked, isPlaying: musicIsPlaying } = useMedia();
     const { toast } = useToast();
+    const navigate = useNavigate();
 
     // Works for both <video> and <MuxPlayer>
     const videoRef = useRef(null);
@@ -48,9 +51,16 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest }) => {
     // Description Toggle
     const [isDescExpanded, setIsDescExpanded] = useState(false);
 
-    // Blur logic
+    // Member access: subscription OR Discord member tag
+    const isMember = isPremium || (user?.tags || []).includes('member');
+
+    // Preview gate for subscriber content
+    const [previewExpired, setPreviewExpired] = useState(false);
+    const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+
+    // Blur logic — only NSFW gets immediate blur; subscriber content uses 60s preview gate
     const [isUnlocked, setIsUnlocked] = useState(false);
-    const isBlurred = (post.isSubscriberOnly && !isPremium) || (post.isNSFW && !isUnlocked);
+    const isBlurred = post.isNSFW && !isUnlocked;
 
     // likes/saves
     const liked = isPostLiked(post.id);
@@ -168,6 +178,12 @@ useEffect(() => {
                 setCurrentTime(video.currentTime);
                 setDuration(video.duration);
             }
+            // 60-second preview gate for subscriber content
+            if (post.isSubscriberOnly && !isMember && video.currentTime >= PREVIEW_LIMIT_SECONDS) {
+                video.pause?.();
+                setIsPlaying(false);
+                setPreviewExpired(true);
+            }
         };
 
         const handleLoadedMetadata = () => {
@@ -212,7 +228,7 @@ useEffect(() => {
 
     // ✅ Tap on video to play/pause; show overlay briefly
 const togglePlayPause = () => {
-  if (isBlurred) return;
+  if (isBlurred || previewExpired) return;
 
   if (isMux) {
     // ✅ Mux controlled playback
@@ -237,10 +253,14 @@ const togglePlayPause = () => {
 };
 
     const handleBlurClick = () => {
-        if (post.isSubscriberOnly && !isPremium) {
-            triggerLockedFeature();
-        } else if (post.isNSFW) {
-            setIsUnlocked(true);
+        if (post.isNSFW) setIsUnlocked(true);
+    };
+
+    const handlePaywallCTA = () => {
+        if (!user) {
+            onLoginRequest?.();
+        } else {
+            setShowSubscribeModal(true);
         }
     };
 
@@ -305,12 +325,14 @@ const togglePlayPause = () => {
     return (
         <div
             data-index={index}
-            className="h-[100svh] w-full relative flex items-end justify-center bg-black snap-start shrink-0 overflow-hidden"
+            className="h-[100svh] w-full bg-black snap-start shrink-0 overflow-hidden flex flex-col"
         >
+            {/* MAIN ROW: video + side controls */}
+            <div className="flex-1 min-h-0 relative flex items-end justify-center overflow-hidden">
 
-            {/* VIDEO AREA — flex-1, constrained to 85vw max on desktop */}
+            {/* VIDEO AREA — constrained to 85vw max on desktop */}
             <div
-                className="relative z-10 h-full flex-1 min-w-0 md:max-w-[85vw] flex items-center justify-center cursor-pointer"
+                className="relative z-10 h-full flex-1 min-w-0 md:max-w-[85vw] flex items-center justify-center overflow-hidden cursor-pointer"
                 onClick={togglePlayPause}
             >
                 {isMux ? (
@@ -431,33 +453,47 @@ const togglePlayPause = () => {
                     </div>
                 </div>
 
-                {/* Locked/NSFW Overlay */}
+                {/* NSFW Overlay */}
                 {isBlurred && (
-                    <div
-                        className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 text-center cursor-pointer backdrop-blur-md"
-                        onClick={handleBlurClick}
-                    >
-                        {post.isNSFW && (
-                            <>
-                                <ShieldAlert className="h-16 w-16 text-red-500 mb-4" />
-                                <h2 className="text-xl font-bold text-white mb-2">Sensitive Content</h2>
-                                <Button variant="outline" className="mt-4 border-red-500 text-red-500 hover:bg-red-500/10">
-                                    <Eye className="mr-2 h-4 w-4" /> Reveal
-                                </Button>
-                            </>
-                        )}
-                        {!post.isNSFW && post.isSubscriberOnly && (
-                            <>
-                                <Lock className="h-16 w-16 text-yellow-500 mb-4" />
-                                <h2 className="text-xl font-bold text-white mb-2">Subscriber Only</h2>
-                                <Button className="mt-4 bg-[#FE2C55] text-white border-none hover:bg-[#FE2C55]/90">
-                                    Subscribe to Watch
-                                </Button>
-                            </>
-                        )}
+                    <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 text-center cursor-pointer backdrop-blur-md" onClick={handleBlurClick}>
+                        <ShieldAlert className="h-16 w-16 text-red-500 mb-4" />
+                        <h2 className="text-xl font-bold text-white mb-2">Sensitive Content</h2>
+                        <Button variant="outline" className="mt-4 border-red-500 text-red-500 hover:bg-red-500/10">
+                            <Eye className="mr-2 h-4 w-4" /> Reveal
+                        </Button>
                     </div>
                 )}
+
+                {/* PREVIEW EXPIRED OVERLAY — mobile full screen */}
+                {previewExpired && post.isSubscriberOnly && !isMember && (
+                    <div className="md:hidden absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/85 backdrop-blur-sm">
+                        <div className="mb-5">
+                            {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-70" />}
+                            <p className="text-[#F0B94D] text-xs font-semibold uppercase tracking-widest mb-1">Members Only</p>
+                            <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Exclusive Content'}</h3>
+                            <p className="text-white/50 text-xs mt-1">@{post.user.username}</p>
+                        </div>
+                        <p className="text-white/70 text-sm mb-5 leading-relaxed">You've watched the free preview.<br/>Become a member to watch in full.</p>
+                        <Button onClick={handlePaywallCTA} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                            Watch Full Video
+                        </Button>
+                        <p className="text-white/30 text-xs mt-4">or <button onClick={() => setPreviewExpired(false)} className="underline hover:text-white/60">rewatch preview</button></p>
+                    </div>
+                )}
+
+                {/* PREVIEW EXPIRED OVERLAY — desktop (subtle darken only, CTA lives in strip below) */}
+                {previewExpired && post.isSubscriberOnly && !isMember && (
+                    <div className="hidden md:flex absolute inset-0 z-50 bg-black/60 backdrop-blur-[2px] items-center justify-center">
+                        <div className="flex flex-col items-center gap-2">
+                            <Crown className="h-8 w-8 text-[#F0B94D]" />
+                            <p className="text-white/80 text-sm font-medium">Preview ended — see CTA below</p>
+                        </div>
+                    </div>
+                )}
+
             </div>{/* end video area */}
+
+            {/* SIDE CONTROLS end tag is below */}
 
             {/* CONTROLS
                 Mobile:  absolute over the video at bottom-right (TikTok style)
@@ -539,6 +575,29 @@ const togglePlayPause = () => {
                 </div>
             </div>{/* end controls */}
 
+            </div>{/* end main row */}
+
+            {/* DESKTOP CTA STRIP — appears when preview expires */}
+            {previewExpired && post.isSubscriberOnly && !isMember && (
+                <div className="hidden md:flex shrink-0 items-center gap-4 px-6 py-4 bg-zinc-900/95 border-t border-white/10 backdrop-blur-md">
+                    {post.thumbnail && (
+                        <img src={post.thumbnail} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 opacity-80" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                        <p className="text-white font-semibold text-sm truncate">{post.title || post.description?.slice(0, 70) || 'Exclusive Content'}</p>
+                        <p className="text-white/40 text-xs mt-0.5">@{post.user.username} · Members only — subscribe to watch in full</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => setPreviewExpired(false)} className="text-white/40 hover:text-white/70 text-xs underline">
+                            Rewatch preview
+                        </button>
+                        <Button onClick={handlePaywallCTA} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold h-10 px-5 rounded-xl text-sm">
+                            Watch Full Video →
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             <SubscriptionDialog
                 isOpen={isSubscriptionDialogOpen}
                 onOpenChange={setIsSubscriptionDialogOpen}
@@ -563,6 +622,44 @@ const togglePlayPause = () => {
                 onClose={() => setIsMintModalOpen(false)}
                 data={post.mintData}
             />
+
+            {/* SUBSCRIBE TO WATCH MODAL */}
+            {showSubscribeModal && (
+                <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowSubscribeModal(false)}>
+                    <div className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                        {/* Video meta header */}
+                        <div className="flex items-center gap-3 p-4 border-b border-white/10">
+                            {post.thumbnail && <img src={post.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover opacity-80 shrink-0" />}
+                            <div className="min-w-0">
+                                <p className="text-white font-semibold text-sm leading-snug line-clamp-2">{post.title || post.description?.slice(0, 80) || 'Exclusive Content'}</p>
+                                <p className="text-white/40 text-xs mt-0.5">@{post.user.username}</p>
+                            </div>
+                        </div>
+                        {/* Body */}
+                        <div className="p-5">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Crown className="h-5 w-5 text-[#F0B94D] shrink-0" />
+                                <h3 className="text-white font-bold text-base">Members Only</h3>
+                            </div>
+                            <p className="text-white/60 text-sm leading-relaxed mb-5">
+                                You've watched the 1-minute free preview. Subscribe to watch the full video and unlock all member content.
+                            </p>
+                            <Button
+                                className="w-full bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold h-12 text-base rounded-xl mb-3"
+                                onClick={() => { setShowSubscribeModal(false); navigate('/subscribe'); }}
+                            >
+                                Become a Member
+                            </Button>
+                            <p className="text-center text-white/30 text-xs">
+                                Already a member?{' '}
+                                <button className="underline hover:text-white/60" onClick={() => { setShowSubscribeModal(false); onLoginRequest?.(); }}>
+                                    Log in
+                                </button>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
