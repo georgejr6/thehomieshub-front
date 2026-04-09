@@ -3,7 +3,7 @@ import { useMedia } from '@/contexts/MediaContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Info, Search, X, Minimize2, ListMusic,
-  Maximize, Loader2, ArrowLeft, Film, Music2, Lock,
+  Maximize, Loader2, ArrowLeft, Film, Music2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ManagePlaylistsModal } from './PlaylistModals';
@@ -173,7 +173,7 @@ const MediaApp = () => {
                 className={cn("hover:text-white cursor-pointer transition-colors flex items-center gap-1",
                   activeCategory === tab && "text-white font-bold")}
                 onClick={() => setActiveCategory(tab)}>
-                {tab === 'private' ? <Lock className="w-3.5 h-3.5" /> : tab}
+                {tab === 'private' ? <span>🐸</span> : tab}
               </li>
             ))}
           </ul>
@@ -383,7 +383,7 @@ const MediaApp = () => {
                   {!frogzLoading && frogzNew.length > 0 && <MediaRow title="New" items={frogzNew} onPlay={playVideo} />}
                   {!frogzLoading && !frogzTrending.length && !frogzNew.length && (
                     <div className="text-center py-20 text-zinc-500">
-                      <Lock className="w-10 h-10 mx-auto mb-4 text-zinc-700" />
+                      <span className="text-5xl block mb-4">🐸</span>
                       <p>No content yet. Check back soon.</p>
                     </div>
                   )}
