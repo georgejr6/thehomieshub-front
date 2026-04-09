@@ -153,31 +153,24 @@ const commentTargetType =
     // Autoplay when visible, pause when not visible or when music is playing
 useEffect(() => {
   if (!isVisible || isBlurred || musicIsPlaying) {
-    // Always call pause() directly — setting state alone doesn't stop audio on MuxPlayer
     try { videoRef.current?.pause?.(); } catch (_) {}
     setIsPlaying(false);
     return;
   }
 
-  // Autoplay when visible
-  if (isMux) {
-    setIsPlaying(true); // MuxPlayer reads the `paused` prop
-    return;
-  }
-
-  const timer = setTimeout(() => {
-    const el = videoRef.current;
-    const p = el?.play?.();
-    if (p?.catch) {
-      p.catch(() => {
-        setIsPlaying(false);
-        showOverlayTemporarily();
-      });
+  // Call play() imperatively on the element — faster than waiting for a
+  // React re-render to flip the `paused` prop on MuxPlayer
+  const el = videoRef.current;
+  if (el) {
+    const p = el.play?.();
+    if (p instanceof Promise) {
+      p.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    } else {
+      setIsPlaying(true);
     }
+  } else {
     setIsPlaying(true);
-  }, 200);
-
-  return () => clearTimeout(timer);
+  }
 }, [isVisible, isBlurred, isMux, musicIsPlaying]);
 
     // Sync time updates (works for video & mux-player element)
@@ -442,6 +435,7 @@ const togglePlayPause = () => {
                             playsInline
                             autoPlay={false}
                             paused={!isPlaying}
+                            preload="metadata"
                             className={cn("w-full h-full object-contain", isBlurred && "opacity-0")}
                             style={{ width: "100%", height: "100%" }}
                         />
@@ -454,6 +448,7 @@ const togglePlayPause = () => {
                             className={cn("w-full h-full object-contain", isBlurred && "opacity-0")}
                             playsInline
                             disablePictureInPicture
+                            preload="metadata"
                         />
                     )}
 
