@@ -12,6 +12,7 @@ import { useMedia } from '@/contexts/MediaContext';
 import { useFeatures } from '@/contexts/FeatureContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import api from '@/api/homieshub';
+import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 
 const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot }) => {
   const location = useLocation();
@@ -125,6 +126,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
   const isLivestreamPage = location.pathname.startsWith('/live-stream');
 
   const [hasActiveLive, setHasActiveLive] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   useEffect(() => {
     const check = async () => {
       try {
@@ -165,7 +167,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
   ];
 
   const handleUpgradeClick = () => {
-    triggerLockedFeature();
+    setShowUpgradeModal(true);
   };
 
   const createPostAccess = checkAccess('create_post');
@@ -376,6 +378,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
                 </>
             )}
         </AnimatePresence>
+        <MembershipUpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       );
   }
 
@@ -403,6 +406,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
       )}>
         {desktopSidebarContent}
       </aside>
+      <MembershipUpgradeModal open={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
     </>
   );
 };
