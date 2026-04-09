@@ -523,31 +523,46 @@ const addComment = async ({ targetType, targetId, text, parentId = null }) => {
 };
 
 const toggleContentLike = async ({ targetType, targetId }) => {
-  // optimistic update: update verticalPosts
+  const idStr = String(targetId);
+  const alreadyLiked = likedPostIds.includes(idStr);
+
+  // optimistic: update liked ids + engagement count
+  setLikedPostIds(prev => alreadyLiked ? prev.filter(x => x !== idStr) : [...prev, idStr]);
   setVerticalPosts(prev =>
     prev.map(p => {
-      if (String(p.id) !== String(targetId)) return p;
-      const liked = isPostLiked(p.id);
+      if (String(p.id) !== idStr) return p;
       return {
         ...p,
         engagement: {
           ...p.engagement,
-          likes: Math.max(0, (p.engagement?.likes ?? 0) + (liked ? -1 : 1)),
+          likes: Math.max(0, (p.engagement?.likes ?? 0) + (alreadyLiked ? -1 : 1)),
         }
       };
     })
   );
 
-  // keep liked ids in sync
-  togglePostLike(targetId); // if this just toggles IDs; rename if needed
-
-  // hit backend
-  const url =
-    targetType === "reel"
+  try {
+    const url = targetType === "reel"
       ? `/user/reels/${targetId}/like`
       : `/user/videos/${targetId}/like`;
-
-  await api.post(url);
+    await api.post(url);
+  } catch (err) {
+    // rollback
+    setLikedPostIds(prev => alreadyLiked ? [...prev, idStr] : prev.filter(x => x !== idStr));
+    setVerticalPosts(prev =>
+      prev.map(p => {
+        if (String(p.id) !== idStr) return p;
+        return {
+          ...p,
+          engagement: {
+            ...p.engagement,
+            likes: Math.max(0, (p.engagement?.likes ?? 0) + (alreadyLiked ? 1 : -1)),
+          }
+        };
+      })
+    );
+    console.error("toggleContentLike failed:", err);
+  }
 };
 
 
