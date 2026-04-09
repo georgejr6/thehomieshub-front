@@ -150,17 +150,18 @@ const commentTargetType =
         }
     }, [isVisible, post.isNSFW]);
 
-    // ✅ Autoplay when visible, pause when not visible or when music is playing
+    // Autoplay when visible, pause when not visible or when music is playing
 useEffect(() => {
   if (!isVisible || isBlurred || musicIsPlaying) {
-    if (isMux) setIsPlaying(false);
-    else videoRef.current?.pause?.();
+    // Always call pause() directly — setting state alone doesn't stop audio on MuxPlayer
+    try { videoRef.current?.pause?.(); } catch (_) {}
+    setIsPlaying(false);
     return;
   }
 
   // Autoplay when visible
   if (isMux) {
-    setIsPlaying(true); // ✅ mux autoplay via paused prop
+    setIsPlaying(true); // MuxPlayer reads the `paused` prop
     return;
   }
 
