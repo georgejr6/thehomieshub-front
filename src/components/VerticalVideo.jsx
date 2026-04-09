@@ -27,6 +27,38 @@ import { useNavigate } from 'react-router-dom';
 let consecutiveMuteCount = 0;
 let globalIsMuted = false;
 
+// Session-level window tracking: videoId → Set of 60-second bucket indices already played.
+// Lives for the lifetime of the browser session (cleared on page refresh).
+// Guarantees a user never sees the same 60-second window of a video twice in one session.
+const sessionWindowMap = new Map();
+
+function pickStartTime(postId, duration) {
+  if (duration < 20) return 0; // Too short to slice — play from beginning
+
+  const WINDOW = 60; // seconds per bucket
+  const totalWindows = Math.max(1, Math.floor(duration / WINDOW));
+  const seen = sessionWindowMap.get(postId) || new Set();
+
+  // Prefer unseen windows; if all exhausted reset so content can recycle
+  const all = Array.from({ length: totalWindows }, (_, i) => i);
+  const unseen = all.filter(i => !seen.has(i));
+  const pool = unseen.length > 0 ? unseen : (sessionWindowMap.set(postId, new Set()), all);
+
+  const windowIdx = pool[Math.floor(Math.random() * pool.length)];
+
+  // Mark this window as seen
+  const updated = new Set(sessionWindowMap.get(postId));
+  updated.add(windowIdx);
+  sessionWindowMap.set(postId, updated);
+
+  // Pick a random second inside the chosen window, leaving a 5s buffer at end
+  const winStart = windowIdx * WINDOW;
+  const winEnd   = Math.min(winStart + WINDOW, duration - 5);
+  return winEnd > winStart
+    ? winStart + Math.random() * (winEnd - winStart)
+    : winStart;
+}
+
 const OVERLAY_HIDE_MS = 800;
 const PREVIEW_LIMIT_SECONDS = 60;
 const LONG_VIDEO_LIMIT = 180; // 3 minutes — nudge long-form to media mode
@@ -208,15 +240,8 @@ useEffect(() => {
             const d = video.duration || 0;
             setDuration(d);
             if (d > LONG_VIDEO_LIMIT) setIsLongVideo(true);
-            if (startFraction && d > 0) {
-                // Bottomless scroll: resume at a fractional point through the video
-                const target = startFraction * d;
-                video.currentTime = Math.min(target, Math.max(d - 10, 0));
-            } else if (d > LONG_VIDEO_LIMIT) {
-                // Long videos (have the "Full video" button): skip the first 5s
-                // to avoid the repeated intro that plays on every imported video
-                video.currentTime = 5;
-            }
+            // Session-aware random window: pick an unseen 60-second slice for this video
+            video.currentTime = pickStartTime(post.id, d);
         };
 
         const handlePlay = () => setIsPlaying(true);

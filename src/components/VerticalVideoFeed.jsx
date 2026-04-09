@@ -14,13 +14,12 @@ function shuffle(arr) {
   return a;
 }
 
-// Wrap each post with a unique instance key and a random startFraction (0.1–0.85)
+// Wrap each post with a unique instance key.
+// Start-time is now handled by VerticalVideo's session window system — no startFraction needed.
 function wrapPosts(posts, loopIndex) {
   return posts.map(post => ({
     post,
     instanceKey: `${post.id}-loop${loopIndex}-${Math.random().toString(36).slice(2, 7)}`,
-    // First loop (loopIndex 0) always starts from the beginning
-    startFraction: loopIndex === 0 ? 0 : parseFloat((Math.random() * 0.75 + 0.1).toFixed(4)),
   }));
 }
 
@@ -29,7 +28,7 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
   const [visibleIndex, setVisibleIndex] = useState(initialIndex);
   const loopCountRef = useRef(0);
 
-  // Internal expanded list: each entry is { post, instanceKey, startFraction }
+  // Internal expanded list: each entry is { post, instanceKey }
   const [items, setItems] = useState(() => wrapPosts(posts, 0));
 
   // Re-seed when the source posts list changes (e.g. initial load)
@@ -82,7 +81,7 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
       className="h-[100svh] w-full overflow-y-scroll snap-y snap-mandatory bg-black [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
       style={{ scrollBehavior: 'smooth' }}
     >
-      {items.map(({ post, instanceKey, startFraction }, index) => (
+      {items.map(({ post, instanceKey }, index) => (
         <VerticalVideo
           key={instanceKey}
           post={post}
@@ -90,7 +89,6 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
           isVisible={index === visibleIndex}
           onLoginRequest={onLoginRequest}
           aspectRatio={aspectRatio}
-          startFraction={startFraction}
         />
       ))}
     </div>
