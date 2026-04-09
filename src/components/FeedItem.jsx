@@ -397,29 +397,32 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
     <>
       <motion.article layout className={cn("bg-card border border-border rounded-xl mb-6 hover:shadow-glow-gold-lg transition-shadow", compact ? "p-4" : "p-5 md:p-6", post.type === 'mint' ? 'border-primary/20 bg-zinc-950' : '')} whileHover={{ borderColor: 'hsl(var(--primary) / 0.4)' }}>
         <div className="flex items-start justify-between mb-2">
-          <Link
-            to={post.isFrogzClip ? '#' : `/profile/${post.user.username}`}
-            onClick={post.isFrogzClip ? (e) => { e.preventDefault(); handleFrogzClipClick(); } : undefined}
-            className="flex items-start space-x-2 md:space-x-3 group min-w-0"
-          >
-            <Avatar className={cn("border border-border group-hover:border-primary transition-colors", compact ? "w-8 h-8" : "w-10 h-10 md:w-12 md:h-12", post.type === 'mint' ? "border-primary/50" : "")}>
-              <AvatarImage src={`${post.user.avatar}`} />
-              <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div className="pt-0.5 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className={cn("font-bold text-foreground group-hover:text-primary transition-colors truncate", compact ? "text-sm" : "text-base")}>{post.user.name}</span>
-                {post.user.verified && <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-primary shrink-0" fill="currentColor" />}
-              </div>
-              <div className="flex items-center text-[10px] md:text-sm text-muted-foreground gap-1 flex-wrap">
-                 <span>@{post.user.username}</span>
-                 <span>·</span>
-                 <span>{post.timestamp}</span>
-                 {post.location && post.type !== 'mint' && (<><span>·</span><div className="flex items-center gap-0.5 hover:text-primary cursor-pointer transition-colors" onClick={handleLocationClick}><MapPin className="h-3 w-3" /><span className="truncate max-w-[100px]">{post.location}</span></div></>)}
-                 {post.mintData && post.mintData.location && post.type === 'mint' && (<><span>·</span><div className="flex items-center gap-0.5 text-primary"><MapPin className="h-3 w-3" /><span className="truncate max-w-[120px]">{post.mintData.location.name}</span></div></>)}
-              </div>
-            </div>
-          </Link>
+          {(() => {
+            const inner = (
+              <>
+                <Avatar className={cn("border border-border group-hover:border-primary transition-colors", compact ? "w-8 h-8" : "w-10 h-10 md:w-12 md:h-12", post.type === 'mint' ? "border-primary/50" : "")}>
+                  <AvatarImage src={`${post.user.avatar}`} />
+                  <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="pt-0.5 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn("font-bold text-foreground group-hover:text-primary transition-colors truncate", compact ? "text-sm" : "text-base")}>{post.user.name}</span>
+                    {post.user.verified && <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-primary shrink-0" fill="currentColor" />}
+                  </div>
+                  <div className="flex items-center text-[10px] md:text-sm text-muted-foreground gap-1 flex-wrap">
+                    <span>@{post.user.username}</span>
+                    <span>·</span>
+                    <span>{post.timestamp}</span>
+                    {post.location && post.type !== 'mint' && (<><span>·</span><div className="flex items-center gap-0.5 hover:text-primary cursor-pointer transition-colors" onClick={handleLocationClick}><MapPin className="h-3 w-3" /><span className="truncate max-w-[100px]">{post.location}</span></div></>)}
+                    {post.mintData && post.mintData.location && post.type === 'mint' && (<><span>·</span><div className="flex items-center gap-0.5 text-primary"><MapPin className="h-3 w-3" /><span className="truncate max-w-[120px]">{post.mintData.location.name}</span></div></>)}
+                  </div>
+                </div>
+              </>
+            );
+            return post.isFrogzClip
+              ? <button onClick={handleFrogzClipClick} className="flex items-start space-x-2 md:space-x-3 group min-w-0 text-left">{inner}</button>
+              : <Link to={`/profile/${post.user.username}`} className="flex items-start space-x-2 md:space-x-3 group min-w-0">{inner}</Link>;
+          })()}
           <div className="flex items-center gap-2">
             {/* Mint Badges */}
             {post.type === 'mint' && (
