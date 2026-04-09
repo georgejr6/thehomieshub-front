@@ -309,10 +309,10 @@ const togglePlayPause = () => {
     const handleOwnerHide = async (e) => {
         e.stopPropagation();
         try {
-            await api.patch(`/admin/videos/${post.id}`, {
-                visibility: 'private',
-                _collectionType: post.backendType || 'reel',
-            });
+            const endpoint = post.backendType === 'video'
+                ? `/user/videos/${post.id}/visibility`
+                : `/user/reels/${post.id}/visibility`;
+            await api.patch(endpoint, { visibility: 'private' });
             deletePost(post.id);
             toast({ title: 'Hidden', description: 'Video set to private.' });
         } catch {
@@ -522,43 +522,6 @@ const togglePlayPause = () => {
                 {/* SIDE CONTROLS — absolute on mobile, relative column on desktop */}
                 <div className="absolute bottom-4 right-2 md:relative md:bottom-auto md:right-auto z-40 flex flex-col items-center gap-5 w-[60px] md:w-[72px] md:self-end md:pb-4 md:shrink-0">
 
-                    {/* Owner / Admin quick-actions */}
-                    {(user?.isAdmin || isOwnPost) && (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                    <MoreVertical className="h-7 w-7 text-white drop-shadow-md" />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="z-[200]">
-                                {/* Owner controls */}
-                                {isOwnPost && !user?.isAdmin && (
-                                    <>
-                                        <DropdownMenuItem onClick={handleOwnerHide}>
-                                            <EyeOff className="mr-2 h-4 w-4" /> Make Private
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleOwnerDelete}>
-                                            <Trash2 className="mr-2 h-4 w-4" /> Delete My Video
-                                        </DropdownMenuItem>
-                                    </>
-                                )}
-                                {/* Admin controls */}
-                                {user?.isAdmin && (
-                                    <>
-                                        <DropdownMenuItem onClick={handleAdminHide}>
-                                            <EyeOff className="mr-2 h-4 w-4" /> Make Private
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleAdminDelete}>
-                                            <Trash2 className="mr-2 h-4 w-4" /> Delete Video
-                                        </DropdownMenuItem>
-                                    </>
-                                )}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    )}
-
                     <div className="relative mb-1">
                         <Link to={`/profile/${post.user.username}`} onClick={(e) => e.stopPropagation()}>
                             <Avatar className="h-12 w-12 border border-white/50 cursor-pointer hover:scale-105 transition-transform">
@@ -613,6 +576,41 @@ const togglePlayPause = () => {
                             <img src={audioTrack.cover} alt="Music" className="h-full w-full object-cover rounded-full" />
                         </div>
                     </div>
+
+                    {/* Owner / Admin moderation — at the bottom so it's out of the way */}
+                    {(user?.isAdmin || isOwnPost) && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                    <MoreVertical className="h-6 w-6 text-white/60 drop-shadow-md" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" side="top" className="z-[200]">
+                                {isOwnPost && !user?.isAdmin && (
+                                    <>
+                                        <DropdownMenuItem onClick={handleOwnerHide}>
+                                            <EyeOff className="mr-2 h-4 w-4" /> Make Private
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleOwnerDelete}>
+                                            <Trash2 className="mr-2 h-4 w-4" /> Delete My Video
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
+                                {user?.isAdmin && (
+                                    <>
+                                        <DropdownMenuItem onClick={handleAdminHide}>
+                                            <EyeOff className="mr-2 h-4 w-4" /> Make Private
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleAdminDelete}>
+                                            <Trash2 className="mr-2 h-4 w-4" /> Delete Video
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
 
                 </div>{/* end side controls */}
 
