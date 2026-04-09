@@ -307,7 +307,7 @@ const likeCount = post?.engagement?.likes ?? 0;
     return (
         <div
             data-index={index}
-            className="h-[100svh] w-full relative flex items-center justify-center bg-black snap-start shrink-0 overflow-hidden"
+            className="h-[100svh] w-full relative flex items-end justify-center bg-black snap-start shrink-0 overflow-hidden"
         >
             {/* Blurred Background — always full width */}
             <div className="absolute inset-0 z-0 overflow-hidden">
@@ -318,44 +318,43 @@ const likeCount = post?.engagement?.likes ?? 0;
                 />
             </div>
 
-            {/* Centered column — everything foreground lives here */}
-            <div className="relative z-10 h-full w-full max-w-[420px] mx-auto">
-
-                {/* VIDEO / MUX PLAYER */}
-                <div onClick={togglePlayPause} className="absolute inset-0 flex items-center justify-center">
-                    {isMux ? (
-                        <MuxPlayer
-                            ref={videoRef}
-                            playbackId={playbackId}
-                            streamType="on-demand"
-                            poster={muxPoster || post.thumbnail}
-                            loop
-                            muted={isMuted}
-                            playsInline
-                            autoPlay={false}
-                            paused={!isPlaying}
-                            className={cn(
-                                "w-full h-full object-contain",
-                                isBlurred && "opacity-0"
-                            )}
-                            style={{ width: "100%", height: "100%" }}
-                        />
-                    ) : (
-                        <video
-                            ref={videoRef}
-                            src={post.videoUrl}
-                            loop
-                            muted={isMuted}
-                            onClick={togglePlayPause}
-                            className={cn(
-                                "w-full h-full object-contain",
-                                isBlurred && "opacity-0"
-                            )}
-                            playsInline
-                            disablePictureInPicture
-                        />
-                    )}
-                </div>
+            {/* VIDEO AREA — flex-1, constrained to 85vw max on desktop */}
+            <div
+                className="relative z-10 h-full flex-1 min-w-0 md:max-w-[85vw] flex items-center justify-center cursor-pointer"
+                onClick={togglePlayPause}
+            >
+                {isMux ? (
+                    <MuxPlayer
+                        ref={videoRef}
+                        playbackId={playbackId}
+                        streamType="on-demand"
+                        poster={muxPoster || post.thumbnail}
+                        loop
+                        muted={isMuted}
+                        playsInline
+                        autoPlay={false}
+                        paused={!isPlaying}
+                        className={cn(
+                            "w-full h-full object-contain",
+                            isBlurred && "opacity-0"
+                        )}
+                        style={{ width: "100%", height: "100%" }}
+                    />
+                ) : (
+                    <video
+                        ref={videoRef}
+                        src={post.videoUrl}
+                        loop
+                        muted={isMuted}
+                        onClick={togglePlayPause}
+                        className={cn(
+                            "w-full h-full object-contain",
+                            isBlurred && "opacity-0"
+                        )}
+                        playsInline
+                        disablePictureInPicture
+                    />
+                )}
 
                 {/* Center Play/Pause Indicator */}
                 <AnimatePresence>
@@ -377,86 +376,8 @@ const likeCount = post?.engagement?.likes ?? 0;
                     )}
                 </AnimatePresence>
 
-                {/* RIGHT SIDEBAR CONTROLS */}
-                <div className="absolute bottom-20 right-2 z-40 flex flex-col items-center gap-6 w-[60px]">
-                    {/* Avatar Profile Link */}
-                    <div className="relative mb-2">
-                        <Link to={`/profile/${post.user.username}`} onClick={(e) => e.stopPropagation()}>
-                            <Avatar className="h-12 w-12 border border-white/50 cursor-pointer hover:scale-105 transition-transform">
-                                <AvatarImage src={post.user.avatar} alt={post.user.name} />
-                                <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                        </Link>
-
-                        {!isFollowing && (
-                            <div
-                                className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#FE2C55] rounded-full w-5 h-5 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleInteraction('follow'); }}
-                            >
-                                <Plus className="h-3 w-3 text-white font-bold" />
-                            </div>
-                        )}
-
-                        {isFollowing && (
-                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white rounded-full w-5 h-5 flex items-center justify-center">
-                                <Check className="h-3 w-3 text-[#FE2C55]" />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Like */}
-                    <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => { e.stopPropagation(); handleInteraction('like'); }}>
-                        <div className="rounded-full transition-transform active:scale-90">
-                            <Heart className={cn("h-9 w-9 drop-shadow-md transition-all", liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white fill-white/10")} />
-                        </div>
-                        <span className="text-xs font-semibold text-white drop-shadow-md">{likeCount}</span>
-                    </button>
-
-                    {/* Comments */}
-                    <CommentsSheet post={post} targetType={commentTargetType} onLoginRequest={onLoginRequest}>
-                        <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => e.stopPropagation()}>
-                            <div className="rounded-full transition-transform active:scale-90">
-                                <MessageCircle className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
-                            </div>
-                            <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.comments}</span>
-                        </button>
-                    </CommentsSheet>
-
-                    {/* Save */}
-                    <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => { e.stopPropagation(); handleInteraction('save'); }}>
-                        <div className="rounded-full transition-transform active:scale-90">
-                            <Bookmark className={cn("h-9 w-9 drop-shadow-md transition-transform", saved ? "fill-yellow-400 text-yellow-400" : "text-white fill-white/10")} />
-                        </div>
-                        <span className="text-xs font-semibold text-white drop-shadow-md">{saved ? "Saved" : "Save"}</span>
-                    </button>
-
-                    {/* Share */}
-                    <ShareDialog postUrl={postUrl} postTitle={post.description}>
-                        <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => e.stopPropagation()}>
-                            <div className="rounded-full transition-transform active:scale-90">
-                                <Share2 className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
-                            </div>
-                            <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.shares}</span>
-                        </button>
-                    </ShareDialog>
-
-                    {/* Mute */}
-                    <button onClick={toggleMute} className="flex flex-col items-center gap-1 group/btn">
-                        <div className="bg-black/20 p-2 rounded-full hover:bg-black/40 transition-colors backdrop-blur-sm transition-transform active:scale-90">
-                            {isMuted ? <VolumeX className="h-5 w-5 text-white" /> : <Volume2 className="h-5 w-5 text-white" />}
-                        </div>
-                    </button>
-
-                    {/* Spinning Disc */}
-                    <div className="mt-2 relative group/disc cursor-pointer" onClick={(e) => { e.stopPropagation(); handleUseSound(e); }}>
-                        <div className={cn("h-10 w-10 rounded-full border-[6px] border-[#2F2F2F] bg-[#2F2F2F] flex items-center justify-center overflow-hidden", isPlaying && "animate-spin-slow")}>
-                            <img src={audioTrack.cover} alt="Music" className="h-full h-full object-cover rounded-full" />
-                        </div>
-                    </div>
-                </div>
-
                 {/* BOTTOM LEFT METADATA */}
-                <div className="absolute bottom-6 left-0 right-16 p-4 z-40 pointer-events-none mb-1">
+                <div className="absolute bottom-6 left-0 right-16 md:right-4 p-4 z-40 pointer-events-none mb-1">
                     <div className="flex flex-col gap-2 items-start pointer-events-auto max-w-[85%]">
                         <Link to={`/profile/${post.user.username}`} className="font-bold text-white text-[17px] shadow-black drop-shadow-md hover:underline mb-1">
                             @{post.user.username}
@@ -486,14 +407,13 @@ const likeCount = post?.engagement?.likes ?? 0;
                     </div>
                 </div>
 
-                {/* SEEKER BAR — always visible as thin line, expands on hover */}
+                {/* SEEKER BAR */}
                 <div className="absolute bottom-0 left-0 right-0 z-50 px-2 pb-1 pt-4 group">
                     <div className="flex items-center gap-2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white font-medium drop-shadow-md">
                         <span>{formatTime(currentTime)}</span>
                         <div className="flex-1"></div>
                         <span>{formatTime(duration)}</span>
                     </div>
-
                     <Slider
                         defaultValue={[0]}
                         value={[progress]}
@@ -532,8 +452,87 @@ const likeCount = post?.engagement?.likes ?? 0;
                         )}
                     </div>
                 )}
+            </div>{/* end video area */}
 
-            </div>{/* end centered column */}
+            {/* CONTROLS
+                Mobile:  absolute over the video at bottom-right (TikTok style)
+                Desktop: flex column sibling sitting beside the video
+            */}
+            <div className="absolute bottom-20 right-2 md:relative md:bottom-auto md:right-auto z-40 flex flex-col items-center gap-6 w-[60px] md:w-[72px] md:self-end md:pb-20 md:shrink-0">
+
+                {/* Avatar */}
+                <div className="relative mb-2">
+                    <Link to={`/profile/${post.user.username}`} onClick={(e) => e.stopPropagation()}>
+                        <Avatar className="h-12 w-12 border border-white/50 cursor-pointer hover:scale-105 transition-transform">
+                            <AvatarImage src={post.user.avatar} alt={post.user.name} />
+                            <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                    </Link>
+                    {!isFollowing && (
+                        <div
+                            className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#FE2C55] rounded-full w-5 h-5 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleInteraction('follow'); }}
+                        >
+                            <Plus className="h-3 w-3 text-white font-bold" />
+                        </div>
+                    )}
+                    {isFollowing && (
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white rounded-full w-5 h-5 flex items-center justify-center">
+                            <Check className="h-3 w-3 text-[#FE2C55]" />
+                        </div>
+                    )}
+                </div>
+
+                {/* Like */}
+                <button className="flex flex-col items-center gap-1" onClick={(e) => { e.stopPropagation(); handleInteraction('like'); }}>
+                    <div className="rounded-full transition-transform active:scale-90">
+                        <Heart className={cn("h-9 w-9 drop-shadow-md transition-all", liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white fill-white/10")} />
+                    </div>
+                    <span className="text-xs font-semibold text-white drop-shadow-md">{likeCount}</span>
+                </button>
+
+                {/* Comments */}
+                <CommentsSheet post={post} targetType={commentTargetType} onLoginRequest={onLoginRequest}>
+                    <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <div className="rounded-full transition-transform active:scale-90">
+                            <MessageCircle className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
+                        </div>
+                        <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.comments}</span>
+                    </button>
+                </CommentsSheet>
+
+                {/* Save */}
+                <button className="flex flex-col items-center gap-1" onClick={(e) => { e.stopPropagation(); handleInteraction('save'); }}>
+                    <div className="rounded-full transition-transform active:scale-90">
+                        <Bookmark className={cn("h-9 w-9 drop-shadow-md transition-transform", saved ? "fill-yellow-400 text-yellow-400" : "text-white fill-white/10")} />
+                    </div>
+                    <span className="text-xs font-semibold text-white drop-shadow-md">{saved ? "Saved" : "Save"}</span>
+                </button>
+
+                {/* Share */}
+                <ShareDialog postUrl={postUrl} postTitle={post.description}>
+                    <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <div className="rounded-full transition-transform active:scale-90">
+                            <Share2 className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
+                        </div>
+                        <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.shares}</span>
+                    </button>
+                </ShareDialog>
+
+                {/* Mute */}
+                <button onClick={toggleMute} className="flex flex-col items-center gap-1">
+                    <div className="bg-black/20 p-2 rounded-full hover:bg-black/40 transition-colors backdrop-blur-sm transition-transform active:scale-90">
+                        {isMuted ? <VolumeX className="h-5 w-5 text-white" /> : <Volume2 className="h-5 w-5 text-white" />}
+                    </div>
+                </button>
+
+                {/* Spinning Disc */}
+                <div className="mt-2 relative cursor-pointer" onClick={(e) => { e.stopPropagation(); handleUseSound(e); }}>
+                    <div className={cn("h-10 w-10 rounded-full border-[6px] border-[#2F2F2F] bg-[#2F2F2F] flex items-center justify-center overflow-hidden", isPlaying && "animate-spin-slow")}>
+                        <img src={audioTrack.cover} alt="Music" className="h-full w-full object-cover rounded-full" />
+                    </div>
+                </div>
+            </div>{/* end controls */}
 
             <SubscriptionDialog
                 isOpen={isSubscriptionDialogOpen}
