@@ -126,7 +126,7 @@ const MainLayout = ({
           <div className="flex-1">
              <Outlet />
           </div>
-          {!isImmersiveMode && !location.pathname.startsWith('/live-stream') && <Footer />}
+          {!isImmersiveMode && !location.pathname.startsWith('/live-stream') && location.pathname !== '/' && <Footer />}
         </main>
       </div>
 
