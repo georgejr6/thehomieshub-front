@@ -44,8 +44,24 @@ const MembershipUpgradeModal = ({ open, onClose, post }) => {
   // CashApp state
   const [selectedCashApp, setSelectedCashApp] = useState(0);
   const [loadingCashApp, setLoadingCashApp] = useState(false);
-  const [cashAppCode, setCashAppCode] = useState(null); // { uniqueCode, amount, planLabel }
+  const [cashAppCode, setCashAppCode] = useState(null); // { requestId, uniqueCode, amount, planLabel }
   const [cashAppError, setCashAppError] = useState('');
+  const [paidSent, setPaidSent] = useState(false);
+  const [loadingPaid, setLoadingPaid] = useState(false);
+
+  const handleIPaid = async () => {
+    if (!cashAppCode?.requestId || paidSent) return;
+    setLoadingPaid(true);
+    try {
+      await api.post(`/subscription/cashapp/${cashAppCode.requestId}/paid`);
+      setPaidSent(true);
+    } catch {
+      // Still mark as sent — better to notify twice than not at all
+      setPaidSent(true);
+    } finally {
+      setLoadingPaid(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -75,7 +91,7 @@ const MembershipUpgradeModal = ({ open, onClose, post }) => {
       const chosen = CASHAPP_PLANS[selectedCashApp];
       const { data } = await api.post('/subscription/cashapp', { plan: chosen.key });
       if (data?.ok) {
-        setCashAppCode({ uniqueCode: data.uniqueCode, amount: data.amount, planLabel: data.planLabel });
+        setCashAppCode({ requestId: data.requestId, uniqueCode: data.uniqueCode, amount: data.amount, planLabel: data.planLabel });
       } else {
         setCashAppError('Could not create request. Try again.');
       }
@@ -231,33 +247,65 @@ const MembershipUpgradeModal = ({ open, onClose, post }) => {
                   </Button>
                 </>
               ) : (
-                /* Payment instructions after code is generated */
+                /* Payment instructions */
                 <div>
-                  <div className="bg-[#00D64F]/10 border border-[#00D64F]/30 rounded-xl p-4 mb-4">
+                  {/* Payment details */}
+                  <div className="bg-[#00D64F]/10 border border-[#00D64F]/30 rounded-xl p-4 mb-3">
                     <p className="text-white font-semibold text-sm mb-3">Send your payment</p>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-white/50 text-xs">CashApp</span>
-                      <span className="text-white font-bold text-lg">$homieshub</span>
-                    </div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-white/50 text-xs">Amount</span>
                       <span className="font-bold text-lg" style={{ color: CA_GREEN }}>${cashAppCode.amount}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/50 text-xs">Memo / Note</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-white/50 text-xs">Include in memo</span>
                       <span className="text-white font-mono font-bold text-base tracking-widest bg-white/10 px-2 py-0.5 rounded-lg">
                         {cashAppCode.uniqueCode}
                       </span>
                     </div>
+                    {/* CashApp pay button */}
+                    <a
+                      href={`https://cash.app/$homieshub/${cashAppCode.amount}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-bold text-base text-black transition-opacity hover:opacity-90"
+                      style={{ backgroundColor: CA_GREEN }}
+                    >
+                      <CashAppIcon size={20} />
+                      Pay $homieshub on CashApp
+                    </a>
                   </div>
-                  <div className="flex items-start gap-2 bg-white/5 rounded-xl p-3 mb-4">
+
+                  {/* Instructions note */}
+                  <div className="flex items-start gap-2 bg-white/5 rounded-xl p-3 mb-3">
                     <Check className="h-4 w-4 text-[#00D64F] shrink-0 mt-0.5" />
-                    <p className="text-white/70 text-xs leading-relaxed">
-                      Include <strong className="text-white">{cashAppCode.uniqueCode}</strong> in the CashApp memo. Once we verify your payment, your account will be activated automatically — usually within a few minutes.
+                    <p className="text-white/60 text-xs leading-relaxed">
+                      Include <strong className="text-white">{cashAppCode.uniqueCode}</strong> in the memo so we can match your payment. We'll activate your account within minutes of approval.
                     </p>
                   </div>
+
+                  {/* I Paid section */}
+                  {!paidSent ? (
+                    <>
+                      <p className="text-center text-yellow-400/80 text-[11px] font-semibold uppercase tracking-wider mb-2">
+                        ⚠ Only tap this after you have paid via CashApp
+                      </p>
+                      <Button
+                        onClick={handleIPaid}
+                        disabled={loadingPaid}
+                        className="w-full h-12 text-base font-bold rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 mb-3"
+                      >
+                        {loadingPaid ? <Loader2 className="h-4 w-4 animate-spin" /> : "✅ I Paid — Notify Admin"}
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 justify-center bg-[#00D64F]/10 border border-[#00D64F]/30 rounded-xl p-3 mb-3">
+                      <Check className="h-4 w-4 text-[#00D64F] shrink-0" />
+                      <p className="text-white text-sm font-semibold">Got it! We'll activate your account shortly.</p>
+                    </div>
+                  )}
+
                   <button
-                    onClick={() => setCashAppCode(null)}
+                    onClick={() => { setCashAppCode(null); setPaidSent(false); }}
                     className="w-full text-center text-white/30 hover:text-white/60 text-xs underline"
                   >
                     ← Choose a different plan
