@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { musicApi, videoApi } from '@/lib/digitvlApi';
 import { frogzApi } from '@/lib/frogzApi';
 import { useAuth } from '@/contexts/AuthContext';
+import api from '@/api/homieshub';
 
 const MediaContext = createContext();
 export const useMedia = () => useContext(MediaContext);
@@ -25,6 +26,9 @@ export const MediaProvider = ({ children }) => {
   const [movies,          setMovies]          = useState([]);
   const [series,          setSeries]          = useState([]);
   const [videoLoading,    setVideoLoading]    = useState(true);
+
+  // ── HomieshHub Video Catalog ───────────────────────────────────────────────
+  const [hhVideos, setHhVideos] = useState([]);
 
   // ── Frogz Catalog ─────────────────────────────────────────────────────────
   const [frogzClips,     setFrogzClips]     = useState([]);   // public shorts
@@ -126,6 +130,40 @@ export const MediaProvider = ({ children }) => {
 
   const requestFrogzAccess = useCallback(async (plan) => {
     return frogzApi.requestAccess(plan);
+  }, []);
+
+  // ── Fetch HomieshHub videos + reels for media mode library ────────────────
+  useEffect(() => {
+    Promise.all([
+      api.get('/user/videos', { params: { page: 1, limit: 50 } }).catch(() => null),
+      api.get('/user/reels',  { params: { page: 1, limit: 50 } }).catch(() => null),
+    ]).then(([vResp, rResp]) => {
+      const videos = vResp?.data?.result?.items ?? vResp?.data?.result ?? [];
+      const reels  = rResp?.data?.result?.items ?? rResp?.data?.result ?? [];
+
+      const normalize = (item, backendType) => {
+        const playbackId = item.muxPlaybackId || null;
+        if (!playbackId) return null;
+        return {
+          id:            item._id || item.id,
+          title:         item.title || item.caption || 'Untitled',
+          description:   item.description || item.caption || '',
+          muxPlaybackId: playbackId,
+          cover:         item.thumbnailUrl || item.thumbnail || (playbackId ? `https://image.mux.com/${playbackId}/thumbnail.png?width=400` : ''),
+          backdropUrl:   playbackId ? `https://image.mux.com/${playbackId}/thumbnail.png?width=1280` : '',
+          mediaKind:     'video',
+          backendType,
+          user:          item.creator,
+        };
+      };
+
+      const mapped = [
+        ...Array.isArray(videos) ? videos.map(v => normalize(v, 'video')) : [],
+        ...Array.isArray(reels)  ? reels.map(r => normalize(r, 'reel'))   : [],
+      ].filter(Boolean);
+
+      setHhVideos(mapped);
+    });
   }, []);
 
   // ── Create audio element once ──────────────────────────────────────────────
@@ -238,7 +276,8 @@ export const MediaProvider = ({ children }) => {
       setIsPlaying(false);
     }
     setCurrentVideo(video);
-    videoApi.logView(video.id);
+    // Only log views for DIGITVL videos, not HomieshHub content
+    if (!video.isHH && !video.backendType) videoApi.logView(video.id);
   }, []);
 
   const closeVideo = useCallback(() => setCurrentVideo(null), []);
@@ -294,6 +333,8 @@ export const MediaProvider = ({ children }) => {
       likedMedia, likedIds, isLiked, toggleLike,
       playlists, createPlaylist, deletePlaylist, addToPlaylist,
       activeCategory, setActiveCategory,
+      // HomieshHub videos
+      hhVideos,
       // legacy compat
       popularVideos: allTracks,
       newReleases: [...allTracks].slice().reverse(),

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import { useMedia } from '@/contexts/MediaContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -68,16 +69,39 @@ const HeroBackground = ({ slides, staticFallback }) => {
 const BASE_TABS = ['Home', 'Videos', 'Music', 'Likes'];
 
 const MediaApp = () => {
+  const { postId } = useParams();
+  const location = useLocation();
+
   const {
     minimizeMediaMode, exitMediaMode,
     allTracks, genreRows, catalogLoading, playMedia,
     featuredVideo, trendingVideos, newVideos, movies, series, videoLoading, playVideo, currentVideo,
+    hhVideos,
     likedMedia,
     activeCategory, setActiveCategory,
     hasFrogzFan, hasFrogzAccess,
     frogzClips, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
     requestFrogzAccess,
   } = useMedia();
+
+  // ── Auto-play video from vertical feed navigation ─────────────────────────
+  useEffect(() => {
+    const post = location.state?.post;
+    if (!post || !postId) return;
+    // Normalize the post into a media item if not already
+    const video = {
+      id:            post.id,
+      title:         post.content?.title || post.title || 'Untitled',
+      description:   post.content?.description || post.description || '',
+      muxPlaybackId: post.muxPlaybackId || post.content?.muxPlaybackId || null,
+      cover:         post.thumbnail || post.cover || '',
+      backdropUrl:   post.backdropUrl || post.cover || '',
+      mediaKind:     'video',
+      backendType:   post.backendType || 'reel',
+      isHH:          true,
+    };
+    if (video.muxPlaybackId) playVideo(video);
+  }, [postId]); // eslint-disable-line
 
   const TABS = (hasFrogzFan || hasFrogzAccess) ? [...BASE_TABS, 'private'] : BASE_TABS;
 
@@ -134,7 +158,7 @@ const MediaApp = () => {
   };
 
   // ── Unified search ────────────────────────────────────────────────────────
-  const allContent = useMemo(() => [...allTracks, ...newVideos, ...trendingVideos, ...movies, ...series, ...frogzTrending, ...frogzNew], [allTracks, newVideos, trendingVideos, movies, series, frogzTrending, frogzNew]);
+  const allContent = useMemo(() => [...allTracks, ...newVideos, ...trendingVideos, ...movies, ...series, ...hhVideos, ...frogzTrending, ...frogzNew], [allTracks, newVideos, trendingVideos, movies, series, hhVideos, frogzTrending, frogzNew]);
   const searchResults = useMemo(() => searchQuery
     ? allContent.filter(item =>
         item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -371,6 +395,7 @@ const MediaApp = () => {
             <div className="relative z-10 -mt-24 pb-36 space-y-8 px-4 md:pl-12">
               {activeCategory === 'home' && (
                 <>
+                  {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} />}
                   {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}
                   {allTracks.length > 0 && <MediaRow title="Music" items={allTracks} />}
                   {newVideos.length > 0 && <MediaRow title="New on DIGITVL" items={newVideos} onPlay={playVideo} />}
@@ -382,12 +407,13 @@ const MediaApp = () => {
               )}
               {activeCategory === 'videos' && (
                 <>
+                  {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} />}
                   {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}
                   {newVideos.length > 0 && <MediaRow title="New Releases" items={newVideos} onPlay={playVideo} />}
                   {movies.length > 0 && <MediaRow title="Movies" items={movies} onPlay={playVideo} />}
                   {movies.length >= 5 && <MediaRow title="Top 10 Movies" items={movies.slice(0, 10)} isRanked onPlay={playVideo} />}
                   {series.length > 0 && <MediaRow title="Series" items={series} onPlay={playVideo} />}
-                  {!videoLoading && !trendingVideos.length && !newVideos.length && !movies.length && (
+                  {!videoLoading && !trendingVideos.length && !newVideos.length && !movies.length && !hhVideos.length && (
                     <div className="text-center py-20 text-zinc-500">
                       <Film className="w-12 h-12 mx-auto mb-4 text-zinc-700" />
                       <p>No videos uploaded yet. Check back soon.</p>
