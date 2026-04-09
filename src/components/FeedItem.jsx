@@ -5,13 +5,11 @@ import { Heart, MessageCircle, Share2, Play, MapPin, CheckCircle, Loader2, Gift,
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import ShareDialog from '@/components/ShareDialog';
 import MoreOptionsDropdown from '@/components/MoreOptionsDropdown';
 import { useAuth } from '@/contexts/AuthContext';
 import { useContent } from '@/contexts/ContentContext';
-import { useMedia } from '@/contexts/MediaContext';
-import { useNavigate } from 'react-router-dom';
 import CommentsSheet from '@/components/CommentsSheet';
 import GiftDialog from '@/components/GiftDialog';
 import TripView from '@/components/TripView';
@@ -24,7 +22,6 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
   
   const { user, isPremium, triggerLockedFeature } = useAuth();
   const { users, openPlaceModal, isPostLiked, togglePostLike } = useContent();
-  const { setActiveCategory, confirmEnterMediaMode } = useMedia();
   const navigate = useNavigate();
   
   // Sync local liked state with global context
@@ -69,11 +66,6 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
     } else if (post.isNSFW) {
         setIsUnlocked(true); // Unlock locally
     }
-  };
-
-  const handleFrogzClipClick = () => {
-    setActiveCategory('private');
-    confirmEnterMediaMode();
   };
 
   const handleLike = () => {
@@ -171,7 +163,7 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
             {post.type === 'clip' && (
                 <div
                     className="relative mt-2 md:mt-3 rounded-lg overflow-hidden border border-border group aspect-video bg-black cursor-pointer"
-                    onClick={post.isFrogzClip ? handleFrogzClipClick : undefined}
+                    onClick={post.isFrogzClip ? () => navigate('/profile/freakyfrogz') : undefined}
                 >
                     <img className="w-full h-full object-cover" alt={post.content?.title || post.title || 'Video'} src={post.thumbnail || "https://images.unsplash.com/photo-1592572130011-855af2d206af"} />
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -397,32 +389,25 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
     <>
       <motion.article layout className={cn("bg-card border border-border rounded-xl mb-6 hover:shadow-glow-gold-lg transition-shadow", compact ? "p-4" : "p-5 md:p-6", post.type === 'mint' ? 'border-primary/20 bg-zinc-950' : '')} whileHover={{ borderColor: 'hsl(var(--primary) / 0.4)' }}>
         <div className="flex items-start justify-between mb-2">
-          {(() => {
-            const inner = (
-              <>
-                <Avatar className={cn("border border-border group-hover:border-primary transition-colors", compact ? "w-8 h-8" : "w-10 h-10 md:w-12 md:h-12", post.type === 'mint' ? "border-primary/50" : "")}>
-                  <AvatarImage src={`${post.user.avatar}`} />
-                  <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="pt-0.5 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className={cn("font-bold text-foreground group-hover:text-primary transition-colors truncate", compact ? "text-sm" : "text-base")}>{post.user.name}</span>
-                    {post.user.verified && <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-primary shrink-0" fill="currentColor" />}
-                  </div>
-                  <div className="flex items-center text-[10px] md:text-sm text-muted-foreground gap-1 flex-wrap">
-                    <span>@{post.user.username}</span>
-                    <span>·</span>
-                    <span>{post.timestamp}</span>
-                    {post.location && post.type !== 'mint' && (<><span>·</span><div className="flex items-center gap-0.5 hover:text-primary cursor-pointer transition-colors" onClick={handleLocationClick}><MapPin className="h-3 w-3" /><span className="truncate max-w-[100px]">{post.location}</span></div></>)}
-                    {post.mintData && post.mintData.location && post.type === 'mint' && (<><span>·</span><div className="flex items-center gap-0.5 text-primary"><MapPin className="h-3 w-3" /><span className="truncate max-w-[120px]">{post.mintData.location.name}</span></div></>)}
-                  </div>
-                </div>
-              </>
-            );
-            return post.isFrogzClip
-              ? <button onClick={handleFrogzClipClick} className="flex items-start space-x-2 md:space-x-3 group min-w-0 text-left">{inner}</button>
-              : <Link to={`/profile/${post.user.username}`} className="flex items-start space-x-2 md:space-x-3 group min-w-0">{inner}</Link>;
-          })()}
+          <Link to={`/profile/${post.user.username}`} className="flex items-start space-x-2 md:space-x-3 group min-w-0">
+            <Avatar className={cn("border border-border group-hover:border-primary transition-colors", compact ? "w-8 h-8" : "w-10 h-10 md:w-12 md:h-12", post.type === 'mint' ? "border-primary/50" : "")}>
+              <AvatarImage src={`${post.user.avatar}`} />
+              <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="pt-0.5 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className={cn("font-bold text-foreground group-hover:text-primary transition-colors truncate", compact ? "text-sm" : "text-base")}>{post.user.name}</span>
+                {post.user.verified && <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-primary shrink-0" fill="currentColor" />}
+              </div>
+              <div className="flex items-center text-[10px] md:text-sm text-muted-foreground gap-1 flex-wrap">
+                 <span>@{post.user.username}</span>
+                 <span>·</span>
+                 <span>{post.timestamp}</span>
+                 {post.location && post.type !== 'mint' && (<><span>·</span><div className="flex items-center gap-0.5 hover:text-primary cursor-pointer transition-colors" onClick={handleLocationClick}><MapPin className="h-3 w-3" /><span className="truncate max-w-[100px]">{post.location}</span></div></>)}
+                 {post.mintData && post.mintData.location && post.type === 'mint' && (<><span>·</span><div className="flex items-center gap-0.5 text-primary"><MapPin className="h-3 w-3" /><span className="truncate max-w-[120px]">{post.mintData.location.name}</span></div></>)}
+              </div>
+            </div>
+          </Link>
           <div className="flex items-center gap-2">
             {/* Mint Badges */}
             {post.type === 'mint' && (
