@@ -131,6 +131,7 @@ const AdminVideos = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Preview</TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead>Creator</TableHead>
                   <TableHead>Type</TableHead>
@@ -140,9 +141,22 @@ const AdminVideos = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {videos.map((video) => (
+                {videos.map((video) => {
+                  const thumbUrl = video.muxPlaybackId
+                    ? `https://image.mux.com/${video.muxPlaybackId}/thumbnail.png?width=160&time=3`
+                    : video.thumbnailUrl || null;
+                  return (
                   <TableRow key={video._id}>
-                    <TableCell className="font-medium text-foreground max-w-[200px]">
+                    <TableCell className="w-[100px]">
+                      {thumbUrl ? (
+                        <a href={video.muxPlaybackId ? `https://stream.mux.com/${video.muxPlaybackId}.m3u8` : '#'} target="_blank" rel="noopener noreferrer">
+                          <img src={thumbUrl} alt="" className="w-24 h-14 object-cover rounded-md bg-muted" />
+                        </a>
+                      ) : (
+                        <div className="w-24 h-14 rounded-md bg-muted flex items-center justify-center text-muted-foreground text-xs">No preview</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium text-foreground max-w-[180px]">
                       <div className="flex items-center gap-2">
                         <span className="truncate">{video.title}</span>
                         {video.isFeatured && <Star className="h-4 w-4 text-yellow-400 fill-yellow-400 shrink-0" />}
@@ -198,7 +212,8 @@ const AdminVideos = () => {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}

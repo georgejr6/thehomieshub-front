@@ -135,8 +135,8 @@ export const MediaProvider = ({ children }) => {
   // ── Fetch HomieshHub videos + reels for media mode library ────────────────
   useEffect(() => {
     Promise.all([
-      api.get('/user/videos', { params: { page: 1, limit: 50 } }).catch(() => null),
-      api.get('/user/reels',  { params: { page: 1, limit: 50 } }).catch(() => null),
+      api.get('/user/videos', { params: { page: 1, limit: 100 } }).catch(() => null),
+      api.get('/user/reels',  { params: { page: 1, limit: 100 } }).catch(() => null),
     ]).then(([vResp, rResp]) => {
       const videos = vResp?.data?.result?.items ?? vResp?.data?.result ?? [];
       const reels  = rResp?.data?.result?.items ?? rResp?.data?.result ?? [];

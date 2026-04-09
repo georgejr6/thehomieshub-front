@@ -288,6 +288,38 @@ const togglePlayPause = () => {
         if (post.isNSFW) setIsUnlocked(true);
     };
 
+    // Owner: delete own post
+    const isOwnPost = user && (user._id === post.user._id || user.username === post.user.username);
+
+    const handleOwnerDelete = async (e) => {
+        e.stopPropagation();
+        if (!window.confirm('Delete this video? This cannot be undone.')) return;
+        try {
+            const endpoint = post.backendType === 'video'
+                ? `/user/videos/${post.id}`
+                : `/user/reels/${post.id}`;
+            await api.delete(endpoint);
+            deletePost(post.id);
+            toast({ title: 'Deleted', description: 'Your video has been removed.' });
+        } catch {
+            toast({ title: 'Error', description: 'Failed to delete.', variant: 'destructive' });
+        }
+    };
+
+    const handleOwnerHide = async (e) => {
+        e.stopPropagation();
+        try {
+            await api.patch(`/admin/videos/${post.id}`, {
+                visibility: 'private',
+                _collectionType: post.backendType || 'reel',
+            });
+            deletePost(post.id);
+            toast({ title: 'Hidden', description: 'Video set to private.' });
+        } catch {
+            toast({ title: 'Error', description: 'Failed to hide.', variant: 'destructive' });
+        }
+    };
+
     // Admin: delete or hide a vertical video
     const handleAdminDelete = async (e) => {
         e.stopPropagation();
@@ -321,7 +353,7 @@ const togglePlayPause = () => {
     const handleMediaMode = () => {
         if (!user) { onLoginRequest?.(); return; }
         if (post.isSubscriberOnly && !isMember) { setShowUpgradeModal(true); return; }
-        navigate(`/media/${post.id}`);
+        navigate(`/media/${post.id}`, { state: { post } });
     };
 
     const toggleMute = (e) => {
@@ -490,8 +522,8 @@ const togglePlayPause = () => {
                 {/* SIDE CONTROLS — absolute on mobile, relative column on desktop */}
                 <div className="absolute bottom-4 right-2 md:relative md:bottom-auto md:right-auto z-40 flex flex-col items-center gap-5 w-[60px] md:w-[72px] md:self-end md:pb-4 md:shrink-0">
 
-                    {/* Admin quick-actions */}
-                    {user?.isAdmin && (
+                    {/* Owner / Admin quick-actions */}
+                    {(user?.isAdmin || isOwnPost) && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -499,13 +531,30 @@ const togglePlayPause = () => {
                                 </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="z-[200]">
-                                <DropdownMenuItem onClick={handleAdminHide}>
-                                    <EyeOff className="mr-2 h-4 w-4" /> Make Private
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleAdminDelete}>
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Video
-                                </DropdownMenuItem>
+                                {/* Owner controls */}
+                                {isOwnPost && !user?.isAdmin && (
+                                    <>
+                                        <DropdownMenuItem onClick={handleOwnerHide}>
+                                            <EyeOff className="mr-2 h-4 w-4" /> Make Private
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleOwnerDelete}>
+                                            <Trash2 className="mr-2 h-4 w-4" /> Delete My Video
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
+                                {/* Admin controls */}
+                                {user?.isAdmin && (
+                                    <>
+                                        <DropdownMenuItem onClick={handleAdminHide}>
+                                            <EyeOff className="mr-2 h-4 w-4" /> Make Private
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleAdminDelete}>
+                                            <Trash2 className="mr-2 h-4 w-4" /> Delete Video
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
                             </DropdownMenuContent>
                         </DropdownMenu>
                     )}
