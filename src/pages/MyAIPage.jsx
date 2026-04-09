@@ -14,7 +14,7 @@ const MyAIPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([
-    { id: 1, sender: 'ai', content: `What's good${user?.name ? ` ${user.name}` : ''}. Ask me anything — the community, membership, travel, whatever.` }
+    { id: 1, sender: 'ai', content: `What's good${user?.name ? ` ${user.name}` : ''}. Ask me anything about the community, memberships, or travel. You can also contribute — share a spot, a tip, or local knowledge and it goes into the directory for everyone.` }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -56,29 +56,24 @@ const MyAIPage = () => {
   };
 
   const toggleListening = () => {
-    setIsListening(!isListening);
-    if (!isListening) {
-      setTimeout(() => {
-        setIsListening(false);
-        setInputValue("Best street food in Mexico City?");
-      }, 2000);
-    }
+    setIsListening(prev => !prev);
   };
 
   const predictiveBubbles = [
     "Best nightlife in Medellin?",
-    "Visa requirements for Bali",
-    "Cheap flights to Europe",
-    "Solo travel tips",
+    "What is The Homies Hub?",
+    "How do memberships work?",
+    "Solo travel tips for Southeast Asia",
     "Hidden gems in Thailand",
-    "Digital nomad cafes in Lisbon"
+    "What is Digital Nomad tier?",
+    "How do I contribute info?",
   ];
 
   const faqs = [
-    { q: "Where can i find the best restaurants in Japan?", a: "Try Tablog or ask me for specific city guides!" },
-    { q: "Guest/visitor friendly airbnbs in Cartagena?", a: "Look for 'guest friendly' in descriptions or Bocagrande area." },
-    { q: "Is it safe to travel solo in Brazil?", a: "Yes, but stick to tourist zones and avoid flashing valuables." },
-    { q: "How to meet other travelers?", a: "Check the Communities tab or local hostels!" }
+    { q: "What can I ask the AI?", a: "Community info, membership tiers, travel knowledge, and anything the Homies have contributed." },
+    { q: "How do I contribute to the knowledge base?", a: "Share your travel tips, local spots, or experiences — the community knowledge grows with you." },
+    { q: "What membership tiers are available?", a: "New Homie (free), The Homies ($15/mo), and Digital Nomads ($100/mo)." },
+    { q: "Is it safe to travel solo in Brazil?", a: "Ask me — I'll give you the real talk based on community knowledge." },
   ];
 
   const handleBubbleClick = (text) => {
@@ -120,7 +115,7 @@ const MyAIPage = () => {
                         className="mb-8 p-6 bg-white/5 rounded-2xl border border-white/10"
                       >
                           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-cyan-400">
-                              <HelpCircle className="h-5 w-5" /> Frequently Asked
+                              <HelpCircle className="h-5 w-5" /> Ask or Contribute
                           </h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {faqs.map((faq, idx) => (
@@ -215,7 +210,7 @@ const MyAIPage = () => {
                             ref={inputRef}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
-                            placeholder="Ask me anything..." 
+                            placeholder="Ask something or share what you know..."
                             className="bg-zinc-900 border-white/10 text-white placeholder:text-zinc-500 h-12 rounded-2xl pl-4 pr-12 focus-visible:ring-cyan-500/50 focus-visible:border-cyan-500/50 transition-all shadow-inner"
                        />
                         <Button 
