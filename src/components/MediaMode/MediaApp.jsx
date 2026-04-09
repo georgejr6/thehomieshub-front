@@ -3,13 +3,14 @@ import { useMedia } from '@/contexts/MediaContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Info, Search, X, Minimize2, ListMusic,
-  Maximize, Loader2, ArrowLeft, Film, Music2,
+  Maximize, Loader2, ArrowLeft, Film, Music2, CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ManagePlaylistsModal } from './PlaylistModals';
 import MediaRow from './MediaRow';
 import VideoPlayer from './VideoPlayer';
 import { cn } from '@/lib/utils';
+import { FROGZ_PLANS } from '@/lib/frogzApi';
 
 // ── Mux still URLs at key timestamps ─────────────────────────────────────────
 function getMuxSlides(muxPlaybackId) {
@@ -73,10 +74,45 @@ const MediaApp = () => {
     featuredVideo, trendingVideos, newVideos, movies, series, videoLoading, playVideo, currentVideo,
     likedMedia,
     activeCategory, setActiveCategory,
-    hasFrogzAccess, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
+    hasFrogzFan, hasFrogzAccess,
+    frogzClips, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
+    requestFrogzAccess,
   } = useMedia();
 
-  const TABS = hasFrogzAccess ? [...BASE_TABS, 'private'] : BASE_TABS;
+  const TABS = (hasFrogzFan || hasFrogzAccess) ? [...BASE_TABS, 'private'] : BASE_TABS;
+
+  // ── Frogz plan modal state ────────────────────────────────────────────────
+  const [frogzModalOpen,  setFrogzModalOpen]  = useState(false);
+  const [selectedPlan,    setSelectedPlan]    = useState(null);
+  const [accessCode,      setAccessCode]      = useState(null);
+  const [accessInfo,      setAccessInfo]      = useState(null); // { amount, cashappTag }
+  const [planRequesting,  setPlanRequesting]  = useState(false);
+  const [planError,       setPlanError]       = useState(null);
+
+  const handleSelectPlan = useCallback(async (plan) => {
+    setPlanRequesting(true);
+    setPlanError(null);
+    setSelectedPlan(plan);
+    try {
+      const result = await requestFrogzAccess(plan.key);
+      setAccessCode(result.code);
+      setAccessInfo({ amount: result.amount, cashappTag: result.cashappTag, label: result.label });
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || 'Something went wrong. Try again.';
+      setPlanError(msg);
+      setSelectedPlan(null);
+    } finally {
+      setPlanRequesting(false);
+    }
+  }, [requestFrogzAccess]);
+
+  const closeFrogzModal = () => {
+    setFrogzModalOpen(false);
+    setSelectedPlan(null);
+    setAccessCode(null);
+    setAccessInfo(null);
+    setPlanError(null);
+  };
 
   const [isScrolled, setIsScrolled]           = useState(false);
   const [isPlaylistManagerOpen, setPlaylistManagerOpen] = useState(false);
@@ -372,19 +408,60 @@ const MediaApp = () => {
                   )}
                 </>
               )}
-              {activeCategory === 'private' && hasFrogzAccess && (
+              {activeCategory === 'private' && (hasFrogzFan || hasFrogzAccess) && (
                 <>
-                  {frogzLoading && (
-                    <div className="flex items-center justify-center py-16">
-                      <Loader2 className="h-8 w-8 animate-spin text-red-600" />
-                    </div>
+                  {/* Public shorts — always shown to fans + paid users */}
+                  {frogzClips.length > 0 && (
+                    <MediaRow title="Shorts" items={frogzClips} onPlay={playVideo} />
                   )}
-                  {!frogzLoading && frogzTrending.length > 0 && <MediaRow title="Trending" items={frogzTrending} onPlay={playVideo} />}
-                  {!frogzLoading && frogzNew.length > 0 && <MediaRow title="New" items={frogzNew} onPlay={playVideo} />}
-                  {!frogzLoading && !frogzTrending.length && !frogzNew.length && (
-                    <div className="text-center py-20 text-zinc-500">
-                      <span className="text-5xl block mb-4">🐸</span>
-                      <p>No content yet. Check back soon.</p>
+
+                  {hasFrogzAccess ? (
+                    /* ── PAID: full library ───────────────────────────── */
+                    <>
+                      {frogzLoading && (
+                        <div className="flex items-center justify-center py-16">
+                          <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+                        </div>
+                      )}
+                      {!frogzLoading && frogzTrending.length > 0 && <MediaRow title="Trending" items={frogzTrending} onPlay={playVideo} />}
+                      {!frogzLoading && frogzNew.length > 0 && <MediaRow title="New" items={frogzNew} onPlay={playVideo} />}
+                      {!frogzLoading && !frogzTrending.length && !frogzNew.length && (
+                        <div className="text-center py-20 text-zinc-500">
+                          <span className="text-5xl block mb-4">🐸</span>
+                          <p>No content yet. Check back soon.</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* ── FAN: blurred teaser + unlock CTA ────────────── */
+                    <div className="mt-8 px-4 md:px-0">
+                      <div className="relative rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800">
+                        {/* Blurred preview grid */}
+                        <div className="blur-sm pointer-events-none select-none opacity-60 p-6">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {(frogzClips.length > 0 ? frogzClips : Array(8).fill(null)).slice(0, 8).map((item, i) => (
+                              <div key={i} className="aspect-video rounded-lg bg-zinc-800 overflow-hidden">
+                                {item?.cover && <img src={item.cover} className="w-full h-full object-cover" alt="" />}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-black/30 flex flex-col items-center justify-center text-center p-8">
+                          <span className="text-6xl mb-4">🐸</span>
+                          <h2 className="text-2xl md:text-3xl font-black text-white mb-2">Unlock Full Access</h2>
+                          <p className="text-zinc-400 text-sm mb-6 max-w-sm">
+                            Get unlimited access to the full library. Pay via CashApp — access unlocks automatically once confirmed.
+                          </p>
+                          <Button
+                            onClick={() => setFrogzModalOpen(true)}
+                            className="bg-green-500 hover:bg-green-400 text-black font-bold text-base px-8 py-5 rounded-full"
+                          >
+                            Get Access
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>
@@ -452,6 +529,101 @@ const MediaApp = () => {
       </AnimatePresence>
 
       <ManagePlaylistsModal isOpen={isPlaylistManagerOpen} onClose={() => setPlaylistManagerOpen(false)} />
+
+      {/* ── Frogz Plan Modal ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {frogzModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[130] bg-black/90 flex items-end md:items-center justify-center p-4"
+            onClick={closeFrogzModal}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-6 relative"
+              onClick={e => e.stopPropagation()}
+            >
+              <button onClick={closeFrogzModal} className="absolute top-4 right-4 text-zinc-500 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+
+              {!accessCode ? (
+                /* Step 1 — pick a plan */
+                <>
+                  <div className="text-center mb-6">
+                    <span className="text-4xl">🐸</span>
+                    <h2 className="text-xl font-black text-white mt-2">Get Full Access</h2>
+                    <p className="text-zinc-400 text-sm mt-1">Choose a plan. Pay via CashApp. Access unlocks automatically.</p>
+                  </div>
+
+                  {planError && (
+                    <p className="text-red-400 text-sm text-center mb-4 bg-red-900/20 rounded-lg px-3 py-2">{planError}</p>
+                  )}
+
+                  <div className="space-y-2">
+                    {FROGZ_PLANS.map(plan => (
+                      <button
+                        key={plan.key}
+                        onClick={() => handleSelectPlan(plan)}
+                        disabled={planRequesting}
+                        className={cn(
+                          "w-full flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all",
+                          "border-zinc-700 hover:border-green-500 hover:bg-green-500/10",
+                          selectedPlan?.key === plan.key && planRequesting
+                            ? "border-green-500 bg-green-500/10 opacity-60"
+                            : "bg-zinc-800",
+                          planRequesting && selectedPlan?.key !== plan.key && "opacity-40 cursor-not-allowed"
+                        )}
+                      >
+                        <span className="text-white font-semibold">{plan.label}</span>
+                        <span className="text-green-400 font-bold">
+                          {selectedPlan?.key === plan.key && planRequesting
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : `$${plan.amount}`
+                          }
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* Step 2 — payment instructions */
+                <>
+                  <div className="text-center mb-6">
+                    <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-2" />
+                    <h2 className="text-xl font-black text-white">Send Your Payment</h2>
+                    <p className="text-zinc-400 text-sm mt-1">{accessInfo?.label} — ${accessInfo?.amount}</p>
+                  </div>
+
+                  <div className="bg-zinc-800 rounded-xl p-4 space-y-3 mb-5 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-400">CashApp</span>
+                      <span className="text-white font-bold">${accessInfo?.cashappTag}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-400">Amount</span>
+                      <span className="text-white font-bold">${accessInfo?.amount}</span>
+                    </div>
+                    <div className="border-t border-zinc-700 pt-3 flex justify-between items-center">
+                      <span className="text-zinc-400">Memo / Note</span>
+                      <span className="text-green-400 font-mono font-bold tracking-wide">{accessCode}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-zinc-500 text-xs text-center leading-relaxed">
+                    Include the code above in your CashApp memo. Your access unlocks automatically once payment is confirmed — usually within a few minutes.
+                  </p>
+
+                  <Button onClick={closeFrogzModal} className="w-full mt-4 bg-zinc-700 hover:bg-zinc-600 text-white font-semibold">
+                    Done
+                  </Button>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

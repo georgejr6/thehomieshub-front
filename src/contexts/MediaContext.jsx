@@ -11,6 +11,7 @@ export const MediaProvider = ({ children }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const hasFrogzAccess = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz');
+  const hasFrogzFan    = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz_fan');
 
   // ── Music Catalog ──────────────────────────────────────────────────────────
   const [allTracks,      setAllTracks]      = useState([]);
@@ -25,10 +26,11 @@ export const MediaProvider = ({ children }) => {
   const [series,          setSeries]          = useState([]);
   const [videoLoading,    setVideoLoading]    = useState(true);
 
-  // ── Frogz Catalog (gated) ─────────────────────────────────────────────────
-  const [frogzFeatured,  setFrogzFeatured]  = useState(null);
-  const [frogzTrending,  setFrogzTrending]  = useState([]);
-  const [frogzNew,       setFrogzNew]       = useState([]);
+  // ── Frogz Catalog ─────────────────────────────────────────────────────────
+  const [frogzClips,     setFrogzClips]     = useState([]);   // public shorts
+  const [frogzFeatured,  setFrogzFeatured]  = useState(null); // paid only
+  const [frogzTrending,  setFrogzTrending]  = useState([]);   // paid only
+  const [frogzNew,       setFrogzNew]       = useState([]);   // paid only
   const [frogzLoading,   setFrogzLoading]   = useState(false);
 
   // ── Current Video Player ───────────────────────────────────────────────────
@@ -100,8 +102,15 @@ export const MediaProvider = ({ children }) => {
     }).finally(() => setVideoLoading(false));
   }, []);
 
-  // ── Fetch frogz catalog (only if user has access) ─────────────────────────
+  // ── Fetch frogz catalog ────────────────────────────────────────────────────
   useEffect(() => {
+    // Public clips: fetch for fans and paid users
+    if (!hasFrogzFan && !hasFrogzAccess) return;
+    frogzApi.getClips().then(setFrogzClips).catch(() => {});
+  }, [hasFrogzFan, hasFrogzAccess]);
+
+  useEffect(() => {
+    // Full catalog: paid users only
     if (!hasFrogzAccess) return;
     setFrogzLoading(true);
     Promise.all([
@@ -114,6 +123,10 @@ export const MediaProvider = ({ children }) => {
       setFrogzNew(newVids);
     }).finally(() => setFrogzLoading(false));
   }, [hasFrogzAccess]);
+
+  const requestFrogzAccess = useCallback(async (plan) => {
+    return frogzApi.requestAccess(plan);
+  }, []);
 
   // ── Create audio element once ──────────────────────────────────────────────
   useEffect(() => {
@@ -270,8 +283,10 @@ export const MediaProvider = ({ children }) => {
       // Video
       featuredVideo, trendingVideos, newVideos, movies, series, videoLoading,
       currentVideo, playVideo, closeVideo,
-      // Frogz (gated)
-      hasFrogzAccess, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
+      // Frogz
+      hasFrogzFan, hasFrogzAccess,
+      frogzClips, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
+      requestFrogzAccess,
       // UI
       showWarning, hasEnteredMediaMode,
       enterMediaMode, confirmEnterMediaMode, cancelEnterMediaMode,
