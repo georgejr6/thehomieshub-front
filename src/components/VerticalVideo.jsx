@@ -26,6 +26,7 @@ let globalIsMuted = false;
 
 const OVERLAY_HIDE_MS = 800;
 const PREVIEW_LIMIT_SECONDS = 60;
+const LONG_VIDEO_LIMIT = 180; // 3 minutes — nudge long-form to media mode
 
 const VerticalVideo = ({ post, index, isVisible, onLoginRequest }) => {
     const { user, isPremium, triggerLockedFeature } = useAuth();
@@ -57,6 +58,9 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest }) => {
     // Preview gate for subscriber content
     const [previewExpired, setPreviewExpired] = useState(false);
     const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+
+    // Long-video gate (>3 min) — nudge to media mode
+    const [longVideoExpired, setLongVideoExpired] = useState(false);
 
     // Blur logic — only NSFW gets immediate blur; subscriber content uses 60s preview gate
     const [isUnlocked, setIsUnlocked] = useState(false);
@@ -120,6 +124,14 @@ const commentTargetType =
         };
     }, []);
 
+    // Reset gates when scrolled away
+    useEffect(() => {
+        if (!isVisible) {
+            setPreviewExpired(false);
+            setLongVideoExpired(false);
+        }
+    }, [isVisible]);
+
     // Handle mute logic based on global state
     useEffect(() => {
         if (consecutiveMuteCount > 2) {
@@ -178,11 +190,18 @@ useEffect(() => {
                 setCurrentTime(video.currentTime);
                 setDuration(video.duration);
             }
-            // 60-second preview gate for subscriber content
+            // 60-second preview gate for subscriber content (non-members)
             if (post.isSubscriberOnly && !isMember && video.currentTime >= PREVIEW_LIMIT_SECONDS) {
                 video.pause?.();
                 setIsPlaying(false);
                 setPreviewExpired(true);
+                return;
+            }
+            // 3-minute gate — long-form videos prompt media mode
+            if (video.duration > LONG_VIDEO_LIMIT && video.currentTime >= LONG_VIDEO_LIMIT) {
+                video.pause?.();
+                setIsPlaying(false);
+                setLongVideoExpired(true);
             }
         };
 
@@ -204,7 +223,7 @@ useEffect(() => {
             video.removeEventListener('play', handlePlay);
             video.removeEventListener('pause', handlePause);
         };
-    }, [post.isNSFW, isDragging]);
+    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly]);
 
     const handleSeek = (value) => {
         const newTime = (value[0] / 100) * duration;
@@ -228,7 +247,7 @@ useEffect(() => {
 
     // ✅ Tap on video to play/pause; show overlay briefly
 const togglePlayPause = () => {
-  if (isBlurred || previewExpired) return;
+  if (isBlurred || previewExpired || longVideoExpired) return;
 
   if (isMux) {
     // ✅ Mux controlled playback
@@ -330,9 +349,10 @@ const togglePlayPause = () => {
             {/* MAIN ROW: video + side controls */}
             <div className="flex-1 min-h-0 relative flex items-end justify-center overflow-hidden">
 
-            {/* VIDEO AREA — constrained to 85vw max on desktop */}
+            {/* VIDEO AREA — 9:16 portrait, centered, letterboxed on wide screens */}
             <div
-                className="relative z-10 h-full flex-1 min-w-0 md:max-w-[85vw] flex items-center justify-center overflow-hidden cursor-pointer"
+                className="relative z-10 h-full flex-1 min-w-0 flex items-center justify-center overflow-hidden cursor-pointer"
+                style={{ maxWidth: 'calc(100svh * 9 / 16)' }}
                 onClick={togglePlayPause}
             >
                 {isMux ? (
@@ -491,6 +511,32 @@ const togglePlayPause = () => {
                     </div>
                 )}
 
+                {/* LONG VIDEO OVERLAY — mobile full screen */}
+                {longVideoExpired && !previewExpired && (
+                    <div className="md:hidden absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/85 backdrop-blur-sm">
+                        <div className="mb-5">
+                            {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-70" />}
+                            <p className="text-white/50 text-xs font-semibold uppercase tracking-widest mb-1">Long Video</p>
+                            <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Full Video'}</h3>
+                        </div>
+                        <p className="text-white/70 text-sm mb-5 leading-relaxed">Continue watching in Media Mode<br/>for the full experience.</p>
+                        <Button onClick={() => navigate(`/media/${post.id}`)} className="bg-white hover:bg-white/90 text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                            Open in Media Mode
+                        </Button>
+                        <p className="text-white/30 text-xs mt-4">or <button onClick={() => setLongVideoExpired(false)} className="underline hover:text-white/60">keep watching here</button></p>
+                    </div>
+                )}
+
+                {/* LONG VIDEO OVERLAY — desktop darken */}
+                {longVideoExpired && !previewExpired && (
+                    <div className="hidden md:flex absolute inset-0 z-50 bg-black/60 backdrop-blur-[2px] items-center justify-center">
+                        <div className="flex flex-col items-center gap-2">
+                            <Play className="h-8 w-8 text-white/70" />
+                            <p className="text-white/80 text-sm font-medium">Continue watching below</p>
+                        </div>
+                    </div>
+                )}
+
             </div>{/* end video area */}
 
             {/* SIDE CONTROLS end tag is below */}
@@ -593,6 +639,27 @@ const togglePlayPause = () => {
                         </button>
                         <Button onClick={handlePaywallCTA} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold h-10 px-5 rounded-xl text-sm">
                             Watch Full Video →
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* LONG VIDEO DESKTOP CTA STRIP */}
+            {longVideoExpired && !previewExpired && (
+                <div className="hidden md:flex shrink-0 items-center gap-4 px-6 py-4 bg-zinc-900/95 border-t border-white/10 backdrop-blur-md">
+                    {post.thumbnail && (
+                        <img src={post.thumbnail} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 opacity-80" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                        <p className="text-white font-semibold text-sm truncate">{post.title || post.description?.slice(0, 70) || 'Full Video'}</p>
+                        <p className="text-white/40 text-xs mt-0.5">Watch the full video in Media Mode for the best experience</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => setLongVideoExpired(false)} className="text-white/40 hover:text-white/70 text-xs underline">
+                            Keep watching here
+                        </button>
+                        <Button onClick={() => navigate(`/media/${post.id}`)} className="bg-white hover:bg-white/90 text-black font-bold h-10 px-5 rounded-xl text-sm">
+                            Open in Media Mode →
                         </Button>
                     </div>
                 </div>
