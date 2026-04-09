@@ -8,12 +8,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import api from '@/api/homieshub';
 
 const MyAIPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([
-    { id: 1, sender: 'ai', content: `Hello ${user?.name || 'there'}! I'm your advanced AI guide for The Homies Hub. Ask me anything about travel, local spots, or planning your next adventure.` }
+    { id: 1, sender: 'ai', content: `What's good${user?.name ? ` ${user.name}` : ''}. Ask me anything — the community, membership, travel, whatever.` }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -29,29 +30,29 @@ const MyAIPage = () => {
 
   const handleSendMessage = async (e) => {
     e?.preventDefault();
-    if (!inputValue.trim()) return;
+    const text = inputValue.trim();
+    if (!text) return;
 
-    const userMsg = { id: Date.now(), sender: 'user', content: inputValue };
+    const userMsg = { id: Date.now(), sender: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
     setIsProcessing(true);
 
-    // Simulate AI processing
-    setTimeout(() => {
-      let response = "I'm searching my knowledge base for the best recommendations...";
-      
-      if (inputValue.toLowerCase().includes('japan') || inputValue.toLowerCase().includes('tokyo')) {
-          response = "For restaurants in Japan, I recommend checking out the Golden Gai area in Tokyo for authentic izakayas. In Kyoto, Pontocho Alley offers incredible riverside dining. Would you like a specific list of sushi spots?";
-      } else if (inputValue.toLowerCase().includes('cartagena') || inputValue.toLowerCase().includes('colombia')) {
-          response = "Cartagena has some amazing guest-friendly Airbnbs in the walled city (Ciudad Amurallada) and Bocagrande. Look for hosts with 'Superhost' status and recent reviews mentioning easy guest access.";
-      } else if (inputValue.toLowerCase().includes('nightlife')) {
-           response = "Depending on the city, I can find the best rooftop bars or underground clubs. Where are you currently located?";
-      }
+    try {
+      // Build a short history string from recent messages for context
+      const recentHistory = messages.slice(-6).map(m =>
+        `${m.sender === 'user' ? 'User' : 'Bot'}: ${m.content}`
+      ).join('\n');
 
-      const aiMsg = { id: Date.now() + 1, sender: 'ai', content: response };
+      const { data } = await api.post('/ai/chat', { message: text, history: recentHistory });
+      const aiMsg = { id: Date.now() + 1, sender: 'ai', content: data.reply };
       setMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      const errMsg = { id: Date.now() + 1, sender: 'ai', content: "Couldn't reach the AI right now. Try again in a sec." };
+      setMessages(prev => [...prev, errMsg]);
+    } finally {
       setIsProcessing(false);
-    }, 1500);
+    }
   };
 
   const toggleListening = () => {
