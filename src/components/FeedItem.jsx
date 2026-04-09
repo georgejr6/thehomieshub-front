@@ -397,7 +397,11 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
     <>
       <motion.article layout className={cn("bg-card border border-border rounded-xl mb-6 hover:shadow-glow-gold-lg transition-shadow", compact ? "p-4" : "p-5 md:p-6", post.type === 'mint' ? 'border-primary/20 bg-zinc-950' : '')} whileHover={{ borderColor: 'hsl(var(--primary) / 0.4)' }}>
         <div className="flex items-start justify-between mb-2">
-          <Link to={`/profile/${post.user.username}`} className="flex items-start space-x-2 md:space-x-3 group min-w-0">
+          <Link
+            to={post.isFrogzClip ? '#' : `/profile/${post.user.username}`}
+            onClick={post.isFrogzClip ? (e) => { e.preventDefault(); handleFrogzClipClick(); } : undefined}
+            className="flex items-start space-x-2 md:space-x-3 group min-w-0"
+          >
             <Avatar className={cn("border border-border group-hover:border-primary transition-colors", compact ? "w-8 h-8" : "w-10 h-10 md:w-12 md:h-12", post.type === 'mint' ? "border-primary/50" : "")}>
               <AvatarImage src={`${post.user.avatar}`} />
               <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
