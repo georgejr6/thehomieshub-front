@@ -24,7 +24,6 @@ const VideoPlayer = () => {
   const muxRef       = useRef(null);
   const containerRef = useRef(null);
   const hideTimer    = useRef(null);
-  const mediaRef     = useRef(null); // cached HTMLVideoElement
 
   const [isPlaying,    setIsPlaying]    = useState(false);
   const [isMuted,      setIsMuted]      = useState(false);
@@ -36,58 +35,51 @@ const VideoPlayer = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showInfo,     setShowInfo]     = useState(false);
   const [isScrubbing,  setIsScrubbing]  = useState(false);
+  // Visual flash for skip feedback
+  const [skipFlash,    setSkipFlash]    = useState(null); // 'back' | 'fwd' | null
 
-  // Resolve the underlying <video> element from mux-player
-  const getMedia = useCallback(() => {
-    if (mediaRef.current) return mediaRef.current;
-    const el = muxRef.current;
-    if (!el) return null;
-    // mux-player-react v3 exposes nativeEl, or fall back to querySelector
-    const video = el.nativeEl || el.media?.nativeEl || el.querySelector?.('video')
-      || el.shadowRoot?.querySelector('video');
-    if (video) mediaRef.current = video;
-    return video || null;
-  }, []);
-
-  // Bind events after mux player mounts
+  // ── Bind media events directly on the <mux-player> element ──────────────
+  // mux-player is a custom element that proxies all standard HTMLMediaElement
+  // events (play, pause, timeupdate, durationchange, volumechange) so we
+  // don't need to drill into the shadow DOM to find the inner <video>.
   useEffect(() => {
-    mediaRef.current = null; // reset on new video
-    let cleanup = () => {};
+    const el = muxRef.current;
+    if (!el) return;
 
-    const tryBind = () => {
-      const m = getMedia();
-      if (!m) return;
-
-      const onPlay    = () => setIsPlaying(true);
-      const onPause   = () => setIsPlaying(false);
-      const onTime    = () => {
-        if (!isScrubbing) setCurrentTime(m.currentTime);
-        if (m.buffered.length) setBuffered(m.buffered.end(m.buffered.length - 1));
-      };
-      const onDur     = () => { if (!isNaN(m.duration)) setDuration(m.duration); };
-      const onVol     = () => { setVolume(m.volume); setIsMuted(m.muted); };
-      const onFs      = () => setIsFullscreen(!!document.fullscreenElement);
-
-      m.addEventListener('play',           onPlay);
-      m.addEventListener('pause',          onPause);
-      m.addEventListener('timeupdate',     onTime);
-      m.addEventListener('durationchange', onDur);
-      m.addEventListener('volumechange',   onVol);
-      document.addEventListener('fullscreenchange', onFs);
-
-      cleanup = () => {
-        m.removeEventListener('play',           onPlay);
-        m.removeEventListener('pause',          onPause);
-        m.removeEventListener('timeupdate',     onTime);
-        m.removeEventListener('durationchange', onDur);
-        m.removeEventListener('volumechange',   onVol);
-        document.removeEventListener('fullscreenchange', onFs);
-      };
+    const onPlay  = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onTime  = () => {
+      if (!isScrubbing) setCurrentTime(el.currentTime ?? 0);
+      if (el.buffered?.length) setBuffered(el.buffered.end(el.buffered.length - 1));
     };
+    const onDur = () => { if (!isNaN(el.duration)) setDuration(el.duration); };
+    const onVol = () => { setVolume(el.volume ?? 1); setIsMuted(el.muted ?? false); };
+    const onFs  = () => setIsFullscreen(!!document.fullscreenElement);
 
-    const t = setTimeout(tryBind, 600);
-    return () => { clearTimeout(t); cleanup(); };
-  }, [currentVideo]); // eslint-disable-line
+    el.addEventListener('play',           onPlay);
+    el.addEventListener('pause',          onPause);
+    el.addEventListener('timeupdate',     onTime);
+    el.addEventListener('durationchange', onDur);
+    el.addEventListener('volumechange',   onVol);
+    document.addEventListener('fullscreenchange', onFs);
+
+    return () => {
+      el.removeEventListener('play',           onPlay);
+      el.removeEventListener('pause',          onPause);
+      el.removeEventListener('timeupdate',     onTime);
+      el.removeEventListener('durationchange', onDur);
+      el.removeEventListener('volumechange',   onVol);
+      document.removeEventListener('fullscreenchange', onFs);
+    };
+  }, [currentVideo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset playback state when video changes
+  useEffect(() => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setBuffered(0);
+  }, [currentVideo]);
 
   // Auto-hide controls
   const resetHide = useCallback(() => {
@@ -109,37 +101,40 @@ const VideoPlayer = () => {
   // ── Control handlers ──────────────────────────────────────────────────────
   const togglePlay = useCallback((e) => {
     e?.stopPropagation();
-    const m = getMedia();
-    if (!m) return;
-    m.paused ? m.play().catch(() => {}) : m.pause();
-  }, [getMedia]);
+    const el = muxRef.current;
+    if (!el) return;
+    el.paused ? el.play().catch(() => {}) : el.pause();
+  }, []);
 
   const skip = useCallback((e, secs) => {
     e.stopPropagation();
-    const m = getMedia();
-    if (!m) return;
-    m.currentTime = Math.max(0, Math.min(m.duration || 0, m.currentTime + secs));
-  }, [getMedia]);
+    const el = muxRef.current;
+    if (!el) return;
+    el.currentTime = Math.max(0, Math.min(el.duration || 0, el.currentTime + secs));
+    // Visual flash
+    setSkipFlash(secs < 0 ? 'back' : 'fwd');
+    setTimeout(() => setSkipFlash(null), 500);
+  }, []);
 
   const handleScrubChange = (e) => {
     const val = Number(e.target.value);
     setCurrentTime(val);
-    const m = getMedia();
-    if (m) m.currentTime = val;
+    const el = muxRef.current;
+    if (el) el.currentTime = val;
   };
 
   const toggleMute = (e) => {
     e.stopPropagation();
-    const m = getMedia();
-    if (!m) return;
-    m.muted = !m.muted;
+    const el = muxRef.current;
+    if (!el) return;
+    el.muted = !el.muted;
   };
 
   const handleVolume = (e) => {
     e.stopPropagation();
     const val = Number(e.target.value);
-    const m = getMedia();
-    if (m) { m.volume = val; m.muted = val === 0; }
+    const el = muxRef.current;
+    if (el) { el.volume = val; el.muted = val === 0; }
   };
 
   const toggleFullscreen = (e) => {
@@ -182,6 +177,7 @@ const VideoPlayer = () => {
           playbackId={currentVideo.muxPlaybackId}
           streamType="on-demand"
           autoPlay
+          preload="auto"
           className="absolute inset-0 w-full h-full"
           style={{
             pointerEvents: 'none',
@@ -198,7 +194,35 @@ const VideoPlayer = () => {
         </div>
       )}
 
-      {/* ── Controls overlay — always on top, owns all pointer events ─────── */}
+      {/* ── Skip flash overlays ───────────────────────────────────────────── */}
+      <AnimatePresence>
+        {skipFlash === 'back' && (
+          <motion.div key="flash-back"
+            initial={{ opacity: 0.6 }} animate={{ opacity: 0 }} transition={{ duration: 0.5 }}
+            className="absolute left-0 top-0 bottom-0 w-1/3 bg-white/10 rounded-r-full pointer-events-none z-20
+                       flex items-center justify-center"
+          >
+            <div className="text-white text-center">
+              <RotateCcw className="w-10 h-10 mx-auto" />
+              <span className="text-sm font-bold">10</span>
+            </div>
+          </motion.div>
+        )}
+        {skipFlash === 'fwd' && (
+          <motion.div key="flash-fwd"
+            initial={{ opacity: 0.6 }} animate={{ opacity: 0 }} transition={{ duration: 0.5 }}
+            className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/10 rounded-l-full pointer-events-none z-20
+                       flex items-center justify-center"
+          >
+            <div className="text-white text-center">
+              <RotateCw className="w-10 h-10 mx-auto" />
+              <span className="text-sm font-bold">10</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Controls overlay ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {showControls && (
           <motion.div
@@ -223,80 +247,100 @@ const VideoPlayer = () => {
               </button>
 
               <div className="flex items-center gap-1">
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.85 }}
                   onClick={(e) => { e.stopPropagation(); toggleLike(currentVideo); }}
                   className={cn('p-2 rounded-full transition-colors',
                     isLiked(currentVideo.id) ? 'text-red-500' : 'text-white/70 hover:text-white')}
                 >
                   <ThumbsUp className="w-5 h-5" />
-                </button>
-                <button onClick={handleShare} className="p-2 text-white/70 hover:text-white transition-colors">
+                </motion.button>
+                <motion.button whileTap={{ scale: 0.85 }} onClick={handleShare} className="p-2 text-white/70 hover:text-white transition-colors">
                   <Share2 className="w-5 h-5" />
-                </button>
-                <button
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.85 }}
                   onClick={(e) => { e.stopPropagation(); setShowInfo(v => !v); }}
                   className={cn('p-2 rounded-full transition-colors',
                     showInfo ? 'text-white' : 'text-white/70 hover:text-white')}
                 >
                   <Info className="w-5 h-5" />
-                </button>
-                <button
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.85 }}
                   onClick={(e) => { e.stopPropagation(); closeVideo(); }}
                   className="p-2 text-white/70 hover:text-red-400 transition-colors"
                 >
                   <X className="w-5 h-5" />
-                </button>
+                </motion.button>
               </div>
             </div>
 
             {/* MIDDLE — transparent passthrough except the 3 center buttons */}
             <div
               className="flex-1 flex items-center justify-center gap-12"
-              onClick={togglePlay}  /* clicking the empty area toggles play */
+              onClick={togglePlay}
             >
-              <button
+              <motion.button
+                whileTap={{ scale: 0.8 }}
                 onClick={(e) => skip(e, -10)}
-                className="text-white/80 hover:text-white hover:scale-110 transition-all active:scale-95"
+                className="text-white/80 hover:text-white transition-colors"
               >
                 <RotateCcw className="w-9 h-9" />
                 <span className="block text-[10px] text-center mt-0.5 font-bold">10</span>
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileTap={{ scale: 0.88 }}
                 onClick={togglePlay}
                 className="w-16 h-16 rounded-full bg-white/20 hover:bg-white/35 backdrop-blur-sm
                            flex items-center justify-center text-white border border-white/30
-                           transition-all hover:scale-110 active:scale-95"
+                           transition-colors"
               >
-                {isPlaying
-                  ? <Pause className="w-8 h-8 fill-white" />
-                  : <Play  className="w-8 h-8 fill-white ml-1" />}
-              </button>
+                <AnimatePresence mode="wait" initial={false}>
+                  {isPlaying
+                    ? <motion.span key="pause" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.12 }}>
+                        <Pause className="w-8 h-8 fill-white" />
+                      </motion.span>
+                    : <motion.span key="play" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.12 }}>
+                        <Play className="w-8 h-8 fill-white ml-1" />
+                      </motion.span>
+                  }
+                </AnimatePresence>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileTap={{ scale: 0.8 }}
                 onClick={(e) => skip(e, 10)}
-                className="text-white/80 hover:text-white hover:scale-110 transition-all active:scale-95"
+                className="text-white/80 hover:text-white transition-colors"
               >
                 <RotateCw className="w-9 h-9" />
                 <span className="block text-[10px] text-center mt-0.5 font-bold">10</span>
-              </button>
+              </motion.button>
             </div>
 
             {/* BOTTOM BAR */}
             <div className="px-4 md:px-8 pb-6 pt-16 bg-gradient-to-t from-black/90 to-transparent">
               {/* Scrubber */}
               <div
-                className="relative w-full h-4 mb-3 flex items-center group/scrub cursor-pointer"
+                className="relative w-full h-5 mb-3 flex items-center cursor-pointer group/scrub"
                 onClick={e => e.stopPropagation()}
               >
+                {/* Track background */}
                 <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-white/20 rounded-full" />
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-white/30 rounded-full"
+                {/* Buffered */}
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-white/30 rounded-full transition-all"
                   style={{ width: `${bufferedPct}%` }} />
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-red-600 rounded-full"
+                {/* Progress */}
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-red-500 rounded-full transition-all"
                   style={{ width: `${progress}%` }} />
-                <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-lg
-                                opacity-0 group-hover/scrub:opacity-100 transition-opacity pointer-events-none"
-                  style={{ left: `calc(${progress}% - 6px)` }} />
+                {/* Thumb — always visible */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md pointer-events-none
+                             scale-100 group-hover/scrub:scale-125 transition-transform"
+                  style={{ left: `calc(${progress}% - 7px)` }}
+                />
+                {/* Invisible range input on top */}
                 <input
                   type="range"
                   min={0}
@@ -315,28 +359,28 @@ const VideoPlayer = () => {
               {/* Controls row */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 md:gap-4">
-                  <button onClick={togglePlay} className="text-white hover:text-white/80 active:scale-95 transition-all">
+                  <motion.button whileTap={{ scale: 0.8 }} onClick={togglePlay} className="text-white hover:text-white/80 transition-colors">
                     {isPlaying
                       ? <Pause className="w-5 h-5 fill-white" />
                       : <Play  className="w-5 h-5 fill-white" />}
-                  </button>
-                  <button onClick={(e) => skip(e, -10)} className="text-white hover:text-white/80 active:scale-95 transition-all hidden md:block">
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => skip(e, -10)} className="text-white hover:text-white/80 transition-colors hidden md:block">
                     <RotateCcw className="w-5 h-5" />
-                  </button>
-                  <button onClick={(e) => skip(e, 10)} className="text-white hover:text-white/80 active:scale-95 transition-all hidden md:block">
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => skip(e, 10)} className="text-white hover:text-white/80 transition-colors hidden md:block">
                     <RotateCw className="w-5 h-5" />
-                  </button>
+                  </motion.button>
 
                   {/* Volume */}
                   <div
                     className="flex items-center gap-2 group/vol"
                     onClick={e => e.stopPropagation()}
                   >
-                    <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors">
+                    <motion.button whileTap={{ scale: 0.8 }} onClick={toggleMute} className="text-white hover:text-white/80 transition-colors">
                       {isMuted || volume === 0
                         ? <VolumeX className="w-5 h-5" />
                         : <Volume2 className="w-5 h-5" />}
-                    </button>
+                    </motion.button>
                     <div className="w-0 overflow-hidden group-hover/vol:w-20 transition-all duration-300">
                       <input
                         type="range" min={0} max={1} step={0.05}
@@ -353,11 +397,11 @@ const VideoPlayer = () => {
                   </span>
                 </div>
 
-                <button onClick={toggleFullscreen} className="text-white hover:text-white/80 active:scale-95 transition-all">
+                <motion.button whileTap={{ scale: 0.8 }} onClick={toggleFullscreen} className="text-white hover:text-white/80 transition-colors">
                   {isFullscreen
                     ? <Minimize className="w-5 h-5" />
                     : <Maximize className="w-5 h-5" />}
-                </button>
+                </motion.button>
               </div>
             </div>
           </motion.div>
