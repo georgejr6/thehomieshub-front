@@ -46,7 +46,10 @@ const AdminVideos = () => {
 
   const handleFeature = async (video) => {
     try {
-      const { data } = await api.patch(`/admin/videos/${video._id}`, { isFeatured: !video.isFeatured });
+      const { data } = await api.patch(`/admin/videos/${video._id}`, {
+        isFeatured: !video.isFeatured,
+        _collectionType: video._collectionType,
+      });
       if (data.status) {
         setVideos((prev) => prev.map((v) => v._id === video._id ? { ...v, isFeatured: !v.isFeatured } : v));
         toast({ title: video.isFeatured ? 'Unfeatured' : 'Featured', description: `"${video.title}" updated.` });
@@ -56,10 +59,27 @@ const AdminVideos = () => {
     }
   };
 
+  const handleVisibility = async (video, visibility) => {
+    try {
+      const { data } = await api.patch(`/admin/videos/${video._id}`, {
+        visibility,
+        _collectionType: video._collectionType,
+      });
+      if (data.status) {
+        setVideos((prev) => prev.map((v) => v._id === video._id ? { ...v, visibility } : v));
+        toast({ title: `Set to ${visibility}`, description: `"${video.title}" is now ${visibility}.` });
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to update visibility.', variant: 'destructive' });
+    }
+  };
+
   const handleDelete = async (video) => {
     if (!window.confirm(`Delete "${video.title}"? This cannot be undone.`)) return;
     try {
-      const { data } = await api.delete(`/admin/videos/${video._id}`);
+      const { data } = await api.delete(`/admin/videos/${video._id}`, {
+        params: { collectionType: video._collectionType || 'video' },
+      });
       if (data.status) {
         setVideos((prev) => prev.filter((v) => v._id !== video._id));
         toast({ title: 'Deleted', description: `"${video.title}" removed.` });
@@ -113,6 +133,7 @@ const AdminVideos = () => {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Creator</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Views</TableHead>
                   <TableHead>Visibility</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -136,6 +157,9 @@ const AdminVideos = () => {
                         <span className="text-sm">@{video.creator?.username}</span>
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs capitalize">{video._collectionType || 'video'}</Badge>
+                    </TableCell>
                     <TableCell>{(video.stats?.views || 0).toLocaleString()}</TableCell>
                     <TableCell>
                       <Badge variant={video.visibility === 'public' ? 'default' : 'secondary'}>
@@ -154,6 +178,16 @@ const AdminVideos = () => {
                           <DropdownMenuItem onClick={() => handleFeature(video)}>
                             {video.isFeatured ? 'Unfeature' : 'Feature'}
                           </DropdownMenuItem>
+                          {video.visibility !== 'private' && (
+                            <DropdownMenuItem onClick={() => handleVisibility(video, 'private')}>
+                              Make Private
+                            </DropdownMenuItem>
+                          )}
+                          {video.visibility === 'private' && (
+                            <DropdownMenuItem onClick={() => handleVisibility(video, 'public')}>
+                              Make Public
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => handleDelete(video)}
