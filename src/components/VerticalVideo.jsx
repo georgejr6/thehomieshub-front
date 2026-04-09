@@ -214,11 +214,14 @@ useEffect(() => {
             const d = video.duration || 0;
             setDuration(d);
             if (d > LONG_VIDEO_LIMIT) setIsLongVideo(true);
-            // Bottomless scroll: resume at a fractional point through the video
             if (startFraction && d > 0) {
+                // Bottomless scroll: resume at a fractional point through the video
                 const target = startFraction * d;
-                // Always land at least 10s before the end so playback isn't immediately over
                 video.currentTime = Math.min(target, Math.max(d - 10, 0));
+            } else if (d > LONG_VIDEO_LIMIT) {
+                // Long videos (have the "Full video" button): skip the first 5s
+                // to avoid the repeated intro that plays on every imported video
+                video.currentTime = 5;
             }
         };
 
