@@ -221,7 +221,7 @@ const MediaApp = () => {
                 className={cn("whitespace-nowrap transition-colors flex items-center gap-1",
                   activeCategory === tab ? "text-white font-bold" : "text-zinc-400")}
                 onClick={() => setActiveCategory(tab)}>
-                {tab === 'private' ? <Lock className="w-3 h-3" /> : tab}
+                {tab === 'private' ? '🐸' : tab}
               </button>
             ))}
           </div>

@@ -10,7 +10,9 @@ import ShareDialog from '@/components/ShareDialog';
 import MoreOptionsDropdown from '@/components/MoreOptionsDropdown';
 import { useAuth } from '@/contexts/AuthContext';
 import { useContent } from '@/contexts/ContentContext';
-import CommentsSheet from '@/components/CommentsSheet'; 
+import { useMedia } from '@/contexts/MediaContext';
+import { useNavigate } from 'react-router-dom';
+import CommentsSheet from '@/components/CommentsSheet';
 import GiftDialog from '@/components/GiftDialog';
 import TripView from '@/components/TripView';
 import MintedCollectibleModal from '@/components/MintedCollectibleModal';
@@ -22,6 +24,8 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
   
   const { user, isPremium, triggerLockedFeature } = useAuth();
   const { users, openPlaceModal, isPostLiked, togglePostLike } = useContent();
+  const { setActiveCategory, confirmEnterMediaMode } = useMedia();
+  const navigate = useNavigate();
   
   // Sync local liked state with global context
   const isGlobalLiked = isPostLiked(post.id);
@@ -67,8 +71,14 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
     }
   };
 
+  const handleFrogzClipClick = () => {
+    setActiveCategory('private');
+    confirmEnterMediaMode();
+  };
+
   const handleLike = () => {
     if (!user) { onLoginRequest(); return; }
+    if (post.isFrogzClip) return; // synthetic ID — no backend like endpoint
     if (isLikeLoading) return;
     
     setIsLikeLoading(true);
@@ -159,11 +169,17 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
 
             {/* Standard Posts */}
             {post.type === 'clip' && (
-                <div className="relative mt-2 md:mt-3 rounded-lg overflow-hidden border border-border group aspect-video bg-black">
+                <div
+                    className="relative mt-2 md:mt-3 rounded-lg overflow-hidden border border-border group aspect-video bg-black cursor-pointer"
+                    onClick={post.isFrogzClip ? handleFrogzClipClick : undefined}
+                >
                     <img className="w-full h-full object-cover" alt={post.content?.title || post.title || 'Video'} src={post.thumbnail || "https://images.unsplash.com/photo-1592572130011-855af2d206af"} />
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <Play className="h-12 w-12 text-white/80" fill="white" />
                     </div>
+                    {post.isFrogzClip && (
+                        <div className="absolute top-2 right-2 text-lg">🐸</div>
+                    )}
                 </div>
             )}
             
