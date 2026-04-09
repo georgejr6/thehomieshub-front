@@ -1,134 +1,219 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Film, MessageSquare, BarChart2, MapPin } from 'lucide-react';
-import { mockCommunityPosts } from '@/data/mockCommunityPosts';
-import { mockPosts as mockVideoPosts } from '@/components/Feed';
-import FeedItem from '@/components/FeedItem';
+import { Search, Film, MessageSquare, Loader2, X } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import VideoPost from '@/components/VideoPost';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import FeedItem from '@/components/FeedItem';
+import api from '@/api/homieshub';
+
+function useDebounce(value, ms = 350) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
+
+function normalizeVideo(v, type) {
+  return {
+    ...v,
+    id: v._id || v.id,
+    _backendType: type,
+    muxPlaybackId: v.muxPlaybackId || null,
+    thumbnail: v.thumbnailUrl || v.thumbnail || (v.muxPlaybackId ? `https://image.mux.com/${v.muxPlaybackId}/thumbnail.png?width=400` : ''),
+    title: v.title || v.caption || 'Untitled',
+    isSubscriberOnly: v.visibility === 'subscribers' || !!v.isSubscriberOnly,
+  };
+}
 
 const SearchResultsPage = () => {
-    const [searchParams] = useSearchParams();
-    const query = searchParams.get('q') || '';
-    const [videoResults, setVideoResults] = useState([]);
-    const [communityResults, setCommunityResults] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const query = searchParams.get('q') || '';
+  const [input, setInput] = useState(query);
+  const debounced = useDebounce(input);
 
-    useEffect(() => {
-        if (query) {
-            const lowerCaseQuery = query.toLowerCase();
+  const [videos, setVideos]   = useState([]);
+  const [reels,  setReels]    = useState([]);
+  const [posts,  setPosts]    = useState([]);
+  const [loading, setLoading] = useState(false);
+  const abortRef = useRef(null);
 
-            const filteredVideos = mockVideoPosts.filter(post =>
-                post.title.toLowerCase().includes(lowerCaseQuery) ||
-                post.user.name.toLowerCase().includes(lowerCaseQuery)
-            );
+  // Sync URL → input on load
+  useEffect(() => { setInput(query); }, [query]);
 
-            const filteredCommunity = mockCommunityPosts.filter(post =>
-                post.content.text?.toLowerCase().includes(lowerCaseQuery) ||
-                (post.type === 'poll' && post.content.poll.question.toLowerCase().includes(lowerCaseQuery)) ||
-                (post.type === 'trip' && post.content.trip.title.toLowerCase().includes(lowerCaseQuery)) ||
-                post.user.name.toLowerCase().includes(lowerCaseQuery)
-            );
-            
-            setVideoResults(filteredVideos);
-            setCommunityResults(filteredCommunity);
-        } else {
-            setVideoResults([]);
-            setCommunityResults([]);
-        }
-    }, [query]);
+  // Live search as user types
+  useEffect(() => {
+    if (!debounced.trim()) {
+      setVideos([]); setReels([]); setPosts([]);
+      return;
+    }
 
-    const allResults = [...videoResults.map(v => ({...v, postType: 'video'})), ...communityResults];
-    const threadResults = communityResults.filter(p => p.type === 'thread' || p.type === 'text');
-    const pollResults = communityResults.filter(p => p.type === 'poll');
-    const tripResults = communityResults.filter(p => p.type === 'trip');
+    // update URL without full navigation
+    setSearchParams({ q: debounced }, { replace: true });
 
-    return (
-        <>
-            <Helmet>
-                <title>Search Results for "{query}" - The Homies Hub</title>
-            </Helmet>
-            <div className="max-w-7xl mx-auto px-4 py-8">
-                <motion.header 
-                    initial={{ opacity: 0, y: -20 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    transition={{ duration: 0.5 }}
-                    className="mb-8"
-                >
-                    <h1 className="text-3xl font-bold tracking-tight">Search Results</h1>
-                    <p className="text-muted-foreground mt-1">Showing results for: <span className="font-semibold text-primary">{query}</span></p>
-                </motion.header>
+    // Cancel previous in-flight requests
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
 
-                <Tabs defaultValue="all">
-                    <TabsList className="mb-6">
-                        <TabsTrigger value="all"><Search className="mr-2 h-4 w-4" /> All ({allResults.length})</TabsTrigger>
-                        <TabsTrigger value="videos"><Film className="mr-2 h-4 w-4" /> Videos ({videoResults.length})</TabsTrigger>
-                        <TabsTrigger value="threads"><MessageSquare className="mr-2 h-4 w-4" /> Threads ({threadResults.length})</TabsTrigger>
-                        <TabsTrigger value="polls"><BarChart2 className="mr-2 h-4 w-4" /> Polls ({pollResults.length})</TabsTrigger>
-                        <TabsTrigger value="trips"><MapPin className="mr-2 h-4 w-4" /> Trips ({tripResults.length})</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="all">
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                            {allResults.map((post, index) => (
-                                <motion.div key={`${post.id}-${index}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: index * 0.05 }}>
-                                    {post.postType === 'video' ? <VideoPost post={post} /> : <FeedItem post={post} />}
-                                </motion.div>
-                            ))}
-                        </div>
-                    </TabsContent>
-                    <TabsContent value="videos">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
-                            {videoResults.map((post, index) => (
-                                <motion.div key={post.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: index * 0.05 }}>
-                                    <VideoPost post={post} />
-                                </motion.div>
-                            ))}
-                        </div>
-                    </TabsContent>
-                    <TabsContent value="threads">
-                         <div className="max-w-4xl mx-auto space-y-6">
-                            {threadResults.map((post, index) => (
-                                <motion.div key={post.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: index * 0.05 }}>
-                                    <FeedItem post={post} />
-                                </motion.div>
-                            ))}
-                        </div>
-                    </TabsContent>
-                    <TabsContent value="polls">
-                        <div className="max-w-4xl mx-auto space-y-6">
-                            {pollResults.map((post, index) => (
-                                <motion.div key={post.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: index * 0.05 }}>
-                                    <FeedItem post={post} />
-                                </motion.div>
-                            ))}
-                        </div>
-                    </TabsContent>
-                    <TabsContent value="trips">
-                        <div className="max-w-4xl mx-auto space-y-6">
-                            {tripResults.map((post, index) => (
-                                <motion.div key={post.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: index * 0.05 }}>
-                                    <FeedItem post={post} />
-                                </motion.div>
-                            ))}
-                        </div>
-                    </TabsContent>
-                </Tabs>
-                {allResults.length === 0 && (
-                    <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="text-center py-20"
-                    >
-                        <Search className="mx-auto h-16 w-16 text-muted-foreground" />
-                        <h2 className="mt-6 text-2xl font-semibold">No results found</h2>
-                        <p className="mt-2 text-muted-foreground">Try searching for something else.</p>
+    setLoading(true);
+    Promise.all([
+      api.get('/user/videos',          { params: { q: debounced, limit: 30 }, signal: ctrl.signal }).catch(() => null),
+      api.get('/user/reels',           { params: { q: debounced, limit: 30 }, signal: ctrl.signal }).catch(() => null),
+      api.get('/user/community-posts', { params: { q: debounced, limit: 20 }, signal: ctrl.signal }).catch(() => null),
+    ]).then(([vRes, rRes, pRes]) => {
+      if (ctrl.signal.aborted) return;
+      setVideos((vRes?.data?.result?.items || []).map(v => normalizeVideo(v, 'video')));
+      setReels((rRes?.data?.result?.items  || []).map(r => normalizeVideo(r, 'reel')));
+      setPosts(pRes?.data?.result?.items || []);
+    }).finally(() => {
+      if (!ctrl.signal.aborted) setLoading(false);
+    });
+  }, [debounced]);
+
+  const allMedia = [...videos, ...reels];
+  const totalAll = allMedia.length + posts.length;
+
+  return (
+    <>
+      <Helmet>
+        <title>Search — The Homies Hub</title>
+      </Helmet>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <motion.header
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <h1 className="text-2xl font-bold tracking-tight mb-4">Search</h1>
+
+          {/* Live search input */}
+          <div className="relative max-w-xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              placeholder="Search videos, reels, posts…"
+              className="pl-10 pr-10 h-12 text-base"
+            />
+            {input && (
+              <button
+                onClick={() => { setInput(''); setSearchParams({}); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </motion.header>
+
+        {loading && (
+          <div className="flex items-center gap-2 text-muted-foreground mb-6">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Searching…</span>
+          </div>
+        )}
+
+        {debounced && !loading && (
+          <p className="text-muted-foreground text-sm mb-6">
+            {totalAll} result{totalAll !== 1 ? 's' : ''} for <span className="font-semibold text-foreground">"{debounced}"</span>
+          </p>
+        )}
+
+        {debounced ? (
+          <Tabs defaultValue="all">
+            <TabsList className="mb-6">
+              <TabsTrigger value="all">
+                <Search className="mr-2 h-4 w-4" /> All ({totalAll})
+              </TabsTrigger>
+              <TabsTrigger value="videos">
+                <Film className="mr-2 h-4 w-4" /> Videos & Reels ({allMedia.length})
+              </TabsTrigger>
+              <TabsTrigger value="posts">
+                <MessageSquare className="mr-2 h-4 w-4" /> Posts ({posts.length})
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ALL */}
+            <TabsContent value="all">
+              {allMedia.length > 0 && (
+                <>
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Videos & Reels</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
+                    {allMedia.map((item, i) => (
+                      <motion.div key={item.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+                        <VideoPost post={item} />
+                      </motion.div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {posts.length > 0 && (
+                <>
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Posts</h3>
+                  <div className="space-y-4 max-w-4xl">
+                    {posts.map((post, i) => (
+                      <motion.div key={post._id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+                        <FeedItem post={post} />
+                      </motion.div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {totalAll === 0 && !loading && (
+                <div className="text-center py-20">
+                  <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <h2 className="text-xl font-semibold">No results found</h2>
+                  <p className="text-muted-foreground mt-1">Try a different search term.</p>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* VIDEOS */}
+            <TabsContent value="videos">
+              {allMedia.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {allMedia.map((item, i) => (
+                    <motion.div key={item.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+                      <VideoPost post={item} />
                     </motion.div>
-                )}
-            </div>
-        </>
-    );
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-12">No videos or reels found.</p>
+              )}
+            </TabsContent>
+
+            {/* POSTS */}
+            <TabsContent value="posts">
+              {posts.length > 0 ? (
+                <div className="space-y-4 max-w-4xl mx-auto">
+                  {posts.map((post, i) => (
+                    <motion.div key={post._id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+                      <FeedItem post={post} />
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-12">No posts found.</p>
+              )}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <div className="text-center py-20 text-muted-foreground">
+            <Search className="mx-auto h-12 w-12 mb-4" />
+            <p>Start typing to search videos, reels, and posts.</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
 };
 
 export default SearchResultsPage;

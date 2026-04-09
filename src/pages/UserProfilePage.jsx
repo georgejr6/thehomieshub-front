@@ -743,7 +743,12 @@ const RealUserProfilePage = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: index * 0.05 }}
                     >
-                      <VideoPost post={post} />
+                      <VideoPost
+                        post={{ ...post, _backendType: 'reel' }}
+                        isOwnPost={isOwnProfile}
+                        onRemove={(id) => setReels(prev => prev.filter(r => (r._id || r.id) !== id))}
+                        onUpdate={(updated) => setReels(prev => prev.map(r => (r._id || r.id) === (updated._id || updated.id) ? { ...r, ...updated } : r))}
+                      />
                     </motion.div>
                   ))
                 ) : (
@@ -758,7 +763,6 @@ const RealUserProfilePage = () => {
               </div>
             </TabsContent>
 
-
             <TabsContent value="videos" className="mt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
                 {userVideos.length > 0 ? (
@@ -769,7 +773,12 @@ const RealUserProfilePage = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: index * 0.05 }}
                     >
-                      <VideoPost post={post} />
+                      <VideoPost
+                        post={{ ...post, _backendType: 'video' }}
+                        isOwnPost={isOwnProfile}
+                        onRemove={(id) => setVideos(prev => prev.filter(v => (v._id || v.id) !== id))}
+                        onUpdate={(updated) => setVideos(prev => prev.map(v => (v._id || v.id) === (updated._id || updated.id) ? { ...v, ...updated } : v))}
+                      />
                     </motion.div>
                   ))
                 ) : (

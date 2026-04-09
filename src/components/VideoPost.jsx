@@ -2,19 +2,90 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ShieldAlert, Lock, Play, Pause, Volume2, VolumeX } from 'lucide-react';
+import { ShieldAlert, Lock, Play, Pause, Volume2, VolumeX, MoreVertical, Trash2, EyeOff, Eye, Pencil } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import MuxPlayer from '@mux/mux-player-react';
 import { useMedia } from '@/contexts/MediaContext';
+import api from '@/api/homieshub';
 
-const VideoPost = ({ post }) => {
+const VideoPost = ({ post, isOwnPost = false, onRemove, onUpdate }) => {
   const { username } = useParams();
   const navigate = useNavigate();
 
   const { isPremium, triggerLockedFeature } = useAuth();
   const { isPlaying: musicIsPlaying } = useMedia();
+  const { toast } = useToast();
+
+  // ── Edit modal state ──────────────────────────────────────────────────────
+  const [editOpen,    setEditOpen]    = useState(false);
+  const [editTitle,   setEditTitle]   = useState('');
+  const [editThumb,   setEditThumb]   = useState('');
+  const [editSaving,  setEditSaving]  = useState(false);
+
+  // Local visibility state so UI updates immediately
+  const [localVis, setLocalVis] = useState(post?.visibility || 'public');
+
+  const postId      = post?._id || post?.id;
+  const backendType = post?._backendType || post?.backendType || 'video';
+
+  const handleOwnerDelete = async (e) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this video? This cannot be undone.')) return;
+    try {
+      const ep = backendType === 'video' ? `/user/videos/${postId}` : `/user/reels/${postId}`;
+      await api.delete(ep);
+      toast({ title: 'Deleted' });
+      onRemove?.(postId);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to delete.', variant: 'destructive' });
+    }
+  };
+
+  const handleVisibility = async (e, vis) => {
+    e.stopPropagation();
+    try {
+      const ep = backendType === 'video' ? `/user/videos/${postId}/visibility` : `/user/reels/${postId}/visibility`;
+      await api.patch(ep, { visibility: vis });
+      setLocalVis(vis);
+      toast({ title: vis === 'private' ? 'Set to private' : 'Set to public' });
+      onUpdate?.({ ...post, visibility: vis });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update.', variant: 'destructive' });
+    }
+  };
+
+  const openEdit = (e) => {
+    e.stopPropagation();
+    setEditTitle(post?.title || post?.caption || '');
+    setEditThumb(post?.thumbnailUrl || post?.thumbnail || '');
+    setEditOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    setEditSaving(true);
+    try {
+      const ep = backendType === 'video' ? `/user/videos/${postId}` : `/user/reels/${postId}`;
+      const body = backendType === 'video'
+        ? { title: editTitle, thumbnailUrl: editThumb }
+        : { title: editTitle, caption: editTitle, thumbnailUrl: editThumb };
+      await api.patch(ep, body);
+      toast({ title: 'Saved' });
+      setEditOpen(false);
+      onUpdate?.({ ...post, title: editTitle, caption: editTitle, thumbnailUrl: editThumb });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save.', variant: 'destructive' });
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const playerRef = useRef(null);
 
@@ -201,11 +272,51 @@ const VideoPost = ({ post }) => {
   const thumbnail = post.thumbnail || imageSrcs[(post.id || 0) % imageSrcs.length];
 
   return (
+    <>
     <div
       className="relative group"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
+      {/* ── Owner management ⋮ button ──────────────────────────────────── */}
+      {isOwnPost && (
+        <div className="absolute top-2 right-2 z-30" onClick={e => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 backdrop-blur-sm transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[200]">
+              <DropdownMenuItem onClick={openEdit}>
+                <Pencil className="mr-2 h-4 w-4" /> Edit title / thumbnail
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {localVis !== 'private' ? (
+                <DropdownMenuItem onClick={e => handleVisibility(e, 'private')}>
+                  <EyeOff className="mr-2 h-4 w-4" /> Make Private
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={e => handleVisibility(e, 'public')}>
+                  <Eye className="mr-2 h-4 w-4" /> Make Public
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleOwnerDelete}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      {/* Private badge */}
+      {isOwnPost && localVis === 'private' && (
+        <div className="absolute top-2 left-2 z-30 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+          <EyeOff className="h-3 w-3" /> Private
+        </div>
+      )}
+
       <motion.div
         className="group cursor-pointer"
         onClick={() => handleOpenWatch(post)}
@@ -328,6 +439,49 @@ const VideoPost = ({ post }) => {
         </div>
       </motion.div>
     </div>
+
+    {/* Edit modal */}
+    {isOwnPost && (
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent onClick={e => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Edit Video</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="vp-title">Title</Label>
+              <Input
+                id="vp-title"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                placeholder="Video title"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="vp-thumb">Thumbnail URL</Label>
+              <Input
+                id="vp-thumb"
+                value={editThumb}
+                onChange={e => setEditThumb(e.target.value)}
+                placeholder="https://…"
+                className="mt-1"
+              />
+              {editThumb && (
+                <img src={editThumb} alt="preview" className="mt-2 w-full aspect-video object-cover rounded-md bg-muted" onError={e => e.target.style.display='none'} />
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditSave} disabled={editSaving}>
+              {editSaving ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   );
 };
 
