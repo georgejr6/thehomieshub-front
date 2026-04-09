@@ -17,7 +17,6 @@ import GiftDialog from '@/components/GiftDialog';
 import { useContent } from '@/contexts/ContentContext';
 import MintedCollectibleModal from '@/components/MintedCollectibleModal';
 import { useMedia } from '@/contexts/MediaContext';
-import { Slider } from '@/components/ui/slider';
 import MuxPlayer from '@mux/mux-player-react';
 
 // Global mute state tracking outside component to persist across renders
@@ -400,22 +399,35 @@ const likeCount = post?.engagement?.likes ?? 0;
                 </div>
 
                 {/* SEEKER BAR */}
-                <div className="absolute bottom-0 left-0 right-0 z-50 px-2 pb-1 pt-4 group">
+                <div className="absolute bottom-0 left-0 right-0 z-50 px-2 pb-2 pt-4 group">
                     <div className="flex items-center gap-2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white font-medium drop-shadow-md">
                         <span>{formatTime(currentTime)}</span>
                         <div className="flex-1"></div>
                         <span>{formatTime(duration)}</span>
                     </div>
-                    <div className="[&_.bg-primary]:bg-yellow-400 [&_.border-primary]:border-yellow-400 [&_.bg-secondary]:bg-white/20">
-                        <Slider
-                            defaultValue={[0]}
-                            value={[progress]}
-                            max={100}
-                            step={0.1}
-                            className="cursor-pointer"
-                            onValueChange={handleSeek}
-                            onPointerDown={handleSeekStart}
-                            onPointerUp={handleSeekEnd}
+                    <div
+                        className="relative h-1 group-hover:h-[5px] transition-all rounded-full bg-white/20 cursor-pointer"
+                        onPointerDown={(e) => {
+                            handleSeekStart();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const pct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+                            handleSeek([pct * 100]);
+                        }}
+                        onPointerMove={(e) => {
+                            if (!isDragging) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const pct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+                            handleSeek([pct * 100]);
+                        }}
+                        onPointerUp={handleSeekEnd}
+                    >
+                        <div
+                            className="absolute left-0 top-0 h-full rounded-full bg-yellow-400"
+                            style={{ width: `${progress}%` }}
+                        />
+                        <div
+                            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity -ml-1.5"
+                            style={{ left: `${progress}%` }}
                         />
                     </div>
                 </div>
