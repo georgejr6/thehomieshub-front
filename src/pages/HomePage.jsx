@@ -15,6 +15,7 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
   
   // Visibility State
   const [showStories, setShowStories] = useState(true);
+  const [isAtTop, setIsAtTop] = useState(true);
   const hideTimeoutRef = useRef(null);
   const touchStartRef = useRef(null);
 
@@ -22,6 +23,7 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
 
   // Called when mouse enters the header area or the invisible trigger zone
   const handleHeaderMouseEnter = () => {
+    if (!isAtTop) return;
     if (hideTimeoutRef.current) {
         clearTimeout(hideTimeoutRef.current);
         hideTimeoutRef.current = null;
@@ -136,10 +138,11 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
         >
-            <VerticalVideoFeed 
-                posts={verticalPosts} 
-                onLoginRequest={onLoginRequest} 
-                aspectRatio="vertical" 
+            <VerticalVideoFeed
+                posts={verticalPosts}
+                onLoginRequest={onLoginRequest}
+                aspectRatio="vertical"
+                onTopChange={(atTop) => { setIsAtTop(atTop); if (!atTop) setShowStories(false); }}
             />
         </div>
       </div>

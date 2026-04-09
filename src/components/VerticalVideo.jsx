@@ -309,14 +309,6 @@ const likeCount = post?.engagement?.likes ?? 0;
             data-index={index}
             className="h-[100svh] w-full relative flex items-end justify-center bg-black snap-start shrink-0 overflow-hidden"
         >
-            {/* Blurred Background — always full width */}
-            <div className="absolute inset-0 z-0 overflow-hidden">
-                <img
-                    src={post.thumbnail}
-                    className="w-full h-full object-cover blur-[100px] opacity-30 scale-150"
-                    alt="Background"
-                />
-            </div>
 
             {/* VIDEO AREA — flex-1, constrained to 85vw max on desktop */}
             <div
@@ -414,16 +406,18 @@ const likeCount = post?.engagement?.likes ?? 0;
                         <div className="flex-1"></div>
                         <span>{formatTime(duration)}</span>
                     </div>
-                    <Slider
-                        defaultValue={[0]}
-                        value={[progress]}
-                        max={100}
-                        step={0.1}
-                        className="cursor-pointer"
-                        onValueChange={handleSeek}
-                        onPointerDown={handleSeekStart}
-                        onPointerUp={handleSeekEnd}
-                    />
+                    <div className="[&_.bg-primary]:bg-yellow-400 [&_.border-primary]:border-yellow-400 [&_.bg-secondary]:bg-white/20">
+                        <Slider
+                            defaultValue={[0]}
+                            value={[progress]}
+                            max={100}
+                            step={0.1}
+                            className="cursor-pointer"
+                            onValueChange={handleSeek}
+                            onPointerDown={handleSeekStart}
+                            onPointerUp={handleSeekEnd}
+                        />
+                    </div>
                 </div>
 
                 {/* Locked/NSFW Overlay */}

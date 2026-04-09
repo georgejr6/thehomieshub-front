@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import VerticalVideo from '@/components/VerticalVideo';
 
-const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio }) => {
+const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange }) => {
   const containerRef = useRef(null);
   const [visiblePost, setVisiblePost] = useState(0);
 
@@ -12,6 +12,7 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio }) => {
           if (entry.isIntersecting) {
             const index = parseInt(entry.target.dataset.index, 10);
             setVisiblePost(index);
+            onTopChange?.(index === 0);
           }
         });
       },
@@ -22,13 +23,13 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio }) => {
     if (children) {
       Array.from(children).forEach(child => observer.observe(child));
     }
-    
+
     return () => {
         if (children) {
             Array.from(children).forEach(child => observer.unobserve(child));
         }
     };
-  }, [posts]);
+  }, [posts, onTopChange]);
 
   return (
     <div 
