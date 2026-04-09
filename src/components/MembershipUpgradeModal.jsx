@@ -146,7 +146,7 @@ const MembershipUpgradeModal = ({ open, onClose, post }) => {
               </div>
 
               <a
-                href="https://t.me/homieshub_bot"
+                href="https://t.me/TheHomies_SubBot"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full"
