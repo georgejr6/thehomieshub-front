@@ -309,7 +309,7 @@ const likeCount = post?.engagement?.likes ?? 0;
             data-index={index}
             className="h-[100svh] w-full relative flex items-center justify-center bg-black snap-start shrink-0 overflow-hidden"
         >
-            {/* Blurred Background */}
+            {/* Blurred Background — always full width */}
             <div className="absolute inset-0 z-0 overflow-hidden">
                 <img
                     src={post.thumbnail}
@@ -318,218 +318,222 @@ const likeCount = post?.engagement?.likes ?? 0;
                 />
             </div>
 
-            {/* VIDEO / MUX PLAYER */}
-            <div onClick={togglePlayPause} className="relative z-10 w-full h-full max-h-[100svh] max-w-[100vw] flex items-center justify-center">
-                {isMux ? (
-                    <MuxPlayer
-                        ref={videoRef}
-                        playbackId={playbackId}
-                        streamType="on-demand"
-                        poster={muxPoster || post.thumbnail}
-                        loop
-                        muted={isMuted}
-                        playsInline
-                        autoPlay={false}
-                        paused={!isPlaying}   // ✅ this is the key
-                        className={cn(
-                            "w-full h-full max-h-[100svh] max-w-[100vw] object-contain",
-                            isBlurred && "opacity-0"
-                        )}
-                        style={{ width: "100%", height: "100%" }}
-                    />
-                ) : (
-                    <video
-                        ref={videoRef}
-                        src={post.videoUrl}
-                        loop
-                        muted={isMuted}
-                        onClick={togglePlayPause}
-                        className={cn(
-                            "w-full h-full max-h-[100svh] max-w-[100vw] object-contain",
-                            isBlurred && "opacity-0"
-                        )}
-                        playsInline
-                        disablePictureInPicture
-                    />
-                )}
-            </div>
+            {/* Centered column — everything foreground lives here */}
+            <div className="relative z-10 h-full w-full max-w-[420px] mx-auto">
 
-            {/* Center Play/Pause Indicator */}
-            <AnimatePresence>
-                {showPlayPause && !isBlurred && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 1.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.5 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
-                    >
-                        <div className="bg-black/40 p-5 rounded-full backdrop-blur-sm">
-                            {/* ✅ Correct icons: Pause when playing, Play when paused */}
-                            {isPlaying
-                                ? <Pause className="h-10 w-10 text-white/90" fill="white" />
-                                : <Play className="h-10 w-10 text-white/90" fill="white" />
-                            }
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                {/* VIDEO / MUX PLAYER */}
+                <div onClick={togglePlayPause} className="absolute inset-0 flex items-center justify-center">
+                    {isMux ? (
+                        <MuxPlayer
+                            ref={videoRef}
+                            playbackId={playbackId}
+                            streamType="on-demand"
+                            poster={muxPoster || post.thumbnail}
+                            loop
+                            muted={isMuted}
+                            playsInline
+                            autoPlay={false}
+                            paused={!isPlaying}
+                            className={cn(
+                                "w-full h-full object-contain",
+                                isBlurred && "opacity-0"
+                            )}
+                            style={{ width: "100%", height: "100%" }}
+                        />
+                    ) : (
+                        <video
+                            ref={videoRef}
+                            src={post.videoUrl}
+                            loop
+                            muted={isMuted}
+                            onClick={togglePlayPause}
+                            className={cn(
+                                "w-full h-full object-contain",
+                                isBlurred && "opacity-0"
+                            )}
+                            playsInline
+                            disablePictureInPicture
+                        />
+                    )}
+                </div>
 
-            {/* RIGHT SIDEBAR CONTROLS */}
-            <div className="absolute bottom-20 right-2 z-40 flex flex-col items-center gap-6 w-[60px]">
-                {/* Avatar Profile Link */}
-                <div className="relative mb-2">
-                    <Link to={`/profile/${post.user.username}`} onClick={(e) => e.stopPropagation()}>
-                        <Avatar className="h-12 w-12 border border-white/50 cursor-pointer hover:scale-105 transition-transform">
-                            <AvatarImage src={post.user.avatar} alt={post.user.name} />
-                            <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                    </Link>
-
-                    {!isFollowing && (
-                        <div
-                            className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#FE2C55] rounded-full w-5 h-5 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleInteraction('follow'); }}
+                {/* Center Play/Pause Indicator */}
+                <AnimatePresence>
+                    {showPlayPause && !isBlurred && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 1.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 1.5 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
                         >
-                            <Plus className="h-3 w-3 text-white font-bold" />
-                        </div>
+                            <div className="bg-black/40 p-5 rounded-full backdrop-blur-sm">
+                                {isPlaying
+                                    ? <Pause className="h-10 w-10 text-white/90" fill="white" />
+                                    : <Play className="h-10 w-10 text-white/90" fill="white" />
+                                }
+                            </div>
+                        </motion.div>
                     )}
+                </AnimatePresence>
 
-                    {isFollowing && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white rounded-full w-5 h-5 flex items-center justify-center">
-                            <Check className="h-3 w-3 text-[#FE2C55]" />
-                        </div>
-                    )}
-                </div>
+                {/* RIGHT SIDEBAR CONTROLS */}
+                <div className="absolute bottom-20 right-2 z-40 flex flex-col items-center gap-6 w-[60px]">
+                    {/* Avatar Profile Link */}
+                    <div className="relative mb-2">
+                        <Link to={`/profile/${post.user.username}`} onClick={(e) => e.stopPropagation()}>
+                            <Avatar className="h-12 w-12 border border-white/50 cursor-pointer hover:scale-105 transition-transform">
+                                <AvatarImage src={post.user.avatar} alt={post.user.name} />
+                                <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                        </Link>
 
-                {/* Like */}
-                <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => { e.stopPropagation(); handleInteraction('like'); }}>
-                    <div className="rounded-full transition-transform active:scale-90">
-                        <Heart className={cn("h-9 w-9 drop-shadow-md transition-all", liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white fill-white/10")} />
-                    </div>
-                    <span className="text-xs font-semibold text-white drop-shadow-md">{likeCount}</span>
-                </button>
+                        {!isFollowing && (
+                            <div
+                                className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#FE2C55] rounded-full w-5 h-5 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleInteraction('follow'); }}
+                            >
+                                <Plus className="h-3 w-3 text-white font-bold" />
+                            </div>
+                        )}
 
-                {/* Comments */}
-                <CommentsSheet post={post} targetType={commentTargetType} onLoginRequest={onLoginRequest}>
-                    <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => e.stopPropagation()}>
-                        <div className="rounded-full transition-transform active:scale-90">
-                            <MessageCircle className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
-                        </div>
-                        <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.comments}</span>
-                    </button>
-                </CommentsSheet>
-
-                {/* Save */}
-                <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => { e.stopPropagation(); handleInteraction('save'); }}>
-                    <div className="rounded-full transition-transform active:scale-90">
-                        <Bookmark className={cn("h-9 w-9 drop-shadow-md transition-transform", saved ? "fill-yellow-400 text-yellow-400" : "text-white fill-white/10")} />
-                    </div>
-                    <span className="text-xs font-semibold text-white drop-shadow-md">{saved ? "Saved" : "Save"}</span>
-                </button>
-
-                {/* Share */}
-                <ShareDialog postUrl={postUrl} postTitle={post.description}>
-                    <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => e.stopPropagation()}>
-                        <div className="rounded-full transition-transform active:scale-90">
-                            <Share2 className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
-                        </div>
-                        <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.shares}</span>
-                    </button>
-                </ShareDialog>
-
-                {/* Mute */}
-                <button onClick={toggleMute} className="flex flex-col items-center gap-1 group/btn">
-                    <div className="bg-black/20 p-2 rounded-full hover:bg-black/40 transition-colors backdrop-blur-sm rounded-full transition-transform active:scale-90">
-                        {isMuted ? <VolumeX className="h-5 w-5 text-white" /> : <Volume2 className="h-5 w-5 text-white" />}
-                    </div>
-                </button>
-
-                {/* Spinning Disc */}
-                <div className="mt-2 relative group/disc cursor-pointer" onClick={(e) => { e.stopPropagation(); handleUseSound(e); }}>
-                    <div className={cn("h-10 w-10 rounded-full border-[6px] border-[#2F2F2F] bg-[#2F2F2F] flex items-center justify-center overflow-hidden", isPlaying && "animate-spin-slow")}>
-                        <img src={audioTrack.cover} alt="Music" className="h-full h-full object-cover rounded-full" />
-                    </div>
-                </div>
-            </div>
-
-            {/* BOTTOM LEFT METADATA */}
-            <div className="absolute bottom-6 left-0 right-16 p-4 z-40 pointer-events-none mb-1">
-                <div className="flex flex-col gap-2 items-start pointer-events-auto max-w-[85%]">
-                    <Link to={`/profile/${post.user.username}`} className="font-bold text-white text-[17px] shadow-black drop-shadow-md hover:underline mb-1">
-                        @{post.user.username}
-                    </Link>
-
-                    <div className="text-white/90 text-[15px] leading-snug drop-shadow-md mb-2">
-                        <span className="break-words font-normal">
-                            {isDescExpanded ? post.description : post.description?.substring(0, 80) + (post.description?.length > 80 ? '...' : '')}
-                        </span>
-                        {post.description && post.description.length > 80 && (
-                            <button onClick={() => setIsDescExpanded(!isDescExpanded)} className="font-semibold text-white/70 hover:text-white ml-1 text-sm">
-                                {isDescExpanded ? "less" : "more"}
-                            </button>
+                        {isFollowing && (
+                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white rounded-full w-5 h-5 flex items-center justify-center">
+                                <Check className="h-3 w-3 text-[#FE2C55]" />
+                            </div>
                         )}
                     </div>
 
-                    {audioTrack && (
-                        <div className="flex items-center gap-2 mt-1 cursor-pointer" onClick={handleUseSound}>
-                            <Music className="h-3.5 w-3.5 text-white" />
-                            <div className="overflow-hidden w-[200px] h-5 relative">
-                                <div className="whitespace-nowrap text-[15px] text-white font-medium animate-marquee absolute top-0 left-0">
-                                    {audioTrack.title} • {audioTrack.artist} &nbsp;&nbsp;&nbsp;&nbsp; {audioTrack.title} • {audioTrack.artist}
+                    {/* Like */}
+                    <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => { e.stopPropagation(); handleInteraction('like'); }}>
+                        <div className="rounded-full transition-transform active:scale-90">
+                            <Heart className={cn("h-9 w-9 drop-shadow-md transition-all", liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white fill-white/10")} />
+                        </div>
+                        <span className="text-xs font-semibold text-white drop-shadow-md">{likeCount}</span>
+                    </button>
+
+                    {/* Comments */}
+                    <CommentsSheet post={post} targetType={commentTargetType} onLoginRequest={onLoginRequest}>
+                        <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => e.stopPropagation()}>
+                            <div className="rounded-full transition-transform active:scale-90">
+                                <MessageCircle className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
+                            </div>
+                            <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.comments}</span>
+                        </button>
+                    </CommentsSheet>
+
+                    {/* Save */}
+                    <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => { e.stopPropagation(); handleInteraction('save'); }}>
+                        <div className="rounded-full transition-transform active:scale-90">
+                            <Bookmark className={cn("h-9 w-9 drop-shadow-md transition-transform", saved ? "fill-yellow-400 text-yellow-400" : "text-white fill-white/10")} />
+                        </div>
+                        <span className="text-xs font-semibold text-white drop-shadow-md">{saved ? "Saved" : "Save"}</span>
+                    </button>
+
+                    {/* Share */}
+                    <ShareDialog postUrl={postUrl} postTitle={post.description}>
+                        <button className="flex flex-col items-center gap-1 group/btn" onClick={(e) => e.stopPropagation()}>
+                            <div className="rounded-full transition-transform active:scale-90">
+                                <Share2 className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
+                            </div>
+                            <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.shares}</span>
+                        </button>
+                    </ShareDialog>
+
+                    {/* Mute */}
+                    <button onClick={toggleMute} className="flex flex-col items-center gap-1 group/btn">
+                        <div className="bg-black/20 p-2 rounded-full hover:bg-black/40 transition-colors backdrop-blur-sm transition-transform active:scale-90">
+                            {isMuted ? <VolumeX className="h-5 w-5 text-white" /> : <Volume2 className="h-5 w-5 text-white" />}
+                        </div>
+                    </button>
+
+                    {/* Spinning Disc */}
+                    <div className="mt-2 relative group/disc cursor-pointer" onClick={(e) => { e.stopPropagation(); handleUseSound(e); }}>
+                        <div className={cn("h-10 w-10 rounded-full border-[6px] border-[#2F2F2F] bg-[#2F2F2F] flex items-center justify-center overflow-hidden", isPlaying && "animate-spin-slow")}>
+                            <img src={audioTrack.cover} alt="Music" className="h-full h-full object-cover rounded-full" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* BOTTOM LEFT METADATA */}
+                <div className="absolute bottom-6 left-0 right-16 p-4 z-40 pointer-events-none mb-1">
+                    <div className="flex flex-col gap-2 items-start pointer-events-auto max-w-[85%]">
+                        <Link to={`/profile/${post.user.username}`} className="font-bold text-white text-[17px] shadow-black drop-shadow-md hover:underline mb-1">
+                            @{post.user.username}
+                        </Link>
+
+                        <div className="text-white/90 text-[15px] leading-snug drop-shadow-md mb-2">
+                            <span className="break-words font-normal">
+                                {isDescExpanded ? post.description : post.description?.substring(0, 80) + (post.description?.length > 80 ? '...' : '')}
+                            </span>
+                            {post.description && post.description.length > 80 && (
+                                <button onClick={() => setIsDescExpanded(!isDescExpanded)} className="font-semibold text-white/70 hover:text-white ml-1 text-sm">
+                                    {isDescExpanded ? "less" : "more"}
+                                </button>
+                            )}
+                        </div>
+
+                        {audioTrack && (
+                            <div className="flex items-center gap-2 mt-1 cursor-pointer" onClick={handleUseSound}>
+                                <Music className="h-3.5 w-3.5 text-white" />
+                                <div className="overflow-hidden w-[200px] h-5 relative">
+                                    <div className="whitespace-nowrap text-[15px] text-white font-medium animate-marquee absolute top-0 left-0">
+                                        {audioTrack.title} • {audioTrack.artist} &nbsp;&nbsp;&nbsp;&nbsp; {audioTrack.title} • {audioTrack.artist}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* SEEKER BAR */}
-            <div className="absolute bottom-0 left-0 right-0 z-50 px-2 pb-2 pt-4 group hover:opacity-100 transition-opacity">
-                <div className="flex items-center gap-2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white font-medium drop-shadow-md">
-                    <span>{formatTime(currentTime)}</span>
-                    <div className="flex-1"></div>
-                    <span>{formatTime(duration)}</span>
+                        )}
+                    </div>
                 </div>
 
-                <Slider
-                    defaultValue={[0]}
-                    value={[progress]}
-                    max={100}
-                    step={0.1}
-                    className="cursor-pointer"
-                    onValueChange={handleSeek}
-                    onPointerDown={handleSeekStart}
-                    onPointerUp={handleSeekEnd}
-                />
-            </div>
+                {/* SEEKER BAR — always visible as thin line, expands on hover */}
+                <div className="absolute bottom-0 left-0 right-0 z-50 px-2 pb-1 pt-4 group">
+                    <div className="flex items-center gap-2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white font-medium drop-shadow-md">
+                        <span>{formatTime(currentTime)}</span>
+                        <div className="flex-1"></div>
+                        <span>{formatTime(duration)}</span>
+                    </div>
 
-            {/* Locked/NSFW Overlay */}
-            {isBlurred && (
-                <div
-                    className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 text-center cursor-pointer backdrop-blur-md"
-                    onClick={handleBlurClick}
-                >
-                    {post.isNSFW && (
-                        <>
-                            <ShieldAlert className="h-16 w-16 text-red-500 mb-4" />
-                            <h2 className="text-xl font-bold text-white mb-2">Sensitive Content</h2>
-                            <Button variant="outline" className="mt-4 border-red-500 text-red-500 hover:bg-red-500/10">
-                                <Eye className="mr-2 h-4 w-4" /> Reveal
-                            </Button>
-                        </>
-                    )}
-                    {!post.isNSFW && post.isSubscriberOnly && (
-                        <>
-                            <Lock className="h-16 w-16 text-yellow-500 mb-4" />
-                            <h2 className="text-xl font-bold text-white mb-2">Subscriber Only</h2>
-                            <Button className="mt-4 bg-[#FE2C55] text-white border-none hover:bg-[#FE2C55]/90">
-                                Subscribe to Watch
-                            </Button>
-                        </>
-                    )}
+                    <Slider
+                        defaultValue={[0]}
+                        value={[progress]}
+                        max={100}
+                        step={0.1}
+                        className="cursor-pointer"
+                        onValueChange={handleSeek}
+                        onPointerDown={handleSeekStart}
+                        onPointerUp={handleSeekEnd}
+                    />
                 </div>
-            )}
+
+                {/* Locked/NSFW Overlay */}
+                {isBlurred && (
+                    <div
+                        className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 text-center cursor-pointer backdrop-blur-md"
+                        onClick={handleBlurClick}
+                    >
+                        {post.isNSFW && (
+                            <>
+                                <ShieldAlert className="h-16 w-16 text-red-500 mb-4" />
+                                <h2 className="text-xl font-bold text-white mb-2">Sensitive Content</h2>
+                                <Button variant="outline" className="mt-4 border-red-500 text-red-500 hover:bg-red-500/10">
+                                    <Eye className="mr-2 h-4 w-4" /> Reveal
+                                </Button>
+                            </>
+                        )}
+                        {!post.isNSFW && post.isSubscriberOnly && (
+                            <>
+                                <Lock className="h-16 w-16 text-yellow-500 mb-4" />
+                                <h2 className="text-xl font-bold text-white mb-2">Subscriber Only</h2>
+                                <Button className="mt-4 bg-[#FE2C55] text-white border-none hover:bg-[#FE2C55]/90">
+                                    Subscribe to Watch
+                                </Button>
+                            </>
+                        )}
+                    </div>
+                )}
+
+            </div>{/* end centered column */}
 
             <SubscriptionDialog
                 isOpen={isSubscriptionDialogOpen}
