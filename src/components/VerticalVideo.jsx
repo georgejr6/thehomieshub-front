@@ -356,117 +356,222 @@ const togglePlayPause = () => {
             data-index={index}
             className="h-[100svh] w-full bg-black snap-start shrink-0 overflow-hidden flex flex-col"
         >
-            {/* MAIN ROW: video + side controls */}
-            <div className="flex-1 min-h-0 relative flex items-end justify-center overflow-hidden">
+            {/* ── MAIN ROW: video + side controls ──────────────────────────── */}
+            <div className="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
 
-            {/* VIDEO AREA — 9:16 portrait, centered, letterboxed on wide screens */}
-            <div
-                className="relative z-10 h-full flex-1 min-w-0 flex items-center justify-center overflow-hidden cursor-pointer"
-                style={{ maxWidth: 'calc(100svh * 9 / 16)' }}
-                onClick={togglePlayPause}
-            >
-                {isMux ? (
-                    <MuxPlayer
-                        ref={videoRef}
-                        playbackId={playbackId}
-                        streamType="on-demand"
-                        poster={muxPoster || post.thumbnail}
-                        loop
-                        muted={isMuted}
-                        playsInline
-                        autoPlay={false}
-                        paused={!isPlaying}
-                        className={cn(
-                            "w-full h-full object-contain",
-                            isBlurred && "opacity-0"
-                        )}
-                        style={{ width: "100%", height: "100%" }}
-                    />
-                ) : (
-                    <video
-                        ref={videoRef}
-                        src={post.videoUrl}
-                        loop
-                        muted={isMuted}
-                        onClick={togglePlayPause}
-                        className={cn(
-                            "w-full h-full object-contain",
-                            isBlurred && "opacity-0"
-                        )}
-                        playsInline
-                        disablePictureInPicture
-                    />
-                )}
-
-                {/* Center Play/Pause Indicator */}
-                <AnimatePresence>
-                    {showPlayPause && !isBlurred && (
-                        <motion.div
-                            initial={{ opacity: 0, scale: 1.5 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 1.5 }}
-                            transition={{ duration: 0.2 }}
-                            className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
-                        >
-                            <div className="bg-black/40 p-5 rounded-full backdrop-blur-sm">
-                                {isPlaying
-                                    ? <Pause className="h-10 w-10 text-white/90" fill="white" />
-                                    : <Play className="h-10 w-10 text-white/90" fill="white" />
-                                }
-                            </div>
-                        </motion.div>
+                {/* VIDEO AREA */}
+                <div
+                    className="relative h-full flex-1 min-w-0 flex items-center justify-center overflow-hidden cursor-pointer"
+                    onClick={togglePlayPause}
+                >
+                    {isMux ? (
+                        <MuxPlayer
+                            ref={videoRef}
+                            playbackId={playbackId}
+                            streamType="on-demand"
+                            poster={muxPoster || post.thumbnail}
+                            loop
+                            muted={isMuted}
+                            playsInline
+                            autoPlay={false}
+                            paused={!isPlaying}
+                            className={cn("w-full h-full object-contain", isBlurred && "opacity-0")}
+                            style={{ width: "100%", height: "100%" }}
+                        />
+                    ) : (
+                        <video
+                            ref={videoRef}
+                            src={post.videoUrl}
+                            loop
+                            muted={isMuted}
+                            className={cn("w-full h-full object-contain", isBlurred && "opacity-0")}
+                            playsInline
+                            disablePictureInPicture
+                        />
                     )}
-                </AnimatePresence>
 
-                {/* FULL VIDEO PILL — shown as soon as we know duration > 3min */}
-                {isLongVideo && !longVideoExpired && !previewExpired && (
-                    <div className="absolute top-4 right-4 z-40 pointer-events-auto">
+                    {/* Center Play/Pause Indicator */}
+                    <AnimatePresence>
+                        {showPlayPause && !isBlurred && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 1.5 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 1.5 }}
+                                transition={{ duration: 0.2 }}
+                                className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+                            >
+                                <div className="bg-black/40 p-5 rounded-full backdrop-blur-sm">
+                                    {isPlaying
+                                        ? <Pause className="h-10 w-10 text-white/90" fill="white" />
+                                        : <Play className="h-10 w-10 text-white/90" fill="white" />
+                                    }
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* NSFW Overlay */}
+                    {isBlurred && (
+                        <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 text-center cursor-pointer backdrop-blur-md" onClick={handleBlurClick}>
+                            <ShieldAlert className="h-16 w-16 text-red-500 mb-4" />
+                            <h2 className="text-xl font-bold text-white mb-2">Sensitive Content</h2>
+                            <Button variant="outline" className="mt-4 border-red-500 text-red-500 hover:bg-red-500/10">
+                                <Eye className="mr-2 h-4 w-4" /> Reveal
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* SUBSCRIBER PAYWALL OVERLAY */}
+                    {previewExpired && post.isSubscriberOnly && !isMember && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/85 backdrop-blur-sm">
+                            <div className="mb-5">
+                                {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-70" />}
+                                <p className="text-[#F0B94D] text-xs font-semibold uppercase tracking-widest mb-1">Members Only</p>
+                                <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Exclusive Content'}</h3>
+                                <p className="text-white/50 text-xs mt-1">@{post.user.username}</p>
+                            </div>
+                            <p className="text-white/70 text-sm mb-5 leading-relaxed">You've watched the free preview.<br/>Become a member to watch in full.</p>
+                            <Button onClick={handlePaywallCTA} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                                Watch Full Video
+                            </Button>
+                            <p className="text-white/30 text-xs mt-4">or <button onClick={() => setPreviewExpired(false)} className="underline hover:text-white/60">rewatch preview</button></p>
+                        </div>
+                    )}
+
+                    {/* LONG VIDEO OVERLAY */}
+                    {longVideoExpired && !previewExpired && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/85 backdrop-blur-sm">
+                            <div className="mb-5">
+                                {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-70" />}
+                                <p className="text-white/50 text-xs font-semibold uppercase tracking-widest mb-1">Long Video</p>
+                                <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Full Video'}</h3>
+                            </div>
+                            <p className="text-white/70 text-sm mb-5 leading-relaxed">Continue watching in Media Mode<br/>for the full experience.</p>
+                            <Button onClick={() => navigate(`/media/${post.id}`)} className="bg-white hover:bg-white/90 text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                                Open in Media Mode
+                            </Button>
+                            <p className="text-white/30 text-xs mt-4">or <button onClick={() => setLongVideoExpired(false)} className="underline hover:text-white/60">keep watching here</button></p>
+                        </div>
+                    )}
+
+                </div>{/* end video area */}
+
+                {/* SIDE CONTROLS — absolute on mobile, relative column on desktop */}
+                <div className="absolute bottom-4 right-2 md:relative md:bottom-auto md:right-auto z-40 flex flex-col items-center gap-5 w-[60px] md:w-[72px] md:self-end md:pb-4 md:shrink-0">
+
+                    <div className="relative mb-1">
+                        <Link to={`/profile/${post.user.username}`} onClick={(e) => e.stopPropagation()}>
+                            <Avatar className="h-12 w-12 border border-white/50 cursor-pointer hover:scale-105 transition-transform">
+                                <AvatarImage src={post.user.avatar} alt={post.user.name} />
+                                <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                        </Link>
+                        {!isFollowing ? (
+                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#FE2C55] rounded-full w-5 h-5 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleInteraction('follow'); }}>
+                                <Plus className="h-3 w-3 text-white font-bold" />
+                            </div>
+                        ) : (
+                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white rounded-full w-5 h-5 flex items-center justify-center">
+                                <Check className="h-3 w-3 text-[#FE2C55]" />
+                            </div>
+                        )}
+                    </div>
+
+                    <button className="flex flex-col items-center gap-1" onClick={(e) => { e.stopPropagation(); handleInteraction('like'); }}>
+                        <Heart className={cn("h-9 w-9 drop-shadow-md transition-all", liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white fill-white/10")} />
+                        <span className="text-xs font-semibold text-white drop-shadow-md">{likeCount}</span>
+                    </button>
+
+                    <CommentsSheet post={post} targetType={commentTargetType} onLoginRequest={onLoginRequest}>
+                        <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <MessageCircle className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
+                            <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.comments}</span>
+                        </button>
+                    </CommentsSheet>
+
+                    <button className="flex flex-col items-center gap-1" onClick={(e) => { e.stopPropagation(); handleInteraction('save'); }}>
+                        <Bookmark className={cn("h-9 w-9 drop-shadow-md", saved ? "fill-yellow-400 text-yellow-400" : "text-white fill-white/10")} />
+                        <span className="text-xs font-semibold text-white drop-shadow-md">{saved ? "Saved" : "Save"}</span>
+                    </button>
+
+                    <ShareDialog postUrl={postUrl} postTitle={post.description}>
+                        <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Share2 className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
+                            <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.shares}</span>
+                        </button>
+                    </ShareDialog>
+
+                    <button onClick={toggleMute} className="flex flex-col items-center gap-1">
+                        <div className="bg-black/20 p-2 rounded-full hover:bg-black/40 transition-colors backdrop-blur-sm">
+                            {isMuted ? <VolumeX className="h-5 w-5 text-white" /> : <Volume2 className="h-5 w-5 text-white" />}
+                        </div>
+                    </button>
+
+                    <div className="mt-1 relative cursor-pointer" onClick={(e) => { e.stopPropagation(); handleUseSound(e); }}>
+                        <div className={cn("h-10 w-10 rounded-full border-[6px] border-[#2F2F2F] bg-[#2F2F2F] flex items-center justify-center overflow-hidden", isPlaying && "animate-spin-slow")}>
+                            <img src={audioTrack.cover} alt="Music" className="h-full w-full object-cover rounded-full" />
+                        </div>
+                    </div>
+
+                </div>{/* end side controls */}
+
+            </div>{/* end main row */}
+
+            {/* ── BOTTOM CHROME — always in view ───────────────────────────── */}
+            <div className="shrink-0 px-4 pt-2 pb-3 pr-[76px] md:pr-[88px]">
+
+                {/* Username row + Full video pill */}
+                <div className="flex items-center justify-between gap-2 mb-1">
+                    <Link
+                        to={`/profile/${post.user.username}`}
+                        className="font-bold text-white text-[17px] drop-shadow-md hover:underline truncate"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        @{post.user.username}
+                    </Link>
+                    {isLongVideo && !longVideoExpired && !previewExpired && (
                         <button
                             onClick={(e) => { e.stopPropagation(); navigate(`/media/${post.id}`); }}
-                            className="flex items-center gap-1.5 bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+                            className="shrink-0 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition-colors backdrop-blur-sm"
                         >
                             <Play className="h-3 w-3 fill-white" />
                             Full video
                         </button>
+                    )}
+                </div>
+
+                {/* Description */}
+                {post.description && (
+                    <div className="text-white/80 text-sm leading-snug mb-1.5">
+                        <span className="break-words">
+                            {isDescExpanded ? post.description : post.description.substring(0, 90) + (post.description.length > 90 ? '…' : '')}
+                        </span>
+                        {post.description.length > 90 && (
+                            <button onClick={(e) => { e.stopPropagation(); setIsDescExpanded(!isDescExpanded); }} className="font-semibold text-white/50 hover:text-white ml-1 text-xs">
+                                {isDescExpanded ? "less" : "more"}
+                            </button>
+                        )}
                     </div>
                 )}
 
-                {/* BOTTOM LEFT METADATA */}
-                <div className="absolute bottom-6 left-0 right-16 md:right-4 p-4 z-40 pointer-events-none mb-1">
-                    <div className="flex flex-col gap-2 items-start pointer-events-auto max-w-[85%]">
-                        <Link to={`/profile/${post.user.username}`} className="font-bold text-white text-[17px] shadow-black drop-shadow-md hover:underline mb-1">
-                            @{post.user.username}
-                        </Link>
-
-                        <div className="text-white/90 text-[15px] leading-snug drop-shadow-md mb-2">
-                            <span className="break-words font-normal">
-                                {isDescExpanded ? post.description : post.description?.substring(0, 80) + (post.description?.length > 80 ? '...' : '')}
-                            </span>
-                            {post.description && post.description.length > 80 && (
-                                <button onClick={() => setIsDescExpanded(!isDescExpanded)} className="font-semibold text-white/70 hover:text-white ml-1 text-sm">
-                                    {isDescExpanded ? "less" : "more"}
-                                </button>
-                            )}
-                        </div>
-
-                        {audioTrack && (
-                            <div className="flex items-center gap-2 mt-1 cursor-pointer" onClick={handleUseSound}>
-                                <Music className="h-3.5 w-3.5 text-white" />
-                                <div className="overflow-hidden w-[200px] h-5 relative">
-                                    <div className="whitespace-nowrap text-[15px] text-white font-medium animate-marquee absolute top-0 left-0">
-                                        {audioTrack.title} • {audioTrack.artist} &nbsp;&nbsp;&nbsp;&nbsp; {audioTrack.title} • {audioTrack.artist}
-                                    </div>
-                                </div>
+                {/* Music ticker */}
+                {audioTrack && (
+                    <div className="flex items-center gap-2 mb-2 cursor-pointer" onClick={handleUseSound}>
+                        <Music className="h-3.5 w-3.5 text-white shrink-0" />
+                        <div className="overflow-hidden w-[180px] h-4 relative">
+                            <div className="whitespace-nowrap text-xs text-white/80 font-medium animate-marquee absolute top-0 left-0">
+                                {audioTrack.title} • {audioTrack.artist} &nbsp;&nbsp;&nbsp; {audioTrack.title} • {audioTrack.artist}
                             </div>
-                        )}
+                        </div>
                     </div>
-                </div>
+                )}
 
-                {/* SEEKER BAR */}
-                <div className="absolute bottom-0 left-0 right-0 z-50 px-2 pb-2 pt-4 group">
-                    <div className="flex items-center gap-2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white font-medium drop-shadow-md">
+                {/* Seeker bar */}
+                <div className="group pt-1">
+                    <div className="flex items-center gap-2 mb-1 text-[10px] text-white/50 font-medium">
                         <span>{formatTime(currentTime)}</span>
-                        <div className="flex-1"></div>
+                        <div className="flex-1" />
                         <span>{formatTime(duration)}</span>
                     </div>
                     <div
@@ -485,208 +590,12 @@ const togglePlayPause = () => {
                         }}
                         onPointerUp={handleSeekEnd}
                     >
-                        <div
-                            className="absolute left-0 top-0 h-full rounded-full bg-yellow-400"
-                            style={{ width: `${progress}%` }}
-                        />
-                        <div
-                            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity -ml-1.5"
-                            style={{ left: `${progress}%` }}
-                        />
+                        <div className="absolute left-0 top-0 h-full rounded-full bg-yellow-400" style={{ width: `${progress}%` }} />
+                        <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity -ml-1.5" style={{ left: `${progress}%` }} />
                     </div>
                 </div>
 
-                {/* NSFW Overlay */}
-                {isBlurred && (
-                    <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 text-center cursor-pointer backdrop-blur-md" onClick={handleBlurClick}>
-                        <ShieldAlert className="h-16 w-16 text-red-500 mb-4" />
-                        <h2 className="text-xl font-bold text-white mb-2">Sensitive Content</h2>
-                        <Button variant="outline" className="mt-4 border-red-500 text-red-500 hover:bg-red-500/10">
-                            <Eye className="mr-2 h-4 w-4" /> Reveal
-                        </Button>
-                    </div>
-                )}
-
-                {/* PREVIEW EXPIRED OVERLAY — mobile full screen */}
-                {previewExpired && post.isSubscriberOnly && !isMember && (
-                    <div className="md:hidden absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/85 backdrop-blur-sm">
-                        <div className="mb-5">
-                            {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-70" />}
-                            <p className="text-[#F0B94D] text-xs font-semibold uppercase tracking-widest mb-1">Members Only</p>
-                            <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Exclusive Content'}</h3>
-                            <p className="text-white/50 text-xs mt-1">@{post.user.username}</p>
-                        </div>
-                        <p className="text-white/70 text-sm mb-5 leading-relaxed">You've watched the free preview.<br/>Become a member to watch in full.</p>
-                        <Button onClick={handlePaywallCTA} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
-                            Watch Full Video
-                        </Button>
-                        <p className="text-white/30 text-xs mt-4">or <button onClick={() => setPreviewExpired(false)} className="underline hover:text-white/60">rewatch preview</button></p>
-                    </div>
-                )}
-
-                {/* PREVIEW EXPIRED OVERLAY — desktop (subtle darken only, CTA lives in strip below) */}
-                {previewExpired && post.isSubscriberOnly && !isMember && (
-                    <div className="hidden md:flex absolute inset-0 z-50 bg-black/60 backdrop-blur-[2px] items-center justify-center">
-                        <div className="flex flex-col items-center gap-2">
-                            <Crown className="h-8 w-8 text-[#F0B94D]" />
-                            <p className="text-white/80 text-sm font-medium">Preview ended — see CTA below</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* LONG VIDEO OVERLAY — mobile full screen */}
-                {longVideoExpired && !previewExpired && (
-                    <div className="md:hidden absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/85 backdrop-blur-sm">
-                        <div className="mb-5">
-                            {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-70" />}
-                            <p className="text-white/50 text-xs font-semibold uppercase tracking-widest mb-1">Long Video</p>
-                            <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Full Video'}</h3>
-                        </div>
-                        <p className="text-white/70 text-sm mb-5 leading-relaxed">Continue watching in Media Mode<br/>for the full experience.</p>
-                        <Button onClick={() => navigate(`/media/${post.id}`)} className="bg-white hover:bg-white/90 text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
-                            Open in Media Mode
-                        </Button>
-                        <p className="text-white/30 text-xs mt-4">or <button onClick={() => setLongVideoExpired(false)} className="underline hover:text-white/60">keep watching here</button></p>
-                    </div>
-                )}
-
-                {/* LONG VIDEO OVERLAY — desktop darken */}
-                {longVideoExpired && !previewExpired && (
-                    <div className="hidden md:flex absolute inset-0 z-50 bg-black/60 backdrop-blur-[2px] items-center justify-center">
-                        <div className="flex flex-col items-center gap-2">
-                            <Play className="h-8 w-8 text-white/70" />
-                            <p className="text-white/80 text-sm font-medium">Continue watching below</p>
-                        </div>
-                    </div>
-                )}
-
-            </div>{/* end video area */}
-
-            {/* SIDE CONTROLS end tag is below */}
-
-            {/* CONTROLS
-                Mobile:  absolute over the video at bottom-right (TikTok style)
-                Desktop: flex column sibling sitting beside the video
-            */}
-            <div className="absolute bottom-20 right-2 md:relative md:bottom-auto md:right-auto z-40 flex flex-col items-center gap-6 w-[60px] md:w-[72px] md:self-end md:pb-20 md:shrink-0">
-
-                {/* Avatar */}
-                <div className="relative mb-2">
-                    <Link to={`/profile/${post.user.username}`} onClick={(e) => e.stopPropagation()}>
-                        <Avatar className="h-12 w-12 border border-white/50 cursor-pointer hover:scale-105 transition-transform">
-                            <AvatarImage src={post.user.avatar} alt={post.user.name} />
-                            <AvatarFallback>{post.user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                    </Link>
-                    {!isFollowing && (
-                        <div
-                            className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#FE2C55] rounded-full w-5 h-5 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleInteraction('follow'); }}
-                        >
-                            <Plus className="h-3 w-3 text-white font-bold" />
-                        </div>
-                    )}
-                    {isFollowing && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white rounded-full w-5 h-5 flex items-center justify-center">
-                            <Check className="h-3 w-3 text-[#FE2C55]" />
-                        </div>
-                    )}
-                </div>
-
-                {/* Like */}
-                <button className="flex flex-col items-center gap-1" onClick={(e) => { e.stopPropagation(); handleInteraction('like'); }}>
-                    <div className="rounded-full transition-transform active:scale-90">
-                        <Heart className={cn("h-9 w-9 drop-shadow-md transition-all", liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white fill-white/10")} />
-                    </div>
-                    <span className="text-xs font-semibold text-white drop-shadow-md">{likeCount}</span>
-                </button>
-
-                {/* Comments */}
-                <CommentsSheet post={post} targetType={commentTargetType} onLoginRequest={onLoginRequest}>
-                    <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <div className="rounded-full transition-transform active:scale-90">
-                            <MessageCircle className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
-                        </div>
-                        <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.comments}</span>
-                    </button>
-                </CommentsSheet>
-
-                {/* Save */}
-                <button className="flex flex-col items-center gap-1" onClick={(e) => { e.stopPropagation(); handleInteraction('save'); }}>
-                    <div className="rounded-full transition-transform active:scale-90">
-                        <Bookmark className={cn("h-9 w-9 drop-shadow-md transition-transform", saved ? "fill-yellow-400 text-yellow-400" : "text-white fill-white/10")} />
-                    </div>
-                    <span className="text-xs font-semibold text-white drop-shadow-md">{saved ? "Saved" : "Save"}</span>
-                </button>
-
-                {/* Share */}
-                <ShareDialog postUrl={postUrl} postTitle={post.description}>
-                    <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <div className="rounded-full transition-transform active:scale-90">
-                            <Share2 className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
-                        </div>
-                        <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.shares}</span>
-                    </button>
-                </ShareDialog>
-
-                {/* Mute */}
-                <button onClick={toggleMute} className="flex flex-col items-center gap-1">
-                    <div className="bg-black/20 p-2 rounded-full hover:bg-black/40 transition-colors backdrop-blur-sm transition-transform active:scale-90">
-                        {isMuted ? <VolumeX className="h-5 w-5 text-white" /> : <Volume2 className="h-5 w-5 text-white" />}
-                    </div>
-                </button>
-
-                {/* Spinning Disc */}
-                <div className="mt-2 relative cursor-pointer" onClick={(e) => { e.stopPropagation(); handleUseSound(e); }}>
-                    <div className={cn("h-10 w-10 rounded-full border-[6px] border-[#2F2F2F] bg-[#2F2F2F] flex items-center justify-center overflow-hidden", isPlaying && "animate-spin-slow")}>
-                        <img src={audioTrack.cover} alt="Music" className="h-full w-full object-cover rounded-full" />
-                    </div>
-                </div>
-            </div>{/* end controls */}
-
-            </div>{/* end main row */}
-
-            {/* DESKTOP CTA STRIP — appears when preview expires */}
-            {previewExpired && post.isSubscriberOnly && !isMember && (
-                <div className="hidden md:flex shrink-0 items-center gap-4 px-6 py-4 bg-zinc-900/95 border-t border-white/10 backdrop-blur-md">
-                    {post.thumbnail && (
-                        <img src={post.thumbnail} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 opacity-80" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                        <p className="text-white font-semibold text-sm truncate">{post.title || post.description?.slice(0, 70) || 'Exclusive Content'}</p>
-                        <p className="text-white/40 text-xs mt-0.5">@{post.user.username} · Members only — subscribe to watch in full</p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => setPreviewExpired(false)} className="text-white/40 hover:text-white/70 text-xs underline">
-                            Rewatch preview
-                        </button>
-                        <Button onClick={handlePaywallCTA} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold h-10 px-5 rounded-xl text-sm">
-                            Watch Full Video →
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* LONG VIDEO DESKTOP CTA STRIP */}
-            {longVideoExpired && !previewExpired && (
-                <div className="hidden md:flex shrink-0 items-center gap-4 px-6 py-4 bg-zinc-900/95 border-t border-white/10 backdrop-blur-md">
-                    {post.thumbnail && (
-                        <img src={post.thumbnail} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 opacity-80" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                        <p className="text-white font-semibold text-sm truncate">{post.title || post.description?.slice(0, 70) || 'Full Video'}</p>
-                        <p className="text-white/40 text-xs mt-0.5">Watch the full video in Media Mode for the best experience</p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => setLongVideoExpired(false)} className="text-white/40 hover:text-white/70 text-xs underline">
-                            Keep watching here
-                        </button>
-                        <Button onClick={() => navigate(`/media/${post.id}`)} className="bg-white hover:bg-white/90 text-black font-bold h-10 px-5 rounded-xl text-sm">
-                            Open in Media Mode →
-                        </Button>
-                    </div>
-                </div>
-            )}
+            </div>{/* end bottom chrome */}
 
             <SubscriptionDialog
                 isOpen={isSubscriptionDialogOpen}
