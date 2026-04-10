@@ -204,28 +204,6 @@ useEffect(() => {
   const el = videoRef.current;
   if (!el) { setIsPlaying(true); return; }
 
-  // readyState < 1 means metadata hasn't loaded yet.
-  // Don't call play() now — it would start buffering at t=0 only for us to
-  // immediately seek away once loadedmetadata fires, causing a double-buffer stall.
-  // Instead set pendingPlayRef; handleSeeked (or handleLoadedMetadata for t=0 videos)
-  // will call play() once the seek has landed.
-  if (el.readyState < 1) {
-    pendingPlayRef.current = true;
-    return;
-  }
-
-  // Metadata already loaded (e.g. cached from a previous render) but start
-  // position hasn't been set yet — seek now, play after seeked fires.
-  if (playbackStartRef.current === null && el.duration > 1) {
-    const start = pickStartTime(post.id, el.duration);
-    playbackStartRef.current = start;
-    if (start > 1) {
-      pendingPlayRef.current = true;
-      el.currentTime = start;
-      return;
-    }
-  }
-
   const p = el.play?.();
   if (p instanceof Promise) {
     p.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
@@ -274,23 +252,15 @@ useEffect(() => {
             if (d > LONG_VIDEO_LIMIT) setIsLongVideo(true);
             const start = pickStartTime(post.id, d);
             playbackStartRef.current = start;
-            if (start > 1) {
-                // Seek first — handleSeeked will call play() once the seek lands,
-                // so the browser only buffers at the correct position (no wasted t=0 fetch).
-                video.currentTime = start;
-            } else {
-                // No seek needed — play immediately if autoplay was waiting
-                if (pendingPlayRef.current && isVisibleRef.current) {
-                    pendingPlayRef.current = false;
-                    video.play?.().then(() => setIsPlaying(true)).catch(() => {});
-                }
-            }
+            // Seeking to a non-zero position on an HLS stream pauses internal buffering.
+            // handleSeeked will call play() again once the seek has landed.
+            video.currentTime = start;
         };
 
+        // HLS seek interrupts playback — resume as soon as the seek lands.
         const handleSeeked = () => {
-            if (pendingPlayRef.current && isVisibleRef.current) {
-                pendingPlayRef.current = false;
-                video.play?.().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+            if (isVisibleRef.current) {
+                video.play?.().then(() => setIsPlaying(true)).catch(() => {});
             }
         };
 
