@@ -336,6 +336,7 @@ const VideoPost = ({ post, isOwnPost = false, onRemove, onUpdate }) => {
                 playsInline
                 autoPlay={false}
                 controls={false}
+                preload="none"
               />
             ) : (
               <video

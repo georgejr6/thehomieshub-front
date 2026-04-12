@@ -176,6 +176,10 @@ const commentTargetType =
             setLongVideoExpired(false);
             playbackStartRef.current = null;
             pendingPlayRef.current = false;
+            // Reset currentTime so gate elapsed starts from 0 on return.
+            // Without this, elapsed = currentTime - null(0) fires immediately
+            // if the video had already played past the gate threshold.
+            try { if (videoRef.current) videoRef.current.currentTime = 0; } catch (_) {}
         }
     }, [isVisible]);
 
@@ -238,8 +242,8 @@ useEffect(() => {
                 setPreviewExpired(true);
                 return;
             }
-            // 3-minute gate — long-form videos prompt media mode
-            if (video.duration > LONG_VIDEO_LIMIT && elapsed >= LONG_VIDEO_LIMIT) {
+            // 3-minute gate — nudge anonymous visitors to media mode (logged-in users watch freely)
+            if (!user && video.duration > LONG_VIDEO_LIMIT && elapsed >= LONG_VIDEO_LIMIT) {
                 video.pause?.();
                 setIsPlaying(false);
                 setLongVideoExpired(true);
@@ -250,11 +254,16 @@ useEffect(() => {
             const d = video.duration || 0;
             setDuration(d);
             if (d > LONG_VIDEO_LIMIT) setIsLongVideo(true);
+            // Only seek to a random start point when this video is the visible one.
+            // Seeking on a non-visible HLS stream wastes a segment fetch and stalls buffering.
+            if (!isVisibleRef.current) return;
             const start = pickStartTime(post.id, d);
             playbackStartRef.current = start;
-            // Seeking to a non-zero position on an HLS stream pauses internal buffering.
-            // handleSeeked will call play() again once the seek has landed.
-            video.currentTime = start;
+            if (start > 0) {
+                // Seeking to a non-zero position on an HLS stream pauses internal buffering.
+                // handleSeeked will call play() again once the seek has landed.
+                video.currentTime = start;
+            }
         };
 
         // HLS seek interrupts playback — resume as soon as the seek lands.
@@ -280,7 +289,7 @@ useEffect(() => {
             video.removeEventListener('play', handlePlay);
             video.removeEventListener('pause', handlePause);
         };
-    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly, startFraction]);
+    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly, startFraction, !!user]);
 
     const handleSeek = (value) => {
         const newTime = (value[0] / 100) * duration;
@@ -482,7 +491,7 @@ const togglePlayPause = () => {
                             playsInline
                             autoPlay={false}
                             paused={!isPlaying}
-                            preload="metadata"
+                            preload={isVisible ? "auto" : "none"}
                             className={cn("w-full h-full object-contain", isBlurred && "opacity-0")}
                             style={{ width: "100%", height: "100%" }}
                         />
@@ -495,7 +504,7 @@ const togglePlayPause = () => {
                             className={cn("w-full h-full object-contain", isBlurred && "opacity-0")}
                             playsInline
                             disablePictureInPicture
-                            preload="metadata"
+                            preload={isVisible ? "auto" : "none"}
                         />
                     )}
 
@@ -570,7 +579,13 @@ const togglePlayPause = () => {
                             <Button onClick={handleMediaMode} className="bg-white hover:bg-white/90 text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
                                 Open in Media Mode
                             </Button>
-                            <p className="text-white/30 text-xs mt-4">or <button onClick={() => setLongVideoExpired(false)} className="underline hover:text-white/60">keep watching here</button></p>
+                            <p className="text-white/30 text-xs mt-4">or <button onClick={() => {
+                                // Reset elapsed so the gate doesn't immediately re-trigger
+                                playbackStartRef.current = videoRef.current?.currentTime ?? 0;
+                                setLongVideoExpired(false);
+                                videoRef.current?.play?.().catch(() => {});
+                                setIsPlaying(true);
+                            }} className="underline hover:text-white/60">keep watching here</button></p>
                         </div>
                     )}
 
