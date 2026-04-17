@@ -203,10 +203,6 @@ const Header = ({
         )}
 
         {user ? <>
-            <div className="hidden md:block">
-                <DonateDialog />
-            </div>
-
             {/* Wallet button visible on mobile now */}
             {walletAccess.status !== 'hidden' && (
                 <Button variant="ghost" size="icon" onClick={handleWalletClick} disabled={walletAccess.status === 'blurred'}>
@@ -256,7 +252,6 @@ const Header = ({
               </DropdownMenuContent>
             </DropdownMenu>
           </> : <>
-             {!isMobile && <DonateDialog />}
             <Button onClick={onLoginClick} size={isMobile ? "sm" : "default"}>
               <User className={cn("mr-2 h-4 w-4", isMobile ? "mr-0" : "")} />
               {!isMobile && "Sign In"}
