@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, Send, Bot, Sparkles, BrainCircuit, X, ChevronLeft, StopCircle, HelpCircle, ArrowRight, MessageSquare } from 'lucide-react';
+import { Mic, Send, Bot, Sparkles, BrainCircuit, X, ChevronLeft, StopCircle, HelpCircle, ArrowRight, MessageSquare, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '@/api/homieshub';
 
 const MyAIPage = () => {
@@ -80,6 +80,65 @@ const MyAIPage = () => {
       setInputValue(text);
       if(inputRef.current) inputRef.current.focus();
   };
+
+  if (!user) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#0a0a0a] text-white overflow-hidden flex flex-col font-sans">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-900/20 via-black to-black z-0 pointer-events-none" />
+        <header className="relative z-10 flex items-center justify-between p-4 border-b border-white/5 bg-black/40 backdrop-blur-md">
+          <Button variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10" onClick={() => navigate(-1)}>
+            <ChevronLeft className="h-6 w-6" />
+          </Button>
+          <div className="flex flex-col items-center">
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-cyan-400" />
+              <span className="font-bold tracking-wider text-sm">AI ASSISTANT</span>
+            </div>
+            <span className="text-[10px] text-cyan-300/70 tracking-widest uppercase">Knowledge & Directory</span>
+          </div>
+          <div className="w-10" />
+        </header>
+
+        <div className="flex-1 flex flex-col items-center justify-center relative z-10 px-6 text-center gap-6">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4 }}
+            className="flex flex-col items-center gap-6 max-w-md"
+          >
+            <div className="w-16 h-16 rounded-full bg-cyan-950 border border-cyan-500/30 flex items-center justify-center">
+              <Lock className="h-7 w-7 text-cyan-400" />
+            </div>
+
+            <div className="p-5 bg-zinc-900 border border-white/10 rounded-2xl text-left flex gap-4">
+              <Avatar className="h-9 w-9 bg-cyan-950 border border-white/10 shrink-0">
+                <Bot className="h-5 w-5 text-cyan-400" />
+              </Avatar>
+              <p className="text-sm md:text-base text-zinc-100 leading-relaxed">
+                You can't use the AI if you aren't logged in — sign up and become a member to get access.
+              </p>
+            </div>
+
+            <Link to="/memberships">
+              <Button size="lg" className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold gap-2">
+                <Sparkles className="h-4 w-4" />
+                Sign Up & Become a Member
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+
+        <div className="p-4 bg-black border-t border-white/10 relative z-10">
+          <div className="max-w-3xl mx-auto flex items-center gap-3 opacity-40 pointer-events-none select-none">
+            <div className="h-12 w-12 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
+              <Mic className="h-5 w-5 text-zinc-400" />
+            </div>
+            <div className="flex-1 h-12 rounded-2xl bg-zinc-900 border border-white/10" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-[#0a0a0a] text-white overflow-hidden flex flex-col font-sans">
