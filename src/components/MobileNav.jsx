@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Compass, Plus, Play, Menu } from 'lucide-react';
+import { Home, Play, Plus, Tv, Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,7 @@ const MobileNav = ({ onPostClick, onLoginRequest, onMenuClick }) => {
         <nav className="fixed bottom-0 left-0 right-0 h-16 bg-background/95 backdrop-blur-xl border-t border-border flex items-center justify-around z-50 px-2 pb-safe shadow-lg">
             <MobileNavItem to="/" icon={Home} label="Home" />
 
-            <MobileNavItem to="/explore" icon={Compass} label="Explore" featureKey="explore" />
+            <MobileNavItem to="/browse" icon={Play} label="Browse" />
 
             <div className="flex items-center justify-center -mt-6">
                 {createPostAccess.status !== 'hidden' && (
@@ -88,7 +88,7 @@ const MobileNav = ({ onPostClick, onLoginRequest, onMenuClick }) => {
                     animate={isMediaActive && isPlaying ? { scale: [1, 1.15, 1] } : { scale: 1 }}
                     transition={{ duration: 0.8, repeat: isMediaActive && isPlaying ? Infinity : 0, ease: 'easeInOut' }}
                 >
-                    <Play
+                    <Tv
                         className={cn("h-6 w-6 relative z-10", isMediaActive && "fill-current")}
                         strokeWidth={isMediaActive ? 2.5 : 2}
                     />

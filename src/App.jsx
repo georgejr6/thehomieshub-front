@@ -44,6 +44,8 @@ import AdminLayout from '@/pages/admin/AdminLayout';
 import TermsPage from '@/pages/TermsPage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import CommunityGuidelinesPage from '@/pages/CommunityGuidelinesPage';
+import LandingPage from '@/pages/LandingPage';
+import MembershipsPage from '@/pages/MembershipsPage';
 import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
 
@@ -126,7 +128,7 @@ const MainLayout = ({
           <div className="flex-1">
              <Outlet />
           </div>
-          {!isImmersiveMode && !location.pathname.startsWith('/live-stream') && location.pathname !== '/' && <Footer />}
+          {!isImmersiveMode && !location.pathname.startsWith('/live-stream') && location.pathname !== '/browse' && location.pathname !== '/' && <Footer />}
         </main>
       </div>
 
@@ -299,7 +301,9 @@ const AppContent = React.memo(() => {
                 handleLoginRequest={handleLoginRequest}
                 handleOpenPostModal={handleOpenPostModal}
             />}>
-                <Route path="/" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
+                <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
+                <Route path="/browse" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
+                <Route path="/memberships" element={<MembershipsPage />} />
                 
                 <Route path="/explore" element={
                     <FeatureGuard feature="explore">

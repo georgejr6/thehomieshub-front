@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, FileText, Heart, Mail } from 'lucide-react';
+import { Shield, FileText, Heart, Mail, Crown } from 'lucide-react';
 
 const Footer = () => {
     const currentYear = new Date().getFullYear();
@@ -38,6 +38,11 @@ const Footer = () => {
                             <li>
                                 <Link to="/community-guidelines" className="hover:text-primary flex items-center gap-2">
                                     <Heart className="h-3 w-3" /> Guidelines
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/memberships" className="hover:text-primary flex items-center gap-2">
+                                    <Crown className="h-3 w-3" /> Memberships
                                 </Link>
                             </li>
                             <li>
