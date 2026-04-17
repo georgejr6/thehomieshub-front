@@ -179,13 +179,18 @@ const Header = ({
         {/* Discord + YouTube — desktop only */}
         <div className="hidden md:flex items-center gap-1">
           <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-[#5865F2]" title="Join our Discord">
+            <Button variant="ghost" size="icon" className="text-[#5865F2] hover:text-[#5865F2] hover:bg-[#5865F2]/10" title="Join our Discord">
               <DiscordIcon className="h-5 w-5" />
             </Button>
           </a>
           <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-[#FF0000]" title="YouTube Channel">
+            <Button variant="ghost" size="icon" className="text-[#FF0000] hover:text-[#FF0000] hover:bg-[#FF0000]/10" title="YouTube Channel">
               <YouTubeIcon className="h-5 w-5" />
+            </Button>
+          </a>
+          <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4" target="_blank" rel="noopener noreferrer">
+            <Button variant="ghost" size="icon" className="text-[#22c55e] hover:text-[#22c55e] hover:bg-[#22c55e]/10" title="Donate">
+              <DollarSign className="h-5 w-5" />
             </Button>
           </a>
         </div>

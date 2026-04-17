@@ -4,8 +4,10 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Play, Compass, Radio, Users, Library, Swords,
-  Crown, Bot, ArrowRight, Shield, FileText, Mail, Heart
+  Crown, Bot, ArrowRight, Shield, FileText, Mail, Heart, DollarSign
 } from 'lucide-react';
+
+const DonateIcon = ({ className }) => <DollarSign className={className} />;
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -157,15 +159,21 @@ const LandingPage = ({ onLoginRequest }) => {
               {/* Community links */}
               <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
                 <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer">
-                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-[#5865F2] hover:bg-[#5865F2]/10 gap-2">
+                  <Button variant="ghost" size="sm" className="text-[#5865F2] bg-[#5865F2]/10 hover:bg-[#5865F2]/20 gap-2">
                     <DiscordIcon className="h-4 w-4" />
                     Join Discord
                   </Button>
                 </a>
                 <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer">
-                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-[#FF0000] hover:bg-[#FF0000]/10 gap-2">
+                  <Button variant="ghost" size="sm" className="text-[#FF0000] bg-[#FF0000]/10 hover:bg-[#FF0000]/20 gap-2">
                     <YouTubeIcon className="h-4 w-4" />
                     YouTube
+                  </Button>
+                </a>
+                <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4" target="_blank" rel="noopener noreferrer">
+                  <Button variant="ghost" size="sm" className="text-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/20 gap-2">
+                    <DonateIcon className="h-4 w-4" />
+                    Donate
                   </Button>
                 </a>
               </div>
@@ -213,9 +221,15 @@ const LandingPage = ({ onLoginRequest }) => {
                   <Link to="/memberships">See Memberships</Link>
                 </Button>
                 <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer">
-                  <Button size="lg" variant="outline" className="border-[#5865F2]/40 text-[#5865F2] hover:bg-[#5865F2]/10 gap-2">
+                  <Button size="lg" variant="outline" className="border-[#5865F2]/50 text-[#5865F2] bg-[#5865F2]/10 hover:bg-[#5865F2]/20 gap-2">
                     <DiscordIcon className="h-5 w-5" />
                     Join Discord
+                  </Button>
+                </a>
+                <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4" target="_blank" rel="noopener noreferrer">
+                  <Button size="lg" variant="outline" className="border-[#22c55e]/50 text-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/20 gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Donate
                   </Button>
                 </a>
                 <Button
@@ -252,13 +266,18 @@ const LandingPage = ({ onLoginRequest }) => {
                 <h5 className="text-sm font-semibold">Follow Us</h5>
                 <ul className="space-y-1 text-sm text-muted-foreground">
                   <li>
-                    <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer" className="hover:text-[#5865F2] flex items-center gap-1">
+                    <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer" className="text-[#5865F2] hover:text-[#5865F2]/80 flex items-center gap-1">
                       <DiscordIcon className="h-3 w-3" /> Discord
                     </a>
                   </li>
                   <li>
-                    <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer" className="hover:text-[#FF0000] flex items-center gap-1">
+                    <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer" className="text-[#FF0000] hover:text-[#FF0000]/80 flex items-center gap-1">
                       <YouTubeIcon className="h-3 w-3" /> YouTube
+                    </a>
+                  </li>
+                  <li>
+                    <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4" target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#22c55e]/80 flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" /> Donate
                     </a>
                   </li>
                 </ul>
