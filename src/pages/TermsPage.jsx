@@ -169,8 +169,8 @@ const TermsPage = () => {
             <Section number="12" title="Contact">
               <p>
                 For legal inquiries, please contact{' '}
-                <a href="mailto:legal@homieshub.com" className="text-primary hover:underline">
-                  legal@homieshub.com
+                <a href="mailto:contact@thehomies.app" className="text-primary hover:underline">
+                  contact@thehomies.app
                 </a>.
               </p>
             </Section>
