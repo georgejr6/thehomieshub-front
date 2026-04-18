@@ -7,7 +7,7 @@ import api from '@/api/homieshub';
 // Plans available on Stripe (card)
 const STRIPE_PLANS = [
   { plan: 'homies', billingCycle: 'monthly', label: 'Homies Monthly',  price: '$15',  note: '/mo',   popular: true },
-  { plan: 'homies', billingCycle: 'yearly',  label: 'Homies Yearly',   price: '$144', note: '/yr — $12/mo' },
+  { plan: 'homies', billingCycle: 'yearly',  label: 'Homies Yearly',   price: '$100', note: '/yr — save $80' },
   { plan: 'nomad',  billingCycle: 'monthly', label: 'Nomad Monthly',   price: '$100', note: '/mo' },
   { plan: 'nomad',  billingCycle: 'yearly',  label: 'Nomad Yearly',    price: '$840', note: '/yr — $70/mo' },
 ];
@@ -17,7 +17,7 @@ const CASHAPP_PLANS = [
   { key: 'homies_monthly', label: 'Homies Monthly',        price: '$15',  note: '/mo' },
   { key: 'homies_3mo',     label: 'Homies 3 Months',       price: '$39',  note: ' — $13/mo' },
   { key: 'homies_6mo',     label: 'Homies 6 Months',       price: '$72',  note: ' — $12/mo' },
-  { key: 'homies_yearly',  label: 'Homies Yearly',         price: '$144', note: ' — $12/mo' },
+  { key: 'homies_yearly',  label: 'Homies Yearly',         price: '$100', note: ' — save $80' },
   { key: 'nomad_monthly',  label: 'Nomad Monthly',         price: '$100', note: '/mo' },
   { key: 'nomad_3mo',      label: 'Nomad 3 Months',        price: '$270', note: ' — $90/mo' },
   { key: 'nomad_6mo',      label: 'Nomad 6 Months',        price: '$480', note: ' — $80/mo' },
