@@ -437,7 +437,7 @@ const MediaApp = () => {
             <div className="relative z-10 -mt-24 pb-36 space-y-8 px-4 md:pl-12">
               {activeCategory === 'home' && (
                 <>
-                  {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} />}
+                  {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} isGrid />}
                   {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}
                   {allTracks.length > 0 && <MediaRow title="Music" items={allTracks} />}
                   {newVideos.length > 0 && <MediaRow title="New on DIGITVL" items={newVideos} onPlay={playVideo} />}
@@ -452,7 +452,7 @@ const MediaApp = () => {
               )}
               {activeCategory === 'videos' && (
                 <>
-                  {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} />}
+                  {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} isGrid />}
                   {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}
                   {newVideos.length > 0 && <MediaRow title="New Releases" items={newVideos} onPlay={playVideo} />}
                   {movies.length > 0 && <MediaRow title="Movies" items={movies} onPlay={playVideo} />}

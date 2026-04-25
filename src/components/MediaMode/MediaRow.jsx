@@ -6,15 +6,16 @@ import { AddToPlaylistModal } from './PlaylistModals';
 import { cn } from '@/lib/utils';
 
 // ── Card — clean inline hover, no floating popup ─────────────────────────────
-const MediaCard = ({ item, isRanked, rank, onPlay, onInfo }) => {
+const MediaCard = ({ item, isRanked, rank, onPlay, onInfo, fullWidth = false }) => {
   const { isLiked, toggleLike } = useMedia();
   const [isHovered, setIsHovered] = useState(false);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
 
   return (
     <div className={cn(
-      "relative flex-none",
-      isRanked ? "w-[200px] md:w-[240px]" : "w-[180px] md:w-[220px]"
+      "relative",
+      fullWidth ? "w-full" : "flex-none",
+      !fullWidth && (isRanked ? "w-[200px] md:w-[240px]" : "w-[180px] md:w-[220px]")
     )}>
       {/* Rank number */}
       {isRanked && (
@@ -113,7 +114,7 @@ const MediaCard = ({ item, isRanked, rank, onPlay, onInfo }) => {
 };
 
 // ── Row ───────────────────────────────────────────────────────────────────────
-const MediaRow = ({ title, items, isRanked = false, onPlay, onInfo }) => {
+const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onInfo }) => {
   const rowRef = useRef(null);
   const { playMedia } = useMedia();
   const handlePlay = onPlay || playMedia;
@@ -132,31 +133,15 @@ const MediaRow = ({ title, items, isRanked = false, onPlay, onInfo }) => {
   if (!items || items.length === 0) return null;
 
   return (
-    <div className="mb-6 relative group/row">
+    <div className="mb-8 relative group/row">
       <h2 className="text-lg md:text-xl font-bold text-white mb-3 px-0.5 inline-flex items-center gap-1.5 cursor-pointer hover:text-zinc-300 transition-colors">
         {title}
         <ChevronRight className="h-4 w-4 opacity-0 group-hover/row:opacity-100 transition-opacity text-zinc-400" />
       </h2>
 
-      <div className="relative group">
-        {/* Left arrow */}
-        <button
-          className={cn(
-            "absolute left-0 top-0 bottom-0 z-40 w-10 flex items-center justify-center bg-black/70 hover:bg-black/90 transition-all duration-200",
-            showLeftArrow ? "opacity-0 group-hover:opacity-100" : "opacity-0 pointer-events-none"
-          )}
-          onClick={() => scroll('left')}
-        >
-          <ChevronLeft className="h-6 w-6 text-white" />
-        </button>
-
-        {/* Scroll container — no extra py padding needed with inline hover */}
-        <div
-          ref={rowRef}
-          onScroll={handleScroll}
-          className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth py-2 px-0.5"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
+      {isGrid ? (
+        /* Grid layout — wraps into multiple rows */
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {items.map((item, index) => (
             <MediaCard
               key={item.id}
@@ -165,18 +150,49 @@ const MediaRow = ({ title, items, isRanked = false, onPlay, onInfo }) => {
               rank={index + 1}
               onPlay={handlePlay}
               onInfo={onInfo}
+              fullWidth
             />
           ))}
         </div>
+      ) : (
+        /* Horizontal scroll row */
+        <div className="relative group">
+          <button
+            className={cn(
+              "absolute left-0 top-0 bottom-0 z-40 w-10 flex items-center justify-center bg-black/70 hover:bg-black/90 transition-all duration-200",
+              showLeftArrow ? "opacity-0 group-hover:opacity-100" : "opacity-0 pointer-events-none"
+            )}
+            onClick={() => scroll('left')}
+          >
+            <ChevronLeft className="h-6 w-6 text-white" />
+          </button>
 
-        {/* Right arrow */}
-        <button
-          className="absolute right-0 top-0 bottom-0 z-40 w-10 flex items-center justify-center bg-black/70 hover:bg-black/90 opacity-0 group-hover:opacity-100 transition-all duration-200"
-          onClick={() => scroll('right')}
-        >
-          <ChevronRight className="h-6 w-6 text-white" />
-        </button>
-      </div>
+          <div
+            ref={rowRef}
+            onScroll={handleScroll}
+            className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth py-2 px-0.5"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {items.map((item, index) => (
+              <MediaCard
+                key={item.id}
+                item={item}
+                isRanked={isRanked}
+                rank={index + 1}
+                onPlay={handlePlay}
+                onInfo={onInfo}
+              />
+            ))}
+          </div>
+
+          <button
+            className="absolute right-0 top-0 bottom-0 z-40 w-10 flex items-center justify-center bg-black/70 hover:bg-black/90 opacity-0 group-hover:opacity-100 transition-all duration-200"
+            onClick={() => scroll('right')}
+          >
+            <ChevronRight className="h-6 w-6 text-white" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
