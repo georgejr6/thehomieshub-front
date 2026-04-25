@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import MonetizationTab from '@/components/CreatorStudio/MonetizationTab';
+import UploadMomentModal from '@/components/UploadReelModal';
 import { useAuth } from '@/contexts/AuthContext';
 import BackButton from '@/components/BackButton';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +33,7 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   // Live tab state
   const [liveHistory, setLiveHistory] = useState([]);
@@ -196,10 +198,11 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
             <p className="text-muted-foreground mt-1">Manage your content, analytics, and earnings all in one place.</p>
           </div>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={() => setUploadOpen(true)}>
           <Upload className="h-4 w-4" />
           Upload Content
         </Button>
+        <UploadMomentModal isOpen={uploadOpen} onOpenChange={setUploadOpen} />
       </div>
 
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
