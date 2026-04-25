@@ -99,10 +99,13 @@ const MediaCard = ({ item, isRanked, rank, onPlay, onInfo }) => {
         </motion.div>
       </motion.div>
 
-      {/* Below-card title (always visible, not hovered) */}
-      {!isHovered && (
-        <p className="mt-1.5 px-0.5 text-zinc-400 text-xs truncate">{item.title}</p>
-      )}
+      {/* Below-card info — always visible */}
+      <div className="mt-2 px-0.5 space-y-0.5">
+        <p className="text-white text-xs font-semibold truncate leading-tight">{item.title}</p>
+        {item.duration && item.duration !== '0:00' && (
+          <p className="text-zinc-500 text-[10px]">{item.duration}</p>
+        )}
+      </div>
 
       <AddToPlaylistModal isOpen={isAddToPlaylistOpen} onClose={() => setIsAddToPlaylistOpen(false)} mediaToAdd={item} />
     </div>

@@ -13,6 +13,42 @@ import VideoPlayer from './VideoPlayer';
 import { cn } from '@/lib/utils';
 import { FROGZ_PLANS } from '@/lib/frogzApi';
 
+// ── Auto-categorize videos into binge-worthy rows ────────────────────────────
+function buildSmartRows(allVideos) {
+  if (!allVideos || allVideos.length === 0) return [];
+  const rows = [];
+
+  // Genre rows — up to 5 genres with 2+ items
+  const genreMap = {};
+  allVideos.forEach(v => {
+    (v.genres || []).forEach(g => {
+      if (!genreMap[g]) genreMap[g] = [];
+      genreMap[g].push(v);
+    });
+  });
+  Object.entries(genreMap)
+    .filter(([, items]) => items.length >= 2)
+    .slice(0, 5)
+    .forEach(([genre, items]) => rows.push({ title: genre, items }));
+
+  // Short watches — under 10 minutes
+  const shortClips = allVideos.filter(v => v.durationSecs > 0 && v.durationSecs < 600);
+  if (shortClips.length >= 2) rows.push({ title: 'Quick Watches', items: shortClips });
+
+  // Feature length — over 30 minutes
+  const longForm = allVideos.filter(v => v.durationSecs >= 1800);
+  if (longForm.length >= 2) rows.push({ title: 'Feature Length', items: longForm });
+
+  // Most watched — top by view count
+  const popular = [...allVideos]
+    .filter(v => (v.viewCount || 0) > 0)
+    .sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0))
+    .slice(0, 10);
+  if (popular.length >= 2) rows.push({ title: 'Most Watched', items: popular });
+
+  return rows;
+}
+
 // ── Mux still URLs at key timestamps ─────────────────────────────────────────
 function getMuxSlides(muxPlaybackId) {
   if (!muxPlaybackId) return [];
@@ -197,6 +233,12 @@ const MediaApp = () => {
   }, [heroItem, heroIsVideo, allTracks, featuredVideo, newVideos, trendingVideos]);
 
   const isLoading = catalogLoading || videoLoading;
+
+  // ── Smart auto-categories from all video content ──────────────────────────
+  const smartVideoRows = useMemo(() => {
+    const pool = [...trendingVideos, ...newVideos, ...movies, ...series, ...hhVideos];
+    return buildSmartRows(pool);
+  }, [trendingVideos, newVideos, movies, series, hhVideos]);
 
   const handleFeaturedPlay = useCallback(() => {
     if (!heroItem) return;
@@ -403,6 +445,9 @@ const MediaApp = () => {
                   {allTracks.length >= 5 && <MediaRow title="Top 10 Tracks" items={allTracks.slice(0, 10)} isRanked />}
                   {series.length > 0 && <MediaRow title="Series" items={series} onPlay={playVideo} />}
                   {genreRows.map(({ genre, items }) => <MediaRow key={genre} title={genre} items={items} />)}
+                  {smartVideoRows.map(({ title, items }) => (
+                    <MediaRow key={title} title={title} items={items} onPlay={playVideo} />
+                  ))}
                 </>
               )}
               {activeCategory === 'videos' && (
@@ -413,6 +458,9 @@ const MediaApp = () => {
                   {movies.length > 0 && <MediaRow title="Movies" items={movies} onPlay={playVideo} />}
                   {movies.length >= 5 && <MediaRow title="Top 10 Movies" items={movies.slice(0, 10)} isRanked onPlay={playVideo} />}
                   {series.length > 0 && <MediaRow title="Series" items={series} onPlay={playVideo} />}
+                  {smartVideoRows.map(({ title, items }) => (
+                    <MediaRow key={title} title={title} items={items} onPlay={playVideo} />
+                  ))}
                   {!videoLoading && !trendingVideos.length && !newVideos.length && !movies.length && !hhVideos.length && (
                     <div className="text-center py-20 text-zinc-500">
                       <Film className="w-12 h-12 mx-auto mb-4 text-zinc-700" />
