@@ -12,11 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
     Video, MessageSquare, BarChart2, MapPin, Image as ImageIcon, PlusCircle, Trash2,
-    ArrowLeft, Radio, Film, Upload, X, Hash, Loader2, FileVideo, ZoomIn, Calendar,
+    ArrowLeft, Radio, Film, Upload, UploadCloud, X, Hash, Loader2, FileVideo, ZoomIn, Calendar,
     Clock, DollarSign, Coins, ShieldAlert, Crown, Info, Camera, Aperture, Database,
     Map, Mic, AlertCircle, RefreshCw, StopCircle, Disc, Monitor, Music, Play, Pause,
     Check, Plane, Users, Globe
 } from 'lucide-react';
+import UploadMomentModal from '@/components/UploadReelModal';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useContent } from '@/contexts/ContentContext';
@@ -1719,14 +1720,19 @@ const TripForm = ({ onChange }) => {
 
 const PostModal = ({ isOpen, onOpenChange, initialPostType }) => {
     const [postType, setPostType] = useState(initialPostType);
+    const [mediaUploadOpen, setMediaUploadOpen] = useState(false);
+    const { user } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => { if (isOpen) setPostType(initialPostType); }, [isOpen, initialPostType]);
 
     const handleGoLive = () => { onOpenChange(false); navigate('/go-live'); };
     const handlePostSuccess = () => { onOpenChange(false); setPostType(null); };
+    const handleMediaUpload = () => { onOpenChange(false); setMediaUploadOpen(true); };
 
     return (
+        <>
+        <UploadMomentModal isOpen={mediaUploadOpen} onOpenChange={setMediaUploadOpen} />
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) setPostType(null); onOpenChange(open); }}>
             <DialogContent className="sm:max-w-3xl p-0 gap-0 data-[state=open]:h-[90vh] data-[state=open]:max-h-[900px] flex flex-col overflow-hidden bg-background">
                 <AnimatePresence mode="wait">
@@ -1743,6 +1749,9 @@ const PostModal = ({ isOpen, onOpenChange, initialPostType }) => {
                                 <PostTypeButton icon={MapPin} label="Trip" onClick={() => setPostType('trip')} active={postType === 'trip'} />
                                 <PostTypeButton icon={Calendar} label="Event" onClick={() => setPostType('event')} active={postType === 'event'} />
                                 <PostTypeButton icon={Aperture} label="Mint a Moment" onClick={() => setPostType('mint')} special={true} />
+                                {user?.isAdmin && (
+                                    <PostTypeButton icon={UploadCloud} label="Upload to Media Mode" onClick={handleMediaUpload} special={true} />
+                                )}
                             </div>
                         </motion.div>
                     ) : (
@@ -1753,6 +1762,7 @@ const PostModal = ({ isOpen, onOpenChange, initialPostType }) => {
                 </AnimatePresence>
             </DialogContent>
         </Dialog>
+        </>
     );
 };
 
