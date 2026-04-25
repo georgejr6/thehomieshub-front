@@ -218,6 +218,7 @@ const MediaApp = () => {
 
   // ── Slideshow slides for hero ─────────────────────────────────────────────
   const heroSlides = useMemo(() => {
+    if (heroItem?.backdropImages?.length > 0) return heroItem.backdropImages;
     if (heroItem?.muxPlaybackId) return getMuxSlides(heroItem.muxPlaybackId);
     // For music tab or when no Mux id: cycle covers from available catalog
     if (!heroIsVideo) {

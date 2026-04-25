@@ -151,6 +151,7 @@ export const MediaProvider = ({ children }) => {
           muxPlaybackId: playbackId,
           cover:         item.thumbnailUrl || item.thumbnail || (playbackId ? `https://image.mux.com/${playbackId}/thumbnail.png?width=400` : ''),
           backdropUrl:   playbackId ? `https://image.mux.com/${playbackId}/thumbnail.png?width=1280` : '',
+          backdropImages: Array.isArray(item.backdropImages) ? item.backdropImages : [],
           mediaKind:     'video',
           backendType,
           user:          item.creator,

@@ -1,687 +1,474 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { useContent } from '@/contexts/ContentContext';
-import { useMedia } from '@/contexts/MediaContext';
-import { Upload, X, FileVideo, Loader2, Film, Hash, ChevronDown, ChevronUp, Music, Play, Pause, Check, AlertTriangle } from 'lucide-react';
+import {
+  UploadCloud, Film, ImagePlus, X, CheckCircle2,
+  Loader2, Hash, ChevronDown, ChevronUp, AlertCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import api from '@/api/homieshub';
 
-const TrackItem = ({ track, onSelect, isSelected }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef(null);
+// ── Image upload helper (HH S3 endpoint) ─────────────────────────────────────
+async function uploadImageToS3(file, folder = 'thumbnails') {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await api.post(`/files/upload?folder=${folder}`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data?.result?.url || res.data?.url;
+}
 
-  const togglePreview = (e) => {
-    e.stopPropagation();
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        document.querySelectorAll('audio').forEach(el => {
-            if(el !== audioRef.current) el.pause(); 
-        });
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
+// ── Thumbnail picker ──────────────────────────────────────────────────────────
+const ThumbnailPicker = ({ preview, onFile, onClear, loading }) => {
+  const ref = useRef();
   return (
-    <div 
-        className={cn(
-            "flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 cursor-pointer transition-colors group border border-transparent",
-            isSelected && "bg-zinc-800/80 border-primary/30"
+    <div className="space-y-2">
+      <Label className="text-sm text-zinc-300 font-medium">Thumbnail</Label>
+      <p className="text-xs text-zinc-500">JPG, PNG, WebP · 16:9 recommended</p>
+      <div className="flex gap-3 items-start">
+        {preview ? (
+          <div className="relative group w-44 h-[99px] rounded-lg overflow-hidden border border-zinc-700 flex-shrink-0">
+            <img src={preview} alt="Thumbnail" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <button onClick={() => ref.current.click()} className="text-white text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded">Change</button>
+              <button onClick={onClear} className="text-white"><X className="w-4 h-4" /></button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => ref.current.click()}
+            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) onFile(f); }}
+            onDragOver={e => e.preventDefault()}
+            className="w-44 h-[99px] rounded-lg border-2 border-dashed border-zinc-700 hover:border-zinc-500 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer flex-shrink-0"
+          >
+            {loading
+              ? <Loader2 className="w-6 h-6 text-zinc-500 animate-spin" />
+              : <><ImagePlus className="w-6 h-6 text-zinc-500" /><span className="text-xs text-zinc-500">Upload thumbnail</span></>}
+          </button>
         )}
-        onClick={() => onSelect(track)}
-    >
-        <div className="relative h-12 w-12 rounded overflow-hidden bg-zinc-800 shrink-0">
-            <img src={track.cover} alt={track.title} className="h-full w-full object-cover" />
-            <button 
-                onClick={togglePreview}
-                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-                {isPlaying ? <Pause className="h-5 w-5 text-white fill-current" /> : <Play className="h-5 w-5 text-white fill-current" />}
-            </button>
-            <audio ref={audioRef} src={track.audioUrl || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"} onEnded={() => setIsPlaying(false)} />
-        </div>
-        
-        <div className="flex-1 min-w-0">
-            <h4 className={cn("text-sm font-semibold truncate", isSelected ? "text-primary" : "text-white")}>{track.title}</h4>
-            <p className="text-xs text-zinc-400 truncate">{track.artist}</p>
-        </div>
-
-        <div className="text-xs text-zinc-500 font-mono">
-            {track.duration}
-        </div>
-        
-        {isSelected && <Check className="h-4 w-4 text-primary ml-2" />}
+        <input ref={ref} type="file" accept="image/*" className="hidden"
+          onChange={e => { if (e.target.files[0]) onFile(e.target.files[0]); }} />
+      </div>
     </div>
   );
 };
 
-const MusicPickerModal = ({ isOpen, onClose, onSelect, selectedTrack }) => {
-    const { newReleases, likedMedia } = useMedia();
-    const [activeTab, setActiveTab] = useState('trending');
+// ── Backdrop image picker ─────────────────────────────────────────────────────
+const BackdropPicker = ({ images, onChange, disabled }) => {
+  const ref = useRef();
+  const [uploading, setUploading] = useState(false);
+  const { toast } = useToast();
 
-    const trendingMusic = [...newReleases].sort(() => Math.random() - 0.5);
-    const likedMusic = likedMedia.filter(item => item.type === 'audio');
+  const handleFile = async (file) => {
+    if (!file.type.startsWith('image/')) return;
+    setUploading(true);
+    try {
+      const url = await uploadImageToS3(file, 'backdrops');
+      onChange([...images, url]);
+    } catch {
+      toast({ title: 'Image upload failed', variant: 'destructive' });
+    } finally {
+      setUploading(false);
+      if (ref.current) ref.current.value = '';
+    }
+  };
 
-    return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            {/* Added max-h-[85vh] and flex col to fix mobile overflow issues */}
-            <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800 text-white p-0 gap-0 overflow-hidden max-h-[85vh] flex flex-col">
-                <DialogHeader className="px-6 py-4 border-b border-zinc-800 shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-lg">
-                        <Music className="h-5 w-5 text-primary" />
-                        Select Audio
-                    </DialogTitle>
-                </DialogHeader>
-                
-                {/* Changed h-[450px] to flex-1 to handle dynamic height on mobile */}
-                <Tabs defaultValue="trending" value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col flex-1 min-h-0">
-                    <div className="px-6 pt-4 shrink-0">
-                        <TabsList className="grid w-full grid-cols-3 bg-zinc-900">
-                            <TabsTrigger value="trending">Trending</TabsTrigger>
-                            <TabsTrigger value="new">New</TabsTrigger>
-                            <TabsTrigger value="liked">Liked</TabsTrigger>
-                        </TabsList>
-                    </div>
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm text-zinc-300 font-medium">Backdrop Slideshow</Label>
+      <p className="text-xs text-zinc-500">
+        Images that cycle as the hero background when featured. Leave empty to auto-use video frames.
+      </p>
 
-                    <ScrollArea className="flex-1 px-6 py-4">
-                        <TabsContent value="trending" className="mt-0 space-y-1">
-                            {trendingMusic.map((track) => (
-                                <TrackItem 
-                                    key={`trending-${track.id}`} 
-                                    track={track} 
-                                    onSelect={(t) => { onSelect(t); onClose(); }} 
-                                    isSelected={selectedTrack?.id === track.id}
-                                />
-                            ))}
-                        </TabsContent>
-                        
-                        <TabsContent value="new" className="mt-0 space-y-1">
-                             {newReleases.map((track) => (
-                                <TrackItem 
-                                    key={`new-${track.id}`} 
-                                    track={track} 
-                                    onSelect={(t) => { onSelect(t); onClose(); }} 
-                                    isSelected={selectedTrack?.id === track.id}
-                                />
-                            ))}
-                        </TabsContent>
-                        
-                        <TabsContent value="liked" className="mt-0 space-y-1">
-                            {likedMusic.length > 0 ? (
-                                likedMusic.map((track) => (
-                                    <TrackItem 
-                                        key={`liked-${track.id}`} 
-                                        track={track} 
-                                        onSelect={(t) => { onSelect(t); onClose(); }} 
-                                        isSelected={selectedTrack?.id === track.id}
-                                    />
-                                ))
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-10 text-zinc-500">
-                                    <p className="text-sm">No liked songs found.</p>
-                                    <p className="text-xs">Go to Music Mode to like songs!</p>
-                                </div>
-                            )}
-                        </TabsContent>
-                    </ScrollArea>
-                </Tabs>
-            </DialogContent>
-        </Dialog>
-    );
+      {images.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {images.map((url, i) => (
+            <div key={url + i} className="relative group w-28 h-16 rounded-lg overflow-hidden border border-zinc-700 flex-shrink-0">
+              <img src={url} alt={`Backdrop ${i + 1}`} className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onChange(images.filter((_, idx) => idx !== i))}
+                className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+              >
+                <X className="w-3 h-3 text-white" />
+              </button>
+              <span className="absolute bottom-1 left-1.5 text-white text-[10px] bg-black/60 px-1 rounded">{i + 1}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div>
+        <input ref={ref} type="file" accept="image/*" className="hidden"
+          onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); }} />
+        <Button
+          type="button"
+          onClick={() => ref.current.click()}
+          disabled={uploading || disabled}
+          className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 text-xs h-8 px-3"
+        >
+          {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <ImagePlus className="w-3.5 h-3.5 mr-1.5" />}
+          Add image
+        </Button>
+      </div>
+    </div>
+  );
 };
 
-const NSFWConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
-    const [isConfirmed, setIsConfirmed] = useState(false);
-
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-            <DialogContent className="sm:max-w-md border-red-900/50 bg-zinc-950">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-red-500">
-                        <AlertTriangle className="h-5 w-5" />
-                        NSFW Content Rules
-                    </DialogTitle>
-                    <DialogDescription>
-                        You are marking this content as NSFW (18+). Please review the rules carefully.
-                    </DialogDescription>
-                </DialogHeader>
-                
-                <ScrollArea className="h-[200px] rounded-md border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-300 relative z-0">
-                    <ul className="list-disc pl-4 space-y-2">
-                        <li><strong>Strictly Prohibited:</strong> Child Sexual Abuse Material (CSAM) is illegal and will be reported to authorities immediately.</li>
-                        <li><strong>Consent is Mandatory:</strong> Non-consensual content (revenge porn) is strictly forbidden.</li>
-                        <li><strong>No Violence:</strong> Sexual violence, rape, or exploitation is not allowed.</li>
-                        <li><strong>Tagging:</strong> You must accurately tag this content. Misleading tags may result in account suspension.</li>
-                    </ul>
-                </ScrollArea>
-
-                {/* Added relative z-10 to ensure checkbox is clickable on mobile */}
-                <div className="flex items-center space-x-2 py-4 relative z-10">
-                    <Checkbox id="nsfw-confirm" checked={isConfirmed} onCheckedChange={setIsConfirmed} />
-                    <label
-                        htmlFor="nsfw-confirm"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white pl-2"
-                    >
-                        I confirm this content complies with The Homies Hub NSFW rules.
-                    </label>
-                </div>
-
-                <DialogFooter>
-                    <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button 
-                        variant="destructive" 
-                        onClick={onConfirm} 
-                        disabled={!isConfirmed}
-                    >
-                        Confirm NSFW
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-};
-
+// ── Main modal ────────────────────────────────────────────────────────────────
 const UploadMomentModal = ({ isOpen, onOpenChange }) => {
   const { toast } = useToast();
-  const { user } = useAuth();
-  const { addReel } = useContent();
-  
-  const [file, setFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
+
+  // phase: idle | details | uploading | done
+  const [phase, setPhase] = useState('idle');
+  const [videoFile, setVideoFile] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+
   const [title, setTitle] = useState('');
-  const [caption, setCaption] = useState('');
+  const [description, setDescription] = useState('');
+  const [contentType, setContentType] = useState('reel'); // 'reel' | 'video'
   const [hashtags, setHashtags] = useState([]);
-  const [currentHashtag, setCurrentHashtag] = useState('');
-  const [areTagsExpanded, setAreTagsExpanded] = useState(false);
-  
-  // Music Selection State
-  const [selectedMusic, setSelectedMusic] = useState(null);
-  const [isMusicPickerOpen, setIsMusicPickerOpen] = useState(false);
-  
-  // NSFW State
+  const [hashInput, setHashInput] = useState('');
+  const [tagsExpanded, setTagsExpanded] = useState(false);
   const [isNSFW, setIsNSFW] = useState(false);
-  const [showNSFWModal, setShowNSFWModal] = useState(false);
-  const [nsfwConfirmed, setNsfwConfirmed] = useState(false);
 
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [dragActive, setDragActive] = useState(false);
-  
-  const fileInputRef = useRef(null);
+  const [thumbPreview, setThumbPreview] = useState('');
+  const [thumbUrl, setThumbUrl] = useState('');
+  const [thumbLoading, setThumbLoading] = useState(false);
+  const [backdropImages, setBackdropImages] = useState([]);
 
-  // Reset state when modal closes
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [doneTitle, setDoneTitle] = useState('');
+
+  const fileInputRef = useRef();
+
+  // Reset everything when modal closes
   useEffect(() => {
     if (!isOpen) {
-      const timer = setTimeout(() => {
-        setFile(null);
-        setPreviewUrl(null);
-        setTitle('');
-        setCaption('');
-        setHashtags([]);
-        setCurrentHashtag('');
-        setAreTagsExpanded(false);
-        setUploading(false);
-        setProgress(0);
-        setSelectedMusic(null);
-        setIsNSFW(false);
-        setNsfwConfirmed(false);
+      const t = setTimeout(() => {
+        setPhase('idle'); setVideoFile(null); setDragOver(false);
+        setTitle(''); setDescription(''); setContentType('reel');
+        setHashtags([]); setHashInput(''); setTagsExpanded(false); setIsNSFW(false);
+        setThumbPreview(''); setThumbUrl(''); setThumbLoading(false);
+        setBackdropImages([]); setUploadProgress(0); setDoneTitle('');
       }, 300);
-      return () => clearTimeout(timer);
+      return () => clearTimeout(t);
     }
   }, [isOpen]);
 
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
+  const pickFile = useCallback((file) => {
+    if (!file?.type.startsWith('video/')) {
+      toast({ title: 'Please select a video file', variant: 'destructive' }); return;
     }
+    setVideoFile(file);
+    const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+    setTitle(t => t || name);
+    setPhase('details');
+  }, [toast]);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault(); setDragOver(false); pickFile(e.dataTransfer.files[0]);
+  }, [pickFile]);
+
+  const handleThumbnailFile = async (file) => {
+    setThumbLoading(true);
+    try {
+      const url = await uploadImageToS3(file, 'thumbnails');
+      setThumbPreview(url); setThumbUrl(url);
+    } catch {
+      toast({ title: 'Thumbnail upload failed', variant: 'destructive' });
+    } finally { setThumbLoading(false); }
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleChange = (e) => {
-    e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
-    }
-  };
-
-  const handleFile = (selectedFile) => {
-    if (!selectedFile.type.startsWith('video/')) {
-      toast({
-        title: "❌ Invalid File Type",
-        description: "Please upload a video file (MP4, MOV, etc.).",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (selectedFile.size > 50 * 1024 * 1024) {
-      toast({
-        title: "❌ File Too Large",
-        description: "Maximum file size is 50MB.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setFile(selectedFile);
-    const url = URL.createObjectURL(selectedFile);
-    setPreviewUrl(url);
-  };
-
-  const removeFile = () => {
-    setFile(null);
-    setPreviewUrl(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleHashtagKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ' ' || e.key === ',') {
+  const handleHashKey = (e) => {
+    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
       e.preventDefault();
-      const tag = currentHashtag.trim().replace(/^#/, '');
-      if (tag && !hashtags.includes(tag)) {
-        setHashtags([...hashtags, tag]);
-        setCurrentHashtag('');
-      }
-    } else if (e.key === 'Backspace' && !currentHashtag && hashtags.length > 0) {
-      setHashtags(hashtags.slice(0, -1));
+      const tag = hashInput.trim().replace(/^#/, '');
+      if (tag && !hashtags.includes(tag)) setHashtags(h => [...h, tag]);
+      setHashInput('');
+    } else if (e.key === 'Backspace' && !hashInput && hashtags.length) {
+      setHashtags(h => h.slice(0, -1));
     }
-  };
-
-  const removeHashtag = (tagToRemove) => {
-    setHashtags(hashtags.filter(tag => tag !== tagToRemove));
-  };
-
-  const handleNSFWToggle = (checked) => {
-      if (checked) {
-          setShowNSFWModal(true);
-      } else {
-          setIsNSFW(false);
-          setNsfwConfirmed(false);
-      }
-  };
-
-  const confirmNSFW = () => {
-      setIsNSFW(true);
-      setNsfwConfirmed(true);
-      setShowNSFWModal(false);
-  };
-
-  const cancelNSFW = () => {
-      setIsNSFW(false);
-      setNsfwConfirmed(false);
-      setShowNSFWModal(false);
   };
 
   const handleUpload = async () => {
-    if (!file) return;
-    if (!title.trim()) {
-        toast({
-            title: "⚠️ Title Required",
-            description: "Please give your Moment a title.",
-            variant: "destructive"
-        });
-        return;
-    }
-    if (!caption.trim()) {
-        toast({
-            title: "⚠️ Caption Required",
-            description: "Please add a description for your Moment.",
-            variant: "destructive"
-        });
-        return;
-    }
-    
-    if (isNSFW && !nsfwConfirmed) {
-        toast({
-            title: "⚠️ Confirmation Required",
-            description: "Please confirm NSFW rules.",
-            variant: "destructive"
-        });
-        return;
-    }
-
-    setUploading(true);
-    setProgress(0);
-
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 95) {
-          clearInterval(interval);
-          return 95;
-        }
-        return prev + Math.random() * 10;
-      });
-    }, 300);
-
+    if (!title.trim()) { toast({ title: 'Title is required', variant: 'destructive' }); return; }
+    setPhase('uploading'); setUploadProgress(0);
     try {
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        clearInterval(interval);
-        setProgress(100);
+      // 1. Get Mux upload URL from our backend
+      setUploadProgress(5);
+      const { data } = await api.post('/mux/uploads', {
+        contentType,
+        title: title.trim(),
+        caption: description.trim(),
+        description: description.trim(),
+        hashtags,
+        coverImageUrl: thumbUrl || '',
+        backdropImages,
+      });
+      const muxUploadUrl = data?.result?.upload?.url;
+      if (!muxUploadUrl) throw new Error('No upload URL returned');
 
-        const newReel = {
-            id: Math.random().toString(36).substr(2, 9),
-            videoUrl: previewUrl,
-            title: title,
-            description: caption,
-            user: {
-                name: user.name,
-                username: user.username,
-                avatar: user.avatar,
-                verified: user.verified
-            },
-            engagement: { likes: 0, comments: 0, shares: 0 },
-            tags: hashtags.length > 0 ? hashtags : ['new', 'moment'],
-            isNew: true,
-            isNSFW: isNSFW,
-            music: selectedMusic ? {
-                id: selectedMusic.id,
-                title: selectedMusic.title,
-                artist: selectedMusic.artist,
-                cover: selectedMusic.cover
-            } : null
+      // 2. XHR PUT the video directly to Mux with progress
+      setUploadProgress(10);
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadProgress(10 + Math.round((e.loaded / e.total) * 88));
         };
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('Mux upload failed')));
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.open('PUT', muxUploadUrl);
+        xhr.send(videoFile);
+      });
 
-        addReel(newReel);
-
-        toast({
-            title: "✅ Upload Successful!",
-            description: "Your Moment is now live on the Explore feed.",
-        });
-
-        onOpenChange(false);
-
-    } catch (error) {
-        console.error("Upload failed:", error);
-        toast({
-            title: "❌ Upload Failed",
-            description: "Something went wrong. Please try again.",
-            variant: "destructive"
-        });
-    } finally {
-        setUploading(false);
+      setUploadProgress(100);
+      setDoneTitle(title.trim());
+      setPhase('done');
+    } catch (err) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      setPhase('details');
     }
   };
 
-  const displayedHashtags = areTagsExpanded ? hashtags : hashtags.slice(0, 5);
-  const hasMoreTags = hashtags.length > 5;
+  const handleReset = () => {
+    setPhase('idle'); setVideoFile(null);
+    setTitle(''); setDescription(''); setHashtags([]); setHashInput('');
+    setThumbPreview(''); setThumbUrl(''); setBackdropImages([]);
+    setUploadProgress(0); setDoneTitle('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const displayedTags = tagsExpanded ? hashtags : hashtags.slice(0, 5);
 
   return (
-    <>
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Film className="h-5 w-5 text-primary" />
-              Upload Moment
-            </DialogTitle>
-            <DialogDescription>
-              Share your latest adventures with a vertical video.
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto bg-zinc-950 border-zinc-800 text-white p-0">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-zinc-800">
+          <DialogTitle className="flex items-center gap-2 text-white text-lg">
+            <Film className="w-5 h-5 text-zinc-400" />
+            Upload Video
+          </DialogTitle>
+        </DialogHeader>
 
-          <div className="space-y-5 py-4">
-            {!file ? (
-              <div 
-                className={cn(
-                  "border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors min-h-[200px]",
-                  dragActive ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50 hover:bg-muted/50"
-                )}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
+        <div className="px-6 py-5">
+
+          {/* ── IDLE: drop zone ── */}
+          {phase === 'idle' && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onClick={() => fileInputRef.current.click()}
+                className={cn(
+                  "flex flex-col items-center justify-center w-full h-64 rounded-2xl border-2 border-dashed cursor-pointer transition-all select-none",
+                  dragOver ? "border-white/50 bg-white/5" : "border-zinc-700 hover:border-zinc-500 bg-zinc-900"
+                )}
               >
-                <div className="bg-muted rounded-full p-4 mb-4">
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="font-semibold text-lg mb-1">Drag & drop or click to upload</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  MP4, MOV or WEBM. Vertical format recommended (9:16).
-                </p>
-                <Button size="sm" variant="secondary">Select File</Button>
-                <input 
-                  ref={fileInputRef}
-                  type="file" 
-                  className="hidden" 
-                  accept="video/*"
-                  onChange={handleChange}
-                />
+                <UploadCloud className={cn("w-14 h-14 mb-4 transition-colors", dragOver ? "text-white" : "text-zinc-600")} />
+                <p className="text-white text-lg font-semibold mb-1">Drag & drop your video here</p>
+                <p className="text-zinc-500 text-sm mb-5">MP4, MOV, AVI, MKV, WebM</p>
+                <Button className="bg-white text-black hover:bg-white/90 font-semibold px-6">Select file</Button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Preview Area */}
-                <div className="relative rounded-lg overflow-hidden bg-black aspect-[9/16] max-h-[250px] mx-auto w-full flex items-center justify-center">
-                  <video 
-                    src={previewUrl} 
-                    className="max-h-full max-w-full object-contain"
-                    controls 
-                  />
-                  <Button 
-                    size="icon" 
-                    variant="destructive" 
-                    className="absolute top-2 right-2 h-8 w-8 rounded-full z-10"
-                    onClick={removeFile}
-                    disabled={uploading}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  
-                  {/* Music Overlay (Preview) */}
-                  {selectedMusic && (
-                     <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md rounded-lg p-2 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="h-8 w-8 rounded bg-zinc-800 overflow-hidden shrink-0">
-                            <img src={selectedMusic.cover} className="h-full w-full object-cover" alt="Music" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                             <p className="text-xs font-bold text-white truncate">{selectedMusic.title}</p>
-                             <p className="text-[10px] text-zinc-300 truncate">{selectedMusic.artist}</p>
-                        </div>
-                        <button onClick={() => setSelectedMusic(null)} className="text-zinc-400 hover:text-white p-1">
-                            <X className="h-4 w-4" />
+              <input ref={fileInputRef} type="file" accept="video/*" className="hidden"
+                onChange={e => pickFile(e.target.files[0])} />
+            </div>
+          )}
+
+          {/* ── DETAILS: form ── */}
+          {phase === 'details' && (
+            <div className="flex flex-col lg:flex-row gap-8">
+
+              {/* Left: form */}
+              <div className="flex-1 min-w-0 space-y-5">
+                {/* File info */}
+                <div className="flex items-center gap-2 text-sm text-zinc-400 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2">
+                  <Film className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate flex-1">{videoFile?.name}</span>
+                  <span className="whitespace-nowrap text-xs">{videoFile ? (videoFile.size / (1024 * 1024)).toFixed(1) + ' MB' : ''}</span>
+                  <button onClick={handleReset} className="text-zinc-600 hover:text-zinc-400"><X className="w-4 h-4" /></button>
+                </div>
+
+                {/* Content type */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-zinc-300 font-medium">Type</Label>
+                  <div className="flex gap-2">
+                    {['reel', 'video'].map(t => (
+                      <button key={t} type="button"
+                        onClick={() => setContentType(t)}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg text-sm font-medium border transition-colors capitalize",
+                          contentType === t ? "bg-white text-black border-white" : "bg-zinc-900 text-zinc-400 border-zinc-700 hover:border-zinc-500"
+                        )}>
+                        {t === 'reel' ? 'Reel (short)' : 'Video (long)'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-zinc-300 font-medium">Title <span className="text-red-500">*</span></Label>
+                  <Input value={title} onChange={e => setTitle(e.target.value)}
+                    placeholder="Give your video a title"
+                    className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 h-11 focus:border-zinc-400" />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-zinc-300 font-medium">Description</Label>
+                  <textarea value={description} onChange={e => setDescription(e.target.value)}
+                    placeholder="Tell viewers what this is about" rows={3}
+                    className="w-full rounded-md bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-zinc-400" />
+                </div>
+
+                {/* Thumbnail */}
+                <ThumbnailPicker
+                  preview={thumbPreview}
+                  onFile={handleThumbnailFile}
+                  onClear={() => { setThumbPreview(''); setThumbUrl(''); }}
+                  loading={thumbLoading}
+                />
+
+                {/* Backdrop slideshow */}
+                <BackdropPicker
+                  images={backdropImages}
+                  onChange={setBackdropImages}
+                  disabled={false}
+                />
+
+                {/* Hashtags */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-zinc-300 font-medium">Hashtags</Label>
+                  <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 focus-within:border-zinc-400">
+                    <Hash className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                    <input
+                      value={hashInput}
+                      onChange={e => setHashInput(e.target.value)}
+                      onKeyDown={handleHashKey}
+                      placeholder="Add tags (Enter or comma)"
+                      className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-600 outline-none"
+                    />
+                  </div>
+                  {hashtags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {displayedTags.map(tag => (
+                        <span key={tag} className="flex items-center gap-1 bg-zinc-800 text-zinc-300 text-xs px-2.5 py-1 rounded-full border border-zinc-700">
+                          #{tag}
+                          <button onClick={() => setHashtags(h => h.filter(t => t !== tag))}
+                            className="hover:text-red-400"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                      {hashtags.length > 5 && (
+                        <button onClick={() => setTagsExpanded(v => !v)}
+                          className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-0.5">
+                          {tagsExpanded ? <><ChevronUp className="w-3 h-3" />Less</> : <><ChevronDown className="w-3 h-3" />+{hashtags.length - 5} more</>}
                         </button>
-                     </div>
-                  )}
-                </div>
-
-                {/* File Info */}
-                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 p-2 rounded-md border border-muted">
-                  <FileVideo className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate flex-1">{file.name}</span>
-                  <span className="whitespace-nowrap">{(file.size / (1024 * 1024)).toFixed(1)} MB</span>
-                </div>
-                
-                <div className="grid gap-4">
-                  {/* Title Field */}
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Title</Label>
-                    <Input 
-                      id="title"
-                      placeholder="Give your Moment a title" 
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      disabled={uploading}
-                    />
-                  </div>
-
-                  {/* Caption Field */}
-                  <div className="space-y-2">
-                    <Label htmlFor="caption">Caption</Label>
-                    <Textarea 
-                      id="caption"
-                      placeholder="Write a catchy description..." 
-                      value={caption}
-                      onChange={(e) => setCaption(e.target.value)}
-                      disabled={uploading}
-                      rows={3}
-                    />
-                  </div>
-                  
-                  {/* Add Audio Button */}
-                   <div className="space-y-2">
-                        <Label>Audio</Label>
-                        <Button 
-                            type="button" 
-                            variant="outline" 
-                            className="w-full justify-start text-muted-foreground hover:text-primary"
-                            onClick={() => setIsMusicPickerOpen(true)}
-                        >
-                            <Music className="mr-2 h-4 w-4" />
-                            {selectedMusic ? `${selectedMusic.title} - ${selectedMusic.artist}` : "Add Audio Track"}
-                        </Button>
-                   </div>
-
-                  {/* Hashtags Field */}
-                  <div className="space-y-2">
-                    <Label htmlFor="hashtags">Hashtags</Label>
-                    <div className="relative">
-                      <Hash className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        id="hashtags"
-                        placeholder="Add tags (press Enter or Space)" 
-                        value={currentHashtag}
-                        onChange={(e) => setCurrentHashtag(e.target.value)}
-                        onKeyDown={handleHashtagKeyDown}
-                        disabled={uploading}
-                        className="pl-9"
-                      />
-                    </div>
-                    
-                    {/* Hashtag Chips */}
-                    <div className="flex flex-wrap gap-2 min-h-[2rem] items-start">
-                      <AnimatePresence>
-                        {displayedHashtags.map((tag) => (
-                          <motion.span
-                            key={tag}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8 }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium border border-primary/20"
-                          >
-                            #{tag}
-                            <button
-                              type="button"
-                              onClick={() => removeHashtag(tag)}
-                              className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </motion.span>
-                        ))}
-                      </AnimatePresence>
-                      
-                      {hasMoreTags && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setAreTagsExpanded(!areTagsExpanded)}
-                          className="h-7 px-2 text-xs"
-                        >
-                          {areTagsExpanded ? (
-                            <span className="flex items-center gap-1">Show Less <ChevronUp className="h-3 w-3" /></span>
-                          ) : (
-                            <span className="flex items-center gap-1">+{hashtags.length - 5} more <ChevronDown className="h-3 w-3" /></span>
-                          )}
-                        </Button>
                       )}
                     </div>
-                  </div>
-
-                  {/* NSFW Toggle */}
-                  <div className="flex items-center justify-between space-x-2 border border-zinc-800 rounded-lg p-3 bg-zinc-900/50">
-                      <div className="space-y-0.5">
-                          <Label htmlFor="nsfw-mode" className="text-base text-white">NSFW Content</Label>
-                          <p className="text-xs text-zinc-400">Mark this post as 18+ content.</p>
-                      </div>
-                      <Switch 
-                          id="nsfw-mode" 
-                          checked={isNSFW} 
-                          onCheckedChange={handleNSFWToggle}
-                      />
-                  </div>
+                  )}
                 </div>
 
-                {/* Progress Bar */}
-                {uploading && (
-                  <div className="space-y-2 animate-in fade-in slide-in-from-bottom-2 pt-2">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-primary">Uploading...</span>
-                      <span>{Math.round(progress)}%</span>
-                    </div>
-                    <Progress value={progress} className="h-2" />
+                {/* NSFW */}
+                <div className="flex items-center justify-between border border-zinc-800 rounded-lg p-3 bg-zinc-900">
+                  <div>
+                    <p className="text-sm text-white font-medium">NSFW Content</p>
+                    <p className="text-xs text-zinc-500">Mark this as 18+ content</p>
                   </div>
-                )}
+                  <Switch checked={isNSFW} onCheckedChange={setIsNSFW} />
+                </div>
               </div>
-            )}
+
+              {/* Right: preview panel */}
+              <div className="w-full lg:w-64 flex-shrink-0 space-y-4">
+                <div className="rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden">
+                  {thumbPreview
+                    ? <img src={thumbPreview} alt="Preview" className="w-full aspect-video object-cover" />
+                    : <div className="w-full aspect-video bg-zinc-800 flex items-center justify-center">
+                        <Film className="w-10 h-10 text-zinc-700" />
+                      </div>}
+                  <div className="p-3 space-y-1">
+                    <p className="text-white text-sm font-medium truncate">{title || 'Untitled'}</p>
+                    <p className="text-zinc-500 text-xs capitalize">{contentType}</p>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                      <span className="text-xs text-zinc-500">Mux processes after upload</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-4 space-y-2 text-xs text-zinc-500">
+                  <p className="flex items-start gap-2"><AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-yellow-500" />Video sent to Mux — takes 1-3 min to process.</p>
+                  <p className="flex items-start gap-2"><AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-blue-400" />Auto-publishes when ready. Appears in The Homies section of Media Mode.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── UPLOADING: progress ── */}
+          {phase === 'uploading' && (
+            <div className="py-12 space-y-6">
+              <div className="flex items-center gap-3 text-zinc-400">
+                <Film className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm truncate">{videoFile?.name}</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-400">
+                    {uploadProgress < 10 ? 'Creating upload…' : uploadProgress < 98 ? 'Uploading to Mux…' : 'Finalising…'}
+                  </span>
+                  <span className="text-white font-medium">{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-zinc-800 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-white transition-all duration-200" style={{ width: `${uploadProgress}%` }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── DONE ── */}
+          {phase === 'done' && (
+            <div className="flex flex-col items-center justify-center py-16 gap-5 text-center">
+              <CheckCircle2 className="w-16 h-16 text-green-500" />
+              <h2 className="text-2xl font-bold text-white">Upload complete!</h2>
+              <p className="text-zinc-400 max-w-sm">
+                <span className="text-white font-medium">"{doneTitle}"</span> sent to Mux for processing.
+                It will appear in The Homies section of Media Mode within a few minutes.
+              </p>
+              <Button onClick={handleReset} className="bg-white text-black hover:bg-white/90 font-semibold mt-2">
+                Upload another
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {(phase === 'details') && (
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-zinc-800">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}
+              className="text-zinc-400 hover:text-white hover:bg-white/10">
+              Cancel
+            </Button>
+            <Button onClick={handleUpload} disabled={!title.trim()}
+              className="bg-white text-black hover:bg-white/90 font-semibold px-8 disabled:opacity-40">
+              Upload
+            </Button>
           </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-             {file && !uploading && (
-                <Button variant="outline" onClick={removeFile} className="w-full sm:w-auto sm:mr-auto">
-                  Change File
-                </Button>
-             )}
-             <div className="flex gap-2 w-full sm:w-auto">
-                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={uploading} className="flex-1 sm:flex-none">
-                  Cancel
-                </Button>
-                <Button onClick={handleUpload} disabled={!file || uploading} className="flex-1 sm:flex-none min-w-[100px]">
-                  {uploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading
-                    </>
-                  ) : (
-                    'Upload Moment'
-                  )}
-                </Button>
-             </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      <MusicPickerModal 
-        isOpen={isMusicPickerOpen} 
-        onClose={() => setIsMusicPickerOpen(false)} 
-        onSelect={setSelectedMusic} 
-        selectedTrack={selectedMusic}
-      />
-
-      <NSFWConfirmationModal 
-        isOpen={showNSFWModal}
-        onConfirm={confirmNSFW}
-        onCancel={cancelNSFW}
-      />
-    </>
+        )}
+        {phase === 'done' && (
+          <div className="flex justify-end px-6 py-4 border-t border-zinc-800">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-zinc-400 hover:text-white hover:bg-white/10">
+              Close
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 
