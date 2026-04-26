@@ -30,6 +30,10 @@ export const MediaProvider = ({ children }) => {
   // ── HomieshHub Video Catalog ───────────────────────────────────────────────
   const [hhVideos, setHhVideos] = useState([]);
 
+  // ── Admin-managed category rows ────────────────────────────────────────────
+  const [categoryRows,       setCategoryRows]       = useState([]);
+  const [categoryRowsLoading, setCategoryRowsLoading] = useState(true);
+
   // ── Frogz Catalog ─────────────────────────────────────────────────────────
   const [frogzClips,     setFrogzClips]     = useState([]);   // public shorts
   const [frogzFeatured,  setFrogzFeatured]  = useState(null); // paid only
@@ -166,6 +170,17 @@ export const MediaProvider = ({ children }) => {
       setHhVideos(mapped);
     });
   }, []);
+
+  // ── Fetch admin category rows ──────────────────────────────────────────────
+  const fetchCategoryRows = useCallback(() => {
+    setCategoryRowsLoading(true);
+    api.get('/media/categories')
+      .then(({ data }) => setCategoryRows(data?.result?.categories || []))
+      .catch(() => setCategoryRows([]))
+      .finally(() => setCategoryRowsLoading(false));
+  }, []);
+
+  useEffect(() => { fetchCategoryRows(); }, [fetchCategoryRows]);
 
   // ── Create audio element once ──────────────────────────────────────────────
   useEffect(() => {
@@ -336,6 +351,8 @@ export const MediaProvider = ({ children }) => {
       activeCategory, setActiveCategory,
       // HomieshHub videos
       hhVideos,
+      // Admin category rows
+      categoryRows, categoryRowsLoading, fetchCategoryRows,
       // legacy compat
       popularVideos: allTracks,
       newReleases: [...allTracks].slice().reverse(),

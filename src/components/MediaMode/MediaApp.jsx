@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useMedia } from '@/contexts/MediaContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Info, Search, X, Minimize2, ListMusic,
-  Maximize, Loader2, ArrowLeft, Film, Music2, CheckCircle2,
+  Maximize, Loader2, ArrowLeft, Film, Music2, Settings2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ManagePlaylistsModal } from './PlaylistModals';
 import MediaRow from './MediaRow';
 import VideoPlayer from './VideoPlayer';
+import MediaAdminPanel from './MediaAdminPanel';
 import { cn } from '@/lib/utils';
 import { FROGZ_PLANS } from '@/lib/frogzApi';
 
@@ -107,6 +109,7 @@ const BASE_TABS = ['Home', 'Videos', 'Music', 'Likes'];
 const MediaApp = () => {
   const { postId } = useParams();
   const location = useLocation();
+  const { user } = useAuth();
 
   const {
     minimizeMediaMode, exitMediaMode,
@@ -118,7 +121,10 @@ const MediaApp = () => {
     hasFrogzFan, hasFrogzAccess,
     frogzClips, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
     requestFrogzAccess,
+    categoryRows, fetchCategoryRows,
   } = useMedia();
+
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
 
   // ── Auto-play video from vertical feed navigation ─────────────────────────
   useEffect(() => {
@@ -317,6 +323,11 @@ const MediaApp = () => {
           <button onClick={() => setPlaylistManagerOpen(true)} className="hover:text-white text-zinc-300" title="Playlists">
             <ListMusic className="h-5 w-5" />
           </button>
+          {user?.isAdmin && (
+            <button onClick={() => setAdminPanelOpen(true)} className="hover:text-white text-zinc-300" title="Media Manager">
+              <Settings2 className="h-5 w-5" />
+            </button>
+          )}
           <button onClick={toggleFullscreen} className="hover:text-white text-zinc-300 hidden md:block" title="Fullscreen">
             <Maximize className="h-5 w-5" />
           </button>
@@ -438,6 +449,10 @@ const MediaApp = () => {
             <div className="relative z-10 -mt-24 pb-36 space-y-8 px-4 md:pl-12">
               {activeCategory === 'home' && (
                 <>
+                  {/* Admin-managed category rows — shown first when present */}
+                  {categoryRows.map(cat => cat.items.length > 0 && (
+                    <MediaRow key={cat.id} title={cat.name} items={cat.items} onPlay={playVideo} />
+                  ))}
                   {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} isGrid />}
                   {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}
                   {allTracks.length > 0 && <MediaRow title="Music" items={allTracks} />}
@@ -453,6 +468,10 @@ const MediaApp = () => {
               )}
               {activeCategory === 'videos' && (
                 <>
+                  {/* Admin-managed category rows — shown first when present */}
+                  {categoryRows.map(cat => cat.items.length > 0 && (
+                    <MediaRow key={cat.id} title={cat.name} items={cat.items} onPlay={playVideo} />
+                  ))}
                   {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} isGrid />}
                   {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}
                   {newVideos.length > 0 && <MediaRow title="New Releases" items={newVideos} onPlay={playVideo} />}
@@ -462,7 +481,7 @@ const MediaApp = () => {
                   {smartVideoRows.map(({ title, items }) => (
                     <MediaRow key={title} title={title} items={items} onPlay={playVideo} />
                   ))}
-                  {!videoLoading && !trendingVideos.length && !newVideos.length && !movies.length && !hhVideos.length && (
+                  {!videoLoading && !trendingVideos.length && !newVideos.length && !movies.length && !hhVideos.length && !categoryRows.length && (
                     <div className="text-center py-20 text-zinc-500">
                       <Film className="w-12 h-12 mx-auto mb-4 text-zinc-700" />
                       <p>No videos uploaded yet. Check back soon.</p>
@@ -604,6 +623,13 @@ const MediaApp = () => {
       </AnimatePresence>
 
       <ManagePlaylistsModal isOpen={isPlaylistManagerOpen} onClose={() => setPlaylistManagerOpen(false)} />
+
+      {adminPanelOpen && (
+        <MediaAdminPanel
+          onClose={() => setAdminPanelOpen(false)}
+          onCategoriesChange={fetchCategoryRows}
+        />
+      )}
 
       {/* ── Frogz Plan Modal ─────────────────────────────────────────────── */}
       <AnimatePresence>
