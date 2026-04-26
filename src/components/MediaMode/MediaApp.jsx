@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Info, Search, X, Minimize2, ListMusic,
-  Maximize, Loader2, ArrowLeft, Film, Music2, Settings2,
+  Maximize, Loader2, ArrowLeft, Film, Music2, Settings2, CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ManagePlaylistsModal } from './PlaylistModals';
@@ -122,9 +122,13 @@ const MediaApp = () => {
     frogzClips, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
     requestFrogzAccess,
     categoryRows, fetchCategoryRows,
+    refreshHhVideos,
   } = useMedia();
 
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+
+  // Re-fetch HH videos every time Media Mode opens (picks up newly uploaded content)
+  useEffect(() => { refreshHhVideos(); }, []); // eslint-disable-line
 
   // ── Auto-play video from vertical feed navigation ─────────────────────────
   useEffect(() => {

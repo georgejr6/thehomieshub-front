@@ -137,39 +137,39 @@ export const MediaProvider = ({ children }) => {
   }, []);
 
   // ── Fetch HomieshHub videos + reels for media mode library ────────────────
-  useEffect(() => {
+  const normalizeHhItem = useCallback((item, backendType) => {
+    const playbackId = item.muxPlaybackId || null;
+    if (!playbackId) return null;
+    return {
+      id:            item._id || item.id,
+      title:         item.title || item.caption || 'Untitled',
+      description:   item.description || item.caption || '',
+      muxPlaybackId: playbackId,
+      cover:         item.thumbnailUrl || item.thumbnail || `https://image.mux.com/${playbackId}/thumbnail.png?width=400`,
+      backdropUrl:   `https://image.mux.com/${playbackId}/thumbnail.png?width=1280`,
+      backdropImages: Array.isArray(item.backdropImages) ? item.backdropImages : [],
+      mediaKind:     'video',
+      backendType,
+      user:          item.creator,
+    };
+  }, []);
+
+  const refreshHhVideos = useCallback(() => {
     Promise.all([
       api.get('/user/videos', { params: { page: 1, limit: 100 } }).catch(() => null),
       api.get('/user/reels',  { params: { page: 1, limit: 100 } }).catch(() => null),
     ]).then(([vResp, rResp]) => {
       const videos = vResp?.data?.result?.items ?? vResp?.data?.result ?? [];
       const reels  = rResp?.data?.result?.items ?? rResp?.data?.result ?? [];
-
-      const normalize = (item, backendType) => {
-        const playbackId = item.muxPlaybackId || null;
-        if (!playbackId) return null;
-        return {
-          id:            item._id || item.id,
-          title:         item.title || item.caption || 'Untitled',
-          description:   item.description || item.caption || '',
-          muxPlaybackId: playbackId,
-          cover:         item.thumbnailUrl || item.thumbnail || (playbackId ? `https://image.mux.com/${playbackId}/thumbnail.png?width=400` : ''),
-          backdropUrl:   playbackId ? `https://image.mux.com/${playbackId}/thumbnail.png?width=1280` : '',
-          backdropImages: Array.isArray(item.backdropImages) ? item.backdropImages : [],
-          mediaKind:     'video',
-          backendType,
-          user:          item.creator,
-        };
-      };
-
       const mapped = [
-        ...Array.isArray(videos) ? videos.map(v => normalize(v, 'video')) : [],
-        ...Array.isArray(reels)  ? reels.map(r => normalize(r, 'reel'))   : [],
+        ...Array.isArray(videos) ? videos.map(v => normalizeHhItem(v, 'video')) : [],
+        ...Array.isArray(reels)  ? reels.map(r => normalizeHhItem(r, 'reel'))   : [],
       ].filter(Boolean);
-
       setHhVideos(mapped);
     });
-  }, []);
+  }, [normalizeHhItem]);
+
+  useEffect(() => { refreshHhVideos(); }, [refreshHhVideos]);
 
   // ── Fetch admin category rows ──────────────────────────────────────────────
   const fetchCategoryRows = useCallback(() => {
@@ -350,7 +350,7 @@ export const MediaProvider = ({ children }) => {
       playlists, createPlaylist, deletePlaylist, addToPlaylist,
       activeCategory, setActiveCategory,
       // HomieshHub videos
-      hhVideos,
+      hhVideos, refreshHhVideos,
       // Admin category rows
       categoryRows, categoryRowsLoading, fetchCategoryRows,
       // legacy compat
