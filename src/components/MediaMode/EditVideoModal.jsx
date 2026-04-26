@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
-  X, Loader2, ImagePlus, ChevronDown, ChevronUp,
-  Camera, Video, Tag, Check,
+  X, Loader2, ImagePlus,
+  Camera, Tag, Check,
 } from 'lucide-react';
-import MuxPlayer from '@mux/mux-player-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,28 +14,11 @@ const fmt = (s) => { const t = Math.floor(s); return `${Math.floor(t/60)}:${Stri
 // ── Backdrop Editor ───────────────────────────────────────────────────────────
 export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
   const { toast } = useToast();
-  const [showPlayer, setShowPlayer] = useState(false);
-  const [liveTime, setLiveTime] = useState(0);
+  const [pickerSeconds, setPickerSeconds] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const [dropIndex, setDropIndex] = useState(null);
   const fileRef = useRef();
-  const throttleRef = useRef(0);
-  const muxPlayerRef = useRef(null);
-
-  useEffect(() => {
-    if (!showPlayer) return;
-    const el = muxPlayerRef.current;
-    if (!el) return;
-    const handler = () => {
-      const now = Date.now();
-      if (now - throttleRef.current < 250) return;
-      throttleRef.current = now;
-      setLiveTime(el.currentTime || 0);
-    };
-    el.addEventListener('timeupdate', handler);
-    return () => el.removeEventListener('timeupdate', handler);
-  }, [showPlayer]);
 
   const handleDragEnd = () => {
     if (dragIndex !== null && dropIndex !== null && dragIndex !== dropIndex) {
@@ -49,9 +31,9 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
     setDropIndex(null);
   };
 
-  const captureFrame = () => {
+  const addPickedFrame = () => {
     if (!muxPlaybackId) return;
-    const t = Math.round(liveTime);
+    const t = Math.round(pickerSeconds);
     const url = `https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${t}&width=1920`;
     if (images.includes(url)) { toast({ title: 'Frame already added' }); return; }
     onChange([...images, url]);
@@ -74,10 +56,6 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
       if (fileRef.current) fileRef.current.value = '';
     }
   };
-
-  const liveThumbUrl = muxPlaybackId
-    ? `https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${Math.round(liveTime)}&width=320`
-    : null;
 
   return (
     <div className="space-y-4 pt-1">
@@ -109,35 +87,33 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
       )}
 
       {muxPlaybackId && (
-        <div className="rounded-lg border border-[#222] overflow-hidden">
-          <button type="button" onClick={() => setShowPlayer(v => !v)}
-            className="w-full flex items-center justify-between px-3 py-2.5 bg-[#111] hover:bg-[#161616] transition-colors">
-            <div className="flex items-center gap-2 text-xs text-gray-400 font-medium">
-              <Video className="w-3.5 h-3.5" /> Scrub video to pick frames
+        <div className="rounded-lg border border-[#222] bg-[#0a0a0a] p-3 space-y-3">
+          <p className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
+            <Camera className="w-3.5 h-3.5" /> Pick frames from video
+          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-24 h-[54px] rounded-md overflow-hidden border border-[#333] flex-shrink-0 bg-[#111]">
+              <img src={`https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${Math.round(pickerSeconds)}&width=320`}
+                alt="frame preview" className="w-full h-full object-cover" />
             </div>
-            {showPlayer ? <ChevronUp className="w-3.5 h-3.5 text-gray-500" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-500" />}
-          </button>
-          {showPlayer && (
-            <div className="bg-[#0a0a0a] p-3 space-y-3">
-              <div className="rounded-lg overflow-hidden border border-[#222]">
-                <MuxPlayer ref={muxPlayerRef} playbackId={muxPlaybackId} streamType="on-demand"
-                  style={{ width: '100%', aspectRatio: '16/9', display: 'block' }} />
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-24 h-[54px] rounded-md overflow-hidden border border-[#333] flex-shrink-0 bg-[#111]">
-                  {liveThumbUrl && <img src={liveThumbUrl} alt="current frame" className="w-full h-full object-cover" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs font-medium tabular-nums">{fmt(liveTime)}</p>
-                  <p className="text-gray-600 text-[10px]">current position</p>
-                </div>
-                <Button type="button" onClick={captureFrame}
-                  className="bg-blue-500 hover:bg-blue-400 text-black text-xs font-semibold h-8 px-3 flex-shrink-0">
-                  <Camera className="w-3.5 h-3.5 mr-1.5" /> Add frame
-                </Button>
+            <div className="flex-1 space-y-2 min-w-0">
+              <input type="range" min="0" max="3600" step="1"
+                value={pickerSeconds}
+                onChange={e => setPickerSeconds(Number(e.target.value))}
+                className="w-full cursor-pointer accent-blue-500" />
+              <div className="flex items-center gap-2">
+                <span className="text-white text-xs font-mono tabular-nums w-10">{fmt(pickerSeconds)}</span>
+                <input type="number" min="0" max="3600" value={pickerSeconds}
+                  onChange={e => setPickerSeconds(Math.max(0, Math.min(3600, Number(e.target.value) || 0)))}
+                  className="w-16 bg-[#1a1a1a] border border-[#333] text-white text-xs rounded px-2 py-1 text-center focus:outline-none focus:border-blue-500" />
+                <span className="text-gray-600 text-[10px]">sec</span>
               </div>
             </div>
-          )}
+            <Button type="button" onClick={addPickedFrame}
+              className="bg-blue-500 hover:bg-blue-400 text-black text-xs font-semibold h-8 px-3 flex-shrink-0">
+              <Camera className="w-3.5 h-3.5 mr-1.5" /> Add
+            </Button>
+          </div>
         </div>
       )}
 
