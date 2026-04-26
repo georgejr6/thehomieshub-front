@@ -3,15 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { CreditCard, CheckCircle2, Loader2, ExternalLink, Zap } from 'lucide-react';
+import { CreditCard, CheckCircle2, Loader2, ExternalLink, Zap, ArrowRight } from 'lucide-react';
 import { useBilling } from '@/hooks/useBilling';
-
-// summary.activeSubscription shape (from CB backend):
-//   { id, status, current_period_end (unix), price: { id, product_name, unit_amount, currency, interval } }
-// plans[] shape (from /billing/plans):
-//   { id (priceId), lookup_key, unit_amount, currency, interval, product: { name, description }, metadata }
-// invoices[] shape:
-//   { id, status, currency, amount_paid, invoice_pdf, created (unix) }
 
 function fmtDate(unix) {
   if (!unix) return '—';
@@ -19,14 +12,19 @@ function fmtDate(unix) {
 }
 
 function fmtAmount(cents, currency = 'usd') {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-  }).format((cents || 0) / 100);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase() }).format((cents || 0) / 100);
 }
 
-const STATUS_COLORS = {
-  active: 'text-green-500 border-green-500/30 bg-green-500/10',
+// Strip ✅/emoji bullet noise from Stripe product descriptions — keep only the first sentence
+function shortDesc(text) {
+  if (!text) return '';
+  const clean = text.replace(/[✅☑️✔️]/g, '').trim();
+  const firstSentence = clean.split(/[.\n]/)[0].trim();
+  return firstSentence.length > 80 ? firstSentence.slice(0, 77) + '…' : firstSentence;
+}
+
+const STATUS_BADGE = {
+  active:   'text-green-500 border-green-500/30 bg-green-500/10',
   trialing: 'text-blue-400 border-blue-400/30 bg-blue-400/10',
   past_due: 'text-yellow-500 border-yellow-500/30 bg-yellow-500/10',
 };
@@ -61,11 +59,10 @@ export default function BillingSection() {
         <CardDescription>Manage your plan, invoices, and payment methods.</CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-6">
         {loading && (
           <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Loading billing info…
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading billing info…
           </div>
         )}
 
@@ -75,42 +72,40 @@ export default function BillingSection() {
 
         {!loading && !error && (
           <>
-            {/* Current plan row */}
-            <div className="flex items-center justify-between gap-3">
+            {/* ── Current plan ── */}
+            <div className="rounded-lg border border-border bg-secondary/20 p-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wide mb-1">Current Plan</p>
+                <p className="text-[11px] text-muted-foreground uppercase font-semibold tracking-widest mb-1">Current Plan</p>
                 {activeSub ? (
                   <>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold">
+                      <span className="font-bold text-base">
                         {activeSub.price?.product_name || 'Subscription'}
                       </span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[11px] ${STATUS_COLORS[activeSub.status] || 'text-muted-foreground'}`}
-                      >
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                        {activeSub.status}
+                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${STATUS_BADGE[activeSub.status] || ''}`}>
+                        <CheckCircle2 className="w-2.5 h-2.5 mr-1" />{activeSub.status}
                       </Badge>
                     </div>
                     {activeSub.price && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {fmtAmount(activeSub.price.unit_amount, activeSub.price.currency)}/{activeSub.price.interval}
-                        {' · '}Renews {fmtDate(activeSub.current_period_end)}
+                        &nbsp;·&nbsp;Renews {fmtDate(activeSub.current_period_end)}
                       </p>
                     )}
                   </>
                 ) : (
-                  <span className="font-semibold text-muted-foreground">Free</span>
+                  <div>
+                    <span className="font-bold text-base">Free</span>
+                    <p className="text-xs text-muted-foreground mt-1">Upgrade below to unlock full access</p>
+                  </div>
                 )}
               </div>
-
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handlePortal}
                 disabled={portalLoading}
-                className="flex-shrink-0"
+                className="flex-shrink-0 min-w-[90px]"
               >
                 {portalLoading
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -118,66 +113,71 @@ export default function BillingSection() {
               </Button>
             </div>
 
-            {/* Upgrade plans — only if no active subscription */}
+            {/* ── Available plans ── only shown when no active sub */}
             {!activeSub && plans.length > 0 && (
-              <>
-                <Separator />
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wide mb-3 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-yellow-500" />Upgrade your plan
-                  </p>
-                  <div className="grid gap-2">
-                    {plans.map((plan) => (
-                      <div
-                        key={plan.id}
-                        className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30"
-                      >
-                        <div className="min-w-0 mr-4">
-                          <p className="font-medium text-sm">{plan.product?.name || plan.lookup_key || plan.id}</p>
-                          {plan.product?.description && (
-                            <p className="text-xs text-muted-foreground truncate">{plan.product.description}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <span className="text-sm font-semibold whitespace-nowrap">
-                            {fmtAmount(plan.unit_amount, plan.currency)}/{plan.interval || 'mo'}
-                          </span>
-                          <Button
-                            size="sm"
-                            onClick={() => handleCheckout(plan.id)}
-                            disabled={checkoutLoading === plan.id}
-                          >
-                            {checkoutLoading === plan.id
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : 'Upgrade'}
-                          </Button>
-                        </div>
+              <div className="space-y-3">
+                <p className="text-[11px] text-muted-foreground uppercase font-semibold tracking-widest flex items-center gap-1.5">
+                  <Zap className="w-3 h-3 text-yellow-500" />Choose a plan
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  {plans.map((plan) => (
+                    <div
+                      key={plan.id}
+                      className="rounded-lg border border-border bg-secondary/20 p-4 flex flex-col gap-3"
+                    >
+                      <div>
+                        <p className="font-semibold text-sm leading-tight">
+                          {plan.product?.name || plan.lookup_key || plan.id}
+                        </p>
+                        {shortDesc(plan.product?.description) && (
+                          <p className="text-xs text-muted-foreground mt-1 leading-snug">
+                            {shortDesc(plan.product?.description)}
+                          </p>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                      <div className="flex items-center justify-between gap-2 mt-auto">
+                        <div>
+                          <span className="text-lg font-bold">
+                            {fmtAmount(plan.unit_amount, plan.currency)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">/{plan.interval || 'mo'}</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleCheckout(plan.id)}
+                          disabled={checkoutLoading === plan.id}
+                          className="flex-shrink-0"
+                        >
+                          {checkoutLoading === plan.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <>Get started <ArrowRight className="w-3 h-3 ml-1" /></>}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </>
+              </div>
             )}
 
-            {/* Recent invoices */}
+            {/* ── Recent invoices ── */}
             {invoices.length > 0 && (
               <>
                 <Separator />
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wide mb-2">Recent Invoices</p>
-                  <div className="divide-y divide-border">
+                <div className="space-y-2">
+                  <p className="text-[11px] text-muted-foreground uppercase font-semibold tracking-widest">Recent Invoices</p>
+                  <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
                     {invoices.map((inv) => (
-                      <div key={inv.id} className="flex items-center justify-between py-2.5 gap-2">
-                        <div>
+                      <div key={inv.id} className="flex items-center justify-between px-3 py-2.5 bg-secondary/10 gap-3">
+                        <div className="min-w-0">
                           <p className="text-sm font-medium">{fmtAmount(inv.amount_paid, inv.currency)}</p>
                           <p className="text-xs text-muted-foreground">{fmtDate(inv.created)}</p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge
                             variant="outline"
                             className={inv.status === 'paid'
-                              ? 'text-green-500 border-green-500/30 text-[10px]'
-                              : 'text-yellow-500 border-yellow-500/30 text-[10px]'}
+                              ? 'text-green-500 border-green-500/30 text-[10px] px-1.5'
+                              : 'text-yellow-500 border-yellow-500/30 text-[10px] px-1.5'}
                           >
                             {inv.status}
                           </Badge>

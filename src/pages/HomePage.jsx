@@ -5,11 +5,12 @@ import VerticalVideoFeed from '@/components/VerticalVideoFeed';
 import { useContent } from '@/contexts/ContentContext';
 import StoryFeed from '@/components/StoryFeed';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Zap, X } from 'lucide-react';
+import { ChevronRight, Zap, X, CreditCard } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import cbApi from '@/api/centralbilling';
 
 const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
   const { verticalPosts } = useContent();
@@ -20,9 +21,23 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
   );
   const showUpgradePill = user && !isPremium && !upgradeDismissed;
 
+  const [portalLoading, setPortalLoading] = useState(false);
+
   const dismissUpgrade = () => {
     sessionStorage.setItem('hh_upgrade_dismissed', '1');
     setUpgradeDismissed(true);
+  };
+
+  const openBillingPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const { data } = await cbApi.post('/billing/portal', { returnUrl: window.location.href });
+      if (data?.url) window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch {
+      window.open('https://billing.stripe.com/p/login/7sIg1OahI5Yw7le4gg', '_blank', 'noopener,noreferrer');
+    } finally {
+      setPortalLoading(false);
+    }
   };
   
   // Visibility State
@@ -133,22 +148,40 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
                             {/* Inner container for styling consistency */}
                             <div className="bg-black/20 backdrop-blur-sm border-b border-white/5">
                                 <StoryFeed />
-                                {showUpgradePill && (
-                                  <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-t border-white/5">
-                                    <Link
-                                      to="/settings"
-                                      className="flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 font-medium transition-colors"
-                                    >
-                                      <Zap className="w-3 h-3" />
-                                      Upgrade to Plus — unlock media mode &amp; creator tools
-                                    </Link>
-                                    <button
-                                      onClick={dismissUpgrade}
-                                      className="text-white/40 hover:text-white/70 transition-colors flex-shrink-0"
-                                      aria-label="Dismiss"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
+                                {(showUpgradePill || user) && (
+                                  <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-white/5">
+                                    {showUpgradePill ? (
+                                      <Link
+                                        to="/settings"
+                                        className="flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 font-semibold transition-colors"
+                                      >
+                                        <Zap className="w-3 h-3" />
+                                        Upgrade — unlock media mode &amp; creator tools
+                                      </Link>
+                                    ) : (
+                                      <span />
+                                    )}
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      {user && (
+                                        <button
+                                          onClick={openBillingPortal}
+                                          disabled={portalLoading}
+                                          className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors disabled:opacity-50"
+                                        >
+                                          <CreditCard className="w-3 h-3" />
+                                          {portalLoading ? 'Opening…' : 'Manage billing'}
+                                        </button>
+                                      )}
+                                      {showUpgradePill && (
+                                        <button
+                                          onClick={dismissUpgrade}
+                                          className="text-white/30 hover:text-white/60 transition-colors"
+                                          aria-label="Dismiss"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                             </div>
