@@ -5,13 +5,25 @@ import VerticalVideoFeed from '@/components/VerticalVideoFeed';
 import { useContent } from '@/contexts/ContentContext';
 import StoryFeed from '@/components/StoryFeed';
 import { Button } from '@/components/ui/button';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Zap, X } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { Link } from 'react-router-dom';
 
 const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
   const { verticalPosts } = useContent();
+  const { user, isPremium } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const [upgradeDismissed, setUpgradeDismissed] = useState(
+    () => sessionStorage.getItem('hh_upgrade_dismissed') === '1'
+  );
+  const showUpgradePill = user && !isPremium && !upgradeDismissed;
+
+  const dismissUpgrade = () => {
+    sessionStorage.setItem('hh_upgrade_dismissed', '1');
+    setUpgradeDismissed(true);
+  };
   
   // Visibility State
   const [showStories, setShowStories] = useState(true);
@@ -121,6 +133,24 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
                             {/* Inner container for styling consistency */}
                             <div className="bg-black/20 backdrop-blur-sm border-b border-white/5">
                                 <StoryFeed />
+                                {showUpgradePill && (
+                                  <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-t border-white/5">
+                                    <Link
+                                      to="/settings"
+                                      className="flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 font-medium transition-colors"
+                                    >
+                                      <Zap className="w-3 h-3" />
+                                      Upgrade to Plus — unlock media mode &amp; creator tools
+                                    </Link>
+                                    <button
+                                      onClick={dismissUpgrade}
+                                      className="text-white/40 hover:text-white/70 transition-colors flex-shrink-0"
+                                      aria-label="Dismiss"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
                             </div>
                         </motion.div>
                     )}

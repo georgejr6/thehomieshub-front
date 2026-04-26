@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '@/api/homieshub';
+import BillingSection from '@/components/Billing/BillingSection';
 
 const AccountSettingsPage = () => {
   const { user, refreshMe } = useAuth();
@@ -413,6 +414,9 @@ const AccountSettingsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* 5c. Billing & Subscription */}
+      <BillingSection />
 
       {/* 6. Account Management */}
       <Card className="border-red-500/20 shadow-none">
