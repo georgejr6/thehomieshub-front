@@ -109,7 +109,8 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
 
     // Blur logic — only NSFW gets immediate blur; subscriber content uses 60s preview gate
     const [isUnlocked, setIsUnlocked] = useState(false);
-    const isBlurred = post.isNSFW && !isUnlocked;
+    const [localIsNSFW, setLocalIsNSFW] = useState(post.isNSFW);
+    const isBlurred = localIsNSFW && !isUnlocked;
 
     // likes/saves
     const liked = isPostLiked(post.id);
@@ -379,7 +380,7 @@ const togglePlayPause = () => {
         if (!window.confirm(`Delete "${post.title || post.description?.slice(0,40) || 'this video'}"? This cannot be undone.`)) return;
         try {
             await api.delete(`/admin/videos/${post.id}`, {
-                params: { collectionType: post.backendType || 'reel' },
+                params: { collectionType: backendType },
             });
             deletePost(post.id);
             toast({ title: 'Deleted', description: 'Video removed.' });
@@ -393,12 +394,29 @@ const togglePlayPause = () => {
         try {
             await api.patch(`/admin/videos/${post.id}`, {
                 visibility: 'private',
-                _collectionType: post.backendType || 'reel',
+                _collectionType: backendType,
             });
             deletePost(post.id); // remove from local feed
             toast({ title: 'Hidden', description: 'Video set to private.' });
         } catch {
             toast({ title: 'Error', description: 'Failed to hide.', variant: 'destructive' });
+        }
+    };
+
+    const handleAdminToggleNSFW = async (e) => {
+        e.stopPropagation();
+        const next = !localIsNSFW;
+        setLocalIsNSFW(next);
+        if (next) setIsUnlocked(false); // re-blur immediately
+        try {
+            await api.patch(`/admin/videos/${post.id}`, {
+                isNSFW: next,
+                _collectionType: backendType,
+            });
+            toast({ title: next ? 'Marked as NSFW' : 'NSFW removed' });
+        } catch {
+            setLocalIsNSFW(!next); // revert
+            toast({ title: 'Error', description: 'Failed to update.', variant: 'destructive' });
         }
     };
 
@@ -673,6 +691,10 @@ const togglePlayPause = () => {
                                     <>
                                         <DropdownMenuItem onClick={handleAdminHide}>
                                             <EyeOff className="mr-2 h-4 w-4" /> Make Private
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={handleAdminToggleNSFW}>
+                                            <ShieldAlert className="mr-2 h-4 w-4" />
+                                            {localIsNSFW ? 'Remove NSFW' : 'Mark as NSFW / Blur'}
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleAdminDelete}>

@@ -35,6 +35,7 @@ const VideoPlayer = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showInfo,     setShowInfo]     = useState(false);
   const [isScrubbing,  setIsScrubbing]  = useState(false);
+  const [mediaError,   setMediaError]   = useState(false);
   // Visual flash for skip feedback
   const [skipFlash,    setSkipFlash]    = useState(null); // 'back' | 'fwd' | null
 
@@ -79,6 +80,7 @@ const VideoPlayer = () => {
     setCurrentTime(0);
     setDuration(0);
     setBuffered(0);
+    setMediaError(false);
   }, [currentVideo]);
 
   // Auto-hide controls
@@ -171,8 +173,9 @@ const VideoPlayer = () => {
       onTouchStart={resetHide}
     >
       {/* ── MuxPlayer — pointer-events disabled so our overlay owns all clicks ── */}
-      {currentVideo.muxPlaybackId ? (
+      {currentVideo.muxPlaybackId && !mediaError ? (
         <MuxPlayer
+          key={currentVideo.id}
           ref={muxRef}
           playbackId={currentVideo.muxPlaybackId}
           streamType="on-demand"
@@ -186,11 +189,20 @@ const VideoPlayer = () => {
             background: 'black',
           }}
           metadata={{ video_id: currentVideo.id, video_title: currentVideo.title }}
+          onError={() => setMediaError(true)}
         />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 gap-3">
           <X className="w-12 h-12 text-zinc-700" />
-          <p className="text-lg">Video not available</p>
+          <p className="text-lg">{mediaError ? 'Failed to load video' : 'Video not available'}</p>
+          {mediaError && (
+            <button
+              onClick={() => setMediaError(false)}
+              className="text-sm text-zinc-400 border border-zinc-700 px-4 py-1.5 rounded-full hover:border-zinc-400 transition-colors"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 

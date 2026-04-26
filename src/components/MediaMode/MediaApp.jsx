@@ -105,6 +105,7 @@ const HeroBackground = ({ slides, staticFallback }) => {
 };
 
 const BASE_TABS = ['Home', 'Videos', 'Music', 'Likes'];
+const ADMIN_TAB = 'Admin';
 
 const MediaApp = () => {
   const { postId } = useParams();
@@ -125,7 +126,6 @@ const MediaApp = () => {
     refreshHhVideos,
   } = useMedia();
 
-  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
 
   // Re-fetch HH videos every time Media Mode opens (picks up newly uploaded content)
   useEffect(() => { refreshHhVideos(); }, []); // eslint-disable-line
@@ -149,7 +149,11 @@ const MediaApp = () => {
     if (video.muxPlaybackId) playVideo(video);
   }, [postId]); // eslint-disable-line
 
-  const TABS = (hasFrogzFan || hasFrogzAccess) ? [...BASE_TABS, 'private'] : BASE_TABS;
+  const TABS = [
+    ...BASE_TABS,
+    ...(hasFrogzFan || hasFrogzAccess ? ['private'] : []),
+    ...(user?.isAdmin ? [ADMIN_TAB] : []),
+  ];
 
   // ── Frogz plan modal state ────────────────────────────────────────────────
   const [frogzModalOpen,  setFrogzModalOpen]  = useState(false);
@@ -284,9 +288,10 @@ const MediaApp = () => {
             {TABS.map(tab => (
               <li key={tab}
                 className={cn("hover:text-white cursor-pointer transition-colors flex items-center gap-1",
-                  activeCategory === tab && "text-white font-bold")}
+                  activeCategory === tab && "text-white font-bold",
+                  tab === ADMIN_TAB && activeCategory !== ADMIN_TAB && "text-zinc-500 hover:text-zinc-300")}
                 onClick={() => setActiveCategory(tab)}>
-                {tab === 'private' ? <span>🐸</span> : tab}
+                {tab === 'private' ? <span>🐸</span> : tab === ADMIN_TAB ? <><Settings2 className="w-3.5 h-3.5" />Admin</> : tab}
               </li>
             ))}
           </ul>
@@ -296,9 +301,10 @@ const MediaApp = () => {
             {TABS.map(tab => (
               <button key={tab}
                 className={cn("whitespace-nowrap transition-colors flex items-center gap-1",
-                  activeCategory === tab ? "text-white font-bold" : "text-zinc-400")}
+                  activeCategory === tab ? "text-white font-bold" : "text-zinc-400",
+                  tab === ADMIN_TAB && activeCategory !== ADMIN_TAB && "text-zinc-500")}
                 onClick={() => setActiveCategory(tab)}>
-                {tab === 'private' ? '🐸' : tab}
+                {tab === 'private' ? '🐸' : tab === ADMIN_TAB ? <><Settings2 className="w-3 h-3" />Admin</> : tab}
               </button>
             ))}
           </div>
@@ -327,11 +333,6 @@ const MediaApp = () => {
           <button onClick={() => setPlaylistManagerOpen(true)} className="hover:text-white text-zinc-300" title="Playlists">
             <ListMusic className="h-5 w-5" />
           </button>
-          {user?.isAdmin && (
-            <button onClick={() => setAdminPanelOpen(true)} className="hover:text-white text-zinc-300" title="Media Manager">
-              <Settings2 className="h-5 w-5" />
-            </button>
-          )}
           <button onClick={toggleFullscreen} className="hover:text-white text-zinc-300 hidden md:block" title="Fullscreen">
             <Maximize className="h-5 w-5" />
           </button>
@@ -568,6 +569,13 @@ const MediaApp = () => {
           </>
         )}
 
+        {/* ── ADMIN inline view ─────────────────────────────────────────── */}
+        {activeCategory === ADMIN_TAB && user?.isAdmin && (
+          <div className="pt-20 min-h-screen">
+            <MediaAdminPanel isInline onCategoriesChange={fetchCategoryRows} />
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-12 py-16 text-zinc-600 text-sm bg-[#141414]">
           <div className="max-w-4xl mx-auto text-center space-y-3">
@@ -628,12 +636,6 @@ const MediaApp = () => {
 
       <ManagePlaylistsModal isOpen={isPlaylistManagerOpen} onClose={() => setPlaylistManagerOpen(false)} />
 
-      {adminPanelOpen && (
-        <MediaAdminPanel
-          onClose={() => setAdminPanelOpen(false)}
-          onCategoriesChange={fetchCategoryRows}
-        />
-      )}
 
       {/* ── Frogz Plan Modal ─────────────────────────────────────────────── */}
       <AnimatePresence>

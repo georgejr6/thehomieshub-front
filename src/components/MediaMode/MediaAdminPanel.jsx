@@ -514,7 +514,9 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
 };
 
 // ── Main Admin Panel ──────────────────────────────────────────────────────────
-const MediaAdminPanel = ({ onClose, onCategoriesChange }) => {
+// isInline=true → renders directly in the page (no modal overlay)
+// isInline=false (default) → renders as a fixed modal overlay
+const MediaAdminPanel = ({ onClose, onCategoriesChange, isInline = false }) => {
   const [categories, setCategories] = useState([]);
 
   const loadCategories = useCallback(async () => {
@@ -531,41 +533,58 @@ const MediaAdminPanel = ({ onClose, onCategoriesChange }) => {
     onCategoriesChange?.();
   }, [loadCategories, onCategoriesChange]);
 
+  const content = (
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e1e1e] flex-shrink-0">
+        <h2 className="text-white font-bold text-lg flex items-center gap-2">
+          <Film className="w-5 h-5 text-red-500" /> Media Manager
+        </h2>
+        {!isInline && onClose && (
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex-1 overflow-y-auto">
+        <Tabs defaultValue="library" className="h-full">
+          <TabsList className="bg-[#0f0f0f] border-b border-[#1e1e1e] w-full rounded-none px-6 h-auto py-2 gap-1 flex-shrink-0">
+            <TabsTrigger value="library" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
+              <Film className="w-4 h-4 mr-1.5" />Library
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
+              <Tag className="w-4 h-4 mr-1.5" />Categories
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="library" className="px-6 py-5 focus:outline-none">
+            <LibraryTab categories={categories} onCategoriesChange={handleCategoriesChange} />
+          </TabsContent>
+          <TabsContent value="categories" className="px-6 py-5 focus:outline-none">
+            <CategoriesTab categories={categories} onCategoriesChange={handleCategoriesChange} />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </>
+  );
+
+  if (isInline) {
+    return (
+      <div className="w-full max-w-4xl mx-auto px-4 pb-20">
+        <div className="bg-[#0a0a0a] border border-[#1e1e1e] rounded-2xl overflow-hidden flex flex-col min-h-[70vh]">
+          {content}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 p-4" onClick={onClose}>
       <div className="bg-black border border-[#222] rounded-2xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e1e1e] flex-shrink-0">
-          <h2 className="text-white font-bold text-lg flex items-center gap-2">
-            <Film className="w-5 h-5 text-red-500" /> Media Manager
-          </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex-1 overflow-y-auto">
-          <Tabs defaultValue="library" className="h-full">
-            <TabsList className="bg-[#0f0f0f] border-b border-[#1e1e1e] w-full rounded-none px-6 h-auto py-2 gap-1 flex-shrink-0">
-              <TabsTrigger value="library" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
-                <Film className="w-4 h-4 mr-1.5" />Library
-              </TabsTrigger>
-              <TabsTrigger value="categories" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
-                <Tag className="w-4 h-4 mr-1.5" />Categories
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="library" className="px-6 py-5 focus:outline-none">
-              <LibraryTab categories={categories} onCategoriesChange={handleCategoriesChange} />
-            </TabsContent>
-            <TabsContent value="categories" className="px-6 py-5 focus:outline-none">
-              <CategoriesTab categories={categories} onCategoriesChange={handleCategoriesChange} />
-            </TabsContent>
-          </Tabs>
-        </div>
+        {content}
       </div>
     </div>
   );
