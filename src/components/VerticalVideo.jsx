@@ -79,6 +79,7 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
+    const [storiesOpen, setStoriesOpen] = useState(false);
 
     // play/pause overlay
     const [showPlayPause, setShowPlayPause] = useState(false);
@@ -101,6 +102,17 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     // Ref-copy of isVisible so event handlers inside the sync effect see the current value
     const isVisibleRef = useRef(isVisible);
     useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
+
+    useEffect(() => {
+      const open = () => setStoriesOpen(true);
+      const close = () => setStoriesOpen(false);
+      window.addEventListener('hh:stories:open', open);
+      window.addEventListener('hh:stories:close', close);
+      return () => {
+        window.removeEventListener('hh:stories:open', open);
+        window.removeEventListener('hh:stories:close', close);
+      };
+    }, []);
 
     // Long-video gate (>3 min) — nudge to media mode
     const [longVideoExpired, setLongVideoExpired] = useState(false);
@@ -197,9 +209,9 @@ const commentTargetType =
         }
     }, [isVisible, post.isNSFW]);
 
-    // Autoplay when visible, pause when not visible or when music is playing
+    // Autoplay when visible, pause when not visible / music playing / stories open
 useEffect(() => {
-  if (!isVisible || isBlurred || musicIsPlaying) {
+  if (!isVisible || isBlurred || musicIsPlaying || storiesOpen) {
     pendingPlayRef.current = false;
     try { videoRef.current?.pause?.(); } catch (_) {}
     setIsPlaying(false);
@@ -215,7 +227,7 @@ useEffect(() => {
   } else {
     setIsPlaying(true);
   }
-}, [isVisible, isBlurred, isMux, musicIsPlaying]);
+}, [isVisible, isBlurred, isMux, musicIsPlaying, storiesOpen]);
 
     // Sync time updates (works for video & mux-player element)
     useEffect(() => {
