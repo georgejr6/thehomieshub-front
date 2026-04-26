@@ -11,10 +11,70 @@ import { useToast } from '@/components/ui/use-toast';
 
 const fmt = (s) => { const t = Math.floor(s); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`; };
 
+// Debounced image preview — updates the URL 150ms after the user stops dragging
+// so we don't fire 60 image requests per second while scrubbing.
+function useDebounced(value, delay = 150) {
+  const [debounced, setDebounced] = useState(value);
+  const timer = useRef(null);
+  const set = (v) => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setDebounced(v), delay);
+  };
+  return [debounced, set];
+}
+
+// ── Frame picker row (shared between thumbnail + backdrop) ────────────────────
+const FramePicker = ({ muxPlaybackId, onAdd, addLabel = 'Add', accentClass = 'bg-blue-500 hover:bg-blue-400 text-black' }) => {
+  const [seconds, setSeconds] = useState(0);
+  const [previewSec, schedulePreview] = useDebounced(0);
+
+  const handle = (v) => {
+    setSeconds(v);
+    schedulePreview(v);
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      {/* Live preview — debounced so it only fetches after dragging stops */}
+      <div className="w-24 h-[54px] rounded-md overflow-hidden border border-[#333] flex-shrink-0 bg-[#111]">
+        <img
+          key={previewSec}
+          src={`https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${previewSec}&width=320`}
+          alt="frame preview"
+          className="w-full h-full object-cover"
+        />
+      </div>
+      <div className="flex-1 space-y-2 min-w-0">
+        <input
+          type="range" min="0" max="3600" step="1"
+          value={seconds}
+          onChange={e => handle(Number(e.target.value))}
+          className="w-full cursor-pointer accent-blue-500"
+        />
+        <div className="flex items-center gap-2">
+          <span className="text-white text-xs font-mono tabular-nums w-10">{fmt(seconds)}</span>
+          <input
+            type="number" min="0" max="3600" value={seconds}
+            onChange={e => handle(Math.max(0, Math.min(3600, Number(e.target.value) || 0)))}
+            className="w-16 bg-[#1a1a1a] border border-[#333] text-white text-xs rounded px-2 py-1 text-center focus:outline-none focus:border-blue-500"
+          />
+          <span className="text-gray-600 text-[10px]">sec</span>
+        </div>
+      </div>
+      <Button
+        type="button"
+        onClick={() => onAdd(Math.round(seconds))}
+        className={`text-xs font-semibold h-8 px-3 flex-shrink-0 ${accentClass}`}
+      >
+        <Camera className="w-3.5 h-3.5 mr-1.5" />{addLabel}
+      </Button>
+    </div>
+  );
+};
+
 // ── Backdrop Editor ───────────────────────────────────────────────────────────
 export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
   const { toast } = useToast();
-  const [pickerSeconds, setPickerSeconds] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const [dropIndex, setDropIndex] = useState(null);
@@ -31,9 +91,8 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
     setDropIndex(null);
   };
 
-  const addPickedFrame = () => {
+  const addFrame = (t) => {
     if (!muxPlaybackId) return;
-    const t = Math.round(pickerSeconds);
     const url = `https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${t}&width=1920`;
     if (images.includes(url)) { toast({ title: 'Frame already added' }); return; }
     onChange([...images, url]);
@@ -91,29 +150,7 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
           <p className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
             <Camera className="w-3.5 h-3.5" /> Pick frames from video
           </p>
-          <div className="flex items-center gap-3">
-            <div className="w-24 h-[54px] rounded-md overflow-hidden border border-[#333] flex-shrink-0 bg-[#111]">
-              <img src={`https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${Math.round(pickerSeconds)}&width=320`}
-                alt="frame preview" className="w-full h-full object-cover" />
-            </div>
-            <div className="flex-1 space-y-2 min-w-0">
-              <input type="range" min="0" max="3600" step="1"
-                value={pickerSeconds}
-                onChange={e => setPickerSeconds(Number(e.target.value))}
-                className="w-full cursor-pointer accent-blue-500" />
-              <div className="flex items-center gap-2">
-                <span className="text-white text-xs font-mono tabular-nums w-10">{fmt(pickerSeconds)}</span>
-                <input type="number" min="0" max="3600" value={pickerSeconds}
-                  onChange={e => setPickerSeconds(Math.max(0, Math.min(3600, Number(e.target.value) || 0)))}
-                  className="w-16 bg-[#1a1a1a] border border-[#333] text-white text-xs rounded px-2 py-1 text-center focus:outline-none focus:border-blue-500" />
-                <span className="text-gray-600 text-[10px]">sec</span>
-              </div>
-            </div>
-            <Button type="button" onClick={addPickedFrame}
-              className="bg-blue-500 hover:bg-blue-400 text-black text-xs font-semibold h-8 px-3 flex-shrink-0">
-              <Camera className="w-3.5 h-3.5 mr-1.5" /> Add
-            </Button>
-          </div>
+          <FramePicker muxPlaybackId={muxPlaybackId} onAdd={addFrame} addLabel="Add" />
         </div>
       )}
 
@@ -131,10 +168,6 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
 };
 
 // ── Edit Video Modal ──────────────────────────────────────────────────────────
-// item shape: { _id|id, title, description, thumbnailUrl, backdropImages, muxPlaybackId, _collectionType }
-// categories: array from /admin/media-categories
-// onClose: () => void
-// onSaved: () => void
 const EditVideoModal = ({ item, categories = [], onClose, onSaved }) => {
   const { toast } = useToast();
   const thumbInputRef = useRef();
@@ -232,8 +265,11 @@ const EditVideoModal = ({ item, categories = [], onClose, onSaved }) => {
               className="w-full rounded-md bg-[#1a1a1a] border border-[#333] text-white px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-blue-500" />
           </div>
 
+          {/* ── Thumbnail ── */}
           <div className="space-y-2">
             <Label className="text-sm text-gray-300 font-medium">Thumbnail</Label>
+
+            {/* Current thumbnail + upload */}
             <div className="flex gap-3 items-start">
               {thumbnailUrl ? (
                 <div className="relative group w-48 h-28 rounded-lg overflow-hidden border border-[#333] flex-shrink-0">
@@ -254,6 +290,21 @@ const EditVideoModal = ({ item, categories = [], onClose, onSaved }) => {
               <input ref={thumbInputRef} type="file" accept="image/*" className="hidden"
                 onChange={e => { if (e.target.files[0]) handleThumbnailFile(e.target.files[0]); }} />
             </div>
+
+            {/* Pick thumbnail from video */}
+            {item.muxPlaybackId && (
+              <div className="rounded-lg border border-[#222] bg-[#0a0a0a] p-3 space-y-3">
+                <p className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5" /> Pick thumbnail from video
+                </p>
+                <FramePicker
+                  muxPlaybackId={item.muxPlaybackId}
+                  addLabel="Use frame"
+                  accentClass="bg-[#272727] hover:bg-[#333] text-white border border-[#333]"
+                  onAdd={(t) => setThumbnailUrl(`https://image.mux.com/${item.muxPlaybackId}/thumbnail.png?time=${t}&width=1920`)}
+                />
+              </div>
+            )}
           </div>
 
           {categories.length > 0 && (

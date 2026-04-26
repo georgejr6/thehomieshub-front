@@ -13,9 +13,49 @@ import api from '@/api/homieshub';
 // ── BackdropEditor ────────────────────────────────────────────────────────────
 const fmt = (s) => { const t = Math.floor(s); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`; };
 
+function useDebounced(value, delay = 150) {
+  const [debounced, setDebounced] = useState(value);
+  const timer = useRef(null);
+  const set = (v) => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setDebounced(v), delay);
+  };
+  return [debounced, set];
+}
+
+const FramePicker = ({ muxPlaybackId, onAdd, addLabel = 'Add', accentClass = 'bg-blue-500 hover:bg-blue-400 text-black' }) => {
+  const [seconds, setSeconds] = useState(0);
+  const [previewSec, schedulePreview] = useDebounced(0);
+  const handle = (v) => { setSeconds(v); schedulePreview(v); };
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-24 h-[54px] rounded-md overflow-hidden border border-[#333] flex-shrink-0 bg-[#111]">
+        <img key={previewSec}
+          src={`https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${previewSec}&width=320`}
+          alt="frame preview" className="w-full h-full object-cover" />
+      </div>
+      <div className="flex-1 space-y-2 min-w-0">
+        <input type="range" min="0" max="3600" step="1" value={seconds}
+          onChange={e => handle(Number(e.target.value))}
+          className="w-full cursor-pointer accent-blue-500" />
+        <div className="flex items-center gap-2">
+          <span className="text-white text-xs font-mono tabular-nums w-10">{fmt(seconds)}</span>
+          <input type="number" min="0" max="3600" value={seconds}
+            onChange={e => handle(Math.max(0, Math.min(3600, Number(e.target.value) || 0)))}
+            className="w-16 bg-[#1a1a1a] border border-[#333] text-white text-xs rounded px-2 py-1 text-center focus:outline-none focus:border-blue-500" />
+          <span className="text-gray-600 text-[10px]">sec</span>
+        </div>
+      </div>
+      <Button type="button" onClick={() => onAdd(Math.round(seconds))}
+        className={`text-xs font-semibold h-8 px-3 flex-shrink-0 ${accentClass}`}>
+        <Camera className="w-3.5 h-3.5 mr-1.5" />{addLabel}
+      </Button>
+    </div>
+  );
+};
+
 const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
   const { toast } = useToast();
-  const [pickerSeconds, setPickerSeconds] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const [dropIndex, setDropIndex] = useState(null);
@@ -32,9 +72,8 @@ const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
     setDropIndex(null);
   };
 
-  const addPickedFrame = () => {
+  const addFrame = (t) => {
     if (!muxPlaybackId) return;
-    const t = Math.round(pickerSeconds);
     const url = `https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${t}&width=1920`;
     if (images.includes(url)) { toast({ title: 'Frame already added' }); return; }
     onChange([...images, url]);
@@ -92,29 +131,7 @@ const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
           <p className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
             <Camera className="w-3.5 h-3.5" /> Pick frames from video
           </p>
-          <div className="flex items-center gap-3">
-            <div className="w-24 h-[54px] rounded-md overflow-hidden border border-[#333] flex-shrink-0 bg-[#111]">
-              <img src={`https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${Math.round(pickerSeconds)}&width=320`}
-                alt="frame preview" className="w-full h-full object-cover" />
-            </div>
-            <div className="flex-1 space-y-2 min-w-0">
-              <input type="range" min="0" max="3600" step="1"
-                value={pickerSeconds}
-                onChange={e => setPickerSeconds(Number(e.target.value))}
-                className="w-full cursor-pointer accent-blue-500" />
-              <div className="flex items-center gap-2">
-                <span className="text-white text-xs font-mono tabular-nums w-10">{fmt(pickerSeconds)}</span>
-                <input type="number" min="0" max="3600" value={pickerSeconds}
-                  onChange={e => setPickerSeconds(Math.max(0, Math.min(3600, Number(e.target.value) || 0)))}
-                  className="w-16 bg-[#1a1a1a] border border-[#333] text-white text-xs rounded px-2 py-1 text-center focus:outline-none focus:border-blue-500" />
-                <span className="text-gray-600 text-[10px]">sec</span>
-              </div>
-            </div>
-            <Button type="button" onClick={addPickedFrame}
-              className="bg-blue-500 hover:bg-blue-400 text-black text-xs font-semibold h-8 px-3 flex-shrink-0">
-              <Camera className="w-3.5 h-3.5 mr-1.5" /> Add
-            </Button>
-          </div>
+          <FramePicker muxPlaybackId={muxPlaybackId} onAdd={addFrame} addLabel="Add" />
         </div>
       )}
 
