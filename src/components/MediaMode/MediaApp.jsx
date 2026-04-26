@@ -348,8 +348,14 @@ const MediaApp = () => {
       {/* ── Scrollable body ─────────────────────────────────────────────────── */}
       <div id="media-scroller" className="flex-1 overflow-y-auto overflow-x-hidden relative">
 
-        {/* SEARCH */}
-        {searchQuery ? (
+        {/* ── ADMIN (full page, replaces all content) ──────────────────── */}
+        {activeCategory === ADMIN_TAB && user?.isAdmin ? (
+          <div className="pt-16 min-h-screen bg-black">
+            <MediaAdminPanel isInline onCategoriesChange={fetchCategoryRows} />
+          </div>
+
+        ) : searchQuery ? (
+          /* ── SEARCH ──────────────────────────────────────────────────── */
           <div className="pt-24 px-4 md:px-12 min-h-screen">
             <h2 className="text-xl text-zinc-400 mb-6">Results for "{searchQuery}"</h2>
             {searchResults.length > 0 ? (
@@ -373,7 +379,7 @@ const MediaApp = () => {
           </div>
 
         ) : activeCategory === 'likes' ? (
-          /* ── LIKES ─────────────────────────────────────────────────────── */
+          /* ── LIKES ───────────────────────────────────────────────────── */
           <div className="pt-24 px-4 md:px-12 min-h-screen">
             <h1 className="text-3xl font-bold mb-8">My List</h1>
             {likedMedia.length > 0
@@ -382,7 +388,7 @@ const MediaApp = () => {
           </div>
 
         ) : (
-          /* ── HERO + ROWS (Home / Videos / Music) ─────────────────────── */
+          /* ── HERO + ROWS (Home / Videos / Music / Private) ───────────── */
           <>
             {/* HERO */}
             {isLoading && !heroItem ? (
@@ -403,38 +409,29 @@ const MediaApp = () => {
                     transition={{ duration: 0.7 }}
                     className="max-w-2xl"
                   >
-                    {/* Genre / type label */}
                     {(heroItem.genres?.length > 0 || heroItem.genre || heroItem.type) && (
                       <p className="text-xs font-bold uppercase tracking-widest text-red-500 mb-3">
                         {heroItem.genres?.slice(0, 2).join(' · ') || heroItem.genre || heroItem.type}
                       </p>
                     )}
-
                     <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-4 leading-none line-clamp-2 text-white"
                       style={{ textShadow: '0 2px 20px rgba(0,0,0,0.9), 0 4px 40px rgba(0,0,0,0.7)' }}>
                       {heroItem.title}
                     </h1>
-
-                    {/* Meta row */}
                     <div className="flex items-center gap-3 text-sm font-semibold text-white/80 mb-4">
                       {heroItem.year && <span>{heroItem.year}</span>}
                       {heroItem.rating && <span className="border border-white/40 px-1.5 py-0.5 rounded text-xs">{heroItem.rating}</span>}
                       {heroItem.duration && heroItem.duration !== '0:00' && <span>{heroItem.duration}</span>}
                       {!heroIsVideo && <span className="border border-white/40 px-1.5 py-0.5 rounded text-xs bg-black/20">HD</span>}
                     </div>
-
                     {heroItem.description && (
-                      <p className="text-base text-gray-300 mb-8 line-clamp-3 max-w-xl leading-relaxed">
-                        {heroItem.description}
-                      </p>
+                      <p className="text-base text-gray-300 mb-8 line-clamp-3 max-w-xl leading-relaxed">{heroItem.description}</p>
                     )}
                     {!heroItem.description && !heroIsVideo && heroItem.artist && (
                       <p className="text-base text-gray-300 mb-8">
-                        {heroItem.artist}
-                        {heroItem.album ? ` — ${heroItem.album}` : ''}
+                        {heroItem.artist}{heroItem.album ? ` — ${heroItem.album}` : ''}
                       </p>
                     )}
-
                     <div className="flex items-center gap-3">
                       <Button onClick={handleFeaturedPlay}
                         className="bg-white text-black hover:bg-white/90 font-bold text-base px-8 py-6 rounded gap-2">
@@ -454,7 +451,6 @@ const MediaApp = () => {
             <div className="relative z-10 -mt-24 pb-36 space-y-8 px-4 md:pl-12">
               {activeCategory === 'home' && (
                 <>
-                  {/* Admin-managed category rows — shown first when present */}
                   {categoryRows.map(cat => cat.items.length > 0 && (
                     <MediaRow key={cat.id} title={cat.name} items={cat.items} onPlay={playVideo} />
                   ))}
@@ -473,7 +469,6 @@ const MediaApp = () => {
               )}
               {activeCategory === 'videos' && (
                 <>
-                  {/* Admin-managed category rows — shown first when present */}
                   {categoryRows.map(cat => cat.items.length > 0 && (
                     <MediaRow key={cat.id} title={cat.name} items={cat.items} onPlay={playVideo} />
                   ))}
@@ -509,13 +504,8 @@ const MediaApp = () => {
               )}
               {activeCategory === 'private' && (hasFrogzFan || hasFrogzAccess) && (
                 <>
-                  {/* Public shorts — always shown to fans + paid users */}
-                  {frogzClips.length > 0 && (
-                    <MediaRow title="Shorts" items={frogzClips} onPlay={playVideo} />
-                  )}
-
+                  {frogzClips.length > 0 && <MediaRow title="Shorts" items={frogzClips} onPlay={playVideo} />}
                   {hasFrogzAccess ? (
-                    /* ── PAID: full library ───────────────────────────── */
                     <>
                       {frogzLoading && (
                         <div className="flex items-center justify-center py-16">
@@ -532,10 +522,8 @@ const MediaApp = () => {
                       )}
                     </>
                   ) : (
-                    /* ── FAN: blurred teaser + unlock CTA ────────────── */
                     <div className="mt-8 px-4 md:px-0">
                       <div className="relative rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800">
-                        {/* Blurred preview grid */}
                         <div className="blur-sm pointer-events-none select-none opacity-60 p-6">
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {(frogzClips.length > 0 ? frogzClips : Array(8).fill(null)).slice(0, 8).map((item, i) => (
@@ -545,18 +533,14 @@ const MediaApp = () => {
                             ))}
                           </div>
                         </div>
-
-                        {/* Overlay */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-black/30 flex flex-col items-center justify-center text-center p-8">
                           <span className="text-6xl mb-4">🐸</span>
                           <h2 className="text-2xl md:text-3xl font-black text-white mb-2">Unlock Full Access</h2>
                           <p className="text-zinc-400 text-sm mb-6 max-w-sm">
                             Get unlimited access to the full library. Pay via CashApp — access unlocks automatically once confirmed.
                           </p>
-                          <Button
-                            onClick={() => setFrogzModalOpen(true)}
-                            className="bg-green-500 hover:bg-green-400 text-black font-bold text-base px-8 py-5 rounded-full"
-                          >
+                          <Button onClick={() => setFrogzModalOpen(true)}
+                            className="bg-green-500 hover:bg-green-400 text-black font-bold text-base px-8 py-5 rounded-full">
                             Get Access
                           </Button>
                         </div>
@@ -567,13 +551,6 @@ const MediaApp = () => {
               )}
             </div>
           </>
-        )}
-
-        {/* ── ADMIN inline view ─────────────────────────────────────────── */}
-        {activeCategory === ADMIN_TAB && user?.isAdmin && (
-          <div className="pt-20 min-h-screen">
-            <MediaAdminPanel isInline onCategoriesChange={fetchCategoryRows} />
-          </div>
         )}
 
         {/* Footer */}
