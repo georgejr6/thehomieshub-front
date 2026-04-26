@@ -221,6 +221,7 @@ const StoryViewer = ({ stories, initialStoryIndex, onClose }) => {
 
   const isCurrentUser = user && user.username === currentStoryGroup.username;
   const isSharedPost = currentItem.type === 'post_share';
+  const isPromo = currentItem.type === 'promo';
 
   return (
     <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
@@ -295,8 +296,52 @@ const StoryViewer = ({ stories, initialStoryIndex, onClose }) => {
 
                         {/* Image Display */}
                         <div className="flex-1 relative flex items-center justify-center bg-zinc-900 overflow-hidden">
-                             {/* Shared Post Background Logic */}
-                             {isSharedPost ? (
+                             {/* Promo story slide */}
+                             {isPromo ? (
+                                 (() => {
+                                   const p = currentItem.promo;
+                                   return (
+                                     <div className={`relative w-full h-full flex flex-col items-center justify-center p-8 bg-gradient-to-b ${p.bg || 'from-zinc-800 to-zinc-900'}`}>
+                                       <div className="w-full max-w-xs flex flex-col gap-5">
+                                         <span className={`self-start text-[11px] font-bold uppercase tracking-widest text-white px-2.5 py-0.5 rounded-full ${p.badgeColor || 'bg-yellow-500'}`}>
+                                           {p.badge}
+                                         </span>
+                                         <h2 className="text-2xl font-extrabold text-white leading-tight">{p.title}</h2>
+                                         <div className="space-y-3">
+                                           {p.lines.map((line, i) => (
+                                             <div key={i}>
+                                               {line.label && <p className="text-white font-semibold text-sm">{line.label}</p>}
+                                               {line.desc && <p className="text-white/60 text-xs leading-snug">{line.desc}</p>}
+                                             </div>
+                                           ))}
+                                         </div>
+                                         {p.ctaExternal ? (
+                                           <a
+                                             href={p.ctaUrl}
+                                             target="_blank"
+                                             rel="noopener noreferrer"
+                                             onClick={e => e.stopPropagation()}
+                                             className="self-start bg-white text-black font-bold text-sm px-5 py-2.5 rounded-full flex items-center gap-2 hover:bg-white/90 transition-colors"
+                                           >
+                                             {p.cta} <ArrowRight className="h-4 w-4" />
+                                           </a>
+                                         ) : (
+                                           <Link
+                                             to={p.ctaUrl}
+                                             onClick={e => e.stopPropagation()}
+                                             className="self-start bg-white text-black font-bold text-sm px-5 py-2.5 rounded-full flex items-center gap-2 hover:bg-white/90 transition-colors"
+                                           >
+                                             {p.cta} <ArrowRight className="h-4 w-4" />
+                                           </Link>
+                                         )}
+                                       </div>
+                                       {/* Nav Zones */}
+                                       <div className="absolute inset-y-0 left-0 w-1/3 z-20" onClick={(e) => { e.stopPropagation(); handlePrev(); }} />
+                                       <div className="absolute inset-y-0 right-0 w-1/3 z-20" onClick={(e) => { e.stopPropagation(); handleNext(); }} />
+                                     </div>
+                                   );
+                                 })()
+                             ) : isSharedPost ? (
                                  <div className="relative w-full h-full flex items-center justify-center p-8 bg-zinc-900/90 backdrop-blur-sm">
                                       <img 
                                         src={currentItem.url} 
@@ -323,16 +368,18 @@ const StoryViewer = ({ stories, initialStoryIndex, onClose }) => {
                                       </div>
                                  </div>
                              ) : (
-                                <img 
-                                    src={currentItem.url} 
-                                    alt="Story" 
+                                <img
+                                    src={currentItem.url}
+                                    alt="Story"
                                     className="w-full h-full object-cover"
                                 />
                              )}
-                             
-                             {/* Nav Zones */}
-                             <div className="absolute inset-y-0 left-0 w-1/3 z-20" onClick={(e) => { e.stopPropagation(); handlePrev(); }} />
-                             <div className="absolute inset-y-0 right-0 w-1/3 z-20" onClick={(e) => { e.stopPropagation(); handleNext(); }} />
+
+                             {/* Nav Zones — only for non-promo (promo renders its own inside) */}
+                             {!isPromo && (<>
+                               <div className="absolute inset-y-0 left-0 w-1/3 z-20" onClick={(e) => { e.stopPropagation(); handlePrev(); }} />
+                               <div className="absolute inset-y-0 right-0 w-1/3 z-20" onClick={(e) => { e.stopPropagation(); handleNext(); }} />
+                             </>)}
                         </div>
 
                         {/* Bottom Overlay Gradient */}

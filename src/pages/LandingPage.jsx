@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Play, Compass, Radio, Users, Library, Swords,
-  Crown, Bot, ArrowRight, Shield, FileText, Mail, Heart, DollarSign
+  Crown, Bot, ArrowRight, Shield, FileText, Mail, Heart, DollarSign,
+  Globe, Clock
 } from 'lucide-react';
 
 const DonateIcon = ({ className }) => <DollarSign className={className} />;
@@ -197,6 +198,93 @@ const LandingPage = ({ onLoginRequest }) => {
             {navItems.map((item, i) => (
               <FeatureCard key={item.to} {...item} delay={0.05 * i} />
             ))}
+          </div>
+        </div>
+
+        {/* ── Consultation Section ── */}
+        <div className="container mx-auto px-4 pb-14">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Globe className="h-5 w-5 text-primary" />
+              <h2 className="text-2xl font-bold text-foreground">1-on-1 Consultations</h2>
+            </div>
+            <p className="text-muted-foreground">
+              Get personalised advice on travel, digital nomad life, earning with AI, and building your business — from someone who has actually done it.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Destinations covered: Colombia · Peru · Thailand · London · Amsterdam · and more
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* 30-min */}
+            <motion.a
+              href="https://buy.stripe.com/5kQfZgbadeo24Rvgdkf7i0f"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.25 }}
+              className="group relative rounded-2xl border border-border bg-card hover:border-primary/40 hover:shadow-[0_0_24px_rgba(240,185,77,0.08)] transition-all duration-300 p-6 flex flex-col gap-4 overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-widest text-primary">30 Minutes</span>
+                    <h3 className="font-bold text-foreground text-lg leading-tight">Travel Consult</h3>
+                  </div>
+                </div>
+              </div>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Where to go, where to stay, what to avoid, and how to move — real advice for Colombia, Peru, Thailand, London, Amsterdam, and more.
+              </p>
+              <div className="flex items-center gap-2 text-primary font-semibold text-sm group-hover:gap-3 transition-all mt-auto">
+                Book a session <ArrowRight className="h-4 w-4" />
+              </div>
+            </motion.a>
+
+            {/* 1-hour */}
+            <motion.a
+              href="https://buy.stripe.com/aFa5kCemp3Jo3Nr4uCf7i0g"
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+              className="group relative rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card hover:border-primary/60 hover:shadow-[0_0_32px_rgba(240,185,77,0.12)] transition-all duration-300 p-6 flex flex-col gap-4 overflow-hidden"
+            >
+              <div className="absolute top-3 right-3">
+                <span className="text-[10px] font-bold uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded-full">Most Popular</span>
+              </div>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <Crown className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-widest text-primary">1 Hour Deep Dive</span>
+                    <h3 className="font-bold text-foreground text-lg leading-tight">Digital Nomad & Business</h3>
+                  </div>
+                </div>
+              </div>
+              <ul className="text-sm text-muted-foreground space-y-1.5">
+                <li className="flex items-center gap-2"><span className="text-primary">→</span> Living abroad — making the move the right way</li>
+                <li className="flex items-center gap-2"><span className="text-primary">→</span> Earning with AI — income streams that travel with you</li>
+                <li className="flex items-center gap-2"><span className="text-primary">→</span> Starting your business — from idea to revenue</li>
+              </ul>
+              <div className="flex items-center gap-2 text-primary font-semibold text-sm group-hover:gap-3 transition-all mt-auto">
+                Book a session <ArrowRight className="h-4 w-4" />
+              </div>
+            </motion.a>
           </div>
         </div>
 
