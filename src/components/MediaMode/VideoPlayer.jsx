@@ -1,13 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, ChevronLeft, ThumbsUp, Share2, Info,
+  X, ChevronLeft, ThumbsUp, Share2, Info, Pencil,
   Play, Pause, RotateCcw, RotateCw,
   Volume2, VolumeX, Maximize, Minimize,
 } from 'lucide-react';
 import MuxPlayer from '@mux/mux-player-react';
 import { useMedia } from '@/contexts/MediaContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import EditVideoModal from './EditVideoModal';
+import api from '@/api/homieshub';
 
 function fmt(s) {
   if (!s || isNaN(s) || s === 0) return '0:00';
@@ -20,6 +23,7 @@ function fmt(s) {
 
 const VideoPlayer = () => {
   const { currentVideo, closeVideo, isLiked, toggleLike } = useMedia();
+  const { user } = useAuth();
 
   const muxRef       = useRef(null);
   const containerRef = useRef(null);
@@ -38,6 +42,10 @@ const VideoPlayer = () => {
   const [mediaError,   setMediaError]   = useState(false);
   // Visual flash for skip feedback
   const [skipFlash,    setSkipFlash]    = useState(null); // 'back' | 'fwd' | null
+
+  // Admin edit
+  const [showEdit,      setShowEdit]      = useState(false);
+  const [editCategories, setEditCategories] = useState([]);
 
   // ── Bind media events directly on the <mux-player> element ──────────────
   // mux-player is a custom element that proxies all standard HTMLMediaElement
@@ -150,10 +158,19 @@ const VideoPlayer = () => {
 
   const handleShare = (e) => {
     e.stopPropagation();
-    const url = `https://digitvl.app/browse/${currentVideo.id}`;
+    const url = `https://www.thehomies.app/media/${currentVideo.id}`;
     if (navigator.share) navigator.share({ title: currentVideo.title, url }).catch(() => {});
     else navigator.clipboard.writeText(url).catch(() => {});
   };
+
+  const openEdit = useCallback(async (e) => {
+    e.stopPropagation();
+    try {
+      const { data } = await api.get('/admin/media-categories');
+      setEditCategories(data?.result?.categories || []);
+    } catch { setEditCategories([]); }
+    setShowEdit(true);
+  }, []);
 
   const progress    = duration ? (currentTime / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered  / duration) * 100 : 0;
@@ -278,6 +295,16 @@ const VideoPlayer = () => {
                 >
                   <Info className="w-5 h-5" />
                 </motion.button>
+                {user?.isAdmin && (
+                  <motion.button
+                    whileTap={{ scale: 0.85 }}
+                    onClick={openEdit}
+                    className="p-2 text-white/70 hover:text-white transition-colors"
+                    title="Edit video"
+                  >
+                    <Pencil className="w-5 h-5" />
+                  </motion.button>
+                )}
                 <motion.button
                   whileTap={{ scale: 0.85 }}
                   onClick={(e) => { e.stopPropagation(); closeVideo(); }}
@@ -423,6 +450,25 @@ const VideoPlayer = () => {
       {/* Tap anywhere (when controls hidden) to reveal them */}
       {!showControls && (
         <div className="absolute inset-0 z-10 cursor-pointer" onClick={resetHide} />
+      )}
+
+      {/* ── Admin edit modal ─────────────────────────────────────────────── */}
+      {showEdit && currentVideo && (
+        <EditVideoModal
+          item={{
+            _id: currentVideo.id,
+            id: currentVideo.id,
+            title: currentVideo.title,
+            description: currentVideo.description || '',
+            thumbnailUrl: currentVideo.thumbnailUrl || currentVideo.cover || '',
+            backdropImages: currentVideo.backdropImages || [],
+            muxPlaybackId: currentVideo.muxPlaybackId,
+            _collectionType: currentVideo._collectionType || currentVideo.backendType || 'video',
+          }}
+          categories={editCategories}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => setShowEdit(false)}
+        />
       )}
 
       {/* ── Info panel ─────────────────────────────────────────────────────── */}

@@ -1,14 +1,8 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
-  "rewrites": [
-    { "source": "/watch/:id", "destination": "/api/og/:id" },
-    { "source": "/media/:id", "destination": "/index.html" },
-    { "source": "/profile/:username", "destination": "/index.html" },
-    { "source": "/explore", "destination": "/index.html" },
-    { "source": "/reels", "destination": "/index.html" },
-    { "source": "/studio", "destination": "/index.html" },
-    { "source": "/wagers", "destination": "/index.html" },
-    { "source": "/wallet", "destination": "/index.html" },
-    { "source": "/live", "destination": "/index.html" }
+  "routes": [
+    { "src": "/watch/(?<id>[^/]+)", "dest": "/api/og/$id" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

@@ -1,330 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  X, Plus, Pencil, Trash2, GripVertical, Loader2,
-  Film, ImagePlus, ChevronDown, ChevronUp, Check,
-  Camera, Video, FolderOpen, Tag,
+  X, Plus, Pencil, Trash2, GripVertical, Loader2, Check,
+  Film, FolderOpen, Tag, Star, Eye, EyeOff,
+  RefreshCw, RefreshCcw,
 } from 'lucide-react';
-import MuxPlayer from '@mux/mux-player-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/api/homieshub';
 import { useToast } from '@/components/ui/use-toast';
-
-// ── Backdrop Editor (matches DIGITVL pattern) ─────────────────────────────────
-const fmt = (s) => { const t = Math.floor(s); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`; };
-
-const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
-  const { toast } = useToast();
-  const [showPlayer, setShowPlayer] = useState(false);
-  const [liveTime, setLiveTime] = useState(0);
-  const [uploading, setUploading] = useState(false);
-  const [dragIndex, setDragIndex] = useState(null);
-  const [dropIndex, setDropIndex] = useState(null);
-  const fileRef = useRef();
-  const throttleRef = useRef(0);
-
-  const handleDragEnd = () => {
-    if (dragIndex !== null && dropIndex !== null && dragIndex !== dropIndex) {
-      const arr = [...images];
-      const [moved] = arr.splice(dragIndex, 1);
-      arr.splice(dropIndex, 0, moved);
-      onChange(arr);
-    }
-    setDragIndex(null);
-    setDropIndex(null);
-  };
-
-  const handleTimeUpdate = (e) => {
-    const now = Date.now();
-    if (now - throttleRef.current < 250) return;
-    throttleRef.current = now;
-    setLiveTime(e.target.currentTime || 0);
-  };
-
-  const captureFrame = () => {
-    if (!muxPlaybackId) return;
-    const t = Math.round(liveTime);
-    const url = `https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${t}&width=1920`;
-    if (images.includes(url)) { toast({ title: 'Frame already added' }); return; }
-    onChange([...images, url]);
-    toast({ title: `Frame at ${fmt(t)} added` });
-  };
-
-  const uploadImage = async (file) => {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('folder', 'backdrops');
-      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      const url = data?.result?.url || data?.url;
-      if (url) onChange([...images, url]);
-    } catch (err) {
-      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
-
-  const liveThumbUrl = muxPlaybackId
-    ? `https://image.mux.com/${muxPlaybackId}/thumbnail.png?time=${Math.round(liveTime)}&width=320`
-    : null;
-
-  return (
-    <div className="space-y-4 pt-1">
-      <div>
-        <Label className="text-sm text-gray-300 font-medium">Backdrop Slideshow</Label>
-        <p className="text-xs text-gray-500 mt-0.5">Frames cycling as the hero background. Leave empty to auto-generate from video.</p>
-      </div>
-
-      {images.length > 0 && (
-        <div className="flex flex-wrap gap-2" onDragOver={e => e.preventDefault()}>
-          {images.map((url, i) => (
-            <div key={url + i} draggable
-              onDragStart={() => setDragIndex(i)}
-              onDragEnter={() => setDropIndex(i)}
-              onDragEnd={handleDragEnd}
-              className={`relative group w-32 h-[72px] rounded-lg overflow-hidden border flex-shrink-0 cursor-grab
-                ${dragIndex === i ? 'opacity-40 scale-95 border-[#555]' : dropIndex === i && dragIndex !== i ? 'border-blue-500 scale-105' : 'border-[#333]'}`}>
-              <img src={url} alt={`Frame ${i+1}`} className="w-full h-full object-cover pointer-events-none" />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <button type="button" onMouseDown={e => e.stopPropagation()}
-                onClick={() => onChange(images.filter((_, idx) => idx !== i))}
-                className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/80 z-10">
-                <X className="w-3 h-3 text-white" />
-              </button>
-              <span className="absolute bottom-1 left-1.5 text-white text-[10px] font-medium bg-black/60 px-1 rounded">{i+1}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {muxPlaybackId && (
-        <div className="rounded-lg border border-[#222] overflow-hidden">
-          <button type="button" onClick={() => setShowPlayer(v => !v)}
-            className="w-full flex items-center justify-between px-3 py-2.5 bg-[#111] hover:bg-[#161616] transition-colors">
-            <div className="flex items-center gap-2 text-xs text-gray-400 font-medium">
-              <Video className="w-3.5 h-3.5" /> Scrub video to pick frames
-            </div>
-            {showPlayer ? <ChevronUp className="w-3.5 h-3.5 text-gray-500" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-500" />}
-          </button>
-          {showPlayer && (
-            <div className="bg-[#0a0a0a] p-3 space-y-3">
-              <div className="rounded-lg overflow-hidden border border-[#222]">
-                <MuxPlayer playbackId={muxPlaybackId} streamType="on-demand" onTimeUpdate={handleTimeUpdate}
-                  style={{ width: '100%', aspectRatio: '16/9', display: 'block' }} />
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-24 h-[54px] rounded-md overflow-hidden border border-[#333] flex-shrink-0 bg-[#111]">
-                  {liveThumbUrl && <img src={liveThumbUrl} alt="current frame" className="w-full h-full object-cover" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs font-medium tabular-nums">{fmt(liveTime)}</p>
-                  <p className="text-gray-600 text-[10px]">current position</p>
-                </div>
-                <Button type="button" onClick={captureFrame}
-                  className="bg-blue-500 hover:bg-blue-400 text-black text-xs font-semibold h-8 px-3 flex-shrink-0">
-                  <Camera className="w-3.5 h-3.5 mr-1.5" /> Add frame
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div>
-        <input ref={fileRef} type="file" accept="image/*" className="hidden"
-          onChange={e => { if (e.target.files[0]) uploadImage(e.target.files[0]); }} />
-        <Button type="button" onClick={() => fileRef.current.click()} disabled={uploading}
-          className="bg-[#272727] hover:bg-[#333] text-white border border-[#333] text-xs h-8 px-3">
-          {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <ImagePlus className="w-3.5 h-3.5 mr-1.5" />}
-          Upload custom image
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-// ── Edit Video Modal ──────────────────────────────────────────────────────────
-const EditVideoModal = ({ item, categories, onClose, onSaved }) => {
-  const { toast } = useToast();
-  const thumbInputRef = useRef();
-  const [title, setTitle] = useState(item.title || '');
-  const [description, setDescription] = useState(item.description || '');
-  const [thumbnailUrl, setThumbnailUrl] = useState(item.thumbnailUrl || '');
-  const [backdropImages, setBackdropImages] = useState(item.backdropImages || []);
-  const [selectedCatIds, setSelectedCatIds] = useState(() => {
-    // Find which categories contain this item
-    return categories
-      .filter(c => c.items.some(i => i.itemId === String(item._id || item.id)))
-      .map(c => String(c._id));
-  });
-  const [thumbLoading, setThumbLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const handleThumbnailFile = async (file) => {
-    setThumbLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('folder', 'thumbnails');
-      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      const url = data?.result?.url || data?.url;
-      if (url) setThumbnailUrl(url);
-    } catch (err) {
-      toast({ title: 'Thumbnail upload failed', description: err.message, variant: 'destructive' });
-    } finally {
-      setThumbLoading(false);
-    }
-  };
-
-  const toggleCategory = (catId) => {
-    setSelectedCatIds(prev =>
-      prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
-    );
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const itemId = String(item._id || item.id);
-      const itemType = item._collectionType || 'video';
-
-      // 1. Update video metadata
-      await api.patch(`/admin/videos/${itemId}`, {
-        title,
-        description,
-        thumbnailUrl,
-        backdropImages,
-        _collectionType: itemType,
-      });
-
-      // 2. Update category memberships
-      // For each category: add or remove this item
-      const allCatIds = categories.map(c => String(c._id));
-      await Promise.all(
-        allCatIds.map(async (catId) => {
-          const cat = categories.find(c => String(c._id) === catId);
-          if (!cat) return;
-          const isIn = cat.items.some(i => i.itemId === itemId);
-          const shouldBeIn = selectedCatIds.includes(catId);
-          if (isIn === shouldBeIn) return; // no change
-
-          const newItems = shouldBeIn
-            ? [...cat.items, { itemId, itemType }]
-            : cat.items.filter(i => i.itemId !== itemId);
-
-          await api.patch(`/admin/media-categories/${catId}`, { items: newItems });
-        })
-      );
-
-      toast({ title: 'Saved' });
-      onSaved();
-    } catch (err) {
-      toast({ title: 'Save failed', description: err.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85" onClick={onClose}>
-      <div className="bg-[#0f0f0f] border border-[#222] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e1e1e]">
-          <h2 className="text-white font-semibold text-lg">Edit video</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
-        </div>
-
-        <div className="px-6 py-5 space-y-5">
-          {/* Title */}
-          <div className="space-y-1.5">
-            <Label className="text-sm text-gray-300 font-medium">Title</Label>
-            <Input value={title} onChange={e => setTitle(e.target.value)}
-              className="bg-[#1a1a1a] border-[#333] text-white h-11 focus:border-blue-500" />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label className="text-sm text-gray-300 font-medium">Description</Label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-              className="w-full rounded-md bg-[#1a1a1a] border border-[#333] text-white px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-blue-500" />
-          </div>
-
-          {/* Thumbnail */}
-          <div className="space-y-2">
-            <Label className="text-sm text-gray-300 font-medium">Thumbnail</Label>
-            <div className="flex gap-3 items-start">
-              {thumbnailUrl ? (
-                <div className="relative group w-48 h-28 rounded-lg overflow-hidden border border-[#333] flex-shrink-0">
-                  <img src={thumbnailUrl} alt="Thumbnail" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <button onClick={() => thumbInputRef.current.click()} className="text-white text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded">Change</button>
-                    <button onClick={() => setThumbnailUrl('')} className="text-white"><X className="w-4 h-4" /></button>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" onClick={() => thumbInputRef.current.click()}
-                  className="w-48 h-28 rounded-lg border-2 border-dashed border-[#333] hover:border-[#555] flex flex-col items-center justify-center gap-2 cursor-pointer flex-shrink-0">
-                  {thumbLoading
-                    ? <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
-                    : <><ImagePlus className="w-7 h-7 text-gray-500" /><span className="text-xs text-gray-500">Upload thumbnail</span></>}
-                </button>
-              )}
-              <input ref={thumbInputRef} type="file" accept="image/*" className="hidden"
-                onChange={e => { if (e.target.files[0]) handleThumbnailFile(e.target.files[0]); }} />
-            </div>
-          </div>
-
-          {/* Categories */}
-          {categories.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm text-gray-300 font-medium flex items-center gap-1.5">
-                <Tag className="w-4 h-4" /> Categories
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map(cat => {
-                  const active = selectedCatIds.includes(String(cat._id));
-                  return (
-                    <button key={cat._id} type="button" onClick={() => toggleCategory(String(cat._id))}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all
-                        ${active ? 'bg-blue-500/20 text-blue-400 border-blue-500/40' : 'bg-[#1a1a1a] text-gray-400 border-[#333] hover:border-[#555]'}`}>
-                      {active && <Check className="w-3 h-3" />}
-                      {cat.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Backdrop Editor */}
-          <div className="border-t border-[#1e1e1e] pt-5">
-            <BackdropEditor images={backdropImages} muxPlaybackId={item.muxPlaybackId} onChange={setBackdropImages} />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[#1e1e1e]">
-          <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">Cancel</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-500 hover:bg-blue-400 text-black font-semibold">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save changes
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
+import EditVideoModal from './EditVideoModal';
 
 // ── Library Tab ───────────────────────────────────────────────────────────────
 const LibraryTab = ({ categories, onCategoriesChange }) => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [q, setQ] = useState('');
+  const [syncingId, setSyncingId] = useState(null);
+  const [bulkSyncing, setBulkSyncing] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -336,15 +33,89 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = q.trim()
-    ? items.filter(v => (v.title || '').toLowerCase().includes(q.toLowerCase()))
-    : items;
-
   const handleSaved = () => {
     setEditing(null);
     load();
-    onCategoriesChange(); // refresh categories in context
+    onCategoriesChange();
   };
+
+  const handleSyncMux = async (item) => {
+    setSyncingId(String(item._id || item.id));
+    try {
+      const { data } = await api.post(`/admin/videos/${item._id || item.id}/sync-mux`, {
+        _collectionType: item._collectionType,
+      });
+      const { muxPlaybackId } = data?.result || {};
+      setItems(prev => prev.map(i =>
+        String(i._id || i.id) === String(item._id || item.id)
+          ? { ...i, muxPlaybackId: muxPlaybackId || i.muxPlaybackId }
+          : i
+      ));
+      toast({ title: muxPlaybackId ? 'Mux synced — ready to play' : `Synced — status: ${data?.result?.assetStatus}` });
+    } catch (err) {
+      toast({ title: 'Sync failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  const handleToggleVisibility = async (item) => {
+    const next = item.visibility === 'public' ? 'subscribers' : 'public';
+    setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, visibility: next } : i));
+    try {
+      await api.patch(`/admin/videos/${item._id || item.id}`, { visibility: next, _collectionType: item._collectionType });
+      toast({ title: next === 'public' ? 'Set to public' : 'Set to subscribers only' });
+    } catch {
+      setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, visibility: item.visibility } : i));
+      toast({ title: 'Failed to update visibility', variant: 'destructive' });
+    }
+  };
+
+  const handleToggleFeature = async (item) => {
+    const next = !item.isFeatured;
+    setItems(prev => prev.map(i =>
+      String(i._id || i.id) === String(item._id || item.id)
+        ? { ...i, isFeatured: next }
+        : next ? { ...i, isFeatured: false } : i
+    ));
+    try {
+      await api.patch(`/admin/videos/${item._id || item.id}`, { isFeatured: next, _collectionType: item._collectionType });
+      toast({ title: next ? 'Set as featured' : 'Removed from featured' });
+    } catch {
+      setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, isFeatured: item.isFeatured } : i));
+      toast({ title: 'Failed', variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Delete "${item.title || 'this video'}"? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/admin/videos/${item._id || item.id}`, { params: { collectionType: item._collectionType } });
+      setItems(prev => prev.filter(i => String(i._id || i.id) !== String(item._id || item.id)));
+      toast({ title: 'Deleted' });
+    } catch (err) {
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleBulkSync = async () => {
+    if (!user?._id) { toast({ title: 'No user ID found', variant: 'destructive' }); return; }
+    setBulkSyncing(true);
+    try {
+      const { data } = await api.post('/admin/mux/sync', { creatorId: user._id });
+      const { imported, skipped } = data?.result || {};
+      toast({ title: `Mux sync complete`, description: `${imported} imported, ${skipped} skipped` });
+      load();
+    } catch (err) {
+      toast({ title: 'Bulk sync failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setBulkSyncing(false);
+    }
+  };
+
+  const filtered = q.trim()
+    ? items.filter(v => (v.title || '').toLowerCase().includes(q.toLowerCase()))
+    : items;
 
   if (loading) return (
     <div className="flex justify-center py-20">
@@ -356,9 +127,14 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     <>
       {editing && <EditVideoModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} />}
 
-      <div className="mb-4">
+      <div className="flex items-center gap-2 mb-4">
         <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search videos…"
-          className="bg-[#1a1a1a] border-[#333] text-white h-9 text-sm focus:border-blue-500 max-w-xs" />
+          className="bg-[#1a1a1a] border-[#333] text-white h-9 text-sm focus:border-blue-500 flex-1 max-w-xs" />
+        <Button onClick={handleBulkSync} disabled={bulkSyncing}
+          className="bg-[#1a1a1a] hover:bg-[#272727] text-white border border-[#333] h-9 px-3 text-xs gap-1.5 flex-shrink-0">
+          {bulkSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
+          Sync Mux
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -367,29 +143,60 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(item => (
-            <div key={String(item._id || item.id)} className="flex items-center gap-3 rounded-xl bg-[#0f0f0f] border border-[#1e1e1e] hover:border-[#2a2a2a] p-3 transition-colors">
-              {item.thumbnailUrl
-                ? <img src={item.thumbnailUrl} alt={item.title} className="w-20 h-12 object-cover rounded-lg flex-shrink-0" />
-                : <div className="w-20 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center flex-shrink-0"><Film className="w-5 h-5 text-gray-600" /></div>}
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-medium text-sm truncate">{item.title || 'Untitled'}</p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-xs text-gray-500 bg-[#1a1a1a] px-2 py-0.5 rounded-full">{item._collectionType}</span>
-                  {item.muxPlaybackId && <span className="text-xs text-gray-600 font-mono">✓ Mux</span>}
-                  {categories
-                    .filter(c => c.items.some(i => i.itemId === String(item._id || item.id)))
-                    .map(c => (
-                      <span key={c._id} className="text-xs bg-blue-500/15 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full">{c.name}</span>
-                    ))}
+          {filtered.map(item => {
+            const id = String(item._id || item.id);
+            const isSyncing = syncingId === id;
+            const needsMuxSync = item.muxAssetId && !item.muxPlaybackId;
+            return (
+              <div key={id} className="flex items-center gap-3 rounded-xl bg-[#0f0f0f] border border-[#1e1e1e] hover:border-[#2a2a2a] p-3 transition-colors">
+                {item.thumbnailUrl
+                  ? <img src={item.thumbnailUrl} alt={item.title} className="w-20 h-12 object-cover rounded-lg flex-shrink-0" />
+                  : <div className="w-20 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center flex-shrink-0"><Film className="w-5 h-5 text-gray-600" /></div>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-medium text-sm truncate">{item.title || 'Untitled'}</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-xs text-gray-500 bg-[#1a1a1a] px-2 py-0.5 rounded-full">{item._collectionType}</span>
+                    {item.muxPlaybackId
+                      ? <span className="text-xs text-green-600 font-mono">✓ Mux</span>
+                      : item.muxAssetId
+                        ? <span className="text-xs text-yellow-600 font-mono">⚠ No playback ID</span>
+                        : null}
+                    {item.isFeatured && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">Featured</span>}
+                    {item.visibility !== 'public' && <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10">{item.visibility}</span>}
+                    {categories
+                      .filter(c => c.items.some(ci => ci.itemId === id))
+                      .map(c => (
+                        <span key={c._id} className="text-xs bg-blue-500/15 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full">{c.name}</span>
+                      ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => setEditing(item)} title="Edit"
+                    className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  {(needsMuxSync || item.muxAssetId) && (
+                    <button onClick={() => handleSyncMux(item)} disabled={isSyncing} title="Sync status from Mux"
+                      className={`p-2 rounded-lg transition-colors ${needsMuxSync ? 'text-yellow-500 hover:text-yellow-300 hover:bg-yellow-500/10' : 'text-gray-600 hover:text-gray-400 hover:bg-white/5'}`}>
+                      {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    </button>
+                  )}
+                  <button onClick={() => handleToggleVisibility(item)} title={item.visibility === 'public' ? 'Make subscribers only' : 'Make public'}
+                    className={`p-2 rounded-lg transition-colors ${item.visibility === 'public' ? 'text-blue-400 hover:bg-blue-500/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+                    {item.visibility === 'public' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => handleToggleFeature(item)} title={item.isFeatured ? 'Unfeature' : 'Set as featured'}
+                    className={`p-2 rounded-lg transition-colors ${item.isFeatured ? 'text-yellow-400 hover:bg-yellow-500/10' : 'text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10'}`}>
+                    <Star className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(item)} title="Delete"
+                    className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              <button onClick={() => setEditing(item)} title="Edit"
-                className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0">
-                <Pencil className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </>
