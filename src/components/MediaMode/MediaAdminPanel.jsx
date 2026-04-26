@@ -164,7 +164,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                     {item.isFeatured && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">Featured</span>}
                     {item.visibility !== 'public' && <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10">{item.visibility}</span>}
                     {categories
-                      .filter(c => c.items.some(ci => ci.itemId === id))
+                      .filter(c => (c.items || []).some(ci => ci.itemId === id))
                       .map(c => (
                         <span key={c._id} className="text-xs bg-blue-500/15 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full">{c.name}</span>
                       ))}

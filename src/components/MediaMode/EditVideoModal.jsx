@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X, Loader2, ImagePlus, ChevronDown, ChevronUp,
   Camera, Video, Tag, Check,
@@ -22,6 +22,21 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
   const [dropIndex, setDropIndex] = useState(null);
   const fileRef = useRef();
   const throttleRef = useRef(0);
+  const muxPlayerRef = useRef(null);
+
+  useEffect(() => {
+    if (!showPlayer) return;
+    const el = muxPlayerRef.current;
+    if (!el) return;
+    const handler = () => {
+      const now = Date.now();
+      if (now - throttleRef.current < 250) return;
+      throttleRef.current = now;
+      setLiveTime(el.currentTime || 0);
+    };
+    el.addEventListener('timeupdate', handler);
+    return () => el.removeEventListener('timeupdate', handler);
+  }, [showPlayer]);
 
   const handleDragEnd = () => {
     if (dragIndex !== null && dropIndex !== null && dragIndex !== dropIndex) {
@@ -32,13 +47,6 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
     }
     setDragIndex(null);
     setDropIndex(null);
-  };
-
-  const handleTimeUpdate = (e) => {
-    const now = Date.now();
-    if (now - throttleRef.current < 250) return;
-    throttleRef.current = now;
-    setLiveTime(e.target.currentTime || 0);
   };
 
   const captureFrame = () => {
@@ -112,7 +120,7 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
           {showPlayer && (
             <div className="bg-[#0a0a0a] p-3 space-y-3">
               <div className="rounded-lg overflow-hidden border border-[#222]">
-                <MuxPlayer playbackId={muxPlaybackId} streamType="on-demand" onTimeUpdate={handleTimeUpdate}
+                <MuxPlayer ref={muxPlayerRef} playbackId={muxPlaybackId} streamType="on-demand"
                   style={{ width: '100%', aspectRatio: '16/9', display: 'block' }} />
               </div>
               <div className="flex items-center gap-3">
