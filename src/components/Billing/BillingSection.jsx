@@ -29,6 +29,17 @@ const STATUS_BADGE = {
   past_due: 'text-yellow-500 border-yellow-500/30 bg-yellow-500/10',
 };
 
+// Direct Stripe payment links per plan — matched by plan name keywords
+const DIRECT_LINKS = [
+  { match: /homies tier|15|homies.*month/i, url: 'https://buy.stripe.com/00w5kCfqtbbQ3Nr1iqf7i07' },
+  { match: /digital nomad/i,               url: 'https://buy.stripe.com/fZeg0o0xH0k2g3SfZ3' },
+];
+
+function getDirectLink(planName = '') {
+  const entry = DIRECT_LINKS.find(({ match }) => match.test(planName));
+  return entry?.url || null;
+}
+
 export default function BillingSection() {
   const { summary, plans, loading, error, openPortal, startCheckout } = useBilling();
   const [portalLoading, setPortalLoading] = useState(false);
@@ -43,9 +54,14 @@ export default function BillingSection() {
     setPortalLoading(false);
   };
 
-  const handleCheckout = async (priceId) => {
-    setCheckoutLoading(priceId);
-    await startCheckout(priceId);
+  const handleCheckout = async (plan) => {
+    const directUrl = getDirectLink(plan.product?.name || '');
+    if (directUrl) {
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setCheckoutLoading(plan.id);
+    await startCheckout(plan.id);
     setCheckoutLoading(null);
   };
 
@@ -144,7 +160,7 @@ export default function BillingSection() {
                         </div>
                         <Button
                           size="sm"
-                          onClick={() => handleCheckout(plan.id)}
+                          onClick={() => handleCheckout(plan)}
                           disabled={checkoutLoading === plan.id}
                           className="flex-shrink-0"
                         >

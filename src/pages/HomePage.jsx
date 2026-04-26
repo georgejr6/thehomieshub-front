@@ -5,7 +5,7 @@ import VerticalVideoFeed from '@/components/VerticalVideoFeed';
 import { useContent } from '@/contexts/ContentContext';
 import StoryFeed from '@/components/StoryFeed';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Zap, X, CreditCard } from 'lucide-react';
+import { ChevronRight, Zap, X, CreditCard, Globe, Clock, ArrowRight } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -148,6 +148,55 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
                             {/* Inner container for styling consistency */}
                             <div className="bg-black/20 backdrop-blur-sm border-b border-white/5">
                                 <StoryFeed />
+
+                                {/* ── Consultation booking section ── */}
+                                <div className="px-4 py-3 border-t border-white/5 space-y-2">
+                                  <p className="text-[10px] text-white/40 uppercase tracking-widest font-semibold flex items-center gap-1.5">
+                                    <Globe className="w-3 h-3" />Book a 1-on-1 travel &amp; lifestyle consult
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {/* 30-min */}
+                                    <a
+                                      href="https://buy.stripe.com/5kQfZgbadeo24Rvgdkf7i0f"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="group rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 p-3 flex flex-col gap-2 transition-all"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="w-3 h-3 text-white/50" />
+                                          <span className="text-[11px] text-white/60 font-medium">30 min</span>
+                                        </div>
+                                        <span className="text-xs font-bold text-yellow-400">Book →</span>
+                                      </div>
+                                      <p className="text-xs font-semibold text-white leading-tight">Travel Consult</p>
+                                      <p className="text-[10px] text-white/40 leading-snug">Colombia · Peru · Thailand · London · Amsterdam &amp; more</p>
+                                      <span className="text-[10px] text-yellow-400 font-semibold flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                                        Book now <ArrowRight className="w-2.5 h-2.5" />
+                                      </span>
+                                    </a>
+                                    {/* 1-hour */}
+                                    <a
+                                      href="https://buy.stripe.com/aFa5kCemp3Jo3Nr4uCf7i0g"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="group rounded-lg border border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/10 hover:border-yellow-500/50 p-3 flex flex-col gap-2 transition-all"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="w-3 h-3 text-yellow-500/70" />
+                                          <span className="text-[11px] text-yellow-500/80 font-medium">1 hour</span>
+                                        </div>
+                                        <span className="text-xs font-bold text-yellow-400">Book →</span>
+                                      </div>
+                                      <p className="text-xs font-semibold text-white leading-tight">Deep Dive Consult</p>
+                                      <p className="text-[10px] text-white/40 leading-snug">Digital nomad · Living abroad · AI income · Build your biz</p>
+                                      <span className="text-[10px] text-yellow-400 font-semibold flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                                        Book now <ArrowRight className="w-2.5 h-2.5" />
+                                      </span>
+                                    </a>
+                                  </div>
+                                </div>
                                 {(showUpgradePill || user) && (
                                   <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-white/5">
                                     {showUpgradePill ? (
