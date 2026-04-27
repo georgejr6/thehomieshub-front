@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { useContent } from '@/contexts/ContentContext';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import api from '@/api/homieshub';
 
 const CommentItem = ({ comment }) => {
     const [liked, setLiked] = useState(false);
@@ -34,13 +35,14 @@ const { user: currentUser } = useAuth();
         setLikeCount(prev => liked ? prev - 1 : prev + 1);
     }
     
-    const handleAdminDelete = () => {
-        deleteComment(comment.id);
-        toast({
-            title: 'Comment Deleted',
-            description: 'The comment has been removed.',
-            variant: 'destructive'
-        });
+    const handleAdminDelete = async () => {
+        try {
+            await api.delete(`/admin/comments/${comment.id}`);
+            deleteComment(comment.id);
+            toast({ title: 'Comment Deleted', variant: 'destructive' });
+        } catch (err) {
+            toast({ title: 'Failed to delete comment', description: err?.response?.data?.message || err.message, variant: 'destructive' });
+        }
     }
     
     const handleReport = () => {

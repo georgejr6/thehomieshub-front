@@ -15,6 +15,7 @@ import { useContent } from '@/contexts/ContentContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import api from '@/api/homieshub';
 
 const EditTitleModal = ({ isOpen, onOpenChange, currentTitle, onSave }) => {
   const [newTitle, setNewTitle] = useState(currentTitle);
@@ -60,13 +61,20 @@ const MoreOptionsDropdown = ({ post, stream, isOwnProfile }) => {
   const content = post || stream;
   const isStream = !!stream;
 
-  const handleAdminDelete = () => {
-    deletePost(content.id);
-    toast({
-      title: '🗑️ Post Deleted (Admin)',
-      description: `Post ID ${content.id} has been removed.`,
-      variant: 'destructive',
-    });
+  const handleAdminDelete = async () => {
+    if (!window.confirm('Delete this post? This cannot be undone.')) return;
+    try {
+      const bt = content.backendType;
+      if (bt === 'video' || bt === 'reel') {
+        await api.delete(`/admin/videos/${content.id}`, { params: { collectionType: bt } });
+      } else {
+        await api.delete(`/admin/posts/${content.id}`);
+      }
+      deletePost(content.id);
+      toast({ title: 'Post Deleted', variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Delete failed', description: err?.response?.data?.message || err.message, variant: 'destructive' });
+    }
   };
   
   const handleAdminBan = () => {
