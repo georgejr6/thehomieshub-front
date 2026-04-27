@@ -164,14 +164,14 @@ export default function StoryViewer({ stories, initialStoryIndex, onClose }) {
 
   // ── render ────────────────────────────────────────────────────
   return (
-    /* Full-screen dark backdrop — click outside card to close */
-    <div className="fixed inset-0 z-[200] bg-[#0a0a0a] flex items-center justify-center"
+    /* Full-screen dark backdrop — rendered at App root, z above everything */
+    <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] flex items-center justify-center"
          onClick={onClose}>
 
       {/* ── Global X button ── */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-[300] p-2 rounded-full bg-black/50 hover:bg-black/80 text-white transition-all"
+        className="absolute top-4 right-4 z-[10000] p-2 rounded-full bg-black/50 hover:bg-black/80 text-white transition-all"
         aria-label="Close stories"
       >
         <X className="h-6 w-6" />

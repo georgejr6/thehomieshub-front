@@ -10,6 +10,7 @@ import { ContentProvider } from '@/contexts/ContentContext';
 import { MediaProvider } from '@/contexts/MediaContext';
 import { MessageProvider } from '@/contexts/MessageContext';
 import { FeatureProvider } from '@/contexts/FeatureContext';
+import { StoryProvider } from '@/contexts/StoryContext';
 import { WalletProvider as AlgoWalletProvider, WalletManager, WalletId, NetworkId } from '@txnlab/use-wallet-react';
 
 // ── Algorand wallet manager — extension wallets only ─────────────────────────
@@ -34,7 +35,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               <MediaProvider>
                 <MessageProvider>
                   <FeatureProvider>
-                    <App />
+                    <StoryProvider>
+                      <App />
+                    </StoryProvider>
                   </FeatureProvider>
                 </MessageProvider>
               </MediaProvider>

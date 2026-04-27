@@ -53,6 +53,8 @@ import OnboardingFlow from '@/components/OnboardingFlow';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import FeatureGuard from '@/components/FeatureGuard';
+import { useStory } from '@/contexts/StoryContext';
+import StoryViewer from '@/components/StoryViewer';
 import WatchPage from './pages/WatchPage';
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage';
 
@@ -182,8 +184,9 @@ const AppContent = React.memo(() => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isImmersiveMode, setIsImmersiveMode] = useState(false);
-  
+
   const { user, loading, isLockedModalOpen, setIsLockedModalOpen, isPremium, showOnboarding, stopTutorial } = useAuth();
+  const { orderedStories, viewingIndex, closeStory } = useStory();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -385,6 +388,15 @@ const AppContent = React.memo(() => {
         <OnboardingFlow isOpen={showOnboarding} onClose={stopTutorial} />
         <PlaceView />
         <Toaster />
+
+        {/* Story viewer — fixed fullscreen, independent of all layout/feed lifecycle */}
+        {viewingIndex !== null && (
+          <StoryViewer
+            stories={orderedStories}
+            initialStoryIndex={viewingIndex}
+            onClose={closeStory}
+          />
+        )}
     </ThemeProvider>
     </WagerProvider>
   );
