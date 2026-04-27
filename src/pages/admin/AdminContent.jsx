@@ -65,11 +65,11 @@ const AdminContent = () => {
       ]);
 
       const rawVideos = videosRes.status === 'fulfilled'
-        ? (videosRes.value.data?.data?.videos || videosRes.value.data?.videos || [])
+        ? (videosRes.value.data?.result?.items || [])
         : [];
 
       const rawPosts = communityRes.status === 'fulfilled'
-        ? (communityRes.value.data?.data?.posts || communityRes.value.data?.posts || communityRes.value.data?.items || [])
+        ? (communityRes.value.data?.result?.items || [])
         : [];
 
       const videos = rawVideos
@@ -103,7 +103,7 @@ const AdminContent = () => {
       setItems(prev => prev.filter(i => i.id !== item.id));
       toast({ title: 'Deleted', description: `"${item.label.slice(0, 60)}" has been removed.` });
     } catch (err) {
-      toast({ title: 'Delete failed', description: err?.response?.data?.error || 'Server error', variant: 'destructive' });
+      toast({ title: 'Delete failed', description: err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Server error', variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -121,7 +121,7 @@ const AdminContent = () => {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, isNSFW: true } : i));
       toast({ title: 'Marked NSFW', description: 'Content is now blurred for all users.' });
     } catch (err) {
-      toast({ title: 'Action failed', description: err?.response?.data?.error || 'Server error', variant: 'destructive' });
+      toast({ title: 'Action failed', description: err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Server error', variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -139,7 +139,7 @@ const AdminContent = () => {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, isNSFW: false } : i));
       toast({ title: 'NSFW removed' });
     } catch (err) {
-      toast({ title: 'Action failed', description: err?.response?.data?.error || 'Server error', variant: 'destructive' });
+      toast({ title: 'Action failed', description: err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Server error', variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
