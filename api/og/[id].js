@@ -1,23 +1,12 @@
 // /api/og/:id
 // ALL /watch/:id traffic is routed here (vercel.json).
-// Bots   → return OG-tagged HTML for social share previews.
-// Browsers → fetch and return index.html so React SPA loads at /watch/:id.
+// Fetches video data, injects OG meta tags into index.html, returns to everyone.
+// Bots get proper OG tags. Browsers get the full React SPA with OG tags already in <head>.
 
 const BACKEND   = 'https://backend.thehomies.app/api';
 const SITE_URL  = 'https://www.thehomies.app';
 const SITE_NAME = 'The Homies Hub';
 const DEFAULT_IMG = `${SITE_URL}/og-default.png`;
-
-// Treat as a bot if the UA does NOT look like a real browser.
-// Real browsers always send Mozilla/5.0 + one of Chrome/Firefox/Safari/Edge.
-const REAL_BROWSER = /Mozilla\/5\.0.*(Chrome|Firefox|Safari|Edg|OPR)/i;
-
-function isCrawler(ua) {
-  if (!ua) return true;
-  if (!REAL_BROWSER.test(ua)) return true;
-  // Some known bots also send browser-like UAs — catch them explicitly
-  return /bot|crawl|spider|preview|fetch|scrape|slack|telegram|discord|whatsapp|facebook|instagram|twitter|linkedin|pinterest|google|bing|yandex/i.test(ua);
-}
 
 function esc(s) {
   return String(s || '')
@@ -28,35 +17,20 @@ function esc(s) {
 }
 
 export default async function handler(req, res) {
-  const id = req.query.id || '';
-  const ua = req.headers['user-agent'] || '';
+  const id  = req.query.id || '';
+  const url = `${SITE_URL}/watch/${id}`;
 
-  // ── Browser: serve the React SPA so /watch/:id renders normally ──────────
-  if (!isCrawler(ua)) {
-    try {
-      const proto = req.headers['x-forwarded-proto'] || 'https';
-      const host  = req.headers['x-forwarded-host'] || req.headers.host || 'www.thehomies.app';
-      const r     = await fetch(`${proto}://${host}/`);
-      const html  = await r.text();
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.status(200).send(html);
-    } catch (_) {
-      // Hard fallback — shouldn't happen in production
-      return res.redirect(302, '/');
-    }
-  }
-
-  // ── Crawler: build OG HTML from post data ─────────────────────────────────
-  const url  = `${SITE_URL}/watch/${id}`;
   let title  = SITE_NAME;
   let desc   = `Watch on ${SITE_NAME}`;
   let image  = DEFAULT_IMG;
   let ogType = 'video.other';
 
+  // ── Fetch post data from backend ─────────────────────────────────────────
   if (id) {
     try {
       const r = await fetch(`${BACKEND}/user/posts/${id}`, {
         headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(4000),
       });
       if (r.ok) {
         const json = await r.json();
@@ -72,17 +46,15 @@ export default async function handler(req, res) {
           image = post.thumbnailUrl
             || post.thumbnail
             || (post.muxPlaybackId
-                ? `https://image.mux.com/${post.muxPlaybackId}/thumbnail.png?width=1280&height=720&time=3`
+                ? `https://image.mux.com/${post.muxPlaybackId}/thumbnail.png?width=1280&height=720&time=5`
                 : DEFAULT_IMG);
         }
       }
     } catch (_) {}
   }
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
+  // ── Build the OG tag block to inject ─────────────────────────────────────
+  const ogBlock = `
   <title>${esc(title)}</title>
   <meta name="description" content="${esc(desc)}"/>
   <meta property="og:site_name"    content="${esc(SITE_NAME)}"/>
@@ -97,12 +69,38 @@ export default async function handler(req, res) {
   <meta name="twitter:site"        content="@TheHomiesHub"/>
   <meta name="twitter:title"       content="${esc(title)}"/>
   <meta name="twitter:description" content="${esc(desc)}"/>
-  <meta name="twitter:image"       content="${esc(image)}"/>
+  <meta name="twitter:image"       content="${esc(image)}"/>`;
+
+  // ── Fetch index.html and inject the OG block ──────────────────────────────
+  try {
+    const proto = req.headers['x-forwarded-proto'] || 'https';
+    const host  = req.headers['x-forwarded-host'] || req.headers.host || 'www.thehomies.app';
+    const r     = await fetch(`${proto}://${host}/`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    let html = await r.text();
+
+    // Remove the generic <title> and inject the video-specific OG block
+    html = html
+      .replace(/<title>[^<]*<\/title>/, '')
+      .replace('</head>', `${ogBlock}\n</head>`);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+    return res.status(200).send(html);
+  } catch (_) {}
+
+  // ── Pure OG fallback (if index.html fetch fails) ──────────────────────────
+  const fallback = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  ${ogBlock}
 </head>
 <body><p><a href="${esc(url)}">${esc(title)}</a></p></body>
 </html>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
-  return res.status(200).send(html);
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+  return res.status(200).send(fallback);
 }
