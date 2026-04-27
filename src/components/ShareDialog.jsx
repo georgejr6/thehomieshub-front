@@ -184,7 +184,7 @@ const ShareDialog = ({ children, postUrl, postTitle, post }) => {
 
       // Logo watermark (bottom right)
       try {
-        const logo = await loadImage('/og-default.png');
+        const logo = await loadImage('/logo.png');
         const logoSize = Math.round(canvas.width * 0.18);
         const pad = Math.round(canvas.width * 0.04);
         ctx.globalAlpha = 0.92;

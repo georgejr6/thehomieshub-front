@@ -146,14 +146,14 @@ const Header = ({
         )}
         
         <Link to="/" className="flex items-center gap-2 min-w-0">
-          <motion.h1 
-            className="text-lg md:text-xl font-bold tracking-tighter text-primary truncate" 
-            initial={{ scale: 0.9, opacity: 0 }} 
-            animate={{ scale: 1, opacity: 1 }} 
+          <motion.img
+            src="/logo.png"
+            alt="The Homies Hub"
+            className="h-8 w-auto object-contain"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
-          >
-            The Homies
-          </motion.h1>
+          />
           <div className="hidden xs:block">
              <BetaPopover />
           </div>

@@ -8,7 +8,16 @@ const SITE_URL  = 'https://www.thehomies.app';
 const SITE_NAME = 'The Homies Hub';
 const DEFAULT_IMG = `${SITE_URL}/og-default.png`;
 
-const CRAWLERS = /Twitterbot|facebookexternalhit|facebot|LinkedInBot|Slackbot|TelegramBot|WhatsApp|Discordbot|Googlebot|bingbot|Embedly|Applebot|Pinterest|iframely|Baiduspider|DuckDuckBot|YandexBot|rogerbot/i;
+// Treat as a bot if the UA does NOT look like a real browser.
+// Real browsers always send Mozilla/5.0 + one of Chrome/Firefox/Safari/Edge.
+const REAL_BROWSER = /Mozilla\/5\.0.*(Chrome|Firefox|Safari|Edg|OPR)/i;
+
+function isCrawler(ua) {
+  if (!ua) return true;
+  if (!REAL_BROWSER.test(ua)) return true;
+  // Some known bots also send browser-like UAs — catch them explicitly
+  return /bot|crawl|spider|preview|fetch|scrape|slack|telegram|discord|whatsapp|facebook|instagram|twitter|linkedin|pinterest|google|bing|yandex/i.test(ua);
+}
 
 function esc(s) {
   return String(s || '')
@@ -23,7 +32,7 @@ export default async function handler(req, res) {
   const ua = req.headers['user-agent'] || '';
 
   // ── Browser: serve the React SPA so /watch/:id renders normally ──────────
-  if (!CRAWLERS.test(ua)) {
+  if (!isCrawler(ua)) {
     try {
       const proto = req.headers['x-forwarded-proto'] || 'https';
       const host  = req.headers['x-forwarded-host'] || req.headers.host || 'www.thehomies.app';

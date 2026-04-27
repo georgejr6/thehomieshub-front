@@ -221,7 +221,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
         {/* Mobile Close Button */}
         {isMobile && (
             <div className="flex justify-between items-center p-4 border-b">
-                 <span className="font-bold text-lg">Menu</span>
+                 <img src="/logo.png" alt="The Homies Hub" className="h-8 w-auto object-contain" />
                 <Button variant="ghost" size="icon" onClick={onMobileClose}>
                     <X className="h-6 w-6" />
                 </Button>
