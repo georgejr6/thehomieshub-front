@@ -392,7 +392,7 @@ const togglePlayPause = () => {
         if (!window.confirm(`Delete "${post.title || post.description?.slice(0,40) || 'this video'}"? This cannot be undone.`)) return;
         try {
             await api.delete(`/admin/videos/${post.id}`, {
-                params: { collectionType: backendType },
+                params: { collectionType: commentTargetType },
             });
             deletePost(post.id);
             toast({ title: 'Deleted', description: 'Video removed.' });
@@ -406,7 +406,7 @@ const togglePlayPause = () => {
         try {
             await api.patch(`/admin/videos/${post.id}`, {
                 visibility: 'private',
-                _collectionType: backendType,
+                _collectionType: commentTargetType,
             });
             deletePost(post.id); // remove from local feed
             toast({ title: 'Hidden', description: 'Video set to private.' });
@@ -423,7 +423,7 @@ const togglePlayPause = () => {
         try {
             await api.patch(`/admin/videos/${post.id}`, {
                 isNSFW: next,
-                _collectionType: backendType,
+                _collectionType: commentTargetType,
             });
             toast({ title: next ? 'Marked as NSFW' : 'NSFW removed' });
         } catch {
