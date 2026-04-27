@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils';
 // ── Feature data ──────────────────────────────────────────────────────────────
 
 const HOMIE_FEATURES = [
+  { icon: CheckCircle2, text: 'Everything in Discord tier included', highlight: true },
   { icon: Video,        text: 'Full access to members-only video content' },
-  { icon: Users,        text: 'Exclusive Discord & Homies channels' },
   { icon: Star,         text: 'Patreon / behind-the-scenes content' },
   { icon: TrendingUp,   text: 'Daily investment updates & opportunities', highlight: true },
   { icon: Folder,       text: 'Unlimited Directory access' },
@@ -31,6 +31,18 @@ const NOMAD_FEATURES = [
   { icon: TrendingUp,   text: 'Daily direct mentorship' },
 ];
 
+const DISCORD_FEATURES = [
+  { icon: MessageCircle, text: 'Full Discord server access — Discord only' },
+  { icon: Users,         text: 'All community channels & roles' },
+  { icon: Shield,        text: 'Verified Homie role on Discord' },
+];
+
+const DiscordIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.114 18.1.134 18.11a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+  </svg>
+);
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 const FeatureRow = ({ icon: Icon, text, highlight, light }) => (
@@ -46,9 +58,16 @@ const FeatureRow = ({ icon: Icon, text, highlight, light }) => (
   </li>
 );
 
-const CompareRow = ({ label, homie, nomad }) => (
+const CompareRow = ({ label, discord, homie, nomad }) => (
   <tr className="border-t border-border/50">
     <td className="py-3 pr-4 text-sm text-muted-foreground">{label}</td>
+    <td className="py-3 px-4 text-center">
+      {discord === true
+        ? <CheckCircle2 className="h-4 w-4 text-[#5865F2] mx-auto" />
+        : discord === false
+        ? <X className="h-4 w-4 text-muted-foreground/40 mx-auto" />
+        : <span className="text-xs text-foreground font-medium">{discord}</span>}
+    </td>
     <td className="py-3 px-4 text-center">
       {homie === true
         ? <CheckCircle2 className="h-4 w-4 text-primary mx-auto" />
@@ -69,7 +88,7 @@ const CompareRow = ({ label, homie, nomad }) => (
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const MembershipsPage = () => {
-  const [billing, setBilling] = useState('yearly'); // 'monthly' | 'yearly'
+  const [billing, setBilling] = useState('monthly'); // 'monthly' | 'yearly'
 
   return (
     <>
@@ -129,7 +148,50 @@ const MembershipsPage = () => {
 
         {/* ── Cards ── */}
         <div className="container mx-auto px-4 py-14">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+
+            {/* Card 0 — Discord Access */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.02 }}
+              className="flex flex-col rounded-2xl border border-[#5865F2]/30 bg-card overflow-hidden"
+            >
+              <div className="p-6 border-b border-border">
+                <div className="flex items-center gap-2 mb-2">
+                  <DiscordIcon className="h-4 w-4 text-[#5865F2]" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#5865F2]">
+                    Community
+                  </span>
+                </div>
+                <h2 className="text-2xl font-extrabold text-foreground">Discord Access</h2>
+                <p className="text-muted-foreground text-sm mt-1">Discord only — no app content included</p>
+                <div className="mt-5 flex items-end gap-1">
+                  <span className="text-5xl font-extrabold text-foreground">$10</span>
+                  <span className="text-muted-foreground text-sm mb-1.5">/ month</span>
+                </div>
+              </div>
+              <div className="p-6 flex-1">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">What's included</p>
+                <ul className="space-y-3.5">
+                  {DISCORD_FEATURES.map((f, i) => (
+                    <FeatureRow key={i} {...f} />
+                  ))}
+                </ul>
+              </div>
+              <div className="p-6 pt-0">
+                <Button
+                  asChild
+                  size="lg"
+                  className="w-full font-bold text-white hover:opacity-90 transition-opacity"
+                  style={{ background: '#5865F2' }}
+                >
+                  <a href="https://buy.stripe.com/28o15u6W5eaS5pebIL" target="_blank" rel="noopener noreferrer">
+                    Join — $10 / month
+                  </a>
+                </Button>
+              </div>
+            </motion.div>
 
             {/* Card 1 — The Homie */}
             <motion.div
@@ -148,7 +210,7 @@ const MembershipsPage = () => {
                   </span>
                 </div>
                 <h2 className="text-2xl font-extrabold text-foreground">The Homie</h2>
-                <p className="text-muted-foreground text-sm mt-1">For the certified Homies</p>
+                <p className="text-muted-foreground text-sm mt-1">Full app access + Discord included</p>
 
                 <div className="mt-5 flex items-end gap-1">
                   {billing === 'yearly' ? (
@@ -222,7 +284,7 @@ const MembershipsPage = () => {
                   <span className="text-xs font-bold uppercase tracking-widest text-amber-400">Premium</span>
                 </div>
                 <h2 className="text-2xl font-extrabold text-white">Digital Nomad</h2>
-                <p className="text-amber-200/60 text-sm mt-1">For those ready to thrive abroad</p>
+                <p className="text-amber-200/60 text-sm mt-1">Everything in Homie + Discord, plus mentorship</p>
 
                 <div className="mt-5 flex items-end gap-1">
                   <span className="text-5xl font-extrabold text-white">$100</span>
@@ -269,25 +331,26 @@ const MembershipsPage = () => {
               <table className="w-full">
                 <thead>
                   <tr className="bg-muted/40">
-                    <th className="text-left py-3 px-4 text-xs font-bold uppercase tracking-wider text-muted-foreground w-1/2">Feature</th>
+                    <th className="text-left py-3 px-4 text-xs font-bold uppercase tracking-wider text-muted-foreground w-2/5">Feature</th>
+                    <th className="py-3 px-4 text-center text-xs font-bold uppercase tracking-wider text-[#5865F2]">Discord</th>
                     <th className="py-3 px-4 text-center text-xs font-bold uppercase tracking-wider text-primary">The Homie</th>
                     <th className="py-3 px-4 text-center text-xs font-bold uppercase tracking-wider text-amber-400">Digital Nomad</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30 bg-card/50">
-                  <CompareRow label="Members-only video content"     homie={true}          nomad={true} />
-                  <CompareRow label="Discord & Homies channels"      homie={true}          nomad={true} />
-                  <CompareRow label="Patreon / BTS content"          homie={true}          nomad={true} />
-                  <CompareRow label="Daily investment updates"        homie={true}          nomad={true} />
-                  <CompareRow label="Directory access"               homie="Unlimited"     nomad="Unlimited" />
-                  <CompareRow label="Media Mode streaming"           homie={true}          nomad={true} />
-                  <CompareRow label="Wager system"                   homie={true}          nomad={true} />
-                  <CompareRow label="Exclusive Nomad channels"       homie={false}         nomad={true} />
-                  <CompareRow label="Remote jobs & freelance access" homie={false}         nomad={true} />
-                  <CompareRow label="Digital Nomad course"           homie={false}         nomad={true} />
-                  <CompareRow label="Website / e-commerce setup"     homie={false}         nomad="After 3 mo" />
-                  <CompareRow label="1-on-1 virtual meetings"        homie={false}         nomad={true} />
-                  <CompareRow label="Daily mentorship"               homie={false}         nomad={true} />
+                  <CompareRow label="Discord & community channels"      discord={true}  homie={true}      nomad={true} />
+                  <CompareRow label="Members-only video content"      discord={false} homie={true}      nomad={true} />
+                  <CompareRow label="Patreon / BTS content"           discord={false} homie={true}      nomad={true} />
+                  <CompareRow label="Daily investment updates"        discord={false} homie={true}      nomad={true} />
+                  <CompareRow label="Directory access"                discord={false} homie="Unlimited" nomad="Unlimited" />
+                  <CompareRow label="Media Mode streaming"            discord={false} homie={true}      nomad={true} />
+                  <CompareRow label="Wager system"                    discord={false} homie={true}      nomad={true} />
+                  <CompareRow label="Exclusive Nomad channels"        discord={false} homie={false}     nomad={true} />
+                  <CompareRow label="Remote jobs & freelance access"  discord={false} homie={false}     nomad={true} />
+                  <CompareRow label="Digital Nomad course"            discord={false} homie={false}     nomad={true} />
+                  <CompareRow label="Website / e-commerce setup"      discord={false} homie={false}     nomad="After 3 mo" />
+                  <CompareRow label="1-on-1 virtual meetings"         discord={false} homie={false}     nomad={true} />
+                  <CompareRow label="Daily mentorship"                discord={false} homie={false}     nomad={true} />
                 </tbody>
               </table>
             </div>
