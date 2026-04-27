@@ -322,6 +322,30 @@ export default function StoryViewer({ stories, initialStoryIndex, onClose }) {
           <div className="absolute inset-y-0 right-0 w-1/2 z-40 cursor-pointer"
                onClick={(e) => { e.stopPropagation(); goNext(); }} />
 
+          {/* ── Side nav buttons on the card edges ── */}
+          <button
+            onClick={(e) => { e.stopPropagation(); goPrev(); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-50
+                       w-9 h-9 rounded-full bg-black/40 hover:bg-black/70
+                       border border-white/20 backdrop-blur-sm
+                       flex items-center justify-center text-white
+                       transition-all active:scale-90"
+            aria-label="Previous"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); goNext(); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-50
+                       w-9 h-9 rounded-full bg-black/40 hover:bg-black/70
+                       border border-white/20 backdrop-blur-sm
+                       flex items-center justify-center text-white
+                       transition-all active:scale-90"
+            aria-label="Next"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+
           {/* ── Bottom: reply input + heart + send ── */}
           {!isPromo && (
             <div className="absolute bottom-0 left-0 right-0 z-50 flex items-center gap-2 px-3 pb-8 pt-4 pointer-events-auto">
