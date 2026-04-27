@@ -80,10 +80,12 @@ export default async function handler(req, res) {
     });
     let html = await r.text();
 
-    // Remove the generic <title> and inject the video-specific OG block
+    // Strip all existing OG/Twitter/description tags (generic fallbacks from index.html)
+    // then inject video-specific block at the very top of <head> so parsers see it first
     html = html
-      .replace(/<title>[^<]*<\/title>/, '')
-      .replace('</head>', `${ogBlock}\n</head>`);
+      .replace(/<title>[^<]*<\/title>/i, '')
+      .replace(/<meta\s[^>]*(?:property="og:[^"]*"|name="twitter:[^"]*"|name="description")[^>]*\/?>/gi, '')
+      .replace('<head>', `<head>\n${ogBlock}`);
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
