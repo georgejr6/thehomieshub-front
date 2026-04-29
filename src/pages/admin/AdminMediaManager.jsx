@@ -157,7 +157,7 @@ const EditModal = ({ item, categories, onClose, onSaved }) => {
   const [thumbnailUrl, setThumbnailUrl] = useState(item.thumbnailUrl || '');
   const [backdropImages, setBackdropImages] = useState(item.backdropImages || []);
   const [selectedCatIds, setSelectedCatIds] = useState(() =>
-    categories.filter(c => c.items.some(i => i.itemId === String(item._id || item.id))).map(c => String(c._id))
+    categories.filter(c => (c.items || []).some(i => i.itemId === String(item._id || item.id))).map(c => String(c._id))
   );
   const [thumbLoading, setThumbLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -355,7 +355,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                   <span className="text-xs text-gray-500 bg-[#1a1a1a] px-2 py-0.5 rounded-full">{item._collectionType}</span>
                   {item.muxPlaybackId && <span className="text-xs text-gray-600 font-mono">✓ Mux</span>}
                   {categories
-                    .filter(c => c.items.some(i => i.itemId === String(item._id || item.id)))
+                    .filter(c => (c.items || []).some(i => i.itemId === String(item._id || item.id)))
                     .map(c => (
                       <span key={c._id} className="text-xs bg-[#3ea6ff]/15 text-[#3ea6ff] border border-[#3ea6ff]/20 px-2 py-0.5 rounded-full">{c.name}</span>
                     ))}
