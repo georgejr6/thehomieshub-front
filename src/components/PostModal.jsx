@@ -29,10 +29,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 
-// ✅ Your API client (axios instance with baseURL + auth header interceptor)
+// ✅ Your API client (axios instance with baseURL + auth header interceptor - see src/lib/api.js)
 import api from '@/api/homieshub';
 // ✅ Direct upload to Mux must be a raw PUT to the returned URL
-import axios from 'axios';
 
 
 // ✅ Upload image to DigitalOcean Spaces via backend
@@ -1003,6 +1002,7 @@ const MomentsForm = ({ onPostSuccess }) => {
     const [hashtags, setHashtags] = useState([]);
     const [currentHashtag, setCurrentHashtag] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [isNSFW, setIsNSFW] = useState(false);
     const [isSubscriberOnly, setIsSubscriberOnly] = useState(false);
     const [isMintable, setIsMintable] = useState(false);
@@ -1127,10 +1127,8 @@ const MomentsForm = ({ onPostSuccess }) => {
         }
     };
 
-    // ✅ Helper sleep for polling
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-    // ✅ Real upload flow: Backend create upload -> PUT to Mux -> poll backend for playbackId
+    // Upload flow: Backend create upload → XHR PUT to Mux (with progress) → done
+    // Mux webhook handles DB creation asynchronously; no polling needed
     const handleUpload = async () => {
         try {
             if (!file) return;
@@ -1141,19 +1139,22 @@ const MomentsForm = ({ onPostSuccess }) => {
             }
 
             setUploading(true);
+            setUploadProgress(0);
+
             let coverImageUrl = "";
             if (coverFile) {
                 coverImageUrl = await uploadImageToSpaces(coverFile, "reels/thumbnails");
             }
 
-            // 1) Create Mux Direct Upload via backend (uses your api client)
+            // 1) Create Mux Direct Upload via backend
             const createResp = await api.post('/mux/uploads', {
-                contentType: 'video',
+                contentType: 'reel',
                 title,
                 caption,
+                description: caption,
                 hashtags,
-                // cover image upload (DO Spaces) can be added later. For now keep empty string.
-                coverImageUrl
+                coverImageUrl,
+                backdropImages: [],
             });
 
             const upload = createResp?.data?.result?.upload;
@@ -1164,52 +1165,39 @@ const MomentsForm = ({ onPostSuccess }) => {
                 throw new Error('Upload session not created (missing uploadId/uploadUrl)');
             }
 
-            // 2) Upload file directly to Mux URL (must be direct PUT)
-            const contentType = file?.type || 'application/octet-stream';
-            await axios.put(uploadUrl, file, {
-                headers: { 'Content-Type': contentType },
-                maxBodyLength: Infinity,
-                maxContentLength: Infinity,
+            // 2) PUT file directly to Mux with XHR so we get upload progress
+            await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('PUT', uploadUrl, true);
+                xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        setUploadProgress(Math.round((e.loaded / e.total) * 100));
+                    }
+                };
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) resolve();
+                    else reject(new Error(`Mux upload failed: HTTP ${xhr.status}`));
+                };
+                xhr.onerror = () => reject(new Error('Network error during upload'));
+                xhr.send(file);
             });
 
-            // 3) Poll backend until webhook marks it ready + playbackId exists
-            const startedAt = Date.now();
-            const maxWaitMs = 2 * 60 * 1000; // 2 min
-            let playbackId = null;
-            let status = null;
-
-            while (Date.now() - startedAt < maxWaitMs) {
-                await sleep(2000);
-
-                const stResp = await api.get(`/mux/uploads/${uploadId}`);
-                const up = stResp?.data?.result?.upload;
-
-                status = up?.status;
-                playbackId = up?.muxPlaybackId;
-
-                if (status === 'ready' && playbackId) break;
-                if (status === 'errored') throw new Error('Mux processing failed');
-            }
-
-            if (!(status === 'ready' && playbackId)) {
-                throw new Error('Mux is still processing. Please try again in a moment.');
-            }
-
-            // 4) Backend webhook auto-creates Reel in DB.
-            // Add reel to local UI (use playbackId as videoUrl)
+            // 3) File is in Mux — webhook will create the Reel in DB automatically.
+            // Add optimistic item to local feed so the user sees it immediately.
             const newReel = {
-                id: playbackId,
+                id: uploadId,
                 type: 'clip',
-                videoUrl: playbackId,
+                videoUrl: null,
                 thumbnail: coverPreview,
-                title: title,
+                title,
                 description: caption,
                 content: { title, description: caption },
                 user: {
                     name: user?.name,
                     username: user?.username,
                     avatar: user?.avatar,
-                    verified: user?.verified
+                    verified: user?.verified,
                 },
                 engagement: { likes: 0, comments: 0, shares: 0 },
                 tags: hashtags.length > 0 ? hashtags : ['new'],
@@ -1220,48 +1208,29 @@ const MomentsForm = ({ onPostSuccess }) => {
                     id: selectedMusic.id,
                     title: selectedMusic.title,
                     artist: selectedMusic.artist,
-                    cover: selectedMusic.cover
-                } : null
+                    cover: selectedMusic.cover,
+                } : null,
             };
-
-            if (isMintable) {
-                newReel.mintData = {
-                    title: title,
-                    creator: user,
-                    timestamp: new Date().toLocaleString(),
-                    asaId: Math.floor(Math.random() * 90000000) + 10000000,
-                    transactionId: "TX-" + Math.random().toString(36).substr(2, 9).toUpperCase(),
-                    edition: 1,
-                    totalEditions: 50,
-                    isVerifiedLocation: false,
-                    description: "Unverified Mint from Moment",
-                    image: coverPreview,
-                    video: playbackId
-                };
-            }
 
             addReel(newReel);
 
             toast({
-                title: isMintable ? "✅ Moment Minted & Posted!" : "✅ Moment Uploaded!",
-                description: isMintable ? "Moment is now an unverified collectible." : "Your Moment is now live."
+                title: "✅ Moment Uploaded!",
+                description: "Your Moment is being processed and will be live shortly.",
             });
 
             setUploading(false);
+            setUploadProgress(0);
             onPostSuccess();
         } catch (err) {
             console.error(err);
             setUploading(false);
-
-            const msg =
-                err?.response?.data?.message ||
-                err?.message ||
-                "Upload failed";
+            setUploadProgress(0);
 
             toast({
                 title: "Upload failed",
-                description: msg,
-                variant: "destructive"
+                description: err?.response?.data?.message || err?.message || "Upload failed",
+                variant: "destructive",
             });
         }
     };
@@ -1373,8 +1342,22 @@ const MomentsForm = ({ onPostSuccess }) => {
                         />
                     </div>
 
+                    {uploading && uploadProgress > 0 && (
+                        <div className="w-full space-y-1">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>Uploading…</span>
+                                <span>{uploadProgress}%</span>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-1.5">
+                                <div className="bg-primary h-1.5 rounded-full transition-all duration-200" style={{ width: `${uploadProgress}%` }} />
+                            </div>
+                        </div>
+                    )}
                     <Button size="lg" className="w-full" onClick={handleUpload} disabled={uploading}>
-                        {uploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading</> : 'Share Moment'}
+                        {uploading
+                            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Preparing…'}</>
+                            : 'Share Moment'
+                        }
                     </Button>
                 </div>
 
