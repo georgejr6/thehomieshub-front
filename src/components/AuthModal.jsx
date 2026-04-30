@@ -329,12 +329,12 @@ const ConfirmationStep = ({ user, plans, formData, onBack, onConfirm, isSubmitti
   )
 };
 
-const AuthModal = ({ isOpen, onOpenChange, initialView = 'main' }) => {
+const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 'signin' }) => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, signIn, refreshMe, setAccessToken } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('signin');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [authView, setAuthView] = useState(initialView);
   const [upgradeStep, setUpgradeStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -350,8 +350,9 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main' }) => {
 
   useEffect(() => {
     setAuthView(initialView);
+    setActiveTab(initialTab || 'signin');
     if (initialView === 'upgrade') setUpgradeStep(1);
-  }, [initialView, isOpen]);
+  }, [initialView, initialTab, isOpen]);
 
   const handleInputChange = (e) => {
     const { id, value } = e.target;

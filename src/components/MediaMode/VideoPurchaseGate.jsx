@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Crown, ShoppingCart, LogIn, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Crown, ShoppingCart, LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useMedia } from '@/contexts/MediaContext';
 import { useAuth } from '@/contexts/AuthContext';
 
 const VideoPurchaseGate = () => {
-  const { gatedVideo, setGatedVideo, purchaseVideo } = useMedia();
+  const { gatedVideo, setGatedVideo, purchaseVideo, setPendingPlay } = useMedia();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [purchasing, setPurchasing] = useState(false);
 
   const handlePurchase = async () => {
@@ -37,10 +39,10 @@ const VideoPurchaseGate = () => {
     window.open('https://www.thehomies.app/memberships', '_blank');
   };
 
-  const handleLogin = () => {
+  const openAuth = (tab) => {
+    setPendingPlay(gatedVideo);
     setGatedVideo(null);
-    // Navigate back to main app so auth modal can open
-    window.location.href = '/';
+    navigate(`/?openAuth=1&tab=${tab}`);
   };
 
   return (
@@ -90,17 +92,24 @@ const VideoPurchaseGate = () => {
 
               {!user ? (
                 /* Not logged in */
-                <>
+                <div className="space-y-3">
                   <Button
-                    onClick={handleLogin}
-                    className="w-full bg-white text-black hover:bg-white/90 font-bold gap-2 mb-3"
+                    onClick={() => openAuth('signin')}
+                    className="w-full bg-white text-black hover:bg-white/90 font-bold gap-2 py-5"
                   >
                     <LogIn className="w-4 h-4" /> Sign In to Watch
                   </Button>
-                  <p className="text-zinc-500 text-xs text-center">
-                    Already have access? Sign in to unlock.
+                  <Button
+                    onClick={() => openAuth('signup')}
+                    variant="outline"
+                    className="w-full border-zinc-700 text-white hover:bg-zinc-800 font-semibold gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" /> Create a Free Account
+                  </Button>
+                  <p className="text-zinc-600 text-xs text-center pt-1">
+                    After signing in you can watch or purchase this video.
                   </p>
-                </>
+                </div>
               ) : (
                 /* Logged in, no subscription */
                 <div className="space-y-3">

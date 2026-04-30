@@ -72,6 +72,13 @@ export const MediaProvider = ({ children }) => {
   const trackRef     = useRef(null);
   const isPlayingRef = useRef(false);
 
+  // Pending video to play after login (set by gate's "Sign In" / "Create Account" buttons)
+  const pendingPlayRef = useRef(null);
+  const prevUserRef    = useRef(null);
+  // Stable refs so the login-detection effect doesn't need navigate/playVideo as deps
+  const navigateRef    = useRef(navigate);
+  const playVideoRef   = useRef(null); // populated after playVideo is defined below
+
   useEffect(() => { tracksRef.current    = allTracks;    }, [allTracks]);
   useEffect(() => { trackRef.current     = currentTrack; }, [currentTrack]);
   useEffect(() => { isPlayingRef.current = isPlaying;    }, [isPlaying]);
@@ -201,6 +208,8 @@ export const MediaProvider = ({ children }) => {
 
   const hasPurchased = useCallback((videoId) => purchasedIds.has(String(videoId)), [purchasedIds]);
 
+  const setPendingPlay = useCallback((video) => { pendingPlayRef.current = video; }, []);
+
   // Redirect the user to Stripe Payment Link for the given video.
   // Returns true if redirect happened, false/throws if it failed.
   const purchaseVideo = useCallback(async (videoId, videoType = 'video') => {
@@ -329,6 +338,22 @@ export const MediaProvider = ({ children }) => {
     }
   }, [isPremium, isAdmin, hasPurchased]);
 
+  // Keep playVideoRef current so the login effect can call it without stale closures
+  useEffect(() => { playVideoRef.current = playVideo; }, [playVideo]);
+  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
+
+  // After login: navigate to /media and play the pending video (if any)
+  useEffect(() => {
+    if (!prevUserRef.current && user && pendingPlayRef.current) {
+      const video = pendingPlayRef.current;
+      pendingPlayRef.current = null;
+      navigateRef.current('/media');
+      // Allow navigation + auth state to settle before gating check
+      setTimeout(() => playVideoRef.current?.(video), 80);
+    }
+    prevUserRef.current = user;
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const closeVideo = useCallback(() => setCurrentVideo(null), []);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -389,6 +414,7 @@ export const MediaProvider = ({ children }) => {
       // Purchases
       purchases, purchasedIds, hasPurchased, purchaseVideo, fetchPurchases,
       gatedVideo, setGatedVideo,
+      setPendingPlay,
       // legacy compat
       popularVideos: allTracks,
       newReleases: [...allTracks].slice().reverse(),

@@ -178,7 +178,7 @@ const StudioLayout = ({ handleLoginRequest }) => {
 };
 
 const AppContent = React.memo(() => {
-  const [authModalState, setAuthModalState] = useState({ isOpen: false, view: 'main' });
+  const [authModalState, setAuthModalState] = useState({ isOpen: false, view: 'main', tab: 'signin' });
   const [isPostModalOpen, setPostModalOpen] = useState(false);
   const [postModalType, setPostModalType] = useState(null);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -199,7 +199,17 @@ const AppContent = React.memo(() => {
   useEffect(() => {
     setIsImmersiveMode(false);
   }, [location.pathname]);
-  
+
+  // Open auth modal when gate redirects with ?openAuth=1&tab=signin|signup
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('openAuth') === '1') {
+      const tab = params.get('tab') || 'signin';
+      setAuthModalState({ isOpen: true, view: 'main', tab });
+      window.history.replaceState({}, '', location.pathname);
+    }
+  }, [location.search]);
+
   const handleOpenPostModal = (type = null) => {
     if (!user) {
       handleLoginRequest();
@@ -370,10 +380,11 @@ const AppContent = React.memo(() => {
             </Route>
         </Routes>
 
-        <AuthModal 
-            isOpen={authModalState.isOpen} 
-            onOpenChange={(isOpen) => setAuthModalState(prev => ({ ...prev, isOpen }))} 
+        <AuthModal
+            isOpen={authModalState.isOpen}
+            onOpenChange={(isOpen) => setAuthModalState(prev => ({ ...prev, isOpen }))}
             initialView={authModalState.view}
+            initialTab={authModalState.tab || 'signin'}
         />
         
         {/* Guard Post Modal creation */}
