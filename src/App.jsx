@@ -201,11 +201,14 @@ const AppContent = React.memo(() => {
   }, [location.pathname]);
 
   // Open auth modal when gate redirects with ?openAuth=1&tab=signin|signup
+  // Also silently strip the ?_direct=1 OG-bypass marker added by Vercel rewrites
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('openAuth') === '1') {
       const tab = params.get('tab') || 'signin';
       setAuthModalState({ isOpen: true, view: 'main', tab });
+      window.history.replaceState({}, '', location.pathname);
+    } else if (params.has('_direct')) {
       window.history.replaceState({}, '', location.pathname);
     }
   }, [location.search]);

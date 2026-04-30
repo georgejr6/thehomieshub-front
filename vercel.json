@@ -1,14 +1,12 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
-  "functions": {
-    "api/og/[id].js": {
-      "includeFiles": "dist/index.html"
-    }
-  },
   "rewrites": [
-    { "source": "/watch/:id", "destination": "/api/og/:id?from=watch" },
-    { "source": "/post/:id",  "destination": "/api/og/:id?from=post"  },
-    { "source": "/media/:id", "destination": "/api/og/:id?from=media" },
+    { "source": "/watch/:id", "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
+    { "source": "/post/:id",  "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
+    { "source": "/media/:id", "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
+    { "source": "/watch/:id", "destination": "https://backend.thehomies.app/og/watch/:id" },
+    { "source": "/post/:id",  "destination": "https://backend.thehomies.app/og/post/:id"  },
+    { "source": "/media/:id", "destination": "https://backend.thehomies.app/og/media/:id" },
     { "source": "/:path*",    "destination": "/index.html" }
   ]
 }
