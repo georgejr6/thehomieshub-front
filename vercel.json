@@ -1,21 +1,14 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
+  "functions": {
+    "api/og/[id].js": {
+      "includeFiles": "dist/index.html"
+    }
+  },
   "rewrites": [
-    {
-      "source": "/watch/:id",
-      "has": [{"type": "header", "key": "user-agent", "value": "facebookexternalhit|Twitterbot|twitterbot|WhatsApp|whatsapp|Slackbot|slackbot|Discordbot|discordbot|TelegramBot|telegrambot|LinkedInBot|linkedinbot|Googlebot|googlebot|Applebot|applebot|bingbot|Bingbot|Pinterest|crawler|spider|bot"}],
-      "destination": "/api/og/:id?from=watch"
-    },
-    {
-      "source": "/post/:id",
-      "has": [{"type": "header", "key": "user-agent", "value": "facebookexternalhit|Twitterbot|twitterbot|WhatsApp|whatsapp|Slackbot|slackbot|Discordbot|discordbot|TelegramBot|telegrambot|LinkedInBot|linkedinbot|Googlebot|googlebot|Applebot|applebot|bingbot|Bingbot|Pinterest|crawler|spider|bot"}],
-      "destination": "/api/og/:id?from=post"
-    },
-    {
-      "source": "/media/:id",
-      "has": [{"type": "header", "key": "user-agent", "value": "facebookexternalhit|Twitterbot|twitterbot|WhatsApp|whatsapp|Slackbot|slackbot|Discordbot|discordbot|TelegramBot|telegrambot|LinkedInBot|linkedinbot|Googlebot|googlebot|Applebot|applebot|bingbot|Bingbot|Pinterest|crawler|spider|bot"}],
-      "destination": "/api/og/:id?from=media"
-    },
-    { "source": "/:path*", "destination": "/index.html" }
+    { "source": "/watch/:id", "destination": "/api/og/:id?from=watch" },
+    { "source": "/post/:id",  "destination": "/api/og/:id?from=post"  },
+    { "source": "/media/:id", "destination": "/api/og/:id?from=media" },
+    { "source": "/:path*",    "destination": "/index.html" }
   ]
 }
