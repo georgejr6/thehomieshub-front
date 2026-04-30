@@ -1,7 +1,9 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
   "rewrites": [
-    { "source": "/watch/:id", "destination": "/api/og/:id" },
+    { "source": "/watch/:id",  "destination": "/api/og/:id" },
+    { "source": "/post/:id",   "destination": "/api/og/:id" },
+    { "source": "/media/:id",  "destination": "/api/og/:id" },
     { "source": "/:path*", "destination": "/index.html" }
   ]
 }
