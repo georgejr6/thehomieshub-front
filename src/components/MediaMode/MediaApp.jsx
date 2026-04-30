@@ -5,13 +5,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Info, Search, X, Minimize2, ListMusic,
-  Maximize, Loader2, ArrowLeft, Film, Music2, Settings2, CheckCircle2,
+  Maximize, Loader2, ArrowLeft, Film, Music2, Settings2, CheckCircle2, ShoppingBag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { ManagePlaylistsModal } from './PlaylistModals';
 import MediaRow from './MediaRow';
 import VideoPlayer from './VideoPlayer';
 import MediaAdminPanel from './MediaAdminPanel';
+import VideoPurchaseGate from './VideoPurchaseGate';
 import { cn } from '@/lib/utils';
 import { FROGZ_PLANS } from '@/lib/frogzApi';
 
@@ -105,12 +107,14 @@ const HeroBackground = ({ slides, staticFallback }) => {
 };
 
 const BASE_TABS = ['Home', 'Videos', 'Music', 'Likes'];
+const PURCHASED_TAB = 'Purchased';
 const ADMIN_TAB = 'Admin';
 
 const MediaApp = () => {
   const { postId } = useParams();
   const location = useLocation();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const {
     minimizeMediaMode, exitMediaMode,
@@ -124,11 +128,24 @@ const MediaApp = () => {
     requestFrogzAccess,
     categoryRows, fetchCategoryRows,
     refreshHhVideos,
+    purchases, fetchPurchases,
   } = useMedia();
 
 
   // Re-fetch HH videos every time Media Mode opens (picks up newly uploaded content)
   useEffect(() => { refreshHhVideos(); }, []); // eslint-disable-line
+
+  // ── Handle return from Stripe purchase ────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('purchased') === 'true') {
+      fetchPurchases();
+      toast({ title: '✅ Purchase confirmed!', description: 'Your video is now unlocked in the Purchased tab.' });
+      setActiveCategory(PURCHASED_TAB);
+      // Clean the URL param without triggering a navigation
+      window.history.replaceState({}, '', location.pathname);
+    }
+  }, []); // eslint-disable-line
 
   // ── Auto-play video from vertical feed navigation ─────────────────────────
   useEffect(() => {
@@ -151,6 +168,7 @@ const MediaApp = () => {
 
   const TABS = [
     ...BASE_TABS,
+    ...(user && purchases.length > 0 ? [PURCHASED_TAB] : []),
     ...(hasFrogzFan || hasFrogzAccess ? ['private'] : []),
     ...(user?.isAdmin ? [ADMIN_TAB] : []),
   ];
@@ -291,7 +309,10 @@ const MediaApp = () => {
                   activeCategory === tab && "text-white font-bold",
                   tab === ADMIN_TAB && activeCategory !== ADMIN_TAB && "text-zinc-500 hover:text-zinc-300")}
                 onClick={() => setActiveCategory(tab)}>
-                {tab === 'private' ? <span>🐸</span> : tab === ADMIN_TAB ? <><Settings2 className="w-3.5 h-3.5" />Admin</> : tab}
+                {tab === 'private' ? <span>🐸</span>
+                  : tab === ADMIN_TAB ? <><Settings2 className="w-3.5 h-3.5" />Admin</>
+                  : tab === PURCHASED_TAB ? <><ShoppingBag className="w-3.5 h-3.5" />Purchased</>
+                  : tab}
               </li>
             ))}
           </ul>
@@ -304,7 +325,10 @@ const MediaApp = () => {
                   activeCategory === tab ? "text-white font-bold" : "text-zinc-400",
                   tab === ADMIN_TAB && activeCategory !== ADMIN_TAB && "text-zinc-500")}
                 onClick={() => setActiveCategory(tab)}>
-                {tab === 'private' ? '🐸' : tab === ADMIN_TAB ? <><Settings2 className="w-3 h-3" />Admin</> : tab}
+                {tab === 'private' ? '🐸'
+                  : tab === ADMIN_TAB ? <><Settings2 className="w-3 h-3" />Admin</>
+                  : tab === PURCHASED_TAB ? <><ShoppingBag className="w-3 h-3" />Purchased</>
+                  : tab}
               </button>
             ))}
           </div>
@@ -385,6 +409,51 @@ const MediaApp = () => {
             {likedMedia.length > 0
               ? <MediaRow title="Liked Tracks" items={likedMedia} />
               : <p className="text-zinc-500 mt-4">Nothing liked yet.</p>}
+          </div>
+
+        ) : activeCategory === PURCHASED_TAB ? (
+          /* ── PURCHASED VIDEOS ────────────────────────────────────────── */
+          <div className="pt-24 px-4 md:px-12 min-h-screen">
+            <div className="flex items-center gap-3 mb-8">
+              <ShoppingBag className="w-7 h-7 text-red-500" />
+              <h1 className="text-3xl font-bold">My Purchases</h1>
+            </div>
+            {purchases.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {purchases.map(p => {
+                  const item = {
+                    id: p.videoId,
+                    title: p.videoTitle || 'Untitled',
+                    muxPlaybackId: p.muxPlaybackId,
+                    cover: p.videoThumb || (p.muxPlaybackId ? `https://image.mux.com/${p.muxPlaybackId}/thumbnail.png?width=400` : ''),
+                    backdropUrl: p.muxPlaybackId ? `https://image.mux.com/${p.muxPlaybackId}/thumbnail.png?width=1280` : '',
+                    mediaKind: 'video',
+                    backendType: p.videoType,
+                  };
+                  return (
+                    <div key={p._id} className="cursor-pointer group" onClick={() => playVideo(item)}>
+                      <div className="aspect-video relative rounded-md overflow-hidden bg-zinc-800 mb-2">
+                        {item.cover
+                          ? <img src={item.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={item.title} />
+                          : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><Film className="w-8 h-8 text-zinc-600" /></div>
+                        }
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                          <Play className="w-10 h-10 fill-white text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                        </div>
+                      </div>
+                      <h3 className="font-semibold text-sm truncate text-white">{item.title}</h3>
+                      <p className="text-xs text-zinc-500 mt-0.5">Purchased</p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-20 text-zinc-500">
+                <ShoppingBag className="w-12 h-12 mx-auto mb-4 text-zinc-700" />
+                <p className="text-lg mb-2">No purchases yet</p>
+                <p className="text-sm">Buy individual videos for $4.99 or become a member for unlimited access.</p>
+              </div>
+            )}
           </div>
 
         ) : (
@@ -611,6 +680,7 @@ const MediaApp = () => {
         )}
       </AnimatePresence>
 
+      <VideoPurchaseGate />
       <ManagePlaylistsModal isOpen={isPlaylistManagerOpen} onClose={() => setPlaylistManagerOpen(false)} />
 
 

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useRef, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { musicApi, videoApi } from '@/lib/digitvlApi';
 import { frogzApi } from '@/lib/frogzApi';
@@ -10,7 +10,7 @@ export const useMedia = () => useContext(MediaContext);
 
 export const MediaProvider = ({ children }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isPremium } = useAuth();
   const hasFrogzAccess = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz');
   const hasFrogzFan    = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz_fan');
 
@@ -43,6 +43,10 @@ export const MediaProvider = ({ children }) => {
 
   // ── Current Video Player ───────────────────────────────────────────────────
   const [currentVideo,    setCurrentVideo]    = useState(null);
+
+  // ── Purchases — individual video purchases by non-members ─────────────────
+  const [purchases,    setPurchases]    = useState([]); // full VideoPurchase docs
+  const [gatedVideo,   setGatedVideo]   = useState(null); // video item awaiting gate decision
 
   // ── Audio Player ───────────────────────────────────────────────────────────
   const [currentTrack,   setCurrentTrack]   = useState(null);
@@ -182,6 +186,32 @@ export const MediaProvider = ({ children }) => {
 
   useEffect(() => { fetchCategoryRows(); }, [fetchCategoryRows]);
 
+  // ── Fetch individual video purchases ──────────────────────────────────────
+  const fetchPurchases = useCallback(() => {
+    if (!user) { setPurchases([]); return; }
+    api.get('/purchases/my')
+      .then(({ data }) => setPurchases(data?.result?.purchases || []))
+      .catch(() => {});
+  }, [user]);
+
+  useEffect(() => { fetchPurchases(); }, [fetchPurchases]);
+
+  const purchasedIds = useMemo(() => new Set(purchases.map(p => p.videoId)), [purchases]);
+
+  const hasPurchased = useCallback((videoId) => purchasedIds.has(String(videoId)), [purchasedIds]);
+
+  // Redirect the user to Stripe Payment Link for the given video
+  const purchaseVideo = useCallback(async (videoId, videoType = 'video') => {
+    if (!user) return; // caller should gate on login first
+    try {
+      const { data } = await api.post(`/purchases/video/${videoId}`, { videoType });
+      const url = data?.result?.url;
+      if (url) window.location.href = url; // full redirect so Stripe can set cookies
+    } catch (err) {
+      console.error('[purchases] checkout error', err);
+    }
+  }, [user]);
+
   // ── Create audio element once ──────────────────────────────────────────────
   useEffect(() => {
     const audio = new Audio();
@@ -286,15 +316,20 @@ export const MediaProvider = ({ children }) => {
 
   // ── Video controls ─────────────────────────────────────────────────────────
   const playVideo = useCallback((video) => {
-    // Pause music when video starts
-    if (audioRef.current && isPlayingRef.current) {
-      audioRef.current.pause();
-      setIsPlaying(false);
+    // Members + individually purchased users play freely
+    const videoId = video?.id || video?._id;
+    if (isPremium || hasPurchased(videoId)) {
+      if (audioRef.current && isPlayingRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+      setCurrentVideo(video);
+      if (!video.isHH && !video.backendType) videoApi.logView(video.id);
+    } else {
+      // Non-member / not purchased — show gate modal
+      setGatedVideo(video);
     }
-    setCurrentVideo(video);
-    // Only log views for DIGITVL videos, not HomieshHub content
-    if (!video.isHH && !video.backendType) videoApi.logView(video.id);
-  }, []);
+  }, [isPremium, hasPurchased]);
 
   const closeVideo = useCallback(() => setCurrentVideo(null), []);
 
@@ -353,6 +388,9 @@ export const MediaProvider = ({ children }) => {
       hhVideos, refreshHhVideos,
       // Admin category rows
       categoryRows, categoryRowsLoading, fetchCategoryRows,
+      // Purchases
+      purchases, purchasedIds, hasPurchased, purchaseVideo, fetchPurchases,
+      gatedVideo, setGatedVideo,
       // legacy compat
       popularVideos: allTracks,
       newReleases: [...allTracks].slice().reverse(),
