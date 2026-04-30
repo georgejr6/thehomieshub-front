@@ -11,6 +11,7 @@ export const useMedia = () => useContext(MediaContext);
 export const MediaProvider = ({ children }) => {
   const navigate = useNavigate();
   const { user, isPremium } = useAuth();
+  const isAdmin = !!user?.isAdmin;
   const hasFrogzAccess = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz');
   const hasFrogzFan    = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz_fan');
 
@@ -200,16 +201,15 @@ export const MediaProvider = ({ children }) => {
 
   const hasPurchased = useCallback((videoId) => purchasedIds.has(String(videoId)), [purchasedIds]);
 
-  // Redirect the user to Stripe Payment Link for the given video
+  // Redirect the user to Stripe Payment Link for the given video.
+  // Returns true if redirect happened, false/throws if it failed.
   const purchaseVideo = useCallback(async (videoId, videoType = 'video') => {
-    if (!user) return; // caller should gate on login first
-    try {
-      const { data } = await api.post(`/purchases/video/${videoId}`, { videoType });
-      const url = data?.result?.url;
-      if (url) window.location.href = url; // full redirect so Stripe can set cookies
-    } catch (err) {
-      console.error('[purchases] checkout error', err);
-    }
+    if (!user) return false;
+    const { data } = await api.post(`/purchases/video/${videoId}`, { videoType });
+    const url = data?.result?.url;
+    if (!url) throw new Error('Could not create checkout session');
+    window.location.href = url;
+    return true;
   }, [user]);
 
   // ── Create audio element once ──────────────────────────────────────────────
@@ -316,9 +316,8 @@ export const MediaProvider = ({ children }) => {
 
   // ── Video controls ─────────────────────────────────────────────────────────
   const playVideo = useCallback((video) => {
-    // Members + individually purchased users play freely
     const videoId = video?.id || video?._id;
-    if (isPremium || hasPurchased(videoId)) {
+    if (isPremium || isAdmin || hasPurchased(videoId)) {
       if (audioRef.current && isPlayingRef.current) {
         audioRef.current.pause();
         setIsPlaying(false);
@@ -326,10 +325,9 @@ export const MediaProvider = ({ children }) => {
       setCurrentVideo(video);
       if (!video.isHH && !video.backendType) videoApi.logView(video.id);
     } else {
-      // Non-member / not purchased — show gate modal
       setGatedVideo(video);
     }
-  }, [isPremium, hasPurchased]);
+  }, [isPremium, isAdmin, hasPurchased]);
 
   const closeVideo = useCallback(() => setCurrentVideo(null), []);
 

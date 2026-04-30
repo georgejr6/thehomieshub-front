@@ -2,22 +2,34 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Crown, ShoppingCart, LogIn, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 import { useMedia } from '@/contexts/MediaContext';
 import { useAuth } from '@/contexts/AuthContext';
 
 const VideoPurchaseGate = () => {
   const { gatedVideo, setGatedVideo, purchaseVideo } = useMedia();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [purchasing, setPurchasing] = useState(false);
 
   const handlePurchase = async () => {
     if (!gatedVideo) return;
     setPurchasing(true);
-    const videoId = gatedVideo.id || gatedVideo._id;
-    const videoType = gatedVideo.backendType || 'video';
-    // purchaseVideo redirects to Stripe — no need to reset state
-    await purchaseVideo(videoId, videoType);
-    setPurchasing(false);
+    try {
+      const videoId = gatedVideo.id || gatedVideo._id;
+      const videoType = gatedVideo.backendType || 'video';
+      await purchaseVideo(videoId, videoType);
+      // If we get here without redirect, something went wrong
+    } catch (err) {
+      console.error('[gate] purchase error', err);
+      toast({
+        title: 'Checkout unavailable',
+        description: err?.response?.data?.message || 'Could not open checkout. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPurchasing(false);
+    }
   };
 
   const handleMembership = () => {
@@ -38,7 +50,7 @@ const VideoPurchaseGate = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[120] bg-black/85 flex items-end md:items-center justify-center p-4"
+          className="fixed inset-0 z-[130] bg-black/85 flex items-end md:items-center justify-center p-4"
           onClick={() => setGatedVideo(null)}
         >
           <motion.div

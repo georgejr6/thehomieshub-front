@@ -8,7 +8,7 @@ import {
   Maximize, Loader2, ArrowLeft, Film, Music2, Settings2, CheckCircle2, ShoppingBag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { ManagePlaylistsModal } from './PlaylistModals';
 import MediaRow from './MediaRow';
 import VideoPlayer from './VideoPlayer';
