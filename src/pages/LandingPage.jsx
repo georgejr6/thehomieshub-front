@@ -171,7 +171,7 @@ const LandingPage = ({ onLoginRequest }) => {
                     YouTube
                   </Button>
                 </a>
-                <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4" target="_blank" rel="noopener noreferrer">
+                <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer">
                   <Button variant="ghost" size="sm" className="text-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/20 gap-2">
                     <DonateIcon className="h-4 w-4" />
                     Donate
@@ -314,7 +314,7 @@ const LandingPage = ({ onLoginRequest }) => {
                     Join Discord
                   </Button>
                 </a>
-                <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4" target="_blank" rel="noopener noreferrer">
+                <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer">
                   <Button size="lg" variant="outline" className="border-[#22c55e]/50 text-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/20 gap-2">
                     <DollarSign className="h-5 w-5" />
                     Donate
@@ -364,7 +364,7 @@ const LandingPage = ({ onLoginRequest }) => {
                     </a>
                   </li>
                   <li>
-                    <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4" target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#22c55e]/80 flex items-center gap-1">
+                    <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#22c55e]/80 flex items-center gap-1">
                       <DollarSign className="h-3 w-3" /> Donate
                     </a>
                   </li>
