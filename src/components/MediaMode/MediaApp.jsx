@@ -517,7 +517,7 @@ const MediaApp = () => {
             ) : null}
 
             {/* CONTENT ROWS */}
-            <div className="relative z-10 -mt-24 pb-36 space-y-8 px-4 md:pl-12">
+            <div className={cn("relative z-10 pb-36 space-y-8 px-4 md:pl-12", heroItem ? "-mt-24" : "pt-24")}>
               {activeCategory === 'home' && (
                 <>
                   {categoryRows.map(cat => cat.items.length > 0 && (

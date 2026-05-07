@@ -1,9 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Play, Plus, Check, Info } from 'lucide-react';
 import { useMedia } from '@/contexts/MediaContext';
 import { AddToPlaylistModal } from './PlaylistModals';
 import { cn } from '@/lib/utils';
+
+const PAGE_SIZE = 20;
 
 // ── Card — clean inline hover, no floating popup ─────────────────────────────
 const MediaCard = ({ item, isRanked, rank, onPlay, onInfo, fullWidth = false }) => {
@@ -119,6 +121,12 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
   const { playMedia } = useMedia();
   const handlePlay = onPlay || playMedia;
   const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [page, setPage] = useState(0);
+
+  useEffect(() => { setPage(0); }, [title]);
+
+  const totalPages = isGrid ? Math.ceil(items.length / PAGE_SIZE) : 1;
+  const pageItems = isGrid ? items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : items;
 
   const scroll = dir => {
     if (!rowRef.current) return;
@@ -140,20 +148,43 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
       </h2>
 
       {isGrid ? (
-        /* Grid layout — wraps into multiple rows */
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {items.map((item, index) => (
-            <MediaCard
-              key={item.id}
-              item={item}
-              isRanked={isRanked}
-              rank={index + 1}
-              onPlay={handlePlay}
-              onInfo={onInfo}
-              fullWidth
-            />
-          ))}
-        </div>
+        /* Grid layout — wraps into multiple rows with pagination */
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {pageItems.map((item, index) => (
+              <MediaCard
+                key={item.id}
+                item={item}
+                isRanked={isRanked}
+                rank={page * PAGE_SIZE + index + 1}
+                onPlay={handlePlay}
+                onInfo={onInfo}
+                fullWidth
+              />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-6">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" /> Prev
+              </button>
+              <span className="text-zinc-400 text-sm font-medium">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page === totalPages - 1}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         /* Horizontal scroll row */
         <div className="relative group">
