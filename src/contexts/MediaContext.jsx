@@ -108,7 +108,7 @@ export const MediaProvider = ({ children }) => {
   // ── Fetch video catalog ────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
-      videoApi.getFeatured().catch(() => null),
+      api.get('/media/featured').then(r => r.data || null).catch(() => null),
       videoApi.getTrending().catch(() => []),
       videoApi.getNew().catch(() => []),
       videoApi.getMovies().catch(() => []),
