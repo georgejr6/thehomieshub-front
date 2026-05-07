@@ -258,7 +258,7 @@ const MembershipsPage = () => {
                     size="lg"
                     className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
                   >
-                    <a href="https://thehomieshub.com/the-homies-membership/" target="_blank" rel="noopener noreferrer">
+                    <a href="https://buy.stripe.com/00w5kCfqtbbQ3Nr1iqf7i07" target="_blank" rel="noopener noreferrer">
                       Join — $15 / month
                     </a>
                   </Button>
@@ -311,7 +311,7 @@ const MembershipsPage = () => {
                   className="w-full font-bold text-[#1a0f00] hover:opacity-90 transition-opacity"
                   style={{ background: 'linear-gradient(90deg, #F0B94D 0%, #d97706 100%)' }}
                 >
-                  <a href="https://thehomieshub.com/digital-nomad/" target="_blank" rel="noopener noreferrer">
+                  <a href="https://buy.stripe.com/fZeg0o0xH0k2g3SfZ3" target="_blank" rel="noopener noreferrer">
                     Join Digital Nomad — $100 / mo
                   </a>
                 </Button>
