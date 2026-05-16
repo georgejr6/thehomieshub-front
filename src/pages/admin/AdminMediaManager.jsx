@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Loader2, Film, ImagePlus, X, Plus, Pencil, Trash2,
-  GripVertical, Check, Tag, FolderOpen, Camera, Play,
+  GripVertical, Check, Tag, FolderOpen, Camera, Play, EyeOff, Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -150,7 +150,7 @@ const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
 };
 
 // ── Video Preview Modal ───────────────────────────────────────────────────────
-const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved }) => {
+const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelete }) => {
   const { toast } = useToast();
   const playerRef = useRef(null);
   const throttleRef = useRef(0);
@@ -304,11 +304,25 @@ const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved }) => {
           </div>
         </div>
 
-        <div className="flex justify-between items-center px-5 py-4 border-t border-[#1e1e1e]">
-          <button onClick={onFullEdit}
-            className="text-gray-500 hover:text-white text-sm transition-colors flex items-center gap-1.5">
-            <Pencil className="w-3.5 h-3.5" />Full edit
-          </button>
+        <div className="flex justify-between items-center px-5 py-4 border-t border-[#1e1e1e] flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <button onClick={onFullEdit}
+              className="text-gray-500 hover:text-white text-sm transition-colors flex items-center gap-1.5">
+              <Pencil className="w-3.5 h-3.5" />Full edit
+            </button>
+            <span className="text-gray-700">·</span>
+            <button onClick={onHide}
+              className="text-gray-500 hover:text-yellow-400 text-sm transition-colors flex items-center gap-1.5">
+              {item.visibility === 'private'
+                ? <><Eye className="w-3.5 h-3.5" />Unhide</>
+                : <><EyeOff className="w-3.5 h-3.5" />Hide</>}
+            </button>
+            <span className="text-gray-700">·</span>
+            <button onClick={onDelete}
+              className="text-gray-500 hover:text-red-400 text-sm transition-colors flex items-center gap-1.5">
+              <Trash2 className="w-3.5 h-3.5" />Delete
+            </button>
+          </div>
           <div className="flex gap-3">
             <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">Cancel</Button>
             <Button onClick={handleSave} disabled={saving}
@@ -495,6 +509,32 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
 
   const handleSaved = () => { setEditing(null); setPreviewing(null); load(); onCategoriesChange(); };
 
+  const handleHide = async (item) => {
+    const itemId = String(item._id || item.id);
+    const next = item.visibility === 'private' ? 'public' : 'private';
+    try {
+      await api.patch(`/admin/videos/${itemId}`, { visibility: next, _collectionType: item._collectionType || 'video' });
+      setItems(prev => prev.map(i => String(i._id || i.id) === itemId ? { ...i, visibility: next } : i));
+      if (previewing && String(previewing._id || previewing.id) === itemId) setPreviewing(p => ({ ...p, visibility: next }));
+      toast({ title: next === 'private' ? 'Hidden from public feed' : 'Visible again' });
+    } catch (err) {
+      toast({ title: 'Failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Delete "${item.title || 'this video'}"? This cannot be undone.`)) return;
+    const itemId = String(item._id || item.id);
+    try {
+      await api.delete(`/admin/videos/${itemId}?collectionType=${item._collectionType || 'video'}`);
+      setItems(prev => prev.filter(i => String(i._id || i.id) !== itemId));
+      if (previewing && String(previewing._id || previewing.id) === itemId) setPreviewing(null);
+      toast({ title: 'Deleted' });
+    } catch (err) {
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
   if (loading) return (
     <div className="flex justify-center py-20">
       <div className="flex gap-1.5">{[0,1,2].map(i => <div key={i} className="w-2 h-2 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: `${i*0.15}s` }} />)}</div>
@@ -509,6 +549,8 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
           onClose={() => setPreviewing(null)}
           onFullEdit={() => { setEditing(previewing); setPreviewing(null); }}
           onSaved={handleSaved}
+          onHide={() => handleHide(previewing)}
+          onDelete={() => handleDelete(previewing)}
         />
       )}
       {editing && <EditModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} />}
@@ -543,6 +585,11 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                 <p className="text-white font-medium text-sm truncate">{item.title || 'Untitled'}</p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-xs text-gray-500 bg-[#1a1a1a] px-2 py-0.5 rounded-full">{item._collectionType}</span>
+                  {item.visibility === 'private' && (
+                    <span className="text-xs text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <EyeOff className="w-3 h-3" />Hidden
+                    </span>
+                  )}
                   {item.muxPlaybackId && <span className="text-xs text-gray-600 font-mono">✓ Mux</span>}
                   {categories
                     .filter(c => (c.items || []).some(i => i.itemId === String(item._id || item.id)))
@@ -551,10 +598,21 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                     ))}
                 </div>
               </div>
-              <button onClick={e => { e.stopPropagation(); setEditing(item); }} title="Full edit"
-                className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0">
-                <Pencil className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                <button onClick={e => { e.stopPropagation(); handleHide(item); }}
+                  title={item.visibility === 'private' ? 'Unhide' : 'Hide'}
+                  className="p-2 rounded-lg text-gray-500 hover:text-yellow-400 hover:bg-yellow-400/10 transition-colors">
+                  {item.visibility === 'private' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                </button>
+                <button onClick={e => { e.stopPropagation(); setEditing(item); }} title="Full edit"
+                  className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={e => { e.stopPropagation(); handleDelete(item); }} title="Delete"
+                  className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
