@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Loader2, Film, ImagePlus, X, Plus, Pencil, Trash2,
-  GripVertical, Check, Tag, FolderOpen, Camera, Play, EyeOff, Eye,
+  GripVertical, Check, Tag, FolderOpen, Camera, Play, EyeOff, Eye, Megaphone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -150,7 +150,7 @@ const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
 };
 
 // ── Video Preview Modal ───────────────────────────────────────────────────────
-const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelete }) => {
+const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelete, onAnnounce }) => {
   const { toast } = useToast();
   const playerRef = useRef(null);
   const throttleRef = useRef(0);
@@ -161,6 +161,21 @@ const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelet
   const [thumbnailUrl, setThumbnailUrl] = useState(item.thumbnailUrl || '');
   const [thumbLoading, setThumbLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [announcing, setAnnouncing] = useState(false);
+
+  const handleAnnounce = async () => {
+    setAnnouncing(true);
+    try {
+      const itemId = String(item._id || item.id);
+      await api.post(`/admin/videos/${itemId}/announce`, { _collectionType: item._collectionType || 'video' });
+      toast({ title: '📣 Announced on Discord!' });
+      if (onAnnounce) onAnnounce();
+    } catch (err) {
+      toast({ title: 'Announcement failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setAnnouncing(false);
+    }
+  };
 
   const liveThumbUrl = item.muxPlaybackId
     ? `https://image.mux.com/${item.muxPlaybackId}/thumbnail.png?time=${Math.round(liveTime)}&width=320`
@@ -324,6 +339,11 @@ const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelet
             </button>
           </div>
           <div className="flex gap-3">
+            <Button onClick={handleAnnounce} disabled={announcing}
+              className="bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold gap-1.5">
+              {announcing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />}
+              Announce
+            </Button>
             <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">Cancel</Button>
             <Button onClick={handleSave} disabled={saving}
               className="bg-[#3ea6ff] hover:bg-[#65b8ff] text-black font-semibold">
@@ -349,6 +369,20 @@ const EditModal = ({ item, categories, onClose, onSaved, onDelete }) => {
   );
   const [thumbLoading, setThumbLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [announcing, setAnnouncing] = useState(false);
+
+  const handleAnnounce = async () => {
+    setAnnouncing(true);
+    try {
+      const itemId = String(item._id || item.id);
+      await api.post(`/admin/videos/${itemId}/announce`, { _collectionType: item._collectionType || 'video' });
+      toast({ title: '📣 Announced on Discord!' });
+    } catch (err) {
+      toast({ title: 'Announcement failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setAnnouncing(false);
+    }
+  };
 
   const handleThumbnailFile = async (file) => {
     setThumbLoading(true);
@@ -480,6 +514,11 @@ const EditModal = ({ item, categories, onClose, onSaved, onDelete }) => {
             <Trash2 className="w-3.5 h-3.5" />Delete
           </button>
           <div className="flex gap-3">
+            <Button onClick={handleAnnounce} disabled={announcing}
+              className="bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold gap-1.5">
+              {announcing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />}
+              Announce
+            </Button>
             <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">Cancel</Button>
             <Button onClick={handleSave} disabled={saving}
               className="bg-[#3ea6ff] hover:bg-[#65b8ff] text-black font-semibold">
@@ -514,6 +553,16 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
   const filtered = q.trim() ? items.filter(v => (v.title || '').toLowerCase().includes(q.toLowerCase())) : items;
 
   const handleSaved = () => { setEditing(null); setPreviewing(null); load(); onCategoriesChange(); };
+
+  const handleAnnounce = async (item) => {
+    const itemId = String(item._id || item.id);
+    try {
+      await api.post(`/admin/videos/${itemId}/announce`, { _collectionType: item._collectionType || 'video' });
+      toast({ title: '📣 Announced on Discord!' });
+    } catch (err) {
+      toast({ title: 'Announcement failed', description: err.message, variant: 'destructive' });
+    }
+  };
 
   const handleHide = async (item) => {
     const itemId = String(item._id || item.id);
@@ -557,6 +606,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
           onSaved={handleSaved}
           onHide={() => handleHide(previewing)}
           onDelete={() => handleDelete(previewing)}
+          onAnnounce={() => handleAnnounce(previewing)}
         />
       )}
       {editing && <EditModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} onDelete={() => { setEditing(null); handleDelete(editing); }} />}
@@ -607,6 +657,11 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                 </div>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
+                <button onClick={e => { e.stopPropagation(); handleAnnounce(item); }}
+                  title="Announce on Discord"
+                  className="p-2 rounded-lg text-gray-500 hover:text-[#5865F2] hover:bg-[#5865F2]/10 transition-colors">
+                  <Megaphone className="w-4 h-4" />
+                </button>
                 <button onClick={e => { e.stopPropagation(); handleHide(item); }}
                   title={item.visibility === 'private' ? 'Unhide' : 'Hide'}
                   className="p-2 rounded-lg text-gray-500 hover:text-yellow-400 hover:bg-yellow-400/10 transition-colors">
