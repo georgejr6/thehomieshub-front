@@ -289,11 +289,9 @@ const AppContent = React.memo(() => {
                 <Route path="settings" element={<WalletIsolationMode activeTab="settings" />} />
             </Route>
 
-            {/* --- Creator Studio Routes --- */}
-            <Route path="/studio" element={<StudioLayout handleLoginRequest={handleLoginRequest} />}>
-                <Route index element={isPremium ? <CreatorStudioPage onLoginRequest={handleLoginRequest} /> : <Navigate to="/subscriptions" />} />
-                <Route path="stream" element={isPremium ? <GoLivePage onLoginRequest={handleLoginRequest} /> : <Navigate to="/subscriptions" />} />
-            </Route>
+            {/* Creator Studio — hidden until ready */}
+            <Route path="/studio" element={<Navigate to="/browse" replace />} />
+            <Route path="/studio/stream" element={<Navigate to="/browse" replace />} />
 
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
@@ -378,8 +376,8 @@ const AppContent = React.memo(() => {
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
 
-                <Route path="/creator-studio" element={<Navigate to="/studio" replace />} />
-                <Route path="/go-live" element={<Navigate to="/studio/stream" replace />} />
+                <Route path="/creator-studio" element={<Navigate to="/browse" replace />} />
+                <Route path="/go-live" element={<Navigate to="/browse" replace />} />
             </Route>
         </Routes>
 

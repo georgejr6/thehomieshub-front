@@ -153,10 +153,6 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
 
   if (user) {
     mainNavItems.push({ to: '/subscriptions', icon: Clapperboard, label: 'Subscriptions' });
-    
-    if (isPremium) {
-        mainNavItems.push({ to: '/studio', icon: Zap, label: 'Creator Studio' });
-    }
   }
   
   const adminNavItems = [
