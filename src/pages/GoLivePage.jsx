@@ -447,6 +447,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                     try {
                         const msg = JSON.parse(e.data);
                         if (msg.type === 'ready') { clearTimeout(timeout); resolve(ws); }
+                        if (msg.type === 'error') { clearTimeout(timeout); reject(new Error(msg.message || 'Broadcast server error')); }
                     } catch (_) {}
                 };
                 ws.onerror = () => { clearTimeout(timeout); reject(new Error('Broadcast connection failed')); };
