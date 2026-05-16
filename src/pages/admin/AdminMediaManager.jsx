@@ -337,7 +337,7 @@ const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelet
 };
 
 // ── Edit Video Modal ──────────────────────────────────────────────────────────
-const EditModal = ({ item, categories, onClose, onSaved }) => {
+const EditModal = ({ item, categories, onClose, onSaved, onDelete }) => {
   const { toast } = useToast();
   const thumbInputRef = useRef();
   const [title, setTitle] = useState(item.title || '');
@@ -474,12 +474,18 @@ const EditModal = ({ item, categories, onClose, onSaved }) => {
             <BackdropEditor images={backdropImages} muxPlaybackId={item.muxPlaybackId} onChange={setBackdropImages} />
           </div>
         </div>
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[#1e1e1e]">
-          <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">Cancel</Button>
-          <Button onClick={handleSave} disabled={saving}
-            className="bg-[#3ea6ff] hover:bg-[#65b8ff] text-black font-semibold">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save changes
-          </Button>
+        <div className="flex justify-between items-center px-6 py-4 border-t border-[#1e1e1e]">
+          <button onClick={onDelete}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-400 transition-colors">
+            <Trash2 className="w-3.5 h-3.5" />Delete
+          </button>
+          <div className="flex gap-3">
+            <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}
+              className="bg-[#3ea6ff] hover:bg-[#65b8ff] text-black font-semibold">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save changes
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -553,7 +559,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
           onDelete={() => handleDelete(previewing)}
         />
       )}
-      {editing && <EditModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} />}
+      {editing && <EditModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} onDelete={() => { setEditing(null); handleDelete(editing); }} />}
 
       <div className="mb-4 flex items-center justify-between">
         <p className="text-gray-500 text-sm">{filtered.length} item{filtered.length !== 1 ? 's' : ''}</p>
@@ -569,9 +575,9 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
         <div className="space-y-2">
           {filtered.map(item => (
             <div key={String(item._id || item.id)}
-              onClick={() => setPreviewing(item)}
-              className="flex items-center gap-4 rounded-xl bg-[#0f0f0f] border border-[#1e1e1e] hover:border-[#3ea6ff]/40 p-3 transition-colors cursor-pointer group">
-              <div className="relative flex-shrink-0">
+              className="flex items-center gap-4 rounded-xl bg-[#0f0f0f] border border-[#1e1e1e] hover:border-[#2a2a2a] p-3 transition-colors group">
+              {/* Thumbnail — click to preview */}
+              <div className="relative flex-shrink-0 cursor-pointer" onClick={() => setPreviewing(item)}>
                 {item.thumbnailUrl
                   ? <img src={item.thumbnailUrl} alt={item.title} className="w-20 h-12 object-cover rounded-lg" />
                   : item.muxPlaybackId
@@ -582,7 +588,9 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white font-medium text-sm truncate">{item.title || 'Untitled'}</p>
+                {/* Title — click to preview */}
+                <p className="text-white font-medium text-sm truncate cursor-pointer hover:text-[#3ea6ff] transition-colors"
+                  onClick={() => setPreviewing(item)}>{item.title || 'Untitled'}</p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-xs text-gray-500 bg-[#1a1a1a] px-2 py-0.5 rounded-full">{item._collectionType}</span>
                   {item.visibility === 'private' && (
