@@ -93,27 +93,32 @@ const LiveStreamPage = ({ onLoginRequest }) => {
 
   useEffect(() => {
     if (!username) return;
+    let timer = null;
+
     const load = async () => {
-      setLoading(true);
+      setLoading(prev => prev); // keep existing loading state on re-polls
       setError(null);
       try {
         const { data } = await api.get(`/live/watch/${username}`);
         if (data.status) {
-          setStream(data.result.stream);
+          const s = data.result.stream;
+          setStream(s);
+          // Poll fast when idle (5s) so viewers see the stream the moment it starts
+          const nextMs = s.status === 'idle' ? 5000 : 30000;
+          timer = setTimeout(load, nextMs);
         } else {
           setError(data.message || 'Stream not found');
         }
       } catch (err) {
         setError(err.response?.data?.message || 'This creator is not live right now.');
+        timer = setTimeout(load, 30000);
       } finally {
         setLoading(false);
       }
     };
     load();
 
-    // Poll for stream status every 30s
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
+    return () => clearTimeout(timer);
   }, [username]);
 
   const handleFollow = async () => {
@@ -144,7 +149,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
     try {
       await api.delete(`/live/${stream.id}`);
       toast({ title: 'Stream ended.' });
-      navigate('/studio');
+      navigate('/go-live');
     } catch (err) {
       toast({ title: 'Error', description: 'Failed to end stream.', variant: 'destructive' });
     } finally {
@@ -245,6 +250,11 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                   style={{ width: '100%', height: '100%', aspectRatio: '16/9' }}
                   className="w-full h-full object-contain"
                   onError={handlePlayerError}
+                  metadata={{
+                    video_id: stream._id || stream.id,
+                    video_title: stream.title,
+                    viewer_user_id: user?._id || user?.id,
+                  }}
                 />
                 {isWarmingUp && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 gap-3">
@@ -300,8 +310,8 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                 <Button size="sm" variant="ghost" onClick={openEdit} className="text-white/60 hover:text-white gap-1.5">
                   <Pencil className="h-3.5 w-3.5" /> Edit
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => navigate('/studio')} className="text-white/60 hover:text-white gap-1.5">
-                  <Settings className="h-3.5 w-3.5" /> Studio
+                <Button size="sm" variant="ghost" onClick={() => navigate('/go-live')} className="text-white/60 hover:text-white gap-1.5">
+                  <Settings className="h-3.5 w-3.5" /> Setup
                 </Button>
                 <Button
                   size="sm"

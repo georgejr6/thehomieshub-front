@@ -224,7 +224,7 @@ const AppContent = React.memo(() => {
     }
     if (type === 'live') {
       setPostModalOpen(false);
-      navigate('/studio/stream');
+      navigate('/go-live');
     } else {
       setPostModalType(type);
       setPostModalOpen(true);
@@ -292,6 +292,11 @@ const AppContent = React.memo(() => {
             {/* Creator Studio — hidden until ready */}
             <Route path="/studio" element={<Navigate to="/browse" replace />} />
             <Route path="/studio/stream" element={<Navigate to="/browse" replace />} />
+
+            {/* Go Live — standalone page (has its own header, no sidebar) */}
+            <Route path="/go-live" element={
+                user ? <GoLivePage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />
+            } />
 
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
@@ -376,8 +381,7 @@ const AppContent = React.memo(() => {
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
 
-                <Route path="/creator-studio" element={<Navigate to="/browse" replace />} />
-                <Route path="/go-live" element={<Navigate to="/browse" replace />} />
+                <Route path="/creator-studio" element={<Navigate to="/go-live" replace />} />
             </Route>
         </Routes>
 
