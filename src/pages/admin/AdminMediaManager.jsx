@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Loader2, Film, ImagePlus, X, Plus, Pencil, Trash2,
-  GripVertical, Check, Tag, FolderOpen, Camera,
+  GripVertical, Check, Tag, FolderOpen, Camera, Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
+import MuxPlayer from '@mux/mux-player-react';
 import api from '@/api/homieshub';
 
 // ── BackdropEditor ────────────────────────────────────────────────────────────
@@ -143,6 +144,179 @@ const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
           {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <ImagePlus className="w-3.5 h-3.5 mr-1.5" />}
           Upload custom image
         </Button>
+      </div>
+    </div>
+  );
+};
+
+// ── Video Preview Modal ───────────────────────────────────────────────────────
+const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved }) => {
+  const { toast } = useToast();
+  const playerRef = useRef(null);
+  const throttleRef = useRef(0);
+  const thumbInputRef = useRef();
+
+  const [liveTime, setLiveTime] = useState(0);
+  const [title, setTitle] = useState(item.title || '');
+  const [thumbnailUrl, setThumbnailUrl] = useState(item.thumbnailUrl || '');
+  const [thumbLoading, setThumbLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const liveThumbUrl = item.muxPlaybackId
+    ? `https://image.mux.com/${item.muxPlaybackId}/thumbnail.png?time=${Math.round(liveTime)}&width=320`
+    : null;
+
+  const handleTimeUpdate = (e) => {
+    const now = Date.now();
+    if (now - throttleRef.current < 250) return;
+    throttleRef.current = now;
+    setLiveTime(e.target.currentTime || 0);
+  };
+
+  const captureThumb = () => {
+    if (!item.muxPlaybackId) return;
+    const url = `https://image.mux.com/${item.muxPlaybackId}/thumbnail.png?time=${Math.round(liveTime)}&width=1920`;
+    setThumbnailUrl(url);
+    toast({ title: `Thumbnail set to ${fmt(liveTime)}` });
+  };
+
+  const handleThumbnailFile = async (file) => {
+    setThumbLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('folder', 'thumbnails');
+      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const url = data?.result?.url || data?.url;
+      if (url) setThumbnailUrl(url);
+    } catch (err) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setThumbLoading(false);
+      if (thumbInputRef.current) thumbInputRef.current.value = '';
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const itemId = String(item._id || item.id);
+      await api.patch(`/admin/videos/${itemId}`, { title, thumbnailUrl, _collectionType: item._collectionType || 'video' });
+      toast({ title: 'Saved' });
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast({ title: 'Save failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" onClick={onClose}>
+      <div className="bg-[#0f0f0f] border border-[#222] rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}>
+
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e1e1e]">
+          <div className="min-w-0">
+            <p className="text-white font-semibold truncate">{item.title || 'Untitled'}</p>
+            <p className="text-gray-500 text-xs mt-0.5">{item._collectionType} {item.muxPlaybackId ? '· Mux' : ''}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white ml-4 flex-shrink-0">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Video player */}
+          {item.muxPlaybackId ? (
+            <div className="rounded-xl overflow-hidden border border-[#222] bg-black">
+              <MuxPlayer
+                ref={playerRef}
+                playbackId={item.muxPlaybackId}
+                streamType="on-demand"
+                preload="auto"
+                onTimeUpdate={handleTimeUpdate}
+                style={{ width: '100%', aspectRatio: '16/9', display: 'block' }}
+              />
+            </div>
+          ) : (
+            <div className="rounded-xl bg-[#111] border border-[#222] aspect-video flex flex-col items-center justify-center gap-3">
+              <Film className="w-10 h-10 text-gray-600" />
+              <p className="text-gray-500 text-sm">No video yet</p>
+            </div>
+          )}
+
+          {/* Live frame capture */}
+          {item.muxPlaybackId && (
+            <div className="flex items-center gap-3 bg-[#111] rounded-xl border border-[#1e1e1e] p-3">
+              <div className="w-24 h-[54px] rounded-lg overflow-hidden border border-[#2a2a2a] flex-shrink-0 bg-[#0a0a0a]">
+                {liveThumbUrl
+                  ? <img key={Math.round(liveTime)} src={liveThumbUrl} alt="frame" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center"><Camera className="w-4 h-4 text-gray-600" /></div>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-xs font-medium mb-0.5">
+                  Current frame: <span className="font-mono text-[#3ea6ff]">{fmt(liveTime)}</span>
+                </p>
+                <p className="text-gray-600 text-[11px]">Pause at any frame then capture it as the thumbnail</p>
+              </div>
+              <Button type="button" onClick={captureThumb}
+                className="bg-[#3ea6ff] hover:bg-[#65b8ff] text-black text-xs font-semibold h-9 px-4 flex-shrink-0">
+                <Camera className="w-3.5 h-3.5 mr-1.5" />Capture
+              </Button>
+            </div>
+          )}
+
+          {/* Title */}
+          <div className="space-y-1.5">
+            <Label className="text-sm text-gray-300 font-medium">Title</Label>
+            <Input value={title} onChange={e => setTitle(e.target.value)}
+              placeholder="Video title"
+              className="bg-[#1a1a1a] border-[#333] text-white h-11 text-base focus:border-blue-500" />
+          </div>
+
+          {/* Thumbnail */}
+          <div className="space-y-2">
+            <Label className="text-sm text-gray-300 font-medium">Thumbnail</Label>
+            <p className="text-xs text-gray-500">Capture from video above or upload an image</p>
+            <div className="flex gap-3 items-start">
+              {thumbnailUrl ? (
+                <div className="relative group w-48 h-28 rounded-lg overflow-hidden border border-[#333] flex-shrink-0">
+                  <img src={thumbnailUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <button onClick={() => thumbInputRef.current.click()}
+                      className="text-white text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded">Change</button>
+                    <button onClick={() => setThumbnailUrl('')} className="text-white"><X className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => thumbInputRef.current.click()}
+                  className="w-48 h-28 rounded-lg border-2 border-dashed border-[#333] hover:border-[#555] flex flex-col items-center justify-center gap-2 cursor-pointer flex-shrink-0">
+                  {thumbLoading
+                    ? <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
+                    : <><ImagePlus className="w-7 h-7 text-gray-500" /><span className="text-xs text-gray-500">Upload thumbnail</span></>}
+                </button>
+              )}
+              <input ref={thumbInputRef} type="file" accept="image/*" className="hidden"
+                onChange={e => { if (e.target.files[0]) handleThumbnailFile(e.target.files[0]); }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center px-5 py-4 border-t border-[#1e1e1e]">
+          <button onClick={onFullEdit}
+            className="text-gray-500 hover:text-white text-sm transition-colors flex items-center gap-1.5">
+            <Pencil className="w-3.5 h-3.5" />Full edit
+          </button>
+          <div className="flex gap-3">
+            <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}
+              className="bg-[#3ea6ff] hover:bg-[#65b8ff] text-black font-semibold">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -304,6 +478,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const [previewing, setPreviewing] = useState(null);
   const [q, setQ] = useState('');
 
   const load = useCallback(() => {
@@ -318,7 +493,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
 
   const filtered = q.trim() ? items.filter(v => (v.title || '').toLowerCase().includes(q.toLowerCase())) : items;
 
-  const handleSaved = () => { setEditing(null); load(); onCategoriesChange(); };
+  const handleSaved = () => { setEditing(null); setPreviewing(null); load(); onCategoriesChange(); };
 
   if (loading) return (
     <div className="flex justify-center py-20">
@@ -328,6 +503,14 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
 
   return (
     <>
+      {previewing && (
+        <VideoPreviewModal
+          item={previewing}
+          onClose={() => setPreviewing(null)}
+          onFullEdit={() => { setEditing(previewing); setPreviewing(null); }}
+          onSaved={handleSaved}
+        />
+      )}
       {editing && <EditModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} />}
 
       <div className="mb-4 flex items-center justify-between">
@@ -343,12 +526,19 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
       ) : (
         <div className="space-y-2">
           {filtered.map(item => (
-            <div key={String(item._id || item.id)} className="flex items-center gap-4 rounded-xl bg-[#0f0f0f] border border-[#1e1e1e] hover:border-[#2a2a2a] p-3 transition-colors">
-              {item.thumbnailUrl
-                ? <img src={item.thumbnailUrl} alt={item.title} className="w-20 h-12 object-cover rounded-lg flex-shrink-0" />
-                : item.muxPlaybackId
-                  ? <img src={`https://image.mux.com/${item.muxPlaybackId}/thumbnail.png?time=3&width=160`} alt={item.title} className="w-20 h-12 object-cover rounded-lg flex-shrink-0" />
-                  : <div className="w-20 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center flex-shrink-0"><Film className="w-5 h-5 text-gray-600" /></div>}
+            <div key={String(item._id || item.id)}
+              onClick={() => setPreviewing(item)}
+              className="flex items-center gap-4 rounded-xl bg-[#0f0f0f] border border-[#1e1e1e] hover:border-[#3ea6ff]/40 p-3 transition-colors cursor-pointer group">
+              <div className="relative flex-shrink-0">
+                {item.thumbnailUrl
+                  ? <img src={item.thumbnailUrl} alt={item.title} className="w-20 h-12 object-cover rounded-lg" />
+                  : item.muxPlaybackId
+                    ? <img src={`https://image.mux.com/${item.muxPlaybackId}/thumbnail.png?time=3&width=160`} alt={item.title} className="w-20 h-12 object-cover rounded-lg" />
+                    : <div className="w-20 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center"><Film className="w-5 h-5 text-gray-600" /></div>}
+                <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Play className="w-5 h-5 text-white fill-white" />
+                </div>
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white font-medium text-sm truncate">{item.title || 'Untitled'}</p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -361,7 +551,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                     ))}
                 </div>
               </div>
-              <button onClick={() => setEditing(item)} title="Edit"
+              <button onClick={e => { e.stopPropagation(); setEditing(item); }} title="Full edit"
                 className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0">
                 <Pencil className="w-4 h-4" />
               </button>
