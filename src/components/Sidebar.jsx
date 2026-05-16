@@ -146,8 +146,6 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
     { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
     { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },
     { to: '/library', icon: Library, label: 'Library', featureKey: 'library' },
-    { to: '/communities', icon: Users, label: 'Communities' },
-    { to: '/wagers', icon: Swords, label: 'Wagers' },
     { to: '/memberships', icon: CreditCard, label: 'Memberships' },
   ];
 

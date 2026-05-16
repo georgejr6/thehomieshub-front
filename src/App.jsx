@@ -345,9 +345,9 @@ const AppContent = React.memo(() => {
                     </FeatureGuard>
                 } />
                 
-                <Route path="/communities" element={<CommunitiesPage />} />
-                <Route path="/wagers" element={<WagersPage onLoginRequest={handleLoginRequest} />} />
-                <Route path="/wagers/:id" element={<WagerDetailPage onLoginRequest={handleLoginRequest} />} />
+                <Route path="/communities" element={<Navigate to="/browse" replace />} />
+                <Route path="/wagers" element={<Navigate to="/browse" replace />} />
+                <Route path="/wagers/:id" element={<Navigate to="/browse" replace />} />
                 <Route path="/subscriptions" element={<SubscriptionsPage />} />
                 
                 <Route path="/search" element={
