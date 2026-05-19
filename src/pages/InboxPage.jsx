@@ -176,7 +176,7 @@ const InboxPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { threads, requests, sendMessage, getThread, createThread, acceptRequest, archiveRequest, searchUsers, markAsRead, muteThread, archiveThread, deleteThread, loadMessages } = useMessages();
+  const { threads, requests, sendMessage, getThread, createThread, acceptRequest, archiveRequest, searchUsers, markAsRead, muteThread, archiveThread, deleteThread, loadMessages, pollMessages } = useMessages();
 
   const isMobile = useMediaQuery('(max-width: 768px)');
   const fileInputRef = useRef(null);
@@ -204,6 +204,7 @@ const InboxPage = () => {
       if (thread.id && thread.id !== 'temp') {
         markAsRead(thread.id);
         loadMessages(thread.id);
+        return pollMessages(thread.id);
       }
     } else {
       setActiveThread(null);

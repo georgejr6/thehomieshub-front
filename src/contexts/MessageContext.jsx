@@ -82,6 +82,13 @@ export const MessageProvider = ({ children }) => {
     loadThreads();
   }, [loadThreads]);
 
+  // Poll for new threads every 8 seconds while logged in
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(loadThreads, 8000);
+    return () => clearInterval(interval);
+  }, [user, loadThreads]);
+
   const loadMessages = useCallback(async (threadId) => {
     if (!threadId || threadId === 'temp') return [];
     try {
@@ -231,6 +238,12 @@ export const MessageProvider = ({ children }) => {
     }
   };
 
+  const pollMessages = useCallback((threadId) => {
+    if (!threadId || threadId === 'temp') return () => {};
+    const interval = setInterval(() => loadMessages(threadId), 5000);
+    return () => clearInterval(interval);
+  }, [loadMessages]);
+
   const value = {
     threads,
     requests,
@@ -247,6 +260,7 @@ export const MessageProvider = ({ children }) => {
     deleteThread,
     loadThreads,
     loadMessages,
+    pollMessages,
   };
 
   return (

@@ -42,6 +42,7 @@ import AdminInvite from '@/pages/admin/AdminInvite';
 import AdminLogin from '@/pages/admin/AdminLogin';
 import AdminLayout from '@/pages/admin/AdminLayout';
 import AdminMediaManager from '@/pages/admin/AdminMediaManager';
+import AdminPushNotifications from '@/pages/admin/AdminPushNotifications';
 import TermsPage from '@/pages/TermsPage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import CommunityGuidelinesPage from '@/pages/CommunityGuidelinesPage';
@@ -308,6 +309,7 @@ const AppContent = React.memo(() => {
             <Route path="/admin/features" element={user?.isAdmin ? <AdminRouteWrapper><AdminFeatures /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/invite" element={<AdminRouteWrapper><AdminInvite /></AdminRouteWrapper>} />
             <Route path="/admin/media" element={user?.isAdmin ? <AdminRouteWrapper><AdminMediaManager /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
+            <Route path="/admin/push" element={user?.isAdmin ? <AdminRouteWrapper><AdminPushNotifications /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
 
             {/* --- Main App Routes --- */}
             <Route element={<MainLayout 
