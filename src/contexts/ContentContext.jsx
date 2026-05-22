@@ -315,7 +315,7 @@ const loadMyLibrary = async () => {
     return () => {
       cancelled = true;
     };
-  }, [hasFrogzFeed]);
+  }, []);
 
   const addReel = (newReel) => setVerticalPosts(prev => [newReel, ...prev]);
   const addPost = (newPost) => {
