@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { musicApi, videoApi } from '@/lib/digitvlApi';
-import { frogzApi } from '@/lib/frogzApi';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/api/homieshub';
 
@@ -12,8 +11,6 @@ export const MediaProvider = ({ children }) => {
   const navigate = useNavigate();
   const { user, isPremium } = useAuth();
   const isAdmin = !!user?.isAdmin;
-  const hasFrogzAccess = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz');
-  const hasFrogzFan    = Array.isArray(user?.tags) && user.tags.includes('freakyfrogz_fan');
 
   // ── Music Catalog ──────────────────────────────────────────────────────────
   const [allTracks,      setAllTracks]      = useState([]);
@@ -34,13 +31,6 @@ export const MediaProvider = ({ children }) => {
   // ── Admin-managed category rows ────────────────────────────────────────────
   const [categoryRows,       setCategoryRows]       = useState([]);
   const [categoryRowsLoading, setCategoryRowsLoading] = useState(true);
-
-  // ── Frogz Catalog ─────────────────────────────────────────────────────────
-  const [frogzClips,     setFrogzClips]     = useState([]);   // public shorts
-  const [frogzFeatured,  setFrogzFeatured]  = useState(null); // paid only
-  const [frogzTrending,  setFrogzTrending]  = useState([]);   // paid only
-  const [frogzNew,       setFrogzNew]       = useState([]);   // paid only
-  const [frogzLoading,   setFrogzLoading]   = useState(false);
 
   // ── Current Video Player ───────────────────────────────────────────────────
   const [currentVideo,    setCurrentVideo]    = useState(null);
@@ -120,32 +110,6 @@ export const MediaProvider = ({ children }) => {
       setMovies(movs);
       setSeries(sers);
     }).finally(() => setVideoLoading(false));
-  }, []);
-
-  // ── Fetch frogz catalog ────────────────────────────────────────────────────
-  useEffect(() => {
-    // Public clips: fetch for fans and paid users
-    if (!hasFrogzFan && !hasFrogzAccess) return;
-    frogzApi.getClips().then(setFrogzClips).catch(() => {});
-  }, [hasFrogzFan, hasFrogzAccess]);
-
-  useEffect(() => {
-    // Full catalog: paid users only
-    if (!hasFrogzAccess) return;
-    setFrogzLoading(true);
-    Promise.all([
-      frogzApi.getFeatured().catch(() => null),
-      frogzApi.getTrending().catch(() => []),
-      frogzApi.getNew().catch(() => []),
-    ]).then(([featured, trending, newVids]) => {
-      setFrogzFeatured(featured);
-      setFrogzTrending(trending);
-      setFrogzNew(newVids);
-    }).finally(() => setFrogzLoading(false));
-  }, [hasFrogzAccess]);
-
-  const requestFrogzAccess = useCallback(async (plan) => {
-    return frogzApi.requestAccess(plan);
   }, []);
 
   // ── Fetch HomieshHub videos + reels for media mode library ────────────────
@@ -396,10 +360,6 @@ export const MediaProvider = ({ children }) => {
       // Video
       featuredVideo, trendingVideos, newVideos, movies, series, videoLoading,
       currentVideo, playVideo, closeVideo,
-      // Frogz
-      hasFrogzFan, hasFrogzAccess,
-      frogzClips, frogzFeatured, frogzTrending, frogzNew, frogzLoading,
-      requestFrogzAccess,
       // UI
       showWarning, hasEnteredMediaMode,
       enterMediaMode, confirmEnterMediaMode, cancelEnterMediaMode,
