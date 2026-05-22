@@ -163,15 +163,11 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
             {post.type === 'clip' && (
                 <div
                     className="relative mt-2 md:mt-3 rounded-lg overflow-hidden border border-border group aspect-video bg-black cursor-pointer"
-                    onClick={post.isFrogzClip ? () => navigate('/profile/freakyfrogz') : undefined}
                 >
                     <img className="w-full h-full object-cover" alt={post.content?.title || post.title || 'Video'} src={post.thumbnail || "https://images.unsplash.com/photo-1592572130011-855af2d206af"} />
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <Play className="h-12 w-12 text-white/80" fill="white" />
                     </div>
-                    {post.isFrogzClip && (
-                        <div className="absolute top-2 right-2 text-lg">🐸</div>
-                    )}
                 </div>
             )}
             

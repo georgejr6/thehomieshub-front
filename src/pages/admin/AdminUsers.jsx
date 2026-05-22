@@ -129,20 +129,6 @@ const AdminUsers = () => {
     }
   };
 
-  const handleFrogzTag = async (user) => {
-    const hasFrogz = user.tags?.includes('freakyfrogz');
-    const method = hasFrogz ? 'delete' : 'post';
-    try {
-      const { data } = await api[method](`/admin/users/${user._id}/tags/freakyfrogz`);
-      if (data.status) {
-        setUsers((prev) => prev.map((u) => u._id === user._id ? { ...u, tags: data.result.tags } : u));
-        toast({ title: hasFrogz ? '🐸 Access Revoked' : '🐸 Access Granted', description: `@${user.username}` });
-      }
-    } catch (err) {
-      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to update tag.', variant: 'destructive' });
-    }
-  };
-
   const handleMute = async (user) => {
     try {
       const { data } = await api.post(`/admin/users/${user._id}/mute`);
@@ -259,12 +245,6 @@ const AdminUsers = () => {
                             {user.isAdmin
                               ? <><ShieldOff className="mr-2 h-4 w-4" /> Remove Admin</>
                               : <><ShieldCheck className="mr-2 h-4 w-4" /> Make Admin</>}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleFrogzTag(user)}>
-                            {user.tags?.includes('freakyfrogz')
-                              ? <><span className="mr-2">🐸</span> Revoke Frogz Access</>
-                              : <><span className="mr-2">🐸</span> Grant Frogz Access</>}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem

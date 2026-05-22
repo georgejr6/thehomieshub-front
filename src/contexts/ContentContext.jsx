@@ -4,7 +4,6 @@ import { mockCommunityPosts as initialCommunityPosts } from '@/data/mockCommunit
 import { mockUsers as initialUsers } from '@/data/mockUsers';
 import api from "@/api/homieshub";
 import { useAuth } from '@/contexts/AuthContext';
-import { frogzApi } from '@/lib/frogzApi';
 
 const ContentContext = createContext();
 
@@ -107,35 +106,6 @@ function mapVideoToVerticalPost(v) {
   };
 }
 
-const FROGZ_CREATOR = {
-  name: 'Freaky Frogz',
-  username: 'freakyfrogz',
-  avatar: 'https://em-content.zobj.net/source/apple/391/frog_1f438.png',
-  verified: false,
-};
-
-function mapFrogzClipToVerticalPost(c) {
-  return {
-    id: `frogz_${c.id}`,
-    type: 'clip',
-    backendType: 'frogz_clip',
-    videoUrl: c.muxPlaybackId || '',
-    muxPlaybackId: c.muxPlaybackId || null,
-    thumbnail: c.cover || '',
-    title: c.title || '',
-    description: c.description || '',
-    content: { title: c.title || '', description: c.description || '' },
-    user: FROGZ_CREATOR,
-    engagement: { likes: 0, comments: 0, shares: 0, saves: 0 },
-    tags: [],
-    timestamp: new Date().toISOString(),
-    isNew: false,
-    isNSFW: false,
-    isSubscriberOnly: false,
-    isFrogzClip: true, // flag so UI can suppress follow/comment actions
-  };
-}
-
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -219,8 +189,6 @@ function mapCommunityPostToFeedItem(p) {
 
 export const ContentProvider = ({ children }) => {
   const { user } = useAuth();
-  const hasFrogzFeed = Array.isArray(user?.tags) &&
-    (user.tags.includes('freakyfrogz_fan') || user.tags.includes('freakyfrogz'));
 
   const [verticalPosts, setVerticalPosts] = useState([]);
   const [communityPosts, setCommunityPosts] = useState([]);
@@ -313,25 +281,20 @@ const loadMyLibrary = async () => {
 
     const loadVerticalFeed = async () => {
       try {
-        const fetches = [
+        const [reelsResp, videosResp] = await Promise.all([
           api.get("/user/reels",  { params: { page: 1, limit: 50 } }),
           api.get("/user/videos", { params: { page: 1, limit: 50 } }),
-          hasFrogzFeed ? frogzApi.getClips() : Promise.resolve([]),
-        ];
-
-        const [reelsResp, videosResp, frogzClips] = await Promise.all(fetches);
+        ]);
 
         const reelsResult  = reelsResp?.data?.result;
         const videosResult = videosResp?.data?.result;
 
         const reels  = safeArray(reelsResult?.items  ?? reelsResult);
         const videos = safeArray(videosResult?.items ?? videosResult);
-        const clips  = safeArray(frogzClips);
 
         const mapped = [
           ...reels.map(mapReelToVerticalPost),
           ...videos.map(mapVideoToVerticalPost),
-          ...clips.map(mapFrogzClipToVerticalPost),
         ].filter(p => p?.id && p?.videoUrl);
 
         // Shuffle instead of chronological sort
