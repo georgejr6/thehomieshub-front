@@ -17,7 +17,10 @@ import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot }) => {
   const location = useLocation();
   const { checkAccess } = useFeatures();
-  const isActive = location.pathname === to || (to === '/live' && location.pathname.startsWith('/live-stream')) || (to === '/admin/dashboard' && location.pathname.startsWith('/admin'));
+  const [toPath, toQuery] = to ? to.split('?') : [to, ''];
+  const isActive = (location.pathname === toPath && (!toQuery || location.search.includes(toQuery)))
+    || (to === '/live' && location.pathname.startsWith('/live-stream'))
+    || (to === '/admin/dashboard' && location.pathname.startsWith('/admin'));
 
   if (featureKey) {
       const { status } = checkAccess(featureKey);
@@ -151,6 +154,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
 
   if (user) {
     mainNavItems.push({ to: '/subscriptions', icon: Clapperboard, label: 'Subscriptions' });
+    mainNavItems.push({ to: '/settings?tab=billing', icon: CreditCard, label: 'Billing' });
   }
   
   const adminNavItems = [

@@ -10,10 +10,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2 } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2, CreditCard } from 'lucide-react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '@/api/homieshub';
 import BillingSection from '@/components/Billing/BillingSection';
+
+const TABS = [
+  { key: 'account',       label: 'Account',       icon: User },
+  { key: 'notifications', label: 'Notifications',  icon: Bell },
+  { key: 'privacy',       label: 'Privacy',        icon: Shield },
+  { key: 'connections',   label: 'Connections',    icon: Link2 },
+  { key: 'billing',       label: 'Billing',        icon: CreditCard },
+];
 
 const AccountSettingsPage = () => {
   const { user, refreshMe } = useAuth();
@@ -21,6 +29,21 @@ const AccountSettingsPage = () => {
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Derive active tab from URL — ?tab=billing or ?billing=success both open Billing
+  const initialTab = (() => {
+    const t = searchParams.get('tab');
+    if (t && TABS.find(tb => tb.key === t)) return t;
+    if (searchParams.get('billing') === 'success') return 'billing';
+    return 'account';
+  })();
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  const switchTab = (key) => {
+    setActiveTab(key);
+    setSearchParams(key === 'account' ? {} : { tab: key }, { replace: true });
+  };
 
   const [email, setEmail] = useState(user?.email || '');
   const [password, setPassword] = useState('');
@@ -157,11 +180,34 @@ const AccountSettingsPage = () => {
   };
 
   return (
-    <div className="container max-w-3xl mx-auto py-8 px-4 space-y-8 pb-24">
-      <div className="flex flex-col space-y-2">
+    <div className="container max-w-3xl mx-auto py-8 px-4 pb-24">
+      <div className="flex flex-col space-y-2 mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
         <p className="text-muted-foreground">Manage your account details, privacy, and preferences.</p>
       </div>
+
+      {/* ── Tab navigation ── */}
+      <div className="flex gap-1 overflow-x-auto no-scrollbar border-b border-border mb-8 pb-0">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => switchTab(key)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
+              activeTab === key
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-8">
+
+      {/* ── Account tab ── */}
+      {activeTab === 'account' && <>
 
       {/* 1. Account Information */}
       <Card>
@@ -198,6 +244,10 @@ const AccountSettingsPage = () => {
         </CardFooter>
       </Card>
 
+      {/* ── Notifications tab ── */}
+      </> /* end account tab */}
+      {activeTab === 'notifications' && <>
+
       {/* 2. Notification Settings */}
       <Card>
         <CardHeader>
@@ -230,6 +280,10 @@ const AccountSettingsPage = () => {
           ))}
         </CardContent>
       </Card>
+
+      {/* ── Privacy tab ── */}
+      </> /* end notifications tab */}
+      {activeTab === 'privacy' && <>
 
       {/* 3. Privacy & Content Preferences */}
       <Card>
@@ -287,6 +341,11 @@ const AccountSettingsPage = () => {
         </CardContent>
       </Card>
 
+      </> /* end privacy tab */}
+
+      {/* ── Account tab (continued) — Wallet + Danger Zone ── */}
+      {activeTab === 'account' && <>
+
       {/* 4. Wallet Preferences */}
       <Card>
         <CardHeader>
@@ -313,6 +372,10 @@ const AccountSettingsPage = () => {
             </Link>
         </CardContent>
       </Card>
+
+      {/* ── Connections tab ── */}
+      </> /* end account tab (wallet) */}
+      {activeTab === 'connections' && <>
 
       {/* 5. Legal & About (New Section) */}
        <Card>
@@ -415,8 +478,16 @@ const AccountSettingsPage = () => {
         </CardContent>
       </Card>
 
-      {/* 5c. Billing & Subscription */}
+      </> /* end connections tab */}
+
+      {/* ── Billing tab ── */}
+      {activeTab === 'billing' && <>
       <BillingSection />
+
+      </> /* end billing tab */}
+
+      {/* ── Account tab (continued) — Danger Zone ── */}
+      {activeTab === 'account' && <>
 
       {/* 6. Account Management */}
       <Card className="border-red-500/20 shadow-none">
@@ -479,6 +550,10 @@ const AccountSettingsPage = () => {
             </div>
         </CardContent>
       </Card>
+
+      </> /* end account tab (danger zone) */}
+
+      </div>{/* end space-y-8 */}
     </div>
   );
 };
