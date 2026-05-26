@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useCallback, useRe
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useWallet as useAlgoWallet } from '@txnlab/use-wallet-react';
 import { PeraWalletConnect } from '@perawallet/connect';
+import api from '@/api/homieshub';
 
 const WC_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '7703ab56cc3bc2f4eaf6fac95ffff4e6';
 
@@ -80,6 +81,8 @@ export const WalletProvider = ({ children }) => {
         const accounts = await pera.connect();
         if (!accounts?.length) throw new Error('No accounts returned from Pera');
         setPeraAddress(accounts[0]);
+        // Persist to backend so mobile app can read it
+        api.patch('/user/algo-wallet', { address: accounts[0] }).catch(() => {});
         return { type: 'Pera Wallet', address: accounts[0] };
       }
 
@@ -100,6 +103,8 @@ export const WalletProvider = ({ children }) => {
     if (peraAddress) {
       try { await peraRef.current.disconnect(); } catch (_) {}
       setPeraAddress(null);
+      // Clear from backend
+      api.patch('/user/algo-wallet', { address: null }).catch(() => {});
     } else if (algoActiveWallet) {
       await algoActiveWallet.disconnect();
     }
