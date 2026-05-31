@@ -41,8 +41,15 @@ function isMembershipActive(user) {
   return new Date(user.membership.expiresAt) > new Date();
 }
 
+const TIERS = [
+  { value: 'discord', label: 'Discord Only',    color: '#5865F2', desc: 'Discord server access only' },
+  { value: 'homies',  label: 'The Homie',        color: '#F0B94D', desc: 'Full app + Discord access' },
+  { value: 'nomad',   label: 'Digital Nomad',    color: '#f97316', desc: 'Everything + mentorship' },
+];
+
 const ManageMembershipDialog = ({ user, isOpen, onOpenChange, onUpdate }) => {
   const { toast } = useToast();
+  const [tier, setTier] = useState('homies');
   const [mode, setMode] = useState('grant'); // 'grant' | 'custom'
   const [selectedDays, setSelectedDays] = useState(30);
   const [customDate, setCustomDate] = useState('');
@@ -55,7 +62,8 @@ const ManageMembershipDialog = ({ user, isOpen, onOpenChange, onUpdate }) => {
 
   useEffect(() => {
     if (user) {
-      setPlanLabel(user.membership?.planLabel || 'Homies Monthly');
+      setTier(user.membership?.tier || 'homies');
+      setPlanLabel(user.membership?.planLabel || '');
       setNotes(user.membership?.notes || '');
     }
   }, [user]);
@@ -64,7 +72,8 @@ const ManageMembershipDialog = ({ user, isOpen, onOpenChange, onUpdate }) => {
     setLoading(true);
     try {
       const body = {
-        planLabel: planLabel || 'Manual Grant',
+        tier,
+        planLabel: planLabel || TIERS.find(t => t.value === tier)?.label || 'Manual Grant',
         notes,
         ...(mode === 'custom' && customDate
           ? { expiresAt: customDate }
@@ -116,11 +125,33 @@ const ManageMembershipDialog = ({ user, isOpen, onOpenChange, onUpdate }) => {
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Plan label */}
+          {/* Tier selector */}
           <div className="space-y-1.5">
-            <Label>Plan</Label>
+            <Label>Subscription Tier</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {TIERS.map(t => (
+                <button
+                  key={t.value}
+                  onClick={() => setTier(t.value)}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    tier === t.value
+                      ? 'border-2'
+                      : 'border-border bg-secondary/20 hover:border-foreground/30'
+                  }`}
+                  style={tier === t.value ? { borderColor: t.color, background: `${t.color}15` } : {}}
+                >
+                  <p className="font-bold text-xs" style={tier === t.value ? { color: t.color } : {}}>{t.label}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{t.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Plan label (optional record note) */}
+          <div className="space-y-1.5">
+            <Label>Plan Label <span className="text-muted-foreground text-xs">(optional — billing record)</span></Label>
             <Select value={planLabel} onValueChange={setPlanLabel}>
-              <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={TIERS.find(t2 => t2.value === tier)?.label || 'Select…'} /></SelectTrigger>
               <SelectContent>
                 {PLAN_LABELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
@@ -428,12 +459,17 @@ const AdminUsers = () => {
                         const manualActive = isMembershipActive(user);
                         const stripeActive = user.subscription?.isActive;
                         const expiry = user.membership?.expiresAt ? fmtExpiry(user.membership.expiresAt) : null;
+                        const tierInfo = TIERS.find(t => t.value === user.membership?.tier);
                         if (stripeActive) return <Badge className="bg-green-500/10 text-green-500 border-green-500/30 text-[10px]">Stripe Active</Badge>;
                         if (manualActive) return (
                           <div className="flex flex-col gap-0.5">
-                            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 text-[10px] w-fit">
-                              <Crown className="w-2.5 h-2.5 mr-1" />Member
-                            </Badge>
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full w-fit"
+                              style={{ background: `${tierInfo?.color || '#F0B94D'}20`, color: tierInfo?.color || '#F0B94D', border: `1px solid ${tierInfo?.color || '#F0B94D'}40` }}
+                            >
+                              <Crown className="w-2.5 h-2.5" />
+                              {tierInfo?.label || 'Member'}
+                            </span>
                             {expiry && <span className="text-[10px] text-muted-foreground">until {expiry}</span>}
                           </div>
                         );
