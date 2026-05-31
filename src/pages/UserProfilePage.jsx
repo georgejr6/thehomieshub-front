@@ -154,21 +154,36 @@ const RealUserProfilePage = () => {
   };
 
 
+  const TIER_META = {
+    discord: { label: 'Discord Member', color: '#5865F2', text: '#fff' },
+    homies:  { label: 'The Homie',      color: '#F0B94D', text: '#000' },
+    nomad:   { label: 'Digital Nomad',  color: '#23A55A', text: '#fff' },
+  };
+
   const getBadge = (u) => {
-    const tier = u?.tier || 'Free';
-    if (tier === 'Lite' || tier === 'Free') {
+    // Stripe/CB subscription
+    if (u?.subscription?.isActive) {
       return (
-        <Badge
-          variant="secondary"
-          className="ml-2 font-normal bg-muted text-muted-foreground border-muted-foreground/20"
-        >
-          Lite Account
+        <Badge className="ml-2 font-semibold border-none" style={{ background: 'linear-gradient(90deg,#F0B94D,#d97706)', color: '#000' }}>
+          <Crown className="w-3 h-3 mr-1" /> Member
         </Badge>
       );
     }
+    // Manual membership via tags
+    const manualActive = u?.membershipActive || u?.tags?.includes('member');
+    if (manualActive) {
+      const mTier = u?.membershipTier;
+      const meta = TIER_META[mTier] || TIER_META.homies;
+      return (
+        <Badge className="ml-2 font-semibold border-none" style={{ background: meta.color, color: meta.text }}>
+          <Crown className="w-3 h-3 mr-1" /> {meta.label}
+        </Badge>
+      );
+    }
+    // Free / Lite
     return (
-      <Badge className="ml-2 font-normal bg-gradient-to-r from-yellow-500 to-amber-600 border-none text-white">
-        <Crown className="w-3 h-3 mr-1" /> Premium Account
+      <Badge variant="secondary" className="ml-2 font-normal bg-muted text-muted-foreground border-muted-foreground/20">
+        Lite Account
       </Badge>
     );
   };
