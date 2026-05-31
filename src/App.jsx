@@ -50,6 +50,7 @@ import LandingPage from '@/pages/LandingPage';
 import MembershipsPage from '@/pages/MembershipsPage';
 import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
+import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -186,7 +187,7 @@ const AppContent = React.memo(() => {
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isImmersiveMode, setIsImmersiveMode] = useState(false);
 
-  const { user, loading, isLockedModalOpen, setIsLockedModalOpen, isPremium, showOnboarding, stopTutorial } = useAuth();
+  const { user, loading, isLockedModalOpen, setIsLockedModalOpen, isPremium, showOnboarding, stopTutorial, showDiscordPrompt, dismissDiscordPrompt } = useAuth();
   const { orderedStories, viewingIndex, closeStory } = useStory();
   const navigate = useNavigate();
   const location = useLocation();
@@ -404,6 +405,7 @@ const AppContent = React.memo(() => {
             onOpenChange={setIsLockedModalOpen}
         />
         <OnboardingFlow isOpen={showOnboarding} onClose={stopTutorial} />
+        <DiscordConnectPrompt open={showDiscordPrompt && !showOnboarding} onDismiss={dismissDiscordPrompt} />
         <PlaceView />
         <Toaster />
 

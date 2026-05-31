@@ -52,6 +52,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isLockedModalOpen, setIsLockedModalOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showDiscordPrompt, setShowDiscordPrompt] = useState(false);
 
   // forces refresh when token changes
   const [tokenVersion, setTokenVersion] = useState(0);
@@ -100,6 +101,10 @@ export const AuthProvider = ({ children }) => {
       } else {
         setShowOnboarding(true);
       }
+    }
+    // Show Discord connect prompt after login if not linked and user hasn't dismissed forever
+    if (u && !u.discordUsername && localStorage.getItem('hh_discord_prompt') !== 'never') {
+      setTimeout(() => setShowDiscordPrompt(true), 1500);
     }
     return u;
   };
@@ -177,6 +182,9 @@ export const AuthProvider = ({ children }) => {
     showOnboarding,
     startTutorial,
     stopTutorial,
+
+    showDiscordPrompt,
+    dismissDiscordPrompt: () => setShowDiscordPrompt(false),
   };
 
   return (

@@ -4,10 +4,12 @@ import { motion } from 'framer-motion';
 import {
   CheckCircle2, Crown, Zap, Globe, X, Users, Video,
   Briefcase, BookOpen, MessageCircle, TrendingUp, Folder,
-  Star, Shield, Headphones,
+  Star, Shield, Headphones, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import api from '@/api/homieshub';
 
 // ── Feature data ──────────────────────────────────────────────────────────────
 
@@ -87,8 +89,47 @@ const CompareRow = ({ label, discord, homie, nomad }) => (
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+// plan: 'discord'|'homies'|'nomad', billingCycle: 'monthly'|'yearly'
+// direct Stripe links are the fallback for logged-out users
+const STRIPE_LINKS = {
+  discord_monthly:  'https://buy.stripe.com/28o15u6W5eaS5pebIL',
+  homies_yearly:    'https://buy.stripe.com/4gM3cu2DH1Bgdo15yGf7i08',
+  homies_monthly:   'https://buy.stripe.com/00w5kCfqtbbQ3Nr1iqf7i07',
+  nomad_monthly:    'https://buy.stripe.com/fZeg0o0xH0k2g3SfZ3',
+};
+
 const MembershipsPage = () => {
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'yearly'
+  const { user } = useAuth();
+  const [checkoutLoading, setCheckoutLoading] = useState(null);
+
+  // For logged-in users, go through our checkout API so success_url = new site
+  // For logged-out users, fall back to direct Stripe links
+  const handleJoin = async (plan, billingCycle) => {
+    const key = `${plan}_${billingCycle}`;
+    if (!user) {
+      const url = STRIPE_LINKS[key];
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    // Discord tier has no checkout API plan — use direct link
+    if (plan === 'discord') {
+      window.open(STRIPE_LINKS[key] || STRIPE_LINKS.discord_monthly, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setCheckoutLoading(key);
+    try {
+      const { data } = await api.post('/subscription/checkout', { plan, billingCycle });
+      const url = data?.result?.url;
+      if (url) window.location.href = url;
+    } catch {
+      // fallback to direct link
+      const fallback = STRIPE_LINKS[key];
+      if (fallback) window.open(fallback, '_blank', 'noopener,noreferrer');
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
 
   return (
     <>
@@ -181,14 +222,14 @@ const MembershipsPage = () => {
               </div>
               <div className="p-6 pt-0">
                 <Button
-                  asChild
                   size="lg"
                   className="w-full font-bold text-white hover:opacity-90 transition-opacity"
                   style={{ background: '#5865F2' }}
+                  onClick={() => handleJoin('discord', 'monthly')}
+                  disabled={checkoutLoading === 'discord_monthly'}
                 >
-                  <a href="https://buy.stripe.com/28o15u6W5eaS5pebIL" target="_blank" rel="noopener noreferrer">
-                    Join — $10 / month
-                  </a>
+                  {checkoutLoading === 'discord_monthly' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Join — $10 / month
                 </Button>
               </div>
             </motion.div>
@@ -244,23 +285,23 @@ const MembershipsPage = () => {
               <div className="p-6 pt-0">
                 {billing === 'yearly' ? (
                   <Button
-                    asChild
                     size="lg"
                     className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-[0_0_20px_rgba(240,185,77,0.2)]"
+                    onClick={() => handleJoin('homies', 'yearly')}
+                    disabled={checkoutLoading === 'homies_yearly'}
                   >
-                    <a href="https://buy.stripe.com/4gM3cu2DH1Bgdo15yGf7i08" target="_blank" rel="noopener noreferrer">
-                      Join — $100 / year
-                    </a>
+                    {checkoutLoading === 'homies_yearly' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Join — $100 / year
                   </Button>
                 ) : (
                   <Button
-                    asChild
                     size="lg"
                     className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
+                    onClick={() => handleJoin('homies', 'monthly')}
+                    disabled={checkoutLoading === 'homies_monthly'}
                   >
-                    <a href="https://buy.stripe.com/00w5kCfqtbbQ3Nr1iqf7i07" target="_blank" rel="noopener noreferrer">
-                      Join — $15 / month
-                    </a>
+                    {checkoutLoading === 'homies_monthly' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Join — $15 / month
                   </Button>
                 )}
               </div>
@@ -306,14 +347,14 @@ const MembershipsPage = () => {
               {/* CTA */}
               <div className="p-6 pt-0">
                 <Button
-                  asChild
                   size="lg"
                   className="w-full font-bold text-[#1a0f00] hover:opacity-90 transition-opacity"
                   style={{ background: 'linear-gradient(90deg, #F0B94D 0%, #d97706 100%)' }}
+                  onClick={() => handleJoin('nomad', 'monthly')}
+                  disabled={checkoutLoading === 'nomad_monthly'}
                 >
-                  <a href="https://buy.stripe.com/fZeg0o0xH0k2g3SfZ3" target="_blank" rel="noopener noreferrer">
-                    Join Digital Nomad — $100 / mo
-                  </a>
+                  {checkoutLoading === 'nomad_monthly' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Join Digital Nomad — $100 / mo
                 </Button>
               </div>
             </motion.div>

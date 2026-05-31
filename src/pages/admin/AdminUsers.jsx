@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -185,6 +185,8 @@ const AdminUsers = () => {
                 <TableRow>
                   <TableHead>User</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Discord</TableHead>
+                  <TableHead>Subscription</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Points</TableHead>
@@ -209,7 +211,30 @@ const AdminUsers = () => {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{user.email}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[160px]">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="truncate">{user.email || <span className="italic text-muted-foreground/50">none</span>}</span>
+                        {user.email && (
+                          user.emailVerified
+                            ? <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" title="Verified" />
+                            : <XCircle className="w-3 h-3 text-yellow-500 flex-shrink-0" title="Unverified" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {user.discordUsername
+                        ? <span className="flex items-center gap-1 text-[#5865F2] font-medium"><span className="w-2 h-2 rounded-full bg-[#5865F2] flex-shrink-0" />@{user.discordUsername}</span>
+                        : <span className="text-muted-foreground/50 text-xs italic">Not linked</span>
+                      }
+                    </TableCell>
+                    <TableCell>
+                      {user.subscription?.isActive
+                        ? <Badge className="bg-green-500/10 text-green-500 border-green-500/30 text-[10px]">Active</Badge>
+                        : user.stripeCustomerId
+                          ? <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">Has Stripe</Badge>
+                          : <Badge variant="outline" className="text-[10px] text-muted-foreground">Free</Badge>
+                      }
+                    </TableCell>
                     <TableCell>
                       <Badge variant={user.isAdmin ? 'default' : user.isCreator ? 'secondary' : 'outline'}>
                         {user.isAdmin ? 'Admin' : user.isCreator ? 'Creator' : 'User'}
