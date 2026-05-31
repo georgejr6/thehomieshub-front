@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -407,130 +406,123 @@ const AdminUsers = () => {
           ) : users.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">No users found.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Discord</TableHead>
-                  <TableHead>Subscription</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Points</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user._id}>
-                    <TableCell>
-                      <div
-                        className="flex items-center gap-3 cursor-pointer hover:opacity-80"
-                        onClick={() => navigate(`/profile/${user.username}`)}
-                      >
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatarUrl} />
-                          <AvatarFallback>{user.username?.[0]?.toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium text-sm">{user.name || user.username}</p>
-                          <p className="text-xs text-muted-foreground">@{user.username}</p>
+            <div className="divide-y divide-border">
+              {users.map((user) => {
+                const manualActive = isMembershipActive(user);
+                const stripeActive = user.subscription?.isActive;
+                const expiry = user.membership?.expiresAt ? fmtExpiry(user.membership.expiresAt) : null;
+                const tierInfo = TIERS.find(t => t.value === user.membership?.tier);
+
+                return (
+                  <div key={user._id} className="flex items-center gap-3 py-3 px-1 hover:bg-muted/30 rounded-lg transition-colors">
+
+                    {/* Avatar + name */}
+                    <div
+                      className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                      onClick={() => navigate(`/profile/${user.username}`)}
+                    >
+                      <Avatar className="h-9 w-9 flex-shrink-0">
+                        <AvatarImage src={user.avatarUrl} />
+                        <AvatarFallback>{user.username?.[0]?.toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate">{user.name || user.username}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-muted-foreground">@{user.username}</span>
+                          {user.email && (
+                            <span className="text-xs text-muted-foreground truncate max-w-[140px]">
+                              · {user.email}
+                              {user.emailVerified
+                                ? <CheckCircle2 className="inline w-2.5 h-2.5 text-green-500 ml-0.5" />
+                                : <XCircle className="inline w-2.5 h-2.5 text-yellow-500 ml-0.5" />}
+                            </span>
+                          )}
+                          {user.discordUsername && (
+                            <span className="text-xs text-[#5865F2] font-medium">· @{user.discordUsername}</span>
+                          )}
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-[160px]">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="truncate">{user.email || <span className="italic text-muted-foreground/50">none</span>}</span>
-                        {user.email && (
-                          user.emailVerified
-                            ? <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" title="Verified" />
-                            : <XCircle className="w-3 h-3 text-yellow-500 flex-shrink-0" title="Unverified" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {user.discordUsername
-                        ? <span className="flex items-center gap-1 text-[#5865F2] font-medium"><span className="w-2 h-2 rounded-full bg-[#5865F2] flex-shrink-0" />@{user.discordUsername}</span>
-                        : <span className="text-muted-foreground/50 text-xs italic">Not linked</span>
-                      }
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const manualActive = isMembershipActive(user);
-                        const stripeActive = user.subscription?.isActive;
-                        const expiry = user.membership?.expiresAt ? fmtExpiry(user.membership.expiresAt) : null;
-                        const tierInfo = TIERS.find(t => t.value === user.membership?.tier);
-                        if (stripeActive) return <Badge className="bg-green-500/10 text-green-500 border-green-500/30 text-[10px]">Stripe Active</Badge>;
-                        if (manualActive) return (
-                          <div className="flex flex-col gap-0.5">
-                            <span
-                              className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full w-fit"
-                              style={{ background: `${tierInfo?.color || '#F0B94D'}20`, color: tierInfo?.color || '#F0B94D', border: `1px solid ${tierInfo?.color || '#F0B94D'}40` }}
-                            >
-                              <Crown className="w-2.5 h-2.5" />
-                              {tierInfo?.label || 'Member'}
-                            </span>
-                            {expiry && <span className="text-[10px] text-muted-foreground">until {expiry}</span>}
-                          </div>
-                        );
-                        if (user.membership?.expiresAt) return <Badge variant="outline" className="text-[10px] text-muted-foreground">Expired</Badge>;
-                        if (user.stripeCustomerId) return <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">Has Stripe</Badge>;
-                        return <Badge variant="outline" className="text-[10px] text-muted-foreground">Free</Badge>;
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={user.isAdmin ? 'default' : user.isCreator ? 'secondary' : 'outline'}>
-                        {user.isAdmin ? 'Admin' : user.isCreator ? 'Creator' : 'User'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1 flex-wrap">
-                        {user.isBanned && <Badge variant="destructive">Banned</Badge>}
-                        {user.isMuted && <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30">Muted</Badge>}
-                        {!user.isBanned && !user.isMuted && <Badge variant="outline">Active</Badge>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono">{(user.walletPoints || 0).toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/profile/${user.username}`)}>
-                            View Profile
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setMembershipTarget(user); setMembershipOpen(true); }}>
-                            <Crown className="mr-2 h-4 w-4 text-yellow-500" /> Manage Membership
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setDmRecipient(user); setDmOpen(true); }}>
-                            <MessageSquare className="mr-2 h-4 w-4" /> Message
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleMute(user)}>
-                            {user.isMuted ? <><Mic className="mr-2 h-4 w-4" /> Unmute</> : <><MicOff className="mr-2 h-4 w-4" /> Mute</>}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePromote(user)}>
-                            {user.isAdmin
-                              ? <><ShieldOff className="mr-2 h-4 w-4" /> Remove Admin</>
-                              : <><ShieldCheck className="mr-2 h-4 w-4" /> Make Admin</>}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className={user.isBanned ? '' : 'text-destructive focus:text-destructive'}
-                            onClick={() => handleBan(user)}
+                    </div>
+
+                    {/* Membership badge — click opens dialog */}
+                    <button
+                      onClick={() => { setMembershipTarget(user); setMembershipOpen(true); }}
+                      className="flex-shrink-0 flex flex-col items-center gap-0.5 group"
+                      title="Manage Membership"
+                    >
+                      {stripeActive ? (
+                        <Badge className="bg-green-500/10 text-green-500 border-green-500/30 text-[10px] group-hover:bg-green-500/20">Stripe</Badge>
+                      ) : manualActive ? (
+                        <>
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full group-hover:opacity-80"
+                            style={{ background: `${tierInfo?.color || '#F0B94D'}20`, color: tierInfo?.color || '#F0B94D', border: `1px solid ${tierInfo?.color || '#F0B94D'}40` }}
                           >
-                            {user.isBanned ? <><UserCheck className="mr-2 h-4 w-4" /> Unban</> : <><ShieldBan className="mr-2 h-4 w-4" /> Ban</>}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                            <Crown className="w-2.5 h-2.5" />
+                            {tierInfo?.label || 'Member'}
+                          </span>
+                          {expiry && <span className="text-[10px] text-muted-foreground">until {expiry}</span>}
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground border border-dashed border-border rounded-full px-2 py-0.5">
+                          Free
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Status badges */}
+                    <div className="flex-shrink-0 hidden sm:flex gap-1">
+                      {user.isBanned && <Badge variant="destructive" className="text-[10px]">Banned</Badge>}
+                      {user.isMuted && <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-[10px]">Muted</Badge>}
+                      {user.isAdmin && <Badge className="text-[10px]">Admin</Badge>}
+                    </div>
+
+                    {/* Always-visible Crown button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="flex-shrink-0 h-8 w-8 text-yellow-500 hover:bg-yellow-500/10"
+                      title="Manage Membership"
+                      onClick={() => { setMembershipTarget(user); setMembershipOpen(true); }}
+                    >
+                      <Crown className="h-4 w-4" />
+                    </Button>
+
+                    {/* ··· more actions */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(`/profile/${user.username}`)}>
+                          View Profile
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setDmRecipient(user); setDmOpen(true); }}>
+                          <MessageSquare className="mr-2 h-4 w-4" /> Message
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleMute(user)}>
+                          {user.isMuted ? <><Mic className="mr-2 h-4 w-4" /> Unmute</> : <><MicOff className="mr-2 h-4 w-4" /> Mute</>}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePromote(user)}>
+                          {user.isAdmin
+                            ? <><ShieldOff className="mr-2 h-4 w-4" /> Remove Admin</>
+                            : <><ShieldCheck className="mr-2 h-4 w-4" /> Make Admin</>}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className={user.isBanned ? '' : 'text-destructive focus:text-destructive'}
+                          onClick={() => handleBan(user)}
+                        >
+                          {user.isBanned ? <><UserCheck className="mr-2 h-4 w-4" /> Unban</> : <><ShieldBan className="mr-2 h-4 w-4" /> Ban</>}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                );
+              })}
+            </div>
           )}
 
           {totalPages > 1 && (
