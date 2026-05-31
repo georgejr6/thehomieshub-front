@@ -7,7 +7,7 @@ import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card'; // kept for DirectMessageDialog
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -191,7 +191,8 @@ const ManageMembershipDialog = ({ user, isOpen, onOpenChange, onUpdate }) => {
                 value={customDate}
                 onChange={(e) => setCustomDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
-                className="mt-2 [color-scheme:dark]"
+                className="mt-2"
+                style={{ colorScheme: 'dark' }}
               />
             )}
             {active && mode === 'grant' && (
@@ -378,79 +379,80 @@ const AdminUsers = () => {
 
   const totalPages = Math.ceil(total / limit);
 
+  const FILTERS = [
+    { key: 'all',     label: 'All Users',      color: null,       textColor: '#fff' },
+    { key: 'discord', label: 'Discord Only',   color: '#5865F2',  textColor: '#fff' },
+    { key: 'homies',  label: 'The Homie',      color: '#F0B94D',  textColor: '#000' },
+    { key: 'nomad',   label: 'Digital Nomad',  color: '#23A55A',  textColor: '#fff' },
+    { key: 'stripe',  label: 'Stripe Active',  color: '#22c55e',  textColor: '#000' },
+    { key: 'expired', label: 'Expired',        color: '#ef4444',  textColor: '#fff' },
+    { key: 'free',    label: 'Free',           color: '#6b7280',  textColor: '#fff' },
+  ];
+
   return (
-    <div className="space-y-6 p-4 md:p-8">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">User Management</h1>
-        <p className="text-muted-foreground mt-1">View, manage, and moderate user accounts.</p>
-      </header>
-
-      <Card>
-        <CardHeader>
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search users..."
-                className="pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" variant="outline" disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </Button>
-              <Button type="button" variant="ghost" size="icon" onClick={() => loadUsers()} disabled={loading}>
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
-          </form>
-        </CardHeader>
-        <CardContent>
-          {/* Tier filter bar */}
-          <div className="flex items-center gap-2 flex-wrap mb-4">
-            <Filter className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-            {[
-              { key: 'all',     label: 'All',           color: null },
-              { key: 'discord', label: 'Discord Only',  color: '#5865F2' },
-              { key: 'homies',  label: 'The Homie',     color: '#F0B94D' },
-              { key: 'nomad',   label: 'Digital Nomad', color: '#23A55A' },
-              { key: 'stripe',  label: 'Stripe Active', color: '#22c55e' },
-              { key: 'expired', label: 'Expired',       color: null },
-              { key: 'free',    label: 'Free',          color: null },
-            ].map(f => (
-              <button
-                key={f.key}
-                onClick={() => setTierFilter(f.key)}
-                className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
-                  tierFilter === f.key
-                    ? 'text-black'
-                    : 'bg-transparent text-muted-foreground border-border hover:border-foreground/40'
-                }`}
-                style={tierFilter === f.key && f.color
-                  ? { backgroundColor: f.color, borderColor: f.color }
-                  : tierFilter === f.key
-                    ? { backgroundColor: '#ffffff30', borderColor: '#ffffff50', color: '#fff' }
-                    : {}
-                }
-              >
-                {f.label}
-                {tierFilter === f.key && filteredUsers.length !== users.length && (
-                  <span className="ml-1 opacity-70">({filteredUsers.length})</span>
-                )}
-              </button>
-            ))}
+    <div className="p-4 md:p-8 space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{total} total users</p>
+        </div>
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or email..."
+              className="pl-9 w-64"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
+          <Button type="submit" variant="outline" size="icon" disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          </Button>
+          <Button type="button" variant="ghost" size="icon" onClick={() => loadUsers()} disabled={loading}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </form>
+      </div>
 
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">No users match this filter.</p>
-          ) : (
-            <div className="divide-y divide-border">
+      {/* ── Membership filter ── */}
+      <div className="bg-card border border-border rounded-xl p-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+          <Filter className="w-3.5 h-3.5" /> Filter by Membership
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setTierFilter(f.key)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-all"
+              style={tierFilter === f.key
+                ? { backgroundColor: f.color || '#333', borderColor: f.color || '#666', color: f.textColor }
+                : { backgroundColor: 'transparent', borderColor: '#333', color: '#888' }
+              }
+            >
+              {f.label}
+              {tierFilter === f.key && tierFilter !== 'all' && (
+                <span className="ml-1.5 opacity-80 text-xs">({filteredUsers.length})</span>
+              )}
+              {tierFilter === 'all' && f.key === 'all' && (
+                <span className="ml-1.5 opacity-70 text-xs">({users.length})</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── User list ── */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <p className="text-center text-muted-foreground py-16">No users match this filter.</p>
+        ) : (
+          <div className="divide-y divide-border">
               {filteredUsers.map((user) => {
                 const manualActive = isMembershipActive(user);
                 const stripeActive = user.subscription?.isActive;
@@ -570,8 +572,8 @@ const AdminUsers = () => {
           )}
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-sm text-muted-foreground">{total} users total</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+              <p className="text-sm text-muted-foreground">{filteredUsers.length} shown · {total} total</p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1 || loading}>
                   Previous
@@ -582,8 +584,8 @@ const AdminUsers = () => {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <DirectMessageDialog recipient={dmRecipient} isOpen={dmOpen} onOpenChange={setDmOpen} />
       <ManageMembershipDialog
