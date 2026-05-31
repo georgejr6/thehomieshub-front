@@ -584,7 +584,6 @@ const AdminUsers = () => {
               </div>
             </div>
           )}
-        </div>
       </div>
 
       <DirectMessageDialog recipient={dmRecipient} isOpen={dmOpen} onOpenChange={setDmOpen} />
