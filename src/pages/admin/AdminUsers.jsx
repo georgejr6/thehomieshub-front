@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -12,8 +12,198 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useNavigate } from 'react-router-dom';
 import api from '@/api/homieshub';
+
+const PLAN_LABELS = [
+  'Homies Monthly', 'Homies 3 Months', 'Homies 6 Months', 'Homies Yearly',
+  'Digital Nomad Monthly', 'Digital Nomad 3 Months', 'Digital Nomad 6 Months', 'Digital Nomad Yearly',
+  'Discord Only', 'Manual Grant',
+];
+const DURATION_PRESETS = [
+  { label: '1 Month',  days: 30 },
+  { label: '3 Months', days: 90 },
+  { label: '6 Months', days: 180 },
+  { label: '1 Year',   days: 365 },
+];
+
+function fmtExpiry(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function isMembershipActive(user) {
+  if (!user.tags?.includes('member')) return false;
+  if (!user.membership?.expiresAt) return true; // legacy tag, no expiry
+  return new Date(user.membership.expiresAt) > new Date();
+}
+
+const ManageMembershipDialog = ({ user, isOpen, onOpenChange, onUpdate }) => {
+  const { toast } = useToast();
+  const [mode, setMode] = useState('grant'); // 'grant' | 'custom'
+  const [selectedDays, setSelectedDays] = useState(30);
+  const [customDate, setCustomDate] = useState('');
+  const [planLabel, setPlanLabel] = useState('');
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const active = user ? isMembershipActive(user) : false;
+  const expiry = user?.membership?.expiresAt ? fmtExpiry(user.membership.expiresAt) : null;
+
+  useEffect(() => {
+    if (user) {
+      setPlanLabel(user.membership?.planLabel || 'Homies Monthly');
+      setNotes(user.membership?.notes || '');
+    }
+  }, [user]);
+
+  const handleGrant = async () => {
+    setLoading(true);
+    try {
+      const body = {
+        planLabel: planLabel || 'Manual Grant',
+        notes,
+        ...(mode === 'custom' && customDate
+          ? { expiresAt: customDate }
+          : { durationDays: selectedDays }),
+      };
+      const { data } = await api.post(`/admin/users/${user._id}/membership`, body);
+      toast({ title: 'Membership granted!', description: `@${user.username} — expires ${fmtExpiry(data.result.membership?.expiresAt)}` });
+      onUpdate(user._id, { membership: data.result.membership, tags: data.result.tags });
+      onOpenChange(false);
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to grant membership.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRevoke = async () => {
+    if (!window.confirm(`Revoke membership for @${user.username}?`)) return;
+    setLoading(true);
+    try {
+      await api.delete(`/admin/users/${user._id}/membership`);
+      toast({ title: 'Membership revoked', description: `@${user.username}` });
+      onUpdate(user._id, { tags: (user.tags || []).filter(t => t !== 'member') });
+      onOpenChange(false);
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!user) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Crown className="w-4 h-4 text-yellow-500" />
+            Manage Membership — @{user.username}
+          </DialogTitle>
+          <DialogDescription>
+            {active
+              ? `Currently active${expiry ? ` · expires ${expiry}` : ''}`
+              : user.membership?.expiresAt
+                ? `Expired ${expiry}`
+                : 'No membership on file'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Plan label */}
+          <div className="space-y-1.5">
+            <Label>Plan</Label>
+            <Select value={planLabel} onValueChange={setPlanLabel}>
+              <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
+              <SelectContent>
+                {PLAN_LABELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Duration */}
+          <div className="space-y-1.5">
+            <Label>Duration</Label>
+            <div className="flex gap-2 flex-wrap">
+              {DURATION_PRESETS.map(p => (
+                <button
+                  key={p.days}
+                  onClick={() => { setMode('grant'); setSelectedDays(p.days); }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    mode === 'grant' && selectedDays === p.days
+                      ? 'border-yellow-500 bg-yellow-500/10 text-yellow-500'
+                      : 'border-border text-muted-foreground hover:border-foreground'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setMode('custom')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors flex items-center gap-1.5 ${
+                  mode === 'custom'
+                    ? 'border-yellow-500 bg-yellow-500/10 text-yellow-500'
+                    : 'border-border text-muted-foreground hover:border-foreground'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />Custom
+              </button>
+            </div>
+            {mode === 'custom' && (
+              <Input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="mt-2"
+              />
+            )}
+            {active && mode === 'grant' && (
+              <p className="text-xs text-muted-foreground">
+                Extends from current expiry: new expiry will be <span className="text-foreground font-medium">{
+                  fmtExpiry(new Date(
+                    Math.max(new Date(user.membership?.expiresAt || 0), new Date()).getTime()
+                    + selectedDays * 86400000
+                  ).toISOString())
+                }</span>
+              </p>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <Label>Notes <span className="text-muted-foreground">(optional)</span></Label>
+            <Textarea
+              placeholder="e.g. CashApp $homieshub, manual payment, promo..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 flex-col sm:flex-row">
+          {active && (
+            <Button variant="destructive" onClick={handleRevoke} disabled={loading} className="sm:mr-auto">
+              Revoke
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
+          <Button onClick={handleGrant} disabled={loading || (mode === 'custom' && !customDate)} className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Crown className="w-4 h-4 mr-2" />}
+            {active ? 'Extend' : 'Grant'} Membership
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const DirectMessageDialog = ({ recipient, isOpen, onOpenChange }) => {
   const { toast } = useToast();
@@ -77,6 +267,8 @@ const AdminUsers = () => {
   const [total, setTotal] = useState(0);
   const [dmOpen, setDmOpen] = useState(false);
   const [dmRecipient, setDmRecipient] = useState(null);
+  const [membershipTarget, setMembershipTarget] = useState(null);
+  const [membershipOpen, setMembershipOpen] = useState(false);
   const limit = 20;
 
   const loadUsers = useCallback(async (q = searchTerm, p = page) => {
@@ -139,6 +331,10 @@ const AdminUsers = () => {
     } catch (err) {
       toast({ title: 'Error', description: 'Failed to update user.', variant: 'destructive' });
     }
+  };
+
+  const handleMembershipUpdate = (userId, patch) => {
+    setUsers(prev => prev.map(u => u._id === userId ? { ...u, ...patch } : u));
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -228,12 +424,23 @@ const AdminUsers = () => {
                       }
                     </TableCell>
                     <TableCell>
-                      {user.subscription?.isActive
-                        ? <Badge className="bg-green-500/10 text-green-500 border-green-500/30 text-[10px]">Active</Badge>
-                        : user.stripeCustomerId
-                          ? <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">Has Stripe</Badge>
-                          : <Badge variant="outline" className="text-[10px] text-muted-foreground">Free</Badge>
-                      }
+                      {(() => {
+                        const manualActive = isMembershipActive(user);
+                        const stripeActive = user.subscription?.isActive;
+                        const expiry = user.membership?.expiresAt ? fmtExpiry(user.membership.expiresAt) : null;
+                        if (stripeActive) return <Badge className="bg-green-500/10 text-green-500 border-green-500/30 text-[10px]">Stripe Active</Badge>;
+                        if (manualActive) return (
+                          <div className="flex flex-col gap-0.5">
+                            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 text-[10px] w-fit">
+                              <Crown className="w-2.5 h-2.5 mr-1" />Member
+                            </Badge>
+                            {expiry && <span className="text-[10px] text-muted-foreground">until {expiry}</span>}
+                          </div>
+                        );
+                        if (user.membership?.expiresAt) return <Badge variant="outline" className="text-[10px] text-muted-foreground">Expired</Badge>;
+                        if (user.stripeCustomerId) return <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">Has Stripe</Badge>;
+                        return <Badge variant="outline" className="text-[10px] text-muted-foreground">Free</Badge>;
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Badge variant={user.isAdmin ? 'default' : user.isCreator ? 'secondary' : 'outline'}>
@@ -259,6 +466,9 @@ const AdminUsers = () => {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => navigate(`/profile/${user.username}`)}>
                             View Profile
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setMembershipTarget(user); setMembershipOpen(true); }}>
+                            <Crown className="mr-2 h-4 w-4 text-yellow-500" /> Manage Membership
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => { setDmRecipient(user); setDmOpen(true); }}>
                             <MessageSquare className="mr-2 h-4 w-4" /> Message
@@ -304,6 +514,12 @@ const AdminUsers = () => {
       </Card>
 
       <DirectMessageDialog recipient={dmRecipient} isOpen={dmOpen} onOpenChange={setDmOpen} />
+      <ManageMembershipDialog
+        user={membershipTarget}
+        isOpen={membershipOpen}
+        onOpenChange={(o) => { setMembershipOpen(o); if (!o) setMembershipTarget(null); }}
+        onUpdate={handleMembershipUpdate}
+      />
     </div>
   );
 };
