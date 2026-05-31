@@ -44,6 +44,7 @@ import AdminLayout from '@/pages/admin/AdminLayout';
 import AdminMediaManager from '@/pages/admin/AdminMediaManager';
 import AdminPushNotifications from '@/pages/admin/AdminPushNotifications';
 import TermsPage from '@/pages/TermsPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import CommunityGuidelinesPage from '@/pages/CommunityGuidelinesPage';
 import LandingPage from '@/pages/LandingPage';
@@ -382,6 +383,7 @@ const AppContent = React.memo(() => {
                 {/* Legal Routes */}
                 <Route path="/terms" element={<TermsPage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
 
                 <Route path="/creator-studio" element={<Navigate to="/go-live" replace />} />

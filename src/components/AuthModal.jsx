@@ -56,26 +56,52 @@ const SignUpForm = ({ formData, handleInputChange, onSignup, onCancel, isSubmitt
   </>
 );
 
-const ForgotPasswordView = ({ setAuthView, handleFeatureNotImplemented }) => (
-  <div>
-    <DialogHeader>
-      <DialogTitle className="text-2xl text-primary">Reset Password</DialogTitle>
-      <DialogDescription>
-        Enter your email and we'll send you a link to get back into your account.
-      </DialogDescription>
-    </DialogHeader>
-    <div className="grid gap-4 py-4">
-      <div className="grid gap-2">
-        <Label htmlFor="email-forgot">Email</Label>
-        <Input id="email-forgot" type="email" placeholder="m@example.com" />
-      </div>
+const ForgotPasswordView = ({ setAuthView }) => {
+  const [email, setEmail] = React.useState('');
+  const [sent, setSent] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const handleSend = async () => {
+    if (!email.trim()) return;
+    setLoading(true); setError('');
+    try {
+      await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      setSent(true);
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <DialogHeader>
+        <DialogTitle className="text-2xl text-primary">Reset Password</DialogTitle>
+        <DialogDescription>
+          {sent ? "Check your email for a reset link. It expires in 1 hour." : "Enter your email and we'll send you a link to get back into your account."}
+        </DialogDescription>
+      </DialogHeader>
+      {!sent && (
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="email-forgot">Email</Label>
+            <Input id="email-forgot" type="email" placeholder="m@example.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} autoFocus />
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </div>
+        </div>
+      )}
+      <DialogFooter className="flex flex-col sm:flex-row sm:justify-between items-center gap-2">
+        <Button variant="link" onClick={() => setAuthView('main')}>Back to Sign In</Button>
+        {!sent && <Button onClick={handleSend} disabled={loading || !email.trim()}>{loading ? 'Sending…' : 'Send Reset Link'}</Button>}
+      </DialogFooter>
     </div>
-    <DialogFooter className="flex flex-col sm:flex-row sm:justify-between items-center gap-2">
-      <Button variant="link" onClick={() => setAuthView('main')}>Back to Sign In</Button>
-      <Button onClick={handleFeatureNotImplemented}>Send Reset Link</Button>
-    </DialogFooter>
-  </div>
-);
+  );
+};
 
 const API_BASE = "https://backend.thehomies.app/api";
 
@@ -530,10 +556,7 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
 
     if (authView === 'forgotPassword') {
       return (
-        <ForgotPasswordView
-          setAuthView={setAuthView}
-          handleFeatureNotImplemented={handleFeatureNotImplemented}
-        />
+        <ForgotPasswordView setAuthView={setAuthView} />
       );
     }
 
