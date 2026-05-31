@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2, CreditCard } from 'lucide-react';
+import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2, CreditCard, Mail, AlertCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '@/api/homieshub';
 import BillingSection from '@/components/Billing/BillingSection';
@@ -75,6 +75,15 @@ const AccountSettingsPage = () => {
   const [discordLoading, setDiscordLoading] = useState(false);
   const [showDiscordOnProfile, setShowDiscordOnProfile] = useState(user?.showDiscordOnProfile ?? true);
 
+  // Email verification state
+  const [verifyStep, setVerifyStep] = useState('idle'); // 'idle' | 'sending' | 'code' | 'verifying' | 'done'
+  const [verifyCode, setVerifyCode] = useState('');
+  const [addEmailInput, setAddEmailInput] = useState('');
+  const [addEmailLoading, setAddEmailLoading] = useState(false);
+
+  const isDiscordOnly = user?.sub?.startsWith('discord:') && !user?.email;
+  const isEmailVerified = user?.emailVerified;
+
   // Handle redirect back from Discord connect
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -111,12 +120,61 @@ const AccountSettingsPage = () => {
     });
   };
 
-  const handleSaveAccountInfo = () => {
-    toast({
-      title: "Account Updated",
-      description: "Your email and password have been updated successfully.",
-    });
-    // In a real app, this would call an API
+  const handleSaveAccountInfo = async () => {
+    try {
+      const updates = {};
+      if (email && email !== user?.email) updates.email = email;
+      if (password) updates.password = password;
+      if (Object.keys(updates).length === 0) return;
+      await api.patch('/profile/me', updates);
+      if (updates.password) setPassword('');
+      await refreshMe();
+      toast({ title: "Account Updated", description: "Your credentials have been updated." });
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || "Failed to update account.", variant: "destructive" });
+    }
+  };
+
+  const handleSendVerification = async (targetEmail) => {
+    setVerifyStep('sending');
+    try {
+      await api.post('/auth/verify-email/send', targetEmail ? { email: targetEmail } : {});
+      setVerifyStep('code');
+      toast({ title: 'Code sent!', description: `Check your email for a 6-digit verification code.` });
+    } catch (err) {
+      setVerifyStep('idle');
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to send code.', variant: 'destructive' });
+    }
+  };
+
+  const handleConfirmVerification = async () => {
+    if (!verifyCode.trim()) return;
+    setVerifyStep('verifying');
+    try {
+      await api.post('/auth/verify-email/confirm', { code: verifyCode.trim() });
+      setVerifyStep('done');
+      await refreshMe();
+      toast({ title: 'Email Verified!', description: 'Your email address is now confirmed.' });
+    } catch (err) {
+      setVerifyStep('code');
+      toast({ title: 'Invalid code', description: err.response?.data?.message || 'Incorrect or expired code.', variant: 'destructive' });
+    }
+  };
+
+  const handleAddEmail = async () => {
+    if (!addEmailInput.trim()) return;
+    setAddEmailLoading(true);
+    try {
+      await api.patch('/auth/add-email', { email: addEmailInput.trim() });
+      await refreshMe();
+      setAddEmailInput('');
+      toast({ title: 'Email saved', description: 'Now send a verification code to confirm it.' });
+      await handleSendVerification(addEmailInput.trim());
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to save email.', variant: 'destructive' });
+    } finally {
+      setAddEmailLoading(false);
+    }
   };
 
   const handleDisconnectWallet = () => {
@@ -221,20 +279,49 @@ const AccountSettingsPage = () => {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
-            <Input 
-                id="email" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
+            <div className="flex items-center gap-2">
+              <Input
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-            />
+                className="flex-1"
+              />
+              {user?.email && (
+                isEmailVerified
+                  ? <span className="flex items-center gap-1 text-xs text-green-500 whitespace-nowrap"><CheckCircle2 className="w-3.5 h-3.5" />Verified</span>
+                  : <span className="flex items-center gap-1 text-xs text-yellow-500 whitespace-nowrap"><AlertCircle className="w-3.5 h-3.5" />Unverified</span>
+              )}
+            </div>
+            {user?.email && !isEmailVerified && verifyStep === 'idle' && (
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs text-primary" onClick={() => handleSendVerification(null)}>
+                Send verification code
+              </Button>
+            )}
+            {verifyStep === 'sending' && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Sending code…</p>}
+            {(verifyStep === 'code' || verifyStep === 'verifying') && (
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="6-digit code"
+                  value={verifyCode}
+                  onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  maxLength={6}
+                  className="w-36"
+                />
+                <Button size="sm" onClick={handleConfirmVerification} disabled={verifyStep === 'verifying' || verifyCode.length !== 6}>
+                  {verifyStep === 'verifying' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirm'}
+                </Button>
+              </div>
+            )}
+            {verifyStep === 'done' && <p className="text-xs text-green-500 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Email verified!</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">New Password</Label>
-            <Input 
-                id="password" 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
+            <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
             />
           </div>
@@ -477,6 +564,56 @@ const AccountSettingsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* 5c. Add email — shown for Discord-only accounts */}
+      {isDiscordOnly && (
+        <Card className="border-yellow-500/20">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-yellow-500" />
+              <CardTitle>Add an Email Address</CardTitle>
+            </div>
+            <CardDescription>
+              Your account uses Discord to sign in. Add an email so you can recover your account and link a Stripe subscription.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {verifyStep === 'idle' || verifyStep === 'sending' ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={addEmailInput}
+                  onChange={(e) => setAddEmailInput(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={handleAddEmail} disabled={addEmailLoading || !addEmailInput.trim()}>
+                  {addEmailLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save & Verify'}
+                </Button>
+              </div>
+            ) : (verifyStep === 'code' || verifyStep === 'verifying') ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to your email.</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="6-digit code"
+                    value={verifyCode}
+                    onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    maxLength={6}
+                    className="w-36"
+                    autoFocus
+                  />
+                  <Button onClick={handleConfirmVerification} disabled={verifyStep === 'verifying' || verifyCode.length !== 6}>
+                    {verifyStep === 'verifying' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirm'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-green-500 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" />Email verified and saved!</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       </> /* end connections tab */}
 
