@@ -79,7 +79,7 @@ const CompareRow = ({ label, discord, homie, nomad }) => (
     </td>
     <td className="py-3 pl-4 text-center">
       {nomad === true
-        ? <CheckCircle2 className="h-4 w-4 text-amber-400 mx-auto" />
+        ? <CheckCircle2 className="h-4 w-4 mx-auto" style={{ color: '#23A55A' }} />
         : nomad === false
         ? <X className="h-4 w-4 text-muted-foreground/40 mx-auto" />
         : <span className="text-xs text-white font-medium">{nomad}</span>}
@@ -313,30 +313,30 @@ const MembershipsPage = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.12 }}
               className="flex flex-col rounded-2xl overflow-hidden relative"
-              style={{ background: 'linear-gradient(145deg, #1a1200 0%, #2d1c00 50%, #1a0f00 100%)' }}
+              style={{ background: 'linear-gradient(145deg, #071a0f 0%, #0d2b18 50%, #071a0f 100%)' }}
             >
               {/* Glow border */}
-              <div className="absolute inset-0 rounded-2xl ring-1 ring-amber-500/30 pointer-events-none" />
+              <div className="absolute inset-0 rounded-2xl ring-1 pointer-events-none" style={{ ringColor: 'rgba(35,165,90,0.3)', boxShadow: 'inset 0 0 0 1px rgba(35,165,90,0.3)' }} />
 
               {/* Tier header */}
-              <div className="p-6 border-b" style={{ borderColor: 'rgba(240,185,77,0.15)' }}>
+              <div className="p-6 border-b" style={{ borderColor: 'rgba(35,165,90,0.15)' }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Globe className="h-4 w-4 text-amber-400" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-amber-400">Premium</span>
+                  <Globe className="h-4 w-4" style={{ color: '#23A55A' }} />
+                  <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#23A55A' }}>Premium</span>
                 </div>
                 <h2 className="text-2xl font-extrabold text-white">Digital Nomad</h2>
-                <p className="text-amber-200/60 text-sm mt-1">Everything in Homie + Discord, plus mentorship</p>
+                <p className="text-sm mt-1" style={{ color: 'rgba(35,165,90,0.7)' }}>Everything in Homie + Discord, plus mentorship</p>
 
                 <div className="mt-5 flex items-end gap-1">
                   <span className="text-5xl font-extrabold text-white">$100</span>
-                  <span className="text-amber-200/60 text-sm mb-1.5">/ month</span>
+                  <span className="text-sm mb-1.5" style={{ color: 'rgba(35,165,90,0.7)' }}>/ month</span>
                 </div>
-                <p className="text-amber-400/80 text-xs font-medium mt-1.5">Full mentorship + course included</p>
+                <p className="text-xs font-medium mt-1.5" style={{ color: 'rgba(35,165,90,0.8)' }}>Full mentorship + course included</p>
               </div>
 
               {/* Features */}
               <div className="p-6 flex-1">
-                <p className="text-xs font-bold uppercase tracking-widest text-amber-400/60 mb-4">What's included</p>
+                <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: 'rgba(35,165,90,0.6)' }}>What's included</p>
                 <ul className="space-y-3.5">
                   {NOMAD_FEATURES.map((f, i) => (
                     <FeatureRow key={i} {...f} light />
@@ -348,8 +348,8 @@ const MembershipsPage = () => {
               <div className="p-6 pt-0">
                 <Button
                   size="lg"
-                  className="w-full font-bold text-[#1a0f00] hover:opacity-90 transition-opacity"
-                  style={{ background: 'linear-gradient(90deg, #F0B94D 0%, #d97706 100%)' }}
+                  className="w-full font-bold text-white hover:opacity-90 transition-opacity"
+                  style={{ background: 'linear-gradient(90deg, #23A55A 0%, #1a7d44 100%)' }}
                   onClick={() => handleJoin('nomad', 'monthly')}
                   disabled={checkoutLoading === 'nomad_monthly'}
                 >

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -41,9 +41,9 @@ function isMembershipActive(user) {
 }
 
 const TIERS = [
-  { value: 'discord', label: 'Discord Only',    color: '#5865F2', desc: 'Discord server access only' },
-  { value: 'homies',  label: 'The Homie',        color: '#F0B94D', desc: 'Full app + Discord access' },
-  { value: 'nomad',   label: 'Digital Nomad',    color: '#f97316', desc: 'Everything + mentorship' },
+  { value: 'discord', label: 'Discord Only',  color: '#5865F2', desc: 'Discord server access only' },
+  { value: 'homies',  label: 'The Homie',      color: '#F0B94D', desc: 'Full app + Discord access' },
+  { value: 'nomad',   label: 'Digital Nomad',  color: '#23A55A', desc: 'Everything + mentorship' },
 ];
 
 const ManageMembershipDialog = ({ user, isOpen, onOpenChange, onUpdate }) => {
@@ -191,7 +191,7 @@ const ManageMembershipDialog = ({ user, isOpen, onOpenChange, onUpdate }) => {
                 value={customDate}
                 onChange={(e) => setCustomDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
-                className="mt-2"
+                className="mt-2 [color-scheme:dark]"
               />
             )}
             {active && mode === 'grant' && (
@@ -299,6 +299,7 @@ const AdminUsers = () => {
   const [dmRecipient, setDmRecipient] = useState(null);
   const [membershipTarget, setMembershipTarget] = useState(null);
   const [membershipOpen, setMembershipOpen] = useState(false);
+  const [tierFilter, setTierFilter] = useState('all'); // 'all' | 'discord' | 'homies' | 'nomad' | 'stripe' | 'free'
   const limit = 20;
 
   const loadUsers = useCallback(async (q = searchTerm, p = page) => {
@@ -367,6 +368,14 @@ const AdminUsers = () => {
     setUsers(prev => prev.map(u => u._id === userId ? { ...u, ...patch } : u));
   };
 
+  const filteredUsers = users.filter(u => {
+    if (tierFilter === 'all') return true;
+    if (tierFilter === 'stripe') return u.subscription?.isActive;
+    if (tierFilter === 'free') return !u.subscription?.isActive && !isMembershipActive(u);
+    if (tierFilter === 'expired') return !isMembershipActive(u) && u.membership?.expiresAt;
+    return isMembershipActive(u) && u.membership?.tier === tierFilter;
+  });
+
   const totalPages = Math.ceil(total / limit);
 
   return (
@@ -399,15 +408,50 @@ const AdminUsers = () => {
           </form>
         </CardHeader>
         <CardContent>
+          {/* Tier filter bar */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <Filter className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            {[
+              { key: 'all',     label: 'All',           color: null },
+              { key: 'discord', label: 'Discord Only',  color: '#5865F2' },
+              { key: 'homies',  label: 'The Homie',     color: '#F0B94D' },
+              { key: 'nomad',   label: 'Digital Nomad', color: '#23A55A' },
+              { key: 'stripe',  label: 'Stripe Active', color: '#22c55e' },
+              { key: 'expired', label: 'Expired',       color: null },
+              { key: 'free',    label: 'Free',          color: null },
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setTierFilter(f.key)}
+                className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                  tierFilter === f.key
+                    ? 'text-black'
+                    : 'bg-transparent text-muted-foreground border-border hover:border-foreground/40'
+                }`}
+                style={tierFilter === f.key && f.color
+                  ? { backgroundColor: f.color, borderColor: f.color }
+                  : tierFilter === f.key
+                    ? { backgroundColor: '#ffffff30', borderColor: '#ffffff50', color: '#fff' }
+                    : {}
+                }
+              >
+                {f.label}
+                {tierFilter === f.key && filteredUsers.length !== users.length && (
+                  <span className="ml-1 opacity-70">({filteredUsers.length})</span>
+                )}
+              </button>
+            ))}
+          </div>
+
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : users.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">No users found.</p>
+          ) : filteredUsers.length === 0 ? (
+            <p className="text-center text-muted-foreground py-12">No users match this filter.</p>
           ) : (
             <div className="divide-y divide-border">
-              {users.map((user) => {
+              {filteredUsers.map((user) => {
                 const manualActive = isMembershipActive(user);
                 const stripeActive = user.subscription?.isActive;
                 const expiry = user.membership?.expiresAt ? fmtExpiry(user.membership.expiresAt) : null;
