@@ -36,7 +36,7 @@ const VideoPurchaseGate = () => {
 
   const handleMembership = () => {
     setGatedVideo(null);
-    window.open('https://www.thehomies.app/memberships', '_blank');
+    window.open('https://www.thehomieshub.com/memberships', '_blank');
   };
 
   const openAuth = (tab) => {

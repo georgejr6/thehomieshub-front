@@ -158,7 +158,7 @@ const VideoPlayer = () => {
 
   const handleShare = (e) => {
     e.stopPropagation();
-    const url = `https://www.thehomies.app/media/${currentVideo.id}`;
+    const url = `https://www.thehomieshub.com/media/${currentVideo.id}`;
     if (navigator.share) navigator.share({ title: currentVideo.title, url }).catch(() => {});
     else navigator.clipboard.writeText(url).catch(() => {});
   };
