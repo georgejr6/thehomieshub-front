@@ -39,7 +39,7 @@ const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, live
         whileTap={{ scale: 0.95 }}
       >
         <div className="relative shrink-0">
-          <Icon className={cn("h-6 w-6", isActive ? "text-primary" : liveDot ? "text-red-500" : "text-muted-foreground")} />
+          <Icon className={cn("h-6 w-6", isActive ? "text-primary" : liveDot ? "text-red-500" : to === '/memberships' ? "text-yellow-500" : "text-muted-foreground")} />
           {liveDot && (
             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
@@ -149,7 +149,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
     { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
     { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },
     { to: '/library', icon: Library, label: 'Library', featureKey: 'library' },
-    { to: '/memberships', icon: CreditCard, label: 'Memberships' },
+    { to: '/memberships', icon: Crown, label: 'Memberships' },
   ];
 
   if (user) {
