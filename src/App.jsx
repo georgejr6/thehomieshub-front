@@ -48,6 +48,7 @@ import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import CommunityGuidelinesPage from '@/pages/CommunityGuidelinesPage';
 import ChildSafetyPage from '@/pages/ChildSafetyPage';
+import SupportPage from '@/pages/SupportPage';
 import LandingPage from '@/pages/LandingPage';
 import MembershipsPage from '@/pages/MembershipsPage';
 import BackButton from '@/components/BackButton';
@@ -387,6 +388,7 @@ const AppContent = React.memo(() => {
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
                 <Route path="/child-safety" element={<ChildSafetyPage />} />
+                <Route path="/support" element={<SupportPage />} />
 
                 <Route path="/creator-studio" element={<Navigate to="/go-live" replace />} />
             </Route>
