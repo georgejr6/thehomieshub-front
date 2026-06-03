@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
 import {
   UploadCloud, Film, ImagePlus, X, CheckCircle2,
-  Loader2, Hash, ChevronDown, ChevronUp, AlertCircle,
+  Loader2, Hash, ChevronDown, ChevronUp, AlertCircle, Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/api/homieshub';
@@ -124,28 +124,42 @@ const BackdropPicker = ({ images, onChange, disabled }) => {
 const UploadMomentModal = ({ isOpen, onOpenChange }) => {
   const { toast } = useToast();
 
-  // phase: idle | details | uploading | done
+  // phase: idle | queue | details | uploading | done
   const [phase, setPhase] = useState('idle');
   const [videoFile, setVideoFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
 
+  // ── single-file fields ────────────────────────────────────────────────────
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [contentType, setContentType] = useState('reel'); // 'reel' | 'video'
+  const [contentType, setContentType] = useState('reel');
   const [hashtags, setHashtags] = useState([]);
   const [hashInput, setHashInput] = useState('');
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const [isNSFW, setIsNSFW] = useState(false);
-
   const [thumbPreview, setThumbPreview] = useState('');
   const [thumbUrl, setThumbUrl] = useState('');
   const [thumbLoading, setThumbLoading] = useState(false);
   const [backdropImages, setBackdropImages] = useState([]);
-
   const [uploadProgress, setUploadProgress] = useState(0);
   const [doneTitle, setDoneTitle] = useState('');
 
+  // ── bulk-upload queue ─────────────────────────────────────────────────────
+  // each item: { id, file, title, contentType, status, progress }
+  const [videoQueue, setVideoQueue] = useState([]);
+  const [queueUploading, setQueueUploading] = useState(false);
+  const [queueDropOver, setQueueDropOver] = useState(false);
+
   const fileInputRef = useRef();
+
+  const makeQueueItem = (file, idx = 0) => ({
+    id: Date.now() + idx,
+    file,
+    title: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
+    contentType: 'reel',
+    status: 'pending',
+    progress: 0,
+  });
 
   // Reset everything when modal closes
   useEffect(() => {
@@ -156,11 +170,13 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
         setHashtags([]); setHashInput(''); setTagsExpanded(false); setIsNSFW(false);
         setThumbPreview(''); setThumbUrl(''); setThumbLoading(false);
         setBackdropImages([]); setUploadProgress(0); setDoneTitle('');
+        setVideoQueue([]); setQueueUploading(false);
       }, 300);
       return () => clearTimeout(t);
     }
   }, [isOpen]);
 
+  // ── file selection helpers ────────────────────────────────────────────────
   const pickFile = useCallback((file) => {
     if (!file?.type.startsWith('video/')) {
       toast({ title: 'Please select a video file', variant: 'destructive' }); return;
@@ -171,10 +187,41 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
     setPhase('details');
   }, [toast]);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault(); setDragOver(false); pickFile(e.dataTransfer.files[0]);
-  }, [pickFile]);
+  const addToQueue = useCallback((files) => {
+    const videos = Array.from(files).filter(f => f.type.startsWith('video/'));
+    if (!videos.length) return;
+    setVideoQueue(q => [...q, ...videos.map((f, i) => makeQueueItem(f, q.length + i))]);
+  }, []);
 
+  // Called from the idle drop zone — 1 file → details, 2+ → queue
+  const handleDrop = useCallback((e) => {
+    e.preventDefault(); setDragOver(false);
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('video/'));
+    if (!files.length) { toast({ title: 'Please drop video files', variant: 'destructive' }); return; }
+    if (files.length === 1) {
+      pickFile(files[0]);
+    } else {
+      setVideoQueue(files.map((f, i) => makeQueueItem(f, i)));
+      setPhase('queue');
+    }
+  }, [pickFile, toast]);
+
+  // Called from file input — same logic but also handles adding to existing queue
+  const handleFileInput = useCallback((e) => {
+    const files = Array.from(e.target.files);
+    e.target.value = '';
+    if (!files.length) return;
+    if (phase === 'queue') {
+      addToQueue(files);
+    } else if (files.length === 1) {
+      pickFile(files[0]);
+    } else {
+      setVideoQueue(files.map((f, i) => makeQueueItem(f, i)));
+      setPhase('queue');
+    }
+  }, [phase, pickFile, addToQueue]);
+
+  // ── single-file upload ────────────────────────────────────────────────────
   const handleThumbnailFile = async (file) => {
     setThumbLoading(true);
     try {
@@ -200,7 +247,6 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
     if (!title.trim()) { toast({ title: 'Title is required', variant: 'destructive' }); return; }
     setPhase('uploading'); setUploadProgress(0);
     try {
-      // 1. Get Mux upload URL from our backend
       setUploadProgress(5);
       const { data } = await api.post('/mux/uploads', {
         contentType,
@@ -214,7 +260,6 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
       const muxUploadUrl = data?.result?.upload?.url;
       if (!muxUploadUrl) throw new Error('No upload URL returned');
 
-      // 2. XHR PUT the video directly to Mux with progress
       setUploadProgress(10);
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -236,15 +281,62 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
     }
   };
 
+  // ── bulk queue upload ─────────────────────────────────────────────────────
+  const handleQueueUpload = async () => {
+    setQueueUploading(true);
+    const pending = videoQueue.filter(v => v.status === 'pending' || v.status === 'failed');
+    for (const item of pending) {
+      const idx = videoQueue.findIndex(v => v.id === item.id);
+      const updateItem = (patch) =>
+        setVideoQueue(q => q.map(v => v.id === item.id ? { ...v, ...patch } : v));
+
+      updateItem({ status: 'uploading', progress: 5 });
+      try {
+        const { data } = await api.post('/mux/uploads', {
+          contentType: item.contentType,
+          title: item.title.trim() || item.file.name,
+          caption: '',
+          description: '',
+          hashtags: [],
+          coverImageUrl: '',
+          backdropImages: [],
+        });
+        const muxUploadUrl = data?.result?.upload?.url;
+        if (!muxUploadUrl) throw new Error('No upload URL');
+
+        updateItem({ progress: 10 });
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable)
+              updateItem({ progress: 10 + Math.round((e.loaded / e.total) * 88) });
+          };
+          xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('Upload failed'));
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.open('PUT', muxUploadUrl);
+          xhr.send(item.file);
+        });
+
+        updateItem({ status: 'done', progress: 100 });
+      } catch {
+        updateItem({ status: 'failed' });
+      }
+    }
+    setQueueUploading(false);
+  };
+
   const handleReset = () => {
     setPhase('idle'); setVideoFile(null);
     setTitle(''); setDescription(''); setHashtags([]); setHashInput('');
     setThumbPreview(''); setThumbUrl(''); setBackdropImages([]);
     setUploadProgress(0); setDoneTitle('');
+    setVideoQueue([]); setQueueUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const displayedTags = tagsExpanded ? hashtags : hashtags.slice(0, 5);
+  const queueAllDone = videoQueue.length > 0 && videoQueue.every(v => v.status === 'done');
+  const queuePendingCount = videoQueue.filter(v => v.status === 'pending' || v.status === 'failed').length;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -272,16 +364,130 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
                 )}
               >
                 <UploadCloud className={cn("w-14 h-14 mb-4 transition-colors", dragOver ? "text-white" : "text-zinc-600")} />
-                <p className="text-white text-lg font-semibold mb-1">Drag & drop your video here</p>
-                <p className="text-zinc-500 text-sm mb-5">MP4, MOV, AVI, MKV, WebM</p>
-                <Button className="bg-white text-black hover:bg-white/90 font-semibold px-6">Select file</Button>
+                <p className="text-white text-lg font-semibold mb-1">Drag & drop videos here</p>
+                <p className="text-zinc-500 text-sm mb-1">Drop multiple files to bulk upload</p>
+                <p className="text-zinc-600 text-xs mb-5">MP4, MOV, AVI, MKV, WebM</p>
+                <Button className="bg-white text-black hover:bg-white/90 font-semibold px-6">Select files</Button>
               </div>
-              <input ref={fileInputRef} type="file" accept="video/*" className="hidden"
-                onChange={e => pickFile(e.target.files[0])} />
+              <input ref={fileInputRef} type="file" accept="video/*" multiple className="hidden"
+                onChange={handleFileInput} />
             </div>
           )}
 
-          {/* ── DETAILS: form ── */}
+          {/* ── QUEUE: bulk upload list ── */}
+          {phase === 'queue' && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-zinc-400">
+                  {videoQueue.length} video{videoQueue.length !== 1 ? 's' : ''} queued
+                  {queueAllDone && <span className="text-green-500 ml-2">· all done</span>}
+                </p>
+                {!queueUploading && !queueAllDone && (
+                  <button
+                    onClick={() => fileInputRef.current.click()}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add more
+                  </button>
+                )}
+              </div>
+
+              {/* File list */}
+              <div className="space-y-2 max-h-[52vh] overflow-y-auto pr-1">
+                {videoQueue.map((item) => (
+                  <div key={item.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 space-y-2">
+                    {/* Row 1: icon + filename + size + remove */}
+                    <div className="flex items-center gap-2">
+                      {item.status === 'pending' && <Film className="w-4 h-4 text-zinc-500 flex-shrink-0" />}
+                      {item.status === 'uploading' && <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />}
+                      {item.status === 'done' && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+                      {item.status === 'failed' && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                      <span className="text-xs text-zinc-500 truncate flex-1">{item.file.name} · {(item.file.size / (1024 * 1024)).toFixed(1)} MB</span>
+                      {!queueUploading && item.status !== 'done' && (
+                        <button
+                          onClick={() => setVideoQueue(q => q.filter(v => v.id !== item.id))}
+                          className="text-zinc-600 hover:text-red-400 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Editable title (hidden once done) */}
+                    {item.status !== 'done' && (
+                      <Input
+                        value={item.title}
+                        onChange={e => setVideoQueue(q => q.map(v => v.id === item.id ? { ...v, title: e.target.value } : v))}
+                        disabled={item.status === 'uploading'}
+                        placeholder="Video title"
+                        className="bg-zinc-800 border-zinc-700 text-white text-sm h-8 focus:border-zinc-500"
+                      />
+                    )}
+
+                    {/* Content type (hidden once done) */}
+                    {item.status !== 'done' && (
+                      <div className="flex gap-1.5">
+                        {['reel', 'video'].map(t => (
+                          <button key={t} type="button"
+                            disabled={item.status === 'uploading'}
+                            onClick={() => setVideoQueue(q => q.map(v => v.id === item.id ? { ...v, contentType: t } : v))}
+                            className={cn(
+                              "flex-1 py-1 rounded-md text-xs font-medium border transition-colors",
+                              item.contentType === t
+                                ? "bg-white text-black border-white"
+                                : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-500 disabled:opacity-50"
+                            )}>
+                            {t === 'reel' ? 'Reel (short)' : 'Video (long)'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Progress bar while uploading */}
+                    {item.status === 'uploading' && (
+                      <div className="space-y-1">
+                        <div className="w-full bg-zinc-800 rounded-full h-1">
+                          <div className="h-1 rounded-full bg-white transition-all duration-200" style={{ width: `${item.progress}%` }} />
+                        </div>
+                        <p className="text-xs text-zinc-500 text-right">{item.progress}%</p>
+                      </div>
+                    )}
+
+                    {item.status === 'done' && (
+                      <p className="text-xs text-green-500">"{item.title}" uploaded — processing on Mux</p>
+                    )}
+                    {item.status === 'failed' && (
+                      <p className="text-xs text-red-400">Upload failed — will retry when you click Upload</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Drop zone to add more (only shown before uploading starts) */}
+              {!queueUploading && !queueAllDone && (
+                <div
+                  onDrop={e => { e.preventDefault(); setQueueDropOver(false); addToQueue(e.dataTransfer.files); }}
+                  onDragOver={e => { e.preventDefault(); setQueueDropOver(true); }}
+                  onDragLeave={() => setQueueDropOver(false)}
+                  onClick={() => fileInputRef.current.click()}
+                  className={cn(
+                    "border border-dashed rounded-xl p-3 flex items-center gap-2 cursor-pointer text-sm transition-colors",
+                    queueDropOver
+                      ? "border-white/40 bg-white/5 text-white"
+                      : "border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-zinc-400"
+                  )}
+                >
+                  <UploadCloud className="w-4 h-4 flex-shrink-0" />
+                  Drop more videos here or click to add
+                </div>
+              )}
+
+              <input ref={fileInputRef} type="file" accept="video/*" multiple className="hidden"
+                onChange={handleFileInput} />
+            </div>
+          )}
+
+          {/* ── DETAILS: single-file form ── */}
           {phase === 'details' && (
             <div className="flex flex-col lg:flex-row gap-8">
 
@@ -410,7 +616,7 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
             </div>
           )}
 
-          {/* ── UPLOADING: progress ── */}
+          {/* ── UPLOADING: single-file progress ── */}
           {phase === 'uploading' && (
             <div className="py-12 space-y-6">
               <div className="flex items-center gap-3 text-zinc-400">
@@ -431,7 +637,7 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
             </div>
           )}
 
-          {/* ── DONE ── */}
+          {/* ── DONE: single-file success ── */}
           {phase === 'done' && (
             <div className="flex flex-col items-center justify-center py-16 gap-5 text-center">
               <CheckCircle2 className="w-16 h-16 text-green-500" />
@@ -447,8 +653,8 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
           )}
         </div>
 
-        {/* Footer */}
-        {(phase === 'details') && (
+        {/* ── Footer ── */}
+        {phase === 'details' && (
           <div className="flex justify-end gap-3 px-6 py-4 border-t border-zinc-800">
             <Button variant="ghost" onClick={() => onOpenChange(false)}
               className="text-zinc-400 hover:text-white hover:bg-white/10">
@@ -460,6 +666,38 @@ const UploadMomentModal = ({ isOpen, onOpenChange }) => {
             </Button>
           </div>
         )}
+
+        {phase === 'queue' && !queueAllDone && (
+          <div className="flex justify-between gap-3 px-6 py-4 border-t border-zinc-800">
+            <Button variant="ghost" onClick={handleReset} disabled={queueUploading}
+              className="text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-40">
+              Clear all
+            </Button>
+            <Button
+              onClick={handleQueueUpload}
+              disabled={queueUploading || queuePendingCount === 0}
+              className="bg-white text-black hover:bg-white/90 font-semibold px-8 disabled:opacity-40"
+            >
+              {queueUploading
+                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Uploading…</>
+                : `Upload ${queuePendingCount} video${queuePendingCount !== 1 ? 's' : ''}`}
+            </Button>
+          </div>
+        )}
+
+        {phase === 'queue' && queueAllDone && (
+          <div className="flex justify-between gap-3 px-6 py-4 border-t border-zinc-800">
+            <Button variant="ghost" onClick={handleReset}
+              className="text-zinc-400 hover:text-white hover:bg-white/10">
+              Upload more
+            </Button>
+            <Button onClick={() => onOpenChange(false)}
+              className="bg-white text-black hover:bg-white/90 font-semibold px-8">
+              Done
+            </Button>
+          </div>
+        )}
+
         {phase === 'done' && (
           <div className="flex justify-end px-6 py-4 border-t border-zinc-800">
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-zinc-400 hover:text-white hover:bg-white/10">
