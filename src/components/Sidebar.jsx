@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard } from 'lucide-react';
+import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -240,12 +240,20 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
         
         <MediaModeButton />
         
-        <NavItem 
-            to="/AI" 
-            icon={Bot} 
-            label="AI" 
+        <NavItem
+            to="/AI"
+            icon={Bot}
+            label="AI"
             isCollapsed={isMobile ? false : isCollapsed}
             featureKey="my_ai"
+            onClick={isMobile ? onMobileClose : undefined}
+        />
+
+        <NavItem
+            to="/my-apps"
+            icon={LayoutGrid}
+            label="My Apps"
+            isCollapsed={isMobile ? false : isCollapsed}
             onClick={isMobile ? onMobileClose : undefined}
         />
 

@@ -21,6 +21,7 @@ import CreatorStudioPage from '@/pages/CreatorStudioPage';
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
 import InboxPage from '@/pages/InboxPage';
 import MyAIPage from '@/pages/MyAIPage';
+import MyAppsPage from '@/pages/MyAppsPage';
 import AuthModal from '@/components/AuthModal';
 import PostModal from '@/components/PostModal';
 import FeatureLockedModal from '@/components/FeatureLockedModal';
@@ -279,6 +280,9 @@ const AppContent = React.memo(() => {
                     <MyAIPage />
                 </FeatureGuard>
             } />
+
+            {/* --- My Apps (ecosystem hub) --- */}
+            <Route path="/my-apps" element={<MyAppsPage />} />
 
             {/* --- Wallet Mode Routes (Guarded) --- */}
             <Route path="/wallet" element={
