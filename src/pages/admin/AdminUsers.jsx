@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -288,6 +288,142 @@ const DirectMessageDialog = ({ recipient, isOpen, onOpenChange }) => {
   );
 };
 
+const CONFIDENCE_STYLE = {
+  high:   { label: 'High',   color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+  medium: { label: 'Medium', color: '#F0B94D', bg: 'rgba(240,185,77,0.12)' },
+  low:    { label: 'Low',    color: '#9ca3af', bg: 'rgba(156,163,175,0.12)' },
+};
+
+// Shows accounts the backend believes belong to the same person, with the
+// reason(s) + confidence, and lets the admin ban the whole cluster at once.
+const LinkedAccountsDialog = ({ user, isOpen, onOpenChange, onBanned }) => {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [banning, setBanning] = useState(false);
+  const [items, setItems] = useState([]);
+  const [selected, setSelected] = useState({}); // id -> bool
+
+  useEffect(() => {
+    if (!isOpen || !user) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get(`/admin/users/${user._id}/linked`);
+        if (cancelled) return;
+        const list = data.result?.items || [];
+        setItems(list);
+        // pre-select every not-already-banned alt
+        setSelected(Object.fromEntries(list.filter(a => !a.isBanned).map(a => [a._id, true])));
+      } catch (err) {
+        if (!cancelled) toast({ title: 'Error', description: 'Failed to load linked accounts.', variant: 'destructive' });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, user, toast]);
+
+  if (!user) return null;
+
+  const selectedIds = Object.keys(selected).filter(id => selected[id]);
+  const banTargetIncluded = !user.isBanned;
+  const totalToBan = selectedIds.length + (banTargetIncluded ? 1 : 0);
+
+  const handleBanCluster = async () => {
+    const ids = [...new Set([...(banTargetIncluded ? [user._id] : []), ...selectedIds])];
+    if (!ids.length) return;
+    setBanning(true);
+    try {
+      await api.post('/admin/users/ban-bulk', { userIds: ids, banned: true });
+      toast({ title: 'Accounts banned', description: `${ids.length} account${ids.length > 1 ? 's' : ''} banned.` });
+      onBanned?.(ids);
+      onOpenChange(false);
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to ban accounts.', variant: 'destructive' });
+    } finally {
+      setBanning(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users2 className="w-4 h-4 text-yellow-500" />
+            Possible alt accounts — @{user.username}
+          </DialogTitle>
+          <DialogDescription>
+            Accounts sharing identifying signals (IP, device, email, or payment method) with this user.
+            Review before banning — matches are heuristic, not proof.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="max-h-[50vh] overflow-y-auto space-y-2 py-1">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : items.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-10">No linked accounts detected.</p>
+          ) : (
+            items.map((a) => {
+              const cs = CONFIDENCE_STYLE[a.confidence] || CONFIDENCE_STYLE.low;
+              return (
+                <div key={a._id} className="flex items-start gap-3 p-2.5 rounded-lg border border-border bg-secondary/20">
+                  <input
+                    type="checkbox"
+                    className="mt-1.5 accent-red-500 h-4 w-4 flex-shrink-0"
+                    checked={!!selected[a._id]}
+                    disabled={a.isBanned}
+                    onChange={(e) => setSelected(s => ({ ...s, [a._id]: e.target.checked }))}
+                  />
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarImage src={a.avatarUrl} />
+                    <AvatarFallback>{a.username?.[0]?.toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm truncate">@{a.username}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ color: cs.color, background: cs.bg }}>
+                        {cs.label}
+                      </span>
+                      {a.isBanned && <Badge variant="destructive" className="text-[10px]">Already banned</Badge>}
+                      {a.isAdmin && <Badge className="text-[10px]">Admin</Badge>}
+                    </div>
+                    {a.email && <p className="text-xs text-muted-foreground truncate">{a.email}</p>}
+                    <ul className="mt-1 space-y-0.5">
+                      {a.reasons.map((r, i) => (
+                        <li key={i} className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <span className="inline-block w-1 h-1 rounded-full" style={{ background: (CONFIDENCE_STYLE[r.confidence] || cs).color }} />
+                          {r.label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <DialogFooter className="gap-2 flex-col sm:flex-row">
+          {banTargetIncluded && (
+            <p className="text-xs text-muted-foreground sm:mr-auto flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+              @{user.username} will be banned too.
+            </p>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={banning}>Cancel</Button>
+          <Button variant="destructive" onClick={handleBanCluster} disabled={banning || totalToBan === 0}>
+            {banning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldBan className="w-4 h-4 mr-2" />}
+            Ban {totalToBan} account{totalToBan === 1 ? '' : 's'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const AdminUsers = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -300,6 +436,8 @@ const AdminUsers = () => {
   const [dmRecipient, setDmRecipient] = useState(null);
   const [membershipTarget, setMembershipTarget] = useState(null);
   const [membershipOpen, setMembershipOpen] = useState(false);
+  const [linkedTarget, setLinkedTarget] = useState(null);
+  const [linkedOpen, setLinkedOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState('all'); // 'all' | 'discord' | 'homies' | 'nomad' | 'stripe' | 'free'
   const limit = 20;
 
@@ -367,6 +505,11 @@ const AdminUsers = () => {
 
   const handleMembershipUpdate = (userId, patch) => {
     setUsers(prev => prev.map(u => u._id === userId ? { ...u, ...patch } : u));
+  };
+
+  const handleClusterBanned = (bannedIds) => {
+    const set = new Set(bannedIds.map(String));
+    setUsers(prev => prev.map(u => set.has(String(u._id)) ? { ...u, isBanned: true } : u));
   };
 
   const filteredUsers = users.filter(u => {
@@ -487,6 +630,16 @@ const AdminUsers = () => {
                             <span className="text-xs text-[#5865F2] font-medium">· @{user.discordUsername}</span>
                           )}
                         </div>
+                        {user.linkedCount > 0 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setLinkedTarget(user); setLinkedOpen(true); }}
+                            title="View possible alternate accounts"
+                            className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-yellow-500 transition-colors"
+                          >
+                            <Users2 className="w-3 h-3" />
+                            {user.linkedCount} possible alt{user.linkedCount === 1 ? '' : 's'}
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -548,6 +701,10 @@ const AdminUsers = () => {
                         <DropdownMenuItem onClick={() => { setDmRecipient(user); setDmOpen(true); }}>
                           <MessageSquare className="mr-2 h-4 w-4" /> Message
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setLinkedTarget(user); setLinkedOpen(true); }}>
+                          <Users2 className="mr-2 h-4 w-4" /> Linked accounts
+                          {user.linkedCount > 0 && <span className="ml-auto text-xs text-yellow-500">{user.linkedCount}</span>}
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMute(user)}>
                           {user.isMuted ? <><Mic className="mr-2 h-4 w-4" /> Unmute</> : <><MicOff className="mr-2 h-4 w-4" /> Mute</>}
                         </DropdownMenuItem>
@@ -587,6 +744,12 @@ const AdminUsers = () => {
       </div>
 
       <DirectMessageDialog recipient={dmRecipient} isOpen={dmOpen} onOpenChange={setDmOpen} />
+      <LinkedAccountsDialog
+        user={linkedTarget}
+        isOpen={linkedOpen}
+        onOpenChange={(o) => { setLinkedOpen(o); if (!o) setLinkedTarget(null); }}
+        onBanned={handleClusterBanned}
+      />
       <ManageMembershipDialog
         user={membershipTarget}
         isOpen={membershipOpen}
