@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Mic, Bot, Sparkles, ChevronLeft, StopCircle, HelpCircle, ArrowRight, Lock, Crown, Compass, MapPin, ExternalLink } from 'lucide-react';
+import { Mic, Bot, Sparkles, ChevronLeft, StopCircle, HelpCircle, ArrowRight, Lock, Crown, Compass, MapPin, ExternalLink, Mail, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -99,8 +99,23 @@ const MyAIPage = () => {
   const [inputValue, setInputValue] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [emailing, setEmailing] = useState(null);    // message id currently sending
+  const [emailedIds, setEmailedIds] = useState({});  // id -> true once sent
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+
+  const emailTripPlan = async (msg) => {
+    if (emailing || emailedIds[msg.id]) return;
+    setEmailing(msg.id);
+    try {
+      await api.post('/ai/directorybro/email-trip', { plan: msg.content, places: msg.results || [] });
+      setEmailedIds((prev) => ({ ...prev, [msg.id]: true }));
+    } catch {
+      /* surfaced inline by leaving the button enabled */
+    } finally {
+      setEmailing(null);
+    }
+  };
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -251,6 +266,20 @@ const MyAIPage = () => {
         )} style={msg.sender === 'user' ? { background: bot.accent, color: '#0a0a0a' } : {}}>
           {msg.content}
           {msg.sender === 'ai' && renderPlaceResults(msg.results)}
+          {msg.sender === 'ai' && activeBot === 'directorybro' && msg.content && msg.content.length > 160 && (
+            <button
+              onClick={() => emailTripPlan(msg)}
+              disabled={emailing === msg.id || emailedIds[msg.id]}
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 border transition-colors disabled:opacity-70"
+              style={{ color: bot.accent, borderColor: `${bot.accent}55`, background: `${bot.accent}14` }}
+            >
+              {emailedIds[msg.id]
+                ? (<><Check className="h-3.5 w-3.5" /> Emailed to you</>)
+                : emailing === msg.id
+                  ? (<><Mail className="h-3.5 w-3.5 animate-pulse" /> Sending…</>)
+                  : (<><Mail className="h-3.5 w-3.5" /> Email me this plan</>)}
+            </button>
+          )}
           {msg.sender === 'ai' && !isUnlimited && freeCount >= FREE_LIMIT && (
             <div className="relative -mb-4 mt-2 h-6 bg-gradient-to-t from-zinc-900 to-transparent rounded-b-2xl pointer-events-none" />
           )}
