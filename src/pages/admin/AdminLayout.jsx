@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Clapperboard, LayoutDashboard, Users, FolderKanban, LogOut, Home, Settings, DollarSign, Shield, UserPlus, Film, Bell, Music } from 'lucide-react';
+import { Clapperboard, LayoutDashboard, Users, FolderKanban, LogOut, Home, Settings, DollarSign, Shield, UserPlus, Film, Bell, Music, Activity } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const AdminLayout = ({ children }) => {
@@ -17,6 +17,7 @@ const AdminLayout = ({ children }) => {
     { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'moderator'] },
     { to: '/admin/content', icon: FolderKanban, label: 'Content', roles: ['admin', 'moderator'] },
     { to: '/admin/users', icon: Users, label: 'Users', roles: ['admin', 'moderator'] },
+    { to: '/admin/visitors', icon: Activity, label: 'Visitors', roles: ['admin', 'moderator'] },
     { to: '/admin/monetization', icon: DollarSign, label: 'Monetization', roles: ['admin'] },
     { to: '/admin/features', icon: Settings, label: 'Feature Control', roles: ['admin'] },
     { to: '/admin/invite',   icon: UserPlus, label: 'Invite Users',    roles: ['admin'] },

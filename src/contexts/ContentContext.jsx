@@ -3,6 +3,7 @@ import { verticalMockPosts as initialVerticalPosts } from '@/data/verticalMockPo
 import { mockCommunityPosts as initialCommunityPosts } from '@/data/mockCommunityPosts';
 import { mockUsers as initialUsers } from '@/data/mockUsers';
 import api from "@/api/homieshub";
+import { trackEvent } from "@/lib/tracker";
 import { useAuth } from '@/contexts/AuthContext';
 
 const ContentContext = createContext();
@@ -556,6 +557,7 @@ const togglePostSave = async ({ targetType, targetId }) => {
 
   try {
     await api.post("/user/save", { targetType, targetId: idStr });
+    if (!savedPostIds.includes(idStr)) trackEvent('video_save', { target: { kind: targetType || 'post', id: idStr } });
   } catch (err) {
     console.error("togglePostSave failed:", err);
 

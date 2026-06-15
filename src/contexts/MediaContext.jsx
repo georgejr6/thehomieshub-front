@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { musicApi, videoApi } from '@/lib/digitvlApi';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/api/homieshub';
+import { trackEvent } from '@/lib/tracker';
 
 const MediaContext = createContext();
 export const useMedia = () => useContext(MediaContext);
@@ -285,6 +286,7 @@ export const MediaProvider = ({ children }) => {
   const playMedia = useCallback((track) => {
     isFirstRef.current = false;
     _loadTrack(track, true);
+    if (track) trackEvent('music_play', { target: { kind: 'music', id: track.id || track._id, title: track.title || track.name } });
   }, [_loadTrack]);
 
   // ── Video controls ─────────────────────────────────────────────────────────
@@ -296,6 +298,7 @@ export const MediaProvider = ({ children }) => {
         setIsPlaying(false);
       }
       setCurrentVideo(video);
+      trackEvent('video_watch', { target: { kind: video.backendType === 'reel' ? 'reel' : 'video', id: videoId, title: video.title || video.caption } });
       if (!video.isHH && !video.backendType) videoApi.logView(video.id);
     } else {
       setGatedVideo(video);

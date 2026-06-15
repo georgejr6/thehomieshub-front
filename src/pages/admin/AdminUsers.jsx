@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -520,6 +520,71 @@ const IpHistoryDialog = ({ user, isOpen, onOpenChange }) => {
   );
 };
 
+const fmtDuration = (ms) => {
+  if (!ms) return '0m';
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+};
+
+// A user's behavioral activity: time-in-app, video/reel history, saves, music.
+const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen || !user) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data: resp } = await api.get(`/track/user/${user._id}/activity`);
+        if (!cancelled) setData(resp.result || null);
+      } catch { if (!cancelled) toast({ title: 'Error', description: 'Failed to load activity.', variant: 'destructive' }); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, user, toast]);
+
+  if (!user) return null;
+  const fmt = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  const Section = ({ icon: Icon, title, items, render }) => (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" /> {title} ({items?.length || 0})</p>
+      {items?.length ? (
+        <div className="space-y-1">{items.slice(0, 15).map((it, i) => <div key={i} className="text-xs text-foreground flex justify-between gap-2"><span className="truncate">{render(it)}</span><span className="text-muted-foreground shrink-0">{fmt(it.ts)}</span></div>)}</div>
+      ) : <p className="text-xs text-muted-foreground">none</p>}
+    </div>
+  );
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Activity className="w-4 h-4 text-yellow-500" /> Activity — @{user.username}</DialogTitle>
+          <DialogDescription>Behavior recorded since tracking went live.</DialogDescription>
+        </DialogHeader>
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <div className="max-h-[60vh] overflow-y-auto space-y-4 py-1">
+            <div className="flex items-center gap-2 text-sm">
+              <Clockish /> <span className="text-muted-foreground">Total time in app:</span>
+              <span className="font-bold text-foreground">{fmtDuration(data?.totalActiveMs)}</span>
+            </div>
+            <Section icon={Video} title="Watch history" items={data?.watched} render={(it) => it.target?.title || `${it.target?.kind || 'video'} ${it.target?.id || ''}`} />
+            <Section icon={Bookmark} title="Saved" items={data?.saved} render={(it) => `${it.target?.kind || 'item'} ${it.target?.id || ''}`} />
+            <Section icon={Music} title="Music played" items={data?.music} render={(it) => it.target?.title || it.target?.id} />
+          </div>
+        )}
+        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+const Clockish = () => <CalendarDays className="w-4 h-4 text-muted-foreground" />;
+
 const AdminUsers = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -536,6 +601,8 @@ const AdminUsers = () => {
   const [linkedOpen, setLinkedOpen] = useState(false);
   const [ipTarget, setIpTarget] = useState(null);
   const [ipOpen, setIpOpen] = useState(false);
+  const [activityTarget, setActivityTarget] = useState(null);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState('all'); // 'all' | 'discord' | 'homies' | 'nomad' | 'stripe' | 'free'
   const limit = 20;
 
@@ -807,6 +874,9 @@ const AdminUsers = () => {
                           <Globe className="mr-2 h-4 w-4" /> IP history
                           {user.ipCount > 0 && <span className="ml-auto text-xs text-muted-foreground">{user.ipCount}</span>}
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setActivityTarget(user); setActivityOpen(true); }}>
+                          <Activity className="mr-2 h-4 w-4" /> Activity
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMute(user)}>
                           {user.isMuted ? <><Mic className="mr-2 h-4 w-4" /> Unmute</> : <><MicOff className="mr-2 h-4 w-4" /> Mute</>}
                         </DropdownMenuItem>
@@ -856,6 +926,11 @@ const AdminUsers = () => {
         user={ipTarget}
         isOpen={ipOpen}
         onOpenChange={(o) => { setIpOpen(o); if (!o) setIpTarget(null); }}
+      />
+      <UserActivityDialog
+        user={activityTarget}
+        isOpen={activityOpen}
+        onOpenChange={(o) => { setActivityOpen(o); if (!o) setActivityTarget(null); }}
       />
       <ManageMembershipDialog
         user={membershipTarget}

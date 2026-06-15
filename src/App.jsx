@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import AdminContent from '@/pages/admin/AdminContent';
 import AdminUsers from '@/pages/admin/AdminUsers';
+import AdminVisitors from '@/pages/admin/AdminVisitors';
 import AdminMonetization from '@/pages/admin/AdminMonetization';
 import AdminFeatures from '@/pages/admin/AdminFeatures';
 import AdminInvite from '@/pages/admin/AdminInvite';
@@ -64,6 +65,7 @@ import { useStory } from '@/contexts/StoryContext';
 import StoryViewer from '@/components/StoryViewer';
 import WatchPage from './pages/WatchPage';
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage';
+import RouteTracker from '@/components/RouteTracker';
 
 // --- Layout Components ---
 
@@ -265,9 +267,11 @@ const AppContent = React.memo(() => {
         <Helmet>
             <title>The Homies Hub</title>
             <meta name="description" content="A social community for men sharing their experiences." />
-            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
         </Helmet>
-        
+
+        <RouteTracker />
+
         <Routes>
             {/* --- Media Mode Routes --- */}
             <Route path="/media" element={<MediaLayout />}>
@@ -314,6 +318,7 @@ const AppContent = React.memo(() => {
             <Route path="/admin/dashboard" element={<AdminRouteWrapper><AdminDashboard /></AdminRouteWrapper>} />
             <Route path="/admin/content" element={<AdminRouteWrapper><AdminContent /></AdminRouteWrapper>} />
             <Route path="/admin/users" element={<AdminRouteWrapper><AdminUsers /></AdminRouteWrapper>} />
+            <Route path="/admin/visitors" element={<AdminRouteWrapper><AdminVisitors /></AdminRouteWrapper>} />
             <Route path="/admin/monetization" element={user?.isAdmin ? <AdminRouteWrapper><AdminMonetization /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/features" element={user?.isAdmin ? <AdminRouteWrapper><AdminFeatures /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/invite" element={<AdminRouteWrapper><AdminInvite /></AdminRouteWrapper>} />
