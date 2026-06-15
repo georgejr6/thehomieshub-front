@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -424,6 +424,102 @@ const LinkedAccountsDialog = ({ user, isOpen, onOpenChange, onBanned }) => {
   );
 };
 
+function fmtSeen(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '';
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+// Full IP history for one user (admin-only).
+const IpHistoryDialog = ({ user, isOpen, onOpenChange }) => {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen || !user) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data: resp } = await api.get(`/admin/users/${user._id}/ips`);
+        if (!cancelled) setData(resp.result || null);
+      } catch {
+        if (!cancelled) toast({ title: 'Error', description: 'Failed to load IP history.', variant: 'destructive' });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, user, toast]);
+
+  const copy = (ip) => {
+    navigator.clipboard?.writeText(ip);
+    toast({ title: 'Copied', description: ip });
+  };
+
+  if (!user) return null;
+  const ips = data?.knownIps || [];
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-yellow-500" />
+            IP history — @{user.username}
+          </DialogTitle>
+          <DialogDescription>
+            Addresses seen for this account. Only recorded since IP capture went live — older sessions aren't backfilled.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="max-h-[55vh] overflow-y-auto py-1">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <>
+              {data?.signupIp && (
+                <div className="mb-3 text-xs text-muted-foreground">
+                  Signup IP: <span className="font-mono text-foreground">{data.signupIp}</span>
+                </div>
+              )}
+              {ips.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-8">No IPs recorded yet for this user.</p>
+              ) : (
+                <div className="space-y-2">
+                  {ips.map((k, i) => (
+                    <div key={`${k.ip}-${i}`} className="flex items-start gap-2 p-2.5 rounded-lg border border-border bg-secondary/20">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm text-foreground">{k.ip}</span>
+                          <button onClick={() => copy(k.ip)} title="Copy IP" className="text-muted-foreground hover:text-foreground">
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          <Badge variant="outline" className="text-[10px]">{k.hits || 1}×</Badge>
+                        </div>
+                        {k.ua && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{k.ua}</p>}
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {k.firstSeen ? `First ${fmtSeen(k.firstSeen)}` : ''}{k.lastSeen ? ` · Last ${fmtSeen(k.lastSeen)}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const AdminUsers = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -438,6 +534,8 @@ const AdminUsers = () => {
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [linkedTarget, setLinkedTarget] = useState(null);
   const [linkedOpen, setLinkedOpen] = useState(false);
+  const [ipTarget, setIpTarget] = useState(null);
+  const [ipOpen, setIpOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState('all'); // 'all' | 'discord' | 'homies' | 'nomad' | 'stripe' | 'free'
   const limit = 20;
 
@@ -705,6 +803,10 @@ const AdminUsers = () => {
                           <Users2 className="mr-2 h-4 w-4" /> Linked accounts
                           {user.linkedCount > 0 && <span className="ml-auto text-xs text-yellow-500">{user.linkedCount}</span>}
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setIpTarget(user); setIpOpen(true); }}>
+                          <Globe className="mr-2 h-4 w-4" /> IP history
+                          {user.ipCount > 0 && <span className="ml-auto text-xs text-muted-foreground">{user.ipCount}</span>}
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMute(user)}>
                           {user.isMuted ? <><Mic className="mr-2 h-4 w-4" /> Unmute</> : <><MicOff className="mr-2 h-4 w-4" /> Mute</>}
                         </DropdownMenuItem>
@@ -749,6 +851,11 @@ const AdminUsers = () => {
         isOpen={linkedOpen}
         onOpenChange={(o) => { setLinkedOpen(o); if (!o) setLinkedTarget(null); }}
         onBanned={handleClusterBanned}
+      />
+      <IpHistoryDialog
+        user={ipTarget}
+        isOpen={ipOpen}
+        onOpenChange={(o) => { setIpOpen(o); if (!o) setIpTarget(null); }}
       />
       <ManageMembershipDialog
         user={membershipTarget}
