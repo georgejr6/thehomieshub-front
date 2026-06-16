@@ -294,6 +294,25 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
             </div>
         )}
 
+        {/* Subtle cross-app CTA — quietly lets members know more apps are available */}
+        {user && (
+            <div className="px-2 mt-1">
+                <a
+                    href="https://www.viddy.cloud/bundles"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Access more apps with a bundle"
+                    className={cn(
+                        "flex items-center w-full h-11 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors",
+                        (isCollapsed && !isMobile) ? "justify-center px-0" : "px-4 gap-3"
+                    )}
+                >
+                    <LayoutGrid className="h-5 w-5 text-primary/80" />
+                    {(!isCollapsed || isMobile) && <span className="text-sm font-medium">Get all apps</span>}
+                </a>
+            </div>
+        )}
+
         {user?.isAdmin && (
             <AdminPopupButton
               items={adminNavItems}

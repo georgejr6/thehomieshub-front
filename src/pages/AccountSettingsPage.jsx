@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2, CreditCard, Mail, AlertCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import BundleSegment from '@/components/BundleSegment';
 import api from '@/api/homieshub';
 import BillingSection from '@/components/Billing/BillingSection';
 
@@ -620,7 +621,8 @@ const AccountSettingsPage = () => {
       {/* ── Billing tab ── */}
       {activeTab === 'billing' && <>
       <BillingSection />
-
+      {/* Expand to a bundle (additional apps) */}
+      <BundleSegment />
       </> /* end billing tab */}
 
       {/* ── Account tab (continued) — Danger Zone ── */}
