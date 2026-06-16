@@ -4,6 +4,13 @@ const BASE = import.meta.env.VITE_DIGITVL_API_URL || 'https://digitvlapp-backend
 
 const api = axios.create({ baseURL: BASE });
 
+// Music is served by the Homies backend (which proxies the DigitVL catalog and
+// serves compressed MP3 streams) — the SAME source the mobile app uses. The
+// legacy node backend above is kept only for the video/content endpoints.
+const MUSIC_BASE = import.meta.env.VITE_API_URL || 'https://backend.thehomies.app/api';
+const musicHttp = axios.create({ baseURL: MUSIC_BASE });
+const tracksOf = (r) => (r.data?.result?.tracks || []).map(normalizeTrack);
+
 function fmt(seconds) {
   if (!seconds) return '0:00';
   const m = Math.floor(seconds / 60);
@@ -14,7 +21,7 @@ function fmt(seconds) {
 // Normalize digitvl track → media item shape
 export function normalizeTrack(t) {
   return {
-    id: t.id,
+    id: t.trackId || t.id,
     title: t.title || 'Untitled',
     artist: t.artist || 'Unknown Artist',
     cover: t.image || `https://picsum.photos/seed/${t.id}/400/400`,
@@ -55,10 +62,10 @@ export function normalizeVideo(c) {
 }
 
 export const musicApi = {
-  getNew:          () => api.get('/music/new').then(r => (Array.isArray(r.data) ? r.data : r.data.results || []).map(normalizeTrack)),
-  getGenres:       () => api.get('/music/genres').then(r => r.data),
-  getArtistTracks: (slug) => api.get(`/music/artist/${slug}`).then(r => (Array.isArray(r.data) ? r.data : r.data.results || []).map(normalizeTrack)),
-  search:          (q) => api.get('/music/search', { params: { q } }).then(r => (Array.isArray(r.data) ? r.data : r.data.results || []).map(normalizeTrack)),
+  getNew:          () => musicHttp.get('/music/trending').then(tracksOf),
+  getGenres:       () => musicHttp.get('/music/genres').then(r => r.data?.result?.genres || []),
+  getArtistTracks: (slug) => musicHttp.get('/music/catalog', { params: { search: slug } }).then(tracksOf),
+  search:          (q) => musicHttp.get('/music/catalog', { params: { search: q } }).then(tracksOf),
 };
 
 export const videoApi = {
