@@ -71,9 +71,79 @@ const SessionDialog = ({ sessionId, isOpen, onOpenChange }) => {
   );
 };
 
+// Friendly names for the first path segment of a landing page.
+const SURFACE_LABELS = {
+  home: 'Shorts / For You',
+  browse: 'Browse',
+  explore: 'Explore',
+  watch: 'Watch (deep link)',
+  live: 'Live',
+  AI: 'AI Assistant',
+  memberships: 'Memberships',
+  profile: 'Profile',
+  'my-apps': 'My Apps',
+  library: 'Library',
+};
+const surfaceName = (k) => SURFACE_LABELS[k] || (k ? `/${k}` : 'Other');
+
+// Per-landing-surface retention & conversion. Answers: does landing on the
+// shorts feed help or hurt return/conversion vs other entry points?
+const LandingBreakdown = ({ rows }) => {
+  const data = [...(rows || [])].sort((a, b) => b.visitors - a.visitors);
+  const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0);
+  const fmtMin = (ms) => {
+    const m = Math.round((ms || 0) / 60000);
+    return m >= 1 ? `${m}m` : `${Math.round((ms || 0) / 1000)}s`;
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 flex items-center gap-2">
+        <Activity className="w-3.5 h-3.5" /> Where they land → did it work? (by first visit, last 30d)
+      </p>
+      <p className="text-[11px] text-muted-foreground mb-3">Compare the Shorts feed vs other entry points. Return = came back for another session; Converted = ever logged in.</p>
+      {data.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-6 text-center">Not enough traffic yet — this fills in as visitors arrive.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
+                <th className="text-left font-semibold py-2 pr-3">Landing surface</th>
+                <th className="text-right font-semibold py-2 px-3">Visitors</th>
+                <th className="text-right font-semibold py-2 px-3">Returned</th>
+                <th className="text-right font-semibold py-2 px-3">Converted</th>
+                <th className="text-right font-semibold py-2 pl-3">Avg session</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((s) => (
+                <tr key={s._id || 'other'} className="border-b border-border/50 last:border-0">
+                  <td className="py-2.5 pr-3 font-medium">{surfaceName(s._id)}</td>
+                  <td className="py-2.5 px-3 text-right">{s.visitors}</td>
+                  <td className="py-2.5 px-3 text-right">
+                    <span className="text-foreground">{pct(s.returning, s.visitors)}%</span>
+                    <span className="text-muted-foreground text-xs"> ({s.returning})</span>
+                  </td>
+                  <td className="py-2.5 px-3 text-right">
+                    <span style={{ color: '#22c55e' }}>{pct(s.converted, s.visitors)}%</span>
+                    <span className="text-muted-foreground text-xs"> ({s.converted})</span>
+                  </td>
+                  <td className="py-2.5 pl-3 text-right text-muted-foreground">{fmtMin(s.avgDurationMs)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AdminVisitors = () => {
   const { toast } = useToast();
   const [sessions, setSessions] = useState([]);
+  const [landing, setLanding] = useState([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
   const [sessionTarget, setSessionTarget] = useState(null);
@@ -87,8 +157,12 @@ const AdminVisitors = () => {
   const load = useCallback(async (d = days) => {
     setLoading(true);
     try {
-      const { data } = await api.get('/track/visitors', { params: { days: d } });
-      setSessions(data.result?.sessions || []);
+      const [vis, land] = await Promise.all([
+        api.get('/track/visitors', { params: { days: d } }),
+        api.get('/track/landing', { params: { days: Math.max(d, 30) } }).catch(() => ({ data: {} })),
+      ]);
+      setSessions(vis.data.result?.sessions || []);
+      setLanding(land.data.result?.surfaces || []);
     } catch { toast({ title: 'Error', description: 'Failed to load visitors.', variant: 'destructive' }); }
     finally { setLoading(false); }
   }, [days, toast]);
@@ -155,6 +229,9 @@ const AdminVisitors = () => {
           </div>
         )}
       </form>
+
+      {/* Landing surface -> retention & conversion */}
+      <LandingBreakdown rows={landing} />
 
       {/* Sessions */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
