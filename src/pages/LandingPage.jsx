@@ -12,6 +12,7 @@ const DonateIcon = ({ className }) => <DollarSign className={className} />;
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import BundleSegment from '@/components/BundleSegment';
 
 const DiscordIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -332,6 +333,9 @@ const LandingPage = ({ onLoginRequest }) => {
             </div>
           </motion.div>
         )}
+
+        {/* Ecosystem bundles */}
+        <BundleSegment />
 
         {/* Footer */}
         <footer className="border-t border-border bg-background/50 mt-auto">

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/api/homieshub';
+import BundleSegment from '@/components/BundleSegment';
 
 // ── Feature data ──────────────────────────────────────────────────────────────
 
@@ -398,33 +399,7 @@ const MembershipsPage = () => {
           </motion.div>
 
           {/* ── Ecosystem bundles upsell ── */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="max-w-3xl mx-auto mt-16"
-          >
-            <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-amber-400/5 p-7 md:p-9 text-center">
-              <div className="inline-flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">🧩 Save with a bundle</div>
-              <h2 className="text-2xl md:text-3xl font-extrabold text-foreground mt-2">Want more than just The Homies?</h2>
-              <p className="text-muted-foreground mt-3 max-w-xl mx-auto leading-relaxed">
-                Bundle The Homies with <strong>MyConsent</strong> (consent forms, releases &amp; NDAs) and{' '}
-                <strong>DirectoryBro</strong> (AI directory &amp; discovery) under <strong>one membership</strong> — and save 15–40%.
-                Already a member? Upgrade and keep everything you have; you just unlock the extra apps.
-              </p>
-              <div className="flex flex-wrap gap-3 justify-center mt-6">
-                <a href="https://www.viddy.cloud/bundles" target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:opacity-90 transition">
-                  View bundles &amp; pricing →
-                </a>
-                <a href="https://www.viddy.cloud/bundles" target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-2 border border-border text-foreground font-semibold px-6 py-3 rounded-xl hover:bg-muted/40 transition">
-                  How it works
-                </a>
-              </div>
-              <p className="text-xs text-muted-foreground mt-4">Bundles are billed through Central Billing — your secure membership hub for the whole network.</p>
-            </div>
-          </motion.div>
+          <BundleSegment />
 
           {/* ── FAQ ── */}
           <motion.div
