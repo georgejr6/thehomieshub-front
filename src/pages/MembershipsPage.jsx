@@ -9,8 +9,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 import api from '@/api/homieshub';
 import BundleSegment from '@/components/BundleSegment';
+
+const TIER_LABELS = { discord: 'Discord ($10)', homies: 'The Homie ($15)', nomad: 'Digital Nomad' };
 
 // ── Feature data ──────────────────────────────────────────────────────────────
 
@@ -101,8 +104,28 @@ const STRIPE_LINKS = {
 
 const MembershipsPage = () => {
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'yearly'
-  const { user } = useAuth();
+  const { user, refreshMe } = useAuth();
+  const { toast } = useToast();
   const [checkoutLoading, setCheckoutLoading] = useState(null);
+  const [upgrading, setUpgrading] = useState(false);
+
+  const currentTier = user?.effectiveTier || null; // 'discord' | 'homies' | 'nomad' | null
+
+  // $10 (discord) → $15 (homies): swap the price on the SAME subscription so the
+  // member is NOT double-charged with a second subscription.
+  const handleUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      await api.post('/subscription/upgrade');
+      await refreshMe();
+      toast({ title: 'Upgraded to The Homie 🎉', description: 'Full access unlocked — enjoy the whole library.' });
+    } catch (err) {
+      const msg = err?.response?.data?.error?.message || err?.response?.data?.message || 'Could not upgrade. Try again or contact support.';
+      toast({ title: 'Upgrade failed', description: msg, variant: 'destructive' });
+    } finally {
+      setUpgrading(false);
+    }
+  };
 
   // For logged-in users, go through our checkout API so success_url = new site
   // For logged-out users, fall back to direct Stripe links
@@ -156,6 +179,12 @@ const MembershipsPage = () => {
               <p className="text-muted-foreground text-lg max-w-xl mx-auto">
                 Get exclusive content, investment intel, community access, and — if you're ready — the full Digital Nomad program.
               </p>
+              {currentTier && (
+                <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary bg-primary/10 border border-primary/20 px-4 py-1.5 rounded-full">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Your current plan: {TIER_LABELS[currentTier] || currentTier}
+                </p>
+              )}
             </motion.div>
 
             {/* Billing toggle */}
@@ -293,6 +322,23 @@ const MembershipsPage = () => {
                   >
                     {checkoutLoading === 'homies_yearly' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Join — $100 / year
+                  </Button>
+                ) : currentTier === 'discord' ? (
+                  <div className="space-y-1.5">
+                    <Button
+                      size="lg"
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
+                      onClick={handleUpgrade}
+                      disabled={upgrading}
+                    >
+                      {upgrading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Upgrade to The Homie — $15 / month
+                    </Button>
+                    <p className="text-[11px] text-center text-muted-foreground">Swaps your $10 plan — no double charge, prorated instantly.</p>
+                  </div>
+                ) : currentTier === 'homies' || currentTier === 'nomad' ? (
+                  <Button size="lg" className="w-full font-bold" variant="secondary" disabled>
+                    You're on this plan ✓
                   </Button>
                 ) : (
                   <Button
