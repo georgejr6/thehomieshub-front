@@ -36,6 +36,13 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [uploadOpen, setUploadOpen] = useState(false);
 
+  // Real Creator Studio stats (replaces the old placeholder numbers).
+  const [dash, setDash] = useState(null);
+  useEffect(() => {
+    api.get('/marketplace/dashboard').then((r) => setDash(r.data?.result)).catch(() => {});
+  }, []);
+  const usd = (c) => `$${((c || 0) / 100).toFixed(2)}`;
+
   // Live tab state
   const [liveHistory, setLiveHistory] = useState([]);
   const [activeStream, setActiveStream] = useState(null);
@@ -230,42 +237,42 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Views</CardTitle>
-                <Video className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">45.2K</div>
-                <p className="text-xs text-muted-foreground">+20.1% from last month</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Followers</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">+2350</div>
-                <p className="text-xs text-muted-foreground">+180.1% from last month</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Estimated Earnings</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Earned</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$1,240.50</div>
-                <p className="text-xs text-muted-foreground">+12% from last month</p>
+                <div className="text-2xl font-bold">{usd(dash?.stats?.totalEarnedCents)}</div>
+                <p className="text-xs text-muted-foreground">Your share after fees</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Engagement Rate</CardTitle>
+                <CardTitle className="text-sm font-medium">Pending Payout</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{usd(dash?.stats?.pendingPayoutCents)}</div>
+                <p className="text-xs text-muted-foreground">{dash?.connected ? 'Paid via Stripe' : 'Owed to you'}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Sales</CardTitle>
                 <BarChart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">12.5%</div>
-                <p className="text-xs text-muted-foreground">+2.4% from last month</p>
+                <div className="text-2xl font-bold">{dash?.stats?.salesCount ?? 0}</div>
+                <p className="text-xs text-muted-foreground">All-time orders</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Subscribers</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{dash?.stats?.subscriberCount ?? 0}</div>
+                <p className="text-xs text-muted-foreground">Paying your creator sub</p>
               </CardContent>
             </Card>
           </div>
@@ -284,7 +291,7 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
             <Card className="col-span-3">
               <CardHeader>
                 <CardTitle>Recent Comments</CardTitle>
-                <CardDescription>You made 265 sales this month.</CardDescription>
+                <CardDescription>Latest activity from your audience.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
