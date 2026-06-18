@@ -37,6 +37,7 @@ const StoreTab = () => {
   const [loading, setLoading] = useState(true);
   const [dash, setDash] = useState(null);
   const [products, setProducts] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
 
   // store setup form
   const [storeName, setStoreName] = useState('');
@@ -59,8 +60,12 @@ const StoreTab = () => {
       const { data } = await api.get('/marketplace/dashboard');
       setDash(data?.result || null);
       if (data?.result?.hasStore) {
-        const pr = await api.get('/marketplace/products/mine');
+        const [pr, sg] = await Promise.all([
+          api.get('/marketplace/products/mine'),
+          api.get('/marketplace/suggestions').catch(() => null),
+        ]);
         setProducts(pr.data?.result?.items || []);
+        setSuggestions(sg?.data?.result?.suggestions || []);
       }
     } catch {
       /* not fatal */
@@ -83,6 +88,14 @@ const StoreTab = () => {
     } finally {
       setSavingStore(false);
     }
+  };
+
+  const useSuggestion = (s) => {
+    setShowForm(true);
+    setPTitle(s.title || '');
+    setPType(['digital', 'trip_guide', 'physical'].includes(s.type) ? s.type : 'digital');
+    setPPrice(((s.suggestedPriceCents || 0) / 100).toFixed(2));
+    setPDesc(s.why || '');
   };
 
   const createProduct = async () => {
@@ -179,6 +192,26 @@ const StoreTab = () => {
           <Button onClick={() => setShowForm((v) => !v)} className="gap-2"><Plus className="h-4 w-4" /> Add product</Button>
         </CardHeader>
         <CardContent className="space-y-4">
+          {suggestions.length > 0 && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs font-semibold text-primary flex items-center gap-1.5 mb-2">
+                <Sparkles className="h-3.5 w-3.5" /> AI suggestions — tap one to start
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => useSuggestion(s)}
+                    title={s.why}
+                    className="text-left text-xs px-2.5 py-1.5 rounded-lg bg-background border border-border hover:border-primary/50 transition-colors"
+                  >
+                    <span className="font-medium text-foreground">{s.title}</span>
+                    <span className="text-muted-foreground"> · {usd(s.suggestedPriceCents)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {showForm && (
             <div className="rounded-xl border border-border p-4 space-y-3 bg-muted/20">
               <Input placeholder="Product title" value={pTitle} onChange={(e) => setPTitle(e.target.value)} />
