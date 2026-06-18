@@ -55,6 +55,7 @@ import SupportPage from '@/pages/SupportPage';
 import LandingPage from '@/pages/LandingPage';
 import MembershipsPage from '@/pages/MembershipsPage';
 import MarketplacePage from '@/pages/MarketplacePage';
+import PurchasesPage from '@/pages/PurchasesPage';
 import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
@@ -345,6 +346,7 @@ const AppContent = React.memo(() => {
                 <Route path="/browse" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
                 <Route path="/memberships" element={<MembershipsPage />} />
                 <Route path="/marketplace" element={<MarketplacePage />} />
+                <Route path="/purchases" element={user ? <PurchasesPage /> : <Navigate to="/" />} />
                 
                 <Route path="/explore" element={
                     <FeatureGuard feature="explore">

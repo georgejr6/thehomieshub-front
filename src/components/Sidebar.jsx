@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store } from 'lucide-react';
+import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store, Wallet, Package } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -142,22 +142,36 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
     return () => clearInterval(interval);
   }, []);
 
-  // Base items for everyone
-  const mainNavItems = [
-    { to: '/', icon: Home, label: 'Home' },
-    { to: '/browse', icon: Play, label: 'Browse' },
-    { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
-    { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },
-    { to: '/library', icon: Library, label: 'Library', featureKey: 'library' },
-    { to: '/marketplace', icon: ShoppingBag, label: 'Marketplace' },
-    { to: '/memberships', icon: Crown, label: 'Memberships' },
+  // Curated, grouped nav — keeps the most-used items in first line of sight and
+  // tucks the rest under clear section labels so the sidebar doesn't overwhelm.
+  const navGroups = [
+    {
+      label: null, // primary
+      items: [
+        { to: '/browse', icon: Play, label: 'Browse' },
+        { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
+        { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },
+        { to: '/library', icon: Library, label: 'Library', featureKey: 'library' },
+      ],
+    },
+    {
+      label: 'Earn',
+      items: [
+        { to: '/marketplace', icon: ShoppingBag, label: 'Marketplace' },
+        ...(user ? [{ to: '/studio', icon: Store, label: 'Creator Studio' }] : []),
+      ],
+    },
+    {
+      label: 'You',
+      items: [
+        { to: '/memberships', icon: Crown, label: 'Memberships' },
+        ...(user ? [{ to: '/wallet', icon: Wallet, label: 'Wallet' }] : []),
+        ...(user ? [{ to: '/purchases', icon: Package, label: 'Purchases' }] : []),
+        { to: '/AI', icon: Bot, label: 'AI', featureKey: 'my_ai' },
+        { to: '/my-apps', icon: LayoutGrid, label: 'My Apps' },
+      ],
+    },
   ];
-
-  if (user) {
-    mainNavItems.push({ to: '/studio', icon: Store, label: 'Creator Studio' });
-    mainNavItems.push({ to: '/subscriptions', icon: Clapperboard, label: 'Subscriptions' });
-    mainNavItems.push({ to: '/settings?tab=billing', icon: CreditCard, label: 'Billing' });
-  }
   
   const adminNavItems = [
     { to: '/admin/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
@@ -228,36 +242,25 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
             </div>
         )}
 
-      <nav className="px-2 space-y-2 mt-1 flex-1 overflow-y-auto pb-48 no-scrollbar">
-        {mainNavItems.map(item => (
-          <NavItem 
-            key={item.to} 
-            {...item} 
-            isCollapsed={isMobile ? false : isCollapsed} 
-            onClick={isMobile ? onMobileClose : undefined}
-          />
+      <nav className="px-2 space-y-1 mt-1 flex-1 overflow-y-auto pb-48 no-scrollbar">
+        {navGroups.map((group, gi) => (
+          <div key={gi} className="space-y-1">
+            {gi > 0 && <div className="my-2 border-t border-border/50 mx-2" />}
+            {group.label && (!isCollapsed || isMobile) && (
+              <p className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">{group.label}</p>
+            )}
+            {group.items.map(item => (
+              <NavItem
+                key={item.to}
+                {...item}
+                isCollapsed={isMobile ? false : isCollapsed}
+                onClick={isMobile ? onMobileClose : undefined}
+              />
+            ))}
+            {/* Media Mode lives with the primary watch items */}
+            {gi === 0 && <MediaModeButton />}
+          </div>
         ))}
-        
-        <div className="my-2 border-t border-border/50 mx-2" />
-        
-        <MediaModeButton />
-        
-        <NavItem
-            to="/AI"
-            icon={Bot}
-            label="AI"
-            isCollapsed={isMobile ? false : isCollapsed}
-            featureKey="my_ai"
-            onClick={isMobile ? onMobileClose : undefined}
-        />
-
-        <NavItem
-            to="/my-apps"
-            icon={LayoutGrid}
-            label="My Apps"
-            isCollapsed={isMobile ? false : isCollapsed}
-            onClick={isMobile ? onMobileClose : undefined}
-        />
 
         {/* Mobile Specific Bottom Items */}
         {isMobile && (

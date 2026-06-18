@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,8 +20,8 @@ const PRODUCT_TYPES = [
   { value: 'physical', label: 'Physical product', hint: 'You ship it; we handle the payment' },
 ];
 
-const StatCard = ({ icon: Icon, label, value, sub }) => (
-  <Card>
+const StatCard = ({ icon: Icon, label, value, sub, onClick }) => (
+  <Card onClick={onClick} className={onClick ? 'cursor-pointer hover:border-primary/40 transition-colors' : ''}>
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
       <CardTitle className="text-sm font-medium">{label}</CardTitle>
       <Icon className="h-4 w-4 text-muted-foreground" />
@@ -34,6 +35,7 @@ const StatCard = ({ icon: Icon, label, value, sub }) => (
 
 const StoreTab = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dash, setDash] = useState(null);
   const [products, setProducts] = useState([]);
@@ -160,8 +162,8 @@ const StoreTab = () => {
     <div className="space-y-6">
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={DollarSign} label="Total earned" value={usd(s.totalEarnedCents)} sub="Your share after the 30% fee" />
-        <StatCard icon={Wallet} label="Pending payout" value={usd(s.pendingPayoutCents)} sub={dash.connected ? 'Paid via Stripe' : 'Owed to you — connect Stripe to withdraw'} />
+        <StatCard icon={DollarSign} label="Total earned" value={usd(s.totalEarnedCents)} sub="Your share after the 30% fee — view in wallet" onClick={() => navigate('/wallet/earnings')} />
+        <StatCard icon={Wallet} label="Pending payout" value={usd(s.pendingPayoutCents)} sub={dash.connected ? 'Paid via Stripe' : 'Owed to you — tap to view wallet'} onClick={() => navigate('/wallet/earnings')} />
         <StatCard icon={ShoppingBag} label="Sales" value={s.salesCount || 0} sub="All-time orders" />
         <StatCard icon={Users} label="Subscribers" value={s.subscriberCount || 0} sub="Paying your creator sub" />
       </div>
