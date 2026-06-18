@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Bell, Menu, User, LogIn, Wallet, DollarSign, Sparkles, Settings, GraduationCap, CreditCard } from 'lucide-react';
+import { Search, Bell, Menu, User, LogIn, Wallet, DollarSign, Sparkles, Settings, GraduationCap, CreditCard, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -236,6 +236,10 @@ const Header = ({
                      <Sparkles className="mr-2 h-4 w-4 text-primary" />
                      <span>Upgrade to Premium</span>
                   </DropdownMenuItem>}
+                <DropdownMenuItem onClick={() => navigate('/studio')}>
+                  <Store className="mr-2 h-4 w-4" />
+                  <span>Creator Studio</span>
+                </DropdownMenuItem>
                  <DropdownMenuItem onClick={() => navigate('/settings')}>
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Account Settings</span>

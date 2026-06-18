@@ -54,6 +54,7 @@ import ChildSafetyPage from '@/pages/ChildSafetyPage';
 import SupportPage from '@/pages/SupportPage';
 import LandingPage from '@/pages/LandingPage';
 import MembershipsPage from '@/pages/MembershipsPage';
+import MarketplacePage from '@/pages/MarketplacePage';
 import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
@@ -304,9 +305,9 @@ const AppContent = React.memo(() => {
                 <Route path="settings" element={<WalletIsolationMode activeTab="settings" />} />
             </Route>
 
-            {/* Creator Studio — hidden until ready */}
-            <Route path="/studio" element={<Navigate to="/browse" replace />} />
-            <Route path="/studio/stream" element={<Navigate to="/browse" replace />} />
+            {/* Creator Studio — store, products, earnings, content, live */}
+            <Route path="/studio" element={user ? <CreatorStudioPage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />} />
+            <Route path="/studio/stream" element={user ? <GoLivePage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />} />
 
             {/* Go Live — standalone page (has its own header, no sidebar) */}
             <Route path="/go-live" element={
@@ -343,6 +344,7 @@ const AppContent = React.memo(() => {
                 <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
                 <Route path="/browse" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
                 <Route path="/memberships" element={<MembershipsPage />} />
+                <Route path="/marketplace" element={<MarketplacePage />} />
                 
                 <Route path="/explore" element={
                     <FeatureGuard feature="explore">

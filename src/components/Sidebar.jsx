@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid } from 'lucide-react';
+import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -149,10 +149,12 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
     { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
     { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },
     { to: '/library', icon: Library, label: 'Library', featureKey: 'library' },
+    { to: '/marketplace', icon: ShoppingBag, label: 'Marketplace' },
     { to: '/memberships', icon: Crown, label: 'Memberships' },
   ];
 
   if (user) {
+    mainNavItems.push({ to: '/studio', icon: Store, label: 'Creator Studio' });
     mainNavItems.push({ to: '/subscriptions', icon: Clapperboard, label: 'Subscriptions' });
     mainNavItems.push({ to: '/settings?tab=billing', icon: CreditCard, label: 'Billing' });
   }
