@@ -66,6 +66,7 @@ import StoryViewer from '@/components/StoryViewer';
 import WatchPage from './pages/WatchPage';
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage';
 import RouteTracker from '@/components/RouteTracker';
+import HelpAssistant from '@/components/HelpAssistant';
 
 // --- Layout Components ---
 
@@ -424,6 +425,7 @@ const AppContent = React.memo(() => {
         <OnboardingFlow isOpen={showOnboarding} onClose={stopTutorial} />
         <DiscordConnectPrompt open={showDiscordPrompt && !showOnboarding} onDismiss={dismissDiscordPrompt} />
         <PlaceView />
+        <HelpAssistant />
         <Toaster />
 
         {/* Story viewer — fixed fullscreen, independent of all layout/feed lifecycle */}
