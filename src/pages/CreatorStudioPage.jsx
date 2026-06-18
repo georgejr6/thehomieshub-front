@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import {
   BarChart, Upload, Users, DollarSign, Settings, Video,
   Image as ImageIcon, Trash2, Clapperboard, Loader2, RefreshCcw,
-  Radio, MonitorPlay, Laptop, StopCircle, ExternalLink, Clock, ShoppingBag,
+  Radio, MonitorPlay, Laptop, StopCircle, ExternalLink, Clock, ShoppingBag, MapPin,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import MonetizationTab from '@/components/CreatorStudio/MonetizationTab';
 import StoreTab from '@/components/CreatorStudio/StoreTab';
+import TripsTab from '@/components/CreatorStudio/TripsTab';
 import UploadMomentModal from '@/components/UploadReelModal';
 import { useAuth } from '@/contexts/AuthContext';
 import BackButton from '@/components/BackButton';
@@ -214,11 +215,15 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
       </div>
 
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 md:w-auto md:grid-cols-6 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-3 md:w-auto md:grid-cols-7 lg:w-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="store" className="flex items-center gap-1.5">
             <ShoppingBag className="h-3.5 w-3.5" />
             Store
+          </TabsTrigger>
+          <TabsTrigger value="trips" className="flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5" />
+            Trips
           </TabsTrigger>
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="live" className="flex items-center gap-1.5">
@@ -547,6 +552,10 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
 
         <TabsContent value="store">
           <StoreTab />
+        </TabsContent>
+
+        <TabsContent value="trips">
+          <TripsTab />
         </TabsContent>
 
         <TabsContent value="monetization">

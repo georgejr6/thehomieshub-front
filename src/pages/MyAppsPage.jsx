@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Compass, FileSignature, ArrowRight, LayoutGrid } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Compass, FileSignature, ArrowRight, LayoutGrid, Crown } from 'lucide-react';
 import MyConsentModule from '@/components/apps/MyConsentModule';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ── App registry ──────────────────────────────────────────────────────────
 // Add an entry here to surface a new ecosystem app. `action: 'navigate'` opens
@@ -34,7 +36,11 @@ const APPS = [
 
 const MyAppsPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [openModal, setOpenModal] = useState(null);
+
+  const tier = user?.effectiveTier; // 'discord' | 'homies' | 'nomad' | undefined
+  const isFullMember = tier === 'homies' || tier === 'nomad';
 
   const launch = (app) => {
     if (app.action === 'navigate') navigate(app.to);
@@ -74,6 +80,32 @@ const MyAppsPage = () => {
             </button>
           );
         })}
+      </div>
+
+      {/* Upgrade / membership options */}
+      <div className="mt-8 rounded-2xl border border-primary/20 bg-primary/5 p-5">
+        {isFullMember ? (
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Crown className="h-5 w-5 text-primary" />
+              <p className="text-sm text-foreground">You're a <span className="font-semibold capitalize">{tier}</span> member — every app above is included.</p>
+            </div>
+            <Link to="/memberships" className="text-sm font-semibold text-primary hover:underline">Manage plan</Link>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Crown className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-semibold text-foreground">Unlock the full toolkit</p>
+                <p className="text-sm text-muted-foreground">These apps come with a Homie ($15/mo) membership or higher.</p>
+              </div>
+            </div>
+            <Button onClick={() => navigate('/memberships')} className="gap-2">
+              <Crown className="h-4 w-4" /> See plans
+            </Button>
+          </div>
+        )}
       </div>
 
       <MyConsentModule isOpen={openModal === 'myconsent'} onOpenChange={(o) => setOpenModal(o ? 'myconsent' : null)} />

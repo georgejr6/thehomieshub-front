@@ -232,10 +232,12 @@ const Header = ({
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
-                {user.tier === 'Free' && <DropdownMenuItem onClick={handleUpgradeToPremium} className="text-primary font-medium cursor-pointer bg-primary/5">
+                {user.effectiveTier !== 'homies' && user.effectiveTier !== 'nomad' && (
+                  <DropdownMenuItem onClick={() => navigate('/memberships')} className="text-primary font-medium cursor-pointer bg-primary/5">
                      <Sparkles className="mr-2 h-4 w-4 text-primary" />
-                     <span>Upgrade to Premium</span>
-                  </DropdownMenuItem>}
+                     <span>{user.effectiveTier === 'discord' ? 'Upgrade to Homie' : 'Upgrade your membership'}</span>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => navigate('/studio')}>
                   <Store className="mr-2 h-4 w-4" />
                   <span>Creator Studio</span>
