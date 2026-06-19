@@ -5,6 +5,7 @@ import { ShoppingBag, Loader2, Download, MapPin, Package, ExternalLink } from 'l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import BackButton from '@/components/BackButton';
 import api from '@/api/homieshub';
 
 const usd = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
@@ -42,6 +43,7 @@ const PurchasesPage = () => {
     <>
       <Helmet><title>My Purchases — The Homies Hub</title></Helmet>
       <div className="container mx-auto px-4 py-8 max-w-3xl">
+        <BackButton className="mb-4" />
         <div className="flex items-center gap-3 mb-6">
           <ShoppingBag className="h-7 w-7 text-primary" />
           <h1 className="text-3xl font-extrabold tracking-tight">My Purchases</h1>

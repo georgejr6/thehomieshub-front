@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import BackButton from '@/components/BackButton';
 import api from '@/api/homieshub';
 
 const usd = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
@@ -79,6 +80,7 @@ const MarketplacePage = () => {
     <>
       <Helmet><title>Marketplace — The Homies Hub</title></Helmet>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <BackButton className="mb-4" />
         <div className="flex items-center gap-3 mb-2">
           <ShoppingBag className="h-7 w-7 text-primary" />
           <h1 className="text-3xl font-extrabold tracking-tight">Marketplace</h1>

@@ -34,6 +34,7 @@ import {
   Gift,
   Play,
   X,
+  ShoppingBag,
 } from 'lucide-react';
 
 import FeedItem from '@/components/FeedItem';
@@ -58,6 +59,7 @@ const RealUserProfilePage = () => {
   const [posts, setPosts] = useState([]);
   const [videos, setVideos] = useState([]);
   const [reels, setReels] = useState([]);
+  const [products, setProducts] = useState([]);
 
   // Favorites only for own profile
   const [favorites, setFavorites] = useState({ videos: [], reels: [] });
@@ -249,6 +251,34 @@ const RealUserProfilePage = () => {
     loadFavorites();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOwnProfile]);
+
+  // Load this creator's marketplace products for the Shop tab.
+  useEffect(() => {
+    if (!profileUser?._id) { setProducts([]); return; }
+    api.get(`/marketplace/products?sellerId=${profileUser._id}&limit=24`)
+      .then((r) => setProducts(r.data?.result?.items || []))
+      .catch(() => setProducts([]));
+  }, [profileUser?._id]);
+
+  const usd = (c) => `$${((c || 0) / 100).toFixed(2)}`;
+
+  const buyProduct = async (p) => {
+    if (!currentUser) {
+      toast({ title: 'Login Required', description: 'Log in to buy.' });
+      return;
+    }
+    try {
+      const { data } = await api.post('/marketplace/checkout', { productId: p._id });
+      const url = data?.result?.url;
+      if (url) window.location.href = url;
+    } catch (e) {
+      toast({ title: 'Checkout failed', description: e?.response?.data?.message || 'Try again.', variant: 'destructive' });
+    }
+  };
+
+  const showShop = isOwnProfile || products.length > 0;
+  const tabCount = 3 + (showShop ? 1 : 0) + (isOwnProfile ? 1 : 0);
+  const colsClass = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' }[tabCount] || 'grid-cols-4';
 
   const handleFollow = async () => {
     if (!currentUser) {
@@ -535,10 +565,15 @@ const RealUserProfilePage = () => {
 
         <div className="mt-8">
           <Tabs defaultValue="posts" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 md:w-[24rem]">
+            <TabsList className={`grid w-full ${colsClass} md:w-[30rem]`}>
               <TabsTrigger value="posts">Posts</TabsTrigger>
               <TabsTrigger value="videos">Videos</TabsTrigger>
               <TabsTrigger value="reels">Reels</TabsTrigger>
+              {showShop && (
+                <TabsTrigger value="shop" className="flex items-center gap-1.5">
+                  <ShoppingBag className="h-3.5 w-3.5" /> Shop
+                </TabsTrigger>
+              )}
               {isOwnProfile && <TabsTrigger value="favorites">Favorites</TabsTrigger>}
             </TabsList>
 
@@ -614,6 +649,48 @@ const RealUserProfilePage = () => {
                 )}
               </div>
             </TabsContent>
+
+            {showShop && (
+              <TabsContent value="shop" className="mt-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {products.length > 0 ? (
+                    products.map((p) => (
+                      <Card key={p._id} className="overflow-hidden flex flex-col">
+                        <div className="h-32 bg-muted flex items-center justify-center">
+                          {p.images?.[0]
+                            ? <img src={p.images[0]} alt={p.title} className="h-full w-full object-cover" />
+                            : <ShoppingBag className="h-7 w-7 text-muted-foreground/40" />}
+                        </div>
+                        <CardContent className="p-3 flex flex-col gap-2 flex-1">
+                          <p className="text-sm font-medium line-clamp-2">{p.title}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{String(p.type || '').replace('_', ' ')}</p>
+                          <div className="flex items-center justify-between mt-auto pt-1">
+                            <Badge variant="secondary">{usd(p.priceCents)}</Badge>
+                            {isOwnProfile ? (
+                              <Button size="sm" variant="outline" onClick={() => navigate('/studio')}>Manage</Button>
+                            ) : (
+                              <Button size="sm" onClick={() => buyProduct(p)}>Buy</Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="col-span-full">
+                      <Card>
+                        <CardContent className="p-6 text-center text-muted-foreground">
+                          {isOwnProfile ? (
+                            <>You haven't listed any products. <Link to="/studio" className="text-primary hover:underline">Open your store</Link>.</>
+                          ) : (
+                            "This user has nothing for sale yet."
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            )}
 
             {isOwnProfile && (
               <TabsContent value="favorites" className="mt-6">
