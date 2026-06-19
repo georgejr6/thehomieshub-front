@@ -216,14 +216,35 @@ const AppContent = React.memo(() => {
   // Also silently strip the ?_direct=1 OG-bypass marker added by Vercel rewrites
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    // Announcement sign-up links carry ?redirect=<path> — remember it so we can
+    // drop the user there right after they authenticate.
+    const redirect = params.get('redirect');
+    if (redirect) {
+      localStorage.setItem('post_auth_redirect', redirect);
+      localStorage.setItem('post_auth_redirect_ts', String(Date.now()));
+    }
     if (params.get('openAuth') === '1') {
       const tab = params.get('tab') || 'signin';
       setAuthModalState({ isOpen: true, view: 'main', tab });
       window.history.replaceState({}, '', location.pathname);
-    } else if (params.has('_direct')) {
+    } else if (params.has('_direct') || redirect) {
       window.history.replaceState({}, '', location.pathname);
     }
   }, [location.search]);
+
+  // After a fresh login (any method), honor a pending announcement redirect.
+  // Timestamp-guarded so a stale value can't redirect on a normal page load.
+  const prevUserRef = useRef(null);
+  useEffect(() => {
+    if (!prevUserRef.current && user) {
+      const dest = localStorage.getItem('post_auth_redirect');
+      const ts = Number(localStorage.getItem('post_auth_redirect_ts') || 0);
+      localStorage.removeItem('post_auth_redirect');
+      localStorage.removeItem('post_auth_redirect_ts');
+      if (dest && Date.now() - ts < 15 * 60 * 1000) navigate(dest);
+    }
+    prevUserRef.current = user;
+  }, [user]);
 
   const handleOpenPostModal = (type = null) => {
     if (!user) {

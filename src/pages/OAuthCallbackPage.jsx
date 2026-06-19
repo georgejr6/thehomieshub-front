@@ -19,7 +19,13 @@ export default function OAuthCallbackPage() {
       return;
     }
 
-    setAccessToken(token).then(() => navigate('/'));
+    // Where to land after sign-in (set when they clicked an announcement link).
+    // Read + clear synchronously so nothing else races to redirect.
+    const dest = localStorage.getItem('post_auth_redirect') || '/';
+    localStorage.removeItem('post_auth_redirect');
+    localStorage.removeItem('post_auth_redirect_ts');
+
+    setAccessToken(token).then(() => navigate(dest));
   }, []);
 
   return (
