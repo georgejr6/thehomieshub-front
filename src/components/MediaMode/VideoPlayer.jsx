@@ -21,6 +21,26 @@ function fmt(s) {
   return `${m}:${String(sec).padStart(2,'0')}`;
 }
 
+// Parse a WebVTT string into clickable cues: [{ t: seconds, text }]
+function vttToSec(ts) {
+  const [hh, mm, ss] = ts.trim().split(':');
+  if (ss === undefined) return (+hh) * 60 + parseFloat(mm); // mm:ss form
+  return (+hh) * 3600 + (+mm) * 60 + parseFloat(ss);
+}
+function parseVtt(vtt) {
+  if (!vtt) return [];
+  const cues = [];
+  for (const block of vtt.replace(/\r/g, '').split('\n\n')) {
+    const lines = block.split('\n').filter(Boolean);
+    const timeLine = lines.find((l) => l.includes('-->'));
+    if (!timeLine) continue;
+    const start = timeLine.split('-->')[0].trim();
+    const text = lines.slice(lines.indexOf(timeLine) + 1).join(' ').trim();
+    if (text) cues.push({ t: vttToSec(start), text });
+  }
+  return cues;
+}
+
 const VideoPlayer = () => {
   const { currentVideo, closeVideo, isLiked, toggleLike } = useMedia();
   const { user } = useAuth();
@@ -46,6 +66,20 @@ const VideoPlayer = () => {
   // Admin edit
   const [showEdit,      setShowEdit]      = useState(false);
   const [editCategories, setEditCategories] = useState([]);
+
+  // Transcript + AI summary (Media Mode). Loaded on demand from the backend.
+  const [transcript,       setTranscript]       = useState(null); // { summary, text, vtt, ... }
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [showTranscript,   setShowTranscript]   = useState(false);
+
+  const transcriptCues = React.useMemo(() => parseVtt(transcript?.vtt), [transcript]);
+
+  const seekTo = useCallback((t) => {
+    const el = muxRef.current;
+    if (!el || isNaN(t)) return;
+    el.currentTime = t;
+    el.play?.();
+  }, []);
 
   // ── Bind media events directly on the <mux-player> element ──────────────
   // mux-player is a custom element that proxies all standard HTMLMediaElement
@@ -89,7 +123,20 @@ const VideoPlayer = () => {
     setDuration(0);
     setBuffered(0);
     setMediaError(false);
+    setTranscript(null);
+    setShowTranscript(false);
   }, [currentVideo]);
+
+  // Lazily load transcript + summary when the info panel is opened.
+  useEffect(() => {
+    if (!showInfo || !currentVideo?.id || transcript || transcriptLoading) return;
+    const type = currentVideo.backendType === 'reel' ? 'reel' : 'video';
+    setTranscriptLoading(true);
+    api.get(`/media/transcript/${type}/${currentVideo.id}`)
+      .then((res) => setTranscript(res?.data?.result?.transcript || null))
+      .catch(() => setTranscript(null))
+      .finally(() => setTranscriptLoading(false));
+  }, [showInfo, currentVideo, transcript, transcriptLoading]);
 
   // Auto-hide controls
   const resetHide = useCallback(() => {
@@ -518,6 +565,44 @@ const VideoPlayer = () => {
                 )}
               </div>
             </div>
+
+            {/* ── AI summary + transcript ─────────────────────────────────── */}
+            {transcriptLoading && (
+              <p className="text-zinc-500 text-sm mt-4">Loading summary…</p>
+            )}
+            {transcript?.summary && (
+              <div className="mt-5 border-t border-zinc-800 pt-4">
+                <h3 className="text-white text-sm font-bold mb-2">Summary</h3>
+                <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">{transcript.summary}</p>
+              </div>
+            )}
+            {transcript?.hasTranscript && transcriptCues.length > 0 && (
+              <div className="mt-5 border-t border-zinc-800 pt-4">
+                <button
+                  onClick={() => setShowTranscript(v => !v)}
+                  className="flex items-center justify-between w-full text-white text-sm font-bold mb-2"
+                >
+                  <span>Transcript</span>
+                  <span className="text-zinc-500 text-xs font-normal">{showTranscript ? 'Hide' : 'Show'}</span>
+                </button>
+                {showTranscript && (
+                  <div className="max-h-64 overflow-y-auto pr-1 space-y-1">
+                    {transcriptCues.map((cue, i) => (
+                      <button
+                        key={i}
+                        onClick={() => seekTo(cue.t)}
+                        className="flex gap-3 w-full text-left rounded px-2 py-1 hover:bg-zinc-800/70 transition-colors group"
+                      >
+                        <span className="text-pink-400/80 text-xs font-mono pt-0.5 w-12 flex-shrink-0 group-hover:text-pink-400">
+                          {fmt(cue.t)}
+                        </span>
+                        <span className="text-zinc-300 text-sm leading-snug">{cue.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
