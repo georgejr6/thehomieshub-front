@@ -17,6 +17,26 @@ import api from '../api/homieshub';
 
 // --- Sub-components defined OUTSIDE to prevent re-render focus loss issues ---
 
+// Required terms-agreement gate for sign-up. Gates BOTH the OAuth buttons and
+// the email form — every new account (free included) must accept before joining.
+const TermsAgreement = ({ agreed, onChange }) => (
+  <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/30 p-3 my-4">
+    <input
+      id="agreeTerms"
+      type="checkbox"
+      checked={agreed}
+      onChange={(e) => onChange(e.target.checked)}
+      className="mt-0.5 h-4 w-4 shrink-0 accent-primary cursor-pointer"
+    />
+    <Label htmlFor="agreeTerms" className="text-xs leading-relaxed text-muted-foreground font-normal cursor-pointer">
+      I have read and agree to The Homies Hub{' '}
+      <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">Terms of Service</a>,{' '}
+      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">Privacy Policy</a>, and{' '}
+      <a href="/community-guidelines" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">Community Guidelines</a>.
+    </Label>
+  </div>
+);
+
 const SignUpForm = ({ formData, handleInputChange, onSignup, onCancel, isSubmitting }) => (
   <>
     <DialogHeader>
@@ -48,7 +68,7 @@ const SignUpForm = ({ formData, handleInputChange, onSignup, onCancel, isSubmitt
       <Button variant="outline" onClick={onCancel} disabled={isSubmitting}>Cancel</Button>
       <Button
         onClick={onSignup}
-        disabled={isSubmitting || !formData.displayName || !formData.email || !formData.password}
+        disabled={isSubmitting || !formData.displayName || !formData.email || !formData.password || !formData.agreedToTerms}
       >
         {isSubmitting ? 'Creating...' : 'Create Free Account'}
       </Button>
@@ -105,7 +125,16 @@ const ForgotPasswordView = ({ setAuthView }) => {
 
 const API_BASE = "https://backend.thehomies.app/api";
 
-const OAuthButtons = () => (
+const OAuthButtons = ({ disabled = false, onBlocked }) => {
+  // When disabled (sign-up before terms accepted) we keep the link clickable so
+  // we can intercept and nudge — preventDefault stops the actual OAuth redirect.
+  const guard = (e) => {
+    if (disabled) {
+      e.preventDefault();
+      onBlocked?.();
+    }
+  };
+  return (
   <div className="space-y-2 mt-2">
     <div className="relative flex items-center gap-3">
       <div className="flex-1 border-t border-border" />
@@ -115,7 +144,12 @@ const OAuthButtons = () => (
     <div className="grid grid-cols-2 gap-2">
       <a
         href={`${API_BASE}/auth/discord`}
-        className="flex items-center justify-center gap-2 h-10 rounded-md border border-border bg-[#5865F2] hover:bg-[#4752C4] text-white text-sm font-medium transition-colors"
+        onClick={guard}
+        aria-disabled={disabled}
+        className={cn(
+          "flex items-center justify-center gap-2 h-10 rounded-md border border-border bg-[#5865F2] hover:bg-[#4752C4] text-white text-sm font-medium transition-colors",
+          disabled && "opacity-50"
+        )}
       >
         <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
@@ -124,7 +158,12 @@ const OAuthButtons = () => (
       </a>
       <a
         href={`${API_BASE}/auth/google`}
-        className="flex items-center justify-center gap-2 h-10 rounded-md border border-border bg-card hover:bg-accent text-foreground text-sm font-medium transition-colors"
+        onClick={guard}
+        aria-disabled={disabled}
+        className={cn(
+          "flex items-center justify-center gap-2 h-10 rounded-md border border-border bg-card hover:bg-accent text-foreground text-sm font-medium transition-colors",
+          disabled && "opacity-50"
+        )}
       >
         <svg className="h-4 w-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -136,7 +175,8 @@ const OAuthButtons = () => (
       </a>
     </div>
   </div>
-);
+  );
+};
 
 const MainAuthView = ({
   activeTab,
@@ -150,6 +190,8 @@ const MainAuthView = ({
   setAuthView,
   handleAdminLoginClick,
   isSubmitting,
+  onAgreeChange,
+  notifyTermsRequired,
 }) => (
   <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
     <TabsList className="grid w-full grid-cols-2">
@@ -220,7 +262,11 @@ const MainAuthView = ({
         <DialogTitle className="text-2xl text-primary">Create Your Account</DialogTitle>
         <DialogDescription>Join the community. One click with Discord or Google.</DialogDescription>
       </DialogHeader>
-      <OAuthButtons />
+
+      {/* Required terms agreement — gates both OAuth and email sign-up below */}
+      <TermsAgreement agreed={!!formData.agreedToTerms} onChange={onAgreeChange} />
+
+      <OAuthButtons disabled={!formData.agreedToTerms} onBlocked={notifyTermsRequired} />
       <div className="relative flex items-center gap-3 my-4">
         <div className="flex-1 border-t border-border" />
         <span className="text-xs text-muted-foreground shrink-0">or sign up with email</span>
@@ -371,7 +417,8 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
     password: '',
     plan: 'homies',
     billingCycle: 'monthly',
-    discountCode: ''
+    discountCode: '',
+    agreedToTerms: false,
   });
 
   useEffect(() => {
@@ -388,6 +435,14 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
   };
 
   const handlePlanChange = (value) => setFormData(prev => ({ ...prev, plan: value }));
+
+  const handleAgreeChange = (checked) => setFormData(prev => ({ ...prev, agreedToTerms: checked }));
+
+  const notifyTermsRequired = () => toast({
+    title: 'Agree to continue',
+    description: 'Please read and accept the Terms of Service to create an account.',
+    variant: 'destructive',
+  });
 
   const nextUpgradeStep = () => setUpgradeStep(prev => prev + 1);
   const prevUpgradeStep = () => setUpgradeStep(prev => prev - 1);
@@ -461,6 +516,10 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
   };
 
   const handleSignUpSubmit = async () => {
+    if (!formData.agreedToTerms) {
+      notifyTermsRequired();
+      return;
+    }
     setIsSubmitting(true);
     try {
       const resp = await api.post('/auth/register', {
@@ -468,6 +527,8 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
         password: formData.password,
         name: formData.displayName,
         username: formData.displayName,
+        agreedToTerms: true,
+        termsAgreedAt: new Date().toISOString(),
       });
 
       const data = resp?.data;
@@ -550,6 +611,8 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
           setAuthView={setAuthView}
           handleAdminLoginClick={handleAdminLoginClick}
           isSubmitting={isSubmitting}
+          onAgreeChange={handleAgreeChange}
+          notifyTermsRequired={notifyTermsRequired}
         />
       );
     }
