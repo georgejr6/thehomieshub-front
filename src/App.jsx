@@ -54,6 +54,8 @@ import ChildSafetyPage from '@/pages/ChildSafetyPage';
 import SupportPage from '@/pages/SupportPage';
 import LandingPage from '@/pages/LandingPage';
 import MembershipsPage from '@/pages/MembershipsPage';
+import BillingPage from '@/pages/BillingPage';
+import ConnectMembershipBanner from '@/components/ConnectMembershipBanner';
 import MarketplacePage from '@/pages/MarketplacePage';
 import PurchasesPage from '@/pages/PurchasesPage';
 import BackButton from '@/components/BackButton';
@@ -140,6 +142,7 @@ const MainLayout = ({
             // Live stream specific
             location.pathname.startsWith('/live-stream') && "ml-0 h-[calc(100vh-3.5rem)] pb-0" 
         )}>
+          {!isImmersiveMode && <ConnectMembershipBanner />}
           <div className="flex-1">
              <Outlet />
           </div>
@@ -366,6 +369,7 @@ const AppContent = React.memo(() => {
                 <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
                 <Route path="/browse" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
                 <Route path="/memberships" element={<MembershipsPage />} />
+                <Route path="/billing" element={user ? <BillingPage /> : <Navigate to="/?openAuth=1&tab=signin" />} />
                 <Route path="/marketplace" element={<MarketplacePage />} />
                 <Route path="/purchases" element={user ? <PurchasesPage /> : <Navigate to="/" />} />
                 

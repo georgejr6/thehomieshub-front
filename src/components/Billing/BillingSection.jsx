@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CreditCard, CheckCircle2, Loader2, ExternalLink, Zap, ArrowRight, Link2 } from 'lucide-react';
+import { CreditCard, CheckCircle2, Loader2, ExternalLink, Zap, ArrowRight, Link2, XCircle } from 'lucide-react';
 import { useBilling } from '@/hooks/useBilling';
-import api from '@/api/homieshub';
-import { useToast } from '@/components/ui/use-toast';
+import ClaimSubscriptionDialog from '@/components/Billing/ClaimSubscriptionDialog';
 
 function fmtDate(unix) {
   if (!unix) return '—';
@@ -46,54 +43,9 @@ function getDirectLink(planName = '') {
 
 export default function BillingSection() {
   const { summary, plans, loading, error, openPortal, startCheckout } = useBilling();
-  const { toast } = useToast();
   const [portalLoading, setPortalLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(null);
-
-  // Claim subscription state
   const [claimOpen, setClaimOpen] = useState(false);
-  const [claimStep, setClaimStep] = useState('email'); // 'email' | 'code' | 'done'
-  const [claimEmail, setClaimEmail] = useState('');
-  const [claimToken, setClaimToken] = useState('');
-  const [claimCode, setClaimCode] = useState('');
-  const [claimLoading, setClaimLoading] = useState(false);
-
-  const handleClaimSend = async () => {
-    if (!claimEmail.trim()) return;
-    setClaimLoading(true);
-    try {
-      const { data } = await api.post('/subscription/claim', { email: claimEmail.trim() });
-      setClaimToken(data.result.token);
-      setClaimStep('code');
-      toast({ title: 'Code sent!', description: `Check ${claimEmail} for your 6-digit code.` });
-    } catch (err) {
-      toast({ title: 'Not found', description: err.response?.data?.message || 'No active subscription found for that email.', variant: 'destructive' });
-    } finally {
-      setClaimLoading(false);
-    }
-  };
-
-  const handleClaimVerify = async () => {
-    if (!claimCode.trim()) return;
-    setClaimLoading(true);
-    try {
-      await api.post('/subscription/claim/verify', { token: claimToken, code: claimCode.trim() });
-      setClaimStep('done');
-      toast({ title: 'Subscription linked!', description: 'Your membership is now active. Refresh to see your plan.' });
-    } catch (err) {
-      toast({ title: 'Invalid code', description: err.response?.data?.message || 'Incorrect or expired code.', variant: 'destructive' });
-    } finally {
-      setClaimLoading(false);
-    }
-  };
-
-  const resetClaim = () => {
-    setClaimStep('email');
-    setClaimEmail('');
-    setClaimToken('');
-    setClaimCode('');
-    setClaimOpen(false);
-  };
 
   const activeSub = summary?.activeSubscription;
   const invoices = summary?.invoices?.slice(0, 3) || [];
@@ -117,64 +69,7 @@ export default function BillingSection() {
 
   return (
     <>
-    {/* ── Claim subscription dialog ── */}
-    <Dialog open={claimOpen} onOpenChange={(o) => { if (!o) resetClaim(); else setClaimOpen(true); }}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Link Your Subscription</DialogTitle>
-          <DialogDescription>
-            {claimStep === 'email' && "Enter the email address you used when you paid on Stripe."}
-            {claimStep === 'code' && `We sent a 6-digit code to ${claimEmail}. Enter it below.`}
-            {claimStep === 'done' && "Your subscription has been linked to this account!"}
-          </DialogDescription>
-        </DialogHeader>
-
-        {claimStep === 'email' && (
-          <div className="space-y-3 pt-1">
-            <Input
-              type="email"
-              placeholder="email@example.com"
-              value={claimEmail}
-              onChange={(e) => setClaimEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleClaimSend()}
-              autoFocus
-            />
-            <Button className="w-full" onClick={handleClaimSend} disabled={claimLoading || !claimEmail.trim()}>
-              {claimLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Send Code
-            </Button>
-          </div>
-        )}
-
-        {claimStep === 'code' && (
-          <div className="space-y-3 pt-1">
-            <Input
-              placeholder="6-digit code"
-              value={claimCode}
-              onChange={(e) => setClaimCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              onKeyDown={(e) => e.key === 'Enter' && handleClaimVerify()}
-              maxLength={6}
-              autoFocus
-            />
-            <Button className="w-full" onClick={handleClaimVerify} disabled={claimLoading || claimCode.length !== 6}>
-              {claimLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Verify & Link
-            </Button>
-            <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => setClaimStep('email')}>
-              Use a different email
-            </Button>
-          </div>
-        )}
-
-        {claimStep === 'done' && (
-          <div className="pt-2 space-y-3 text-center">
-            <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto" />
-            <p className="text-sm text-muted-foreground">Refresh the page to see your active plan.</p>
-            <Button className="w-full" onClick={() => window.location.reload()}>Refresh Now</Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+    <ClaimSubscriptionDialog open={claimOpen} onOpenChange={setClaimOpen} />
 
     <Card>
       <CardHeader>
@@ -226,18 +121,37 @@ export default function BillingSection() {
                   </div>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePortal}
-                disabled={portalLoading}
-                className="flex-shrink-0 min-w-[90px]"
-              >
-                {portalLoading
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <><ExternalLink className="w-3.5 h-3.5 mr-1.5" />Manage</>}
-              </Button>
+              <div className="flex flex-col gap-1.5 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePortal}
+                  disabled={portalLoading}
+                  className="min-w-[120px]"
+                >
+                  {portalLoading
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <><ExternalLink className="w-3.5 h-3.5 mr-1.5" />Manage billing</>}
+                </Button>
+                {activeSub && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handlePortal}
+                    disabled={portalLoading}
+                    className="min-w-[120px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <XCircle className="w-3.5 h-3.5 mr-1.5" />Cancel membership
+                  </Button>
+                )}
+              </div>
             </div>
+            {activeSub && (
+              <p className="text-[11px] text-muted-foreground -mt-3">
+                Update your card, download invoices, or cancel anytime in the secure Stripe billing portal.
+                Cancelling stops future renewals — your access stays active until the end of the current paid period.
+              </p>
+            )}
 
             {/* ── Claim existing subscription ── */}
             {!activeSub && (

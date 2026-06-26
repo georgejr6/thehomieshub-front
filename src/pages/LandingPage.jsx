@@ -152,11 +152,24 @@ const LandingPage = ({ onLoginRequest }) => {
                     Sign In
                   </Button>
                 ) : (
-                  <Button asChild size="lg" variant="outline" className="border-primary/40 text-foreground hover:bg-primary/10">
-                    <Link to="/memberships">View Memberships</Link>
-                  </Button>
+                  <>
+                    <Button asChild size="lg" variant="outline" className="border-primary/40 text-foreground hover:bg-primary/10">
+                      <Link to="/memberships">View Memberships</Link>
+                    </Button>
+                    <Button asChild size="lg" variant="ghost" className="text-foreground hover:bg-primary/10">
+                      <Link to="/billing">Billing &amp; Membership</Link>
+                    </Button>
+                  </>
                 )}
               </div>
+
+              {/* Connect-your-membership nudge for signed-in users */}
+              {user && (
+                <p className="text-xs text-muted-foreground mt-3">
+                  Already paid with a different email?{' '}
+                  <Link to="/billing" className="text-primary hover:underline font-medium">Connect your membership</Link>
+                </p>
+              )}
 
               {/* Community links */}
               <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">

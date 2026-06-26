@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle2, Crown, Zap, Globe, X, Users, Video,
   Briefcase, BookOpen, MessageCircle, TrendingUp, Folder,
-  Star, Shield, Headphones, Loader2,
+  Star, Shield, Headphones, Loader2, CreditCard, Link2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -105,6 +106,7 @@ const STRIPE_LINKS = {
 const MembershipsPage = () => {
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'yearly'
   const { user, refreshMe } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [checkoutLoading, setCheckoutLoading] = useState(null);
   const [upgrading, setUpgrading] = useState(false);
@@ -184,6 +186,22 @@ const MembershipsPage = () => {
                   <CheckCircle2 className="h-4 w-4" />
                   Your current plan: {TIER_LABELS[currentTier] || currentTier}
                 </p>
+              )}
+
+              {/* Manage / connect billing — always reachable for signed-in users */}
+              {user && (
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                  <Button variant="outline" onClick={() => navigate('/billing')}>
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    {currentTier ? 'Manage or cancel membership' : 'Manage billing'}
+                  </Button>
+                  {!currentTier && (
+                    <Button variant="ghost" onClick={() => navigate('/billing')}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Already paid? Connect your membership
+                    </Button>
+                  )}
+                </div>
               )}
             </motion.div>
 
