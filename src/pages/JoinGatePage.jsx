@@ -4,7 +4,7 @@ import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Check, ShieldCheck, Mail, Crown } from 'lucide-react';
+import { Loader2, Check, Mail, Crown, MessagesSquare, Globe } from 'lucide-react';
 
 const API_BASE = 'https://backend.thehomies.app/api';
 const GUILD_ID = '1293582001840062525';
@@ -24,20 +24,39 @@ const Shell = ({ children }) => (
   </div>
 );
 
-const StepDots = ({ active }) => (
-  <div className="flex items-center justify-center gap-2 mb-8">
-    {['connect', 'email', 'paywall', 'done'].map((s, i) => {
-      const order = { connect: 0, email: 1, paywall: 2, done: 3 };
-      const cur = order[active];
-      return (
-        <span
-          key={s}
-          className={`h-1.5 rounded-full transition-all ${i <= cur ? 'w-8 bg-primary' : 'w-4 bg-white/15'}`}
-        />
-      );
-    })}
-  </div>
-);
+const StepDots = ({ active }) => {
+  const order = { connect: 0, email: 1, paywall: 2, done: 3 };
+  const cur = order[active];
+  return (
+    <div className="flex items-center justify-center gap-2 mb-8">
+      {[0, 1, 2, 3].map((i) => (
+        <span key={i} className={`h-1.5 rounded-full transition-all ${i <= cur ? 'w-8 bg-primary' : 'w-4 bg-white/15'}`} />
+      ))}
+    </div>
+  );
+};
+
+// Pricing shown per billing cycle. Discord Access is the recommended entry tier.
+const TIERS = [
+  {
+    key: 'discord', name: 'Discord Access', tagline: 'The essentials — get into the server',
+    Icon: MessagesSquare, accent: '#5865F2', recommended: true,
+    monthly: { price: '$10', per: '/mo' },
+    yearly:  { price: '$96', per: '/yr', sub: 'just $8/mo' },
+  },
+  {
+    key: 'homies', name: 'The Homie', tagline: 'Full app access + Discord',
+    Icon: Crown, accent: '#F0B94D',
+    monthly: { price: '$15', per: '/mo' },
+    yearly:  { price: '$100', per: '/yr', sub: 'just $8.33/mo' },
+  },
+  {
+    key: 'nomad', name: 'Digital Nomad', tagline: 'Mentorship + everything',
+    Icon: Globe, accent: '#23A55A',
+    monthly: { price: '$100', per: '/mo' },
+    yearly:  { price: '$840', per: '/yr', sub: 'just $70/mo' },
+  },
+];
 
 export default function JoinGatePage() {
   const [params] = useSearchParams();
@@ -50,12 +69,11 @@ export default function JoinGatePage() {
   const [busy, setBusy] = useState(false);
   const [admittedTier, setAdmittedTier] = useState(null);
 
-  // email sub-state
   const [emailInput, setEmailInput] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
 
-  // free-tier warning gate
+  const [billing, setBilling] = useState('monthly'); // monthly | yearly
   const [showFreeWarning, setShowFreeWarning] = useState(false);
 
   const load = useCallback(async () => {
@@ -69,23 +87,24 @@ export default function JoinGatePage() {
       else setStep('paywall');
       return s;
     } catch {
-      setStep('connect'); // not authenticated yet
+      setStep('connect');
       return null;
     }
   }, []);
 
-  // boot: consume ?token= from the gate OAuth redirect, then load status
   useEffect(() => {
     (async () => {
       const token = params.get('token');
       const paid = params.get('paid');
+      // Suppress the in-app onboarding tutorial while inside the join funnel —
+      // it should never interrupt the join flow.
+      localStorage.setItem('hh_onboarding_done', '1');
       if (token) {
         await setAccessToken(token);
         window.history.replaceState({}, '', paid ? '/join?paid=1' : '/join');
       }
       if (token || localStorage.getItem('access_token')) {
         const s = await load();
-        // returning from a successful paid checkout → drop them straight in
         if (paid && s && s.emailVerified && !s.admitted) admit();
       }
       setBooting(false);
@@ -93,9 +112,7 @@ export default function JoinGatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const connectDiscord = () => {
-    window.location.href = `${API_BASE}/auth/discord?gate=1`;
-  };
+  const connectDiscord = () => { window.location.href = `${API_BASE}/auth/discord?gate=1`; };
 
   const sendCode = async () => {
     const email = (emailInput || status?.email || '').trim().toLowerCase();
@@ -105,10 +122,7 @@ export default function JoinGatePage() {
     }
     setBusy(true);
     try {
-      // If the account has no email yet (or it changed), save it first.
-      if (!status?.email || status.email !== email) {
-        await api.patch('/auth/add-email', { email });
-      }
+      if (!status?.email || status.email !== email) await api.patch('/auth/add-email', { email });
       await api.post('/auth/verify-email/send', { email });
       setCodeSent(true);
       toast({ title: 'Code sent', description: `Check ${email} for a 6-digit code.` });
@@ -118,27 +132,23 @@ export default function JoinGatePage() {
   };
 
   const confirmCode = async () => {
-    if (!/^\d{6}$/.test(code.trim())) {
-      toast({ title: 'Enter the 6-digit code', variant: 'destructive' });
-      return;
-    }
+    if (!/^\d{6}$/.test(code.trim())) { toast({ title: 'Enter the 6-digit code', variant: 'destructive' }); return; }
     setBusy(true);
     try {
       await api.post('/auth/verify-email/confirm', { code: code.trim() });
       toast({ title: 'Email confirmed ✓' });
-      await load(); // advances to paywall
+      await load();
     } catch (err) {
       toast({ title: 'Invalid code', description: err.response?.data?.message || 'Check the code and try again.', variant: 'destructive' });
     } finally { setBusy(false); }
   };
 
-  const startCheckout = async (plan, billingCycle) => {
+  const startCheckout = async (plan) => {
     setBusy(true);
     try {
-      const { data } = await api.post('/subscription/checkout', { plan, billingCycle, gate: true });
+      const { data } = await api.post('/subscription/checkout', { plan, billingCycle: billing, gate: true });
       const url = data?.result?.url;
-      if (url) window.location.href = url;
-      else throw new Error('no url');
+      if (url) window.location.href = url; else throw new Error('no url');
     } catch (err) {
       toast({ title: 'Checkout failed', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
       setBusy(false);
@@ -152,23 +162,14 @@ export default function JoinGatePage() {
       setAdmittedTier(data?.result?.tier || 'free');
       setStep('done');
     } catch (err) {
-      const code = err.response?.data?.error?.code || err.response?.data?.code;
-      if (code === 'gate_reauth') {
-        toast({ title: 'Session expired', description: 'Reconnecting your Discord…' });
-        return connectDiscord();
-      }
+      const errCode = err.response?.data?.error?.code || err.response?.data?.code;
+      if (errCode === 'gate_reauth') { toast({ title: 'Session expired', description: 'Reconnecting your Discord…' }); return connectDiscord(); }
       toast({ title: 'Could not add you to Discord', description: err.response?.data?.message || 'Please try again.', variant: 'destructive' });
     } finally { setBusy(false); }
   };
 
   if (booting) {
-    return (
-      <Shell>
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </Shell>
-    );
+    return <Shell><div className="flex items-center justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></Shell>;
   }
 
   return (
@@ -192,125 +193,108 @@ export default function JoinGatePage() {
         </div>
       )}
 
-      {/* ── Step 2: Confirm email (HARD GATE) ── */}
+      {/* ── Step 2: Confirm email (HARD GATE, immediately after connect) ── */}
       {step === 'email' && (
         <div>
           <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center mx-auto mb-5">
             <Mail className="w-7 h-7 text-primary" />
           </div>
           <h1 className="text-2xl font-extrabold text-foreground text-center">Confirm your email</h1>
-          <p className="text-muted-foreground text-sm mt-2 mb-6 text-center">
-            One quick step before you get in. We'll send a 6-digit code.
-          </p>
+          <p className="text-muted-foreground text-sm mt-2 mb-6 text-center">One quick step, then you're in. We'll send a 6-digit code.</p>
 
           {!codeSent ? (
             <div className="space-y-3">
-              <input
-                type="email"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                placeholder="you@email.com"
-                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-foreground placeholder:text-white/30 outline-none focus:border-primary/60"
-              />
+              <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="you@email.com"
+                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-foreground placeholder:text-white/30 outline-none focus:border-primary/60" />
               <Button size="lg" onClick={sendCode} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Send my code
               </Button>
             </div>
           ) : (
             <div className="space-y-3">
-              <input
-                inputMode="numeric"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="6-digit code"
-                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-center tracking-[0.4em] text-lg text-foreground placeholder:tracking-normal placeholder:text-white/30 outline-none focus:border-primary/60"
-              />
+              <input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code"
+                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-center tracking-[0.4em] text-lg text-foreground placeholder:tracking-normal placeholder:text-white/30 outline-none focus:border-primary/60" />
               <Button size="lg" onClick={confirmCode} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Confirm & continue
               </Button>
-              <button onClick={sendCode} disabled={busy} className="w-full text-xs text-muted-foreground hover:text-foreground py-1">
-                Didn't get it? Resend code
-              </button>
+              <button onClick={sendCode} disabled={busy} className="w-full text-xs text-muted-foreground hover:text-foreground py-1">Didn't get it? Resend code</button>
             </div>
           )}
         </div>
       )}
 
-      {/* ── Step 3: Paywall (upsell, free is the floor) ── */}
+      {/* ── Step 3: Paywall — real tiers + monthly/yearly tabs ── */}
       {step === 'paywall' && !showFreeWarning && (
         <div>
           <h1 className="text-2xl font-extrabold text-foreground text-center">You're verified ✓</h1>
-          <p className="text-muted-foreground text-sm mt-2 mb-6 text-center">
-            Pick how you want in. Members get everything; free gets you a limited seat.
-          </p>
+          <p className="text-muted-foreground text-sm mt-2 mb-5 text-center">Pick your membership to get in with full perks.</p>
 
-          {/* Hero — Homie Yearly */}
-          <button
-            onClick={() => startCheckout('homies', 'yearly')}
-            disabled={busy}
-            className="w-full text-left rounded-2xl border-2 border-primary bg-primary/5 p-5 mb-3 relative overflow-hidden hover:bg-primary/10 transition-colors"
-          >
-            <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-2 py-0.5 rounded-full">Best value</span>
-            <div className="flex items-center gap-2 text-primary mb-1"><Crown className="w-4 h-4" /><span className="text-xs font-bold uppercase tracking-widest">The Homie — Yearly</span></div>
-            <div className="flex items-end gap-1"><span className="text-3xl font-extrabold text-foreground">$100</span><span className="text-muted-foreground text-sm mb-1">/ year</span></div>
-            <p className="text-primary text-xs font-semibold mt-1">Just $8.33/mo — full app + Discord, everything unlocked</p>
-          </button>
-
-          {/* Primary — Homie Monthly */}
-          <button
-            onClick={() => startCheckout('homies', 'monthly')}
-            disabled={busy}
-            className="w-full text-left rounded-2xl border border-white/10 bg-card p-5 mb-3 hover:border-primary/40 transition-colors"
-          >
-            <div className="text-xs font-bold uppercase tracking-widest text-foreground/70 mb-1">The Homie — Monthly</div>
-            <div className="flex items-end gap-1"><span className="text-2xl font-extrabold text-foreground">$15</span><span className="text-muted-foreground text-sm mb-0.5">/ month</span></div>
-            <p className="text-muted-foreground text-xs mt-1">Full app access + Discord included</p>
-          </button>
-
-          {/* Secondary — Nomad */}
-          <button
-            onClick={() => startCheckout('nomad', 'yearly')}
-            disabled={busy}
-            className="w-full text-left rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 mb-5 hover:border-emerald-500/40 transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-emerald-400">Digital Nomad — mentorship + everything</span>
-              <span className="text-xs text-emerald-400/80">$840/yr</span>
+          {/* Billing toggle */}
+          <div className="flex items-center justify-center mb-5">
+            <div className="inline-flex bg-white/5 rounded-full p-1 border border-white/10">
+              {['monthly', 'yearly'].map((b) => (
+                <button key={b} onClick={() => setBilling(b)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-colors ${billing === b ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                  {b}{b === 'yearly' && <span className="ml-1 opacity-80">save</span>}
+                </button>
+              ))}
             </div>
-          </button>
+          </div>
+
+          <div className="space-y-3">
+            {TIERS.map((t) => {
+              const p = t[billing];
+              const rec = t.recommended;
+              return (
+                <button key={t.key} onClick={() => startCheckout(t.key)} disabled={busy}
+                  className={`w-full text-left rounded-2xl p-4 transition-colors relative overflow-hidden ${rec ? 'border-2 bg-white/[0.03]' : 'border border-white/10 bg-card hover:border-white/25'}`}
+                  style={rec ? { borderColor: t.accent, boxShadow: `0 0 22px ${t.accent}33` } : undefined}>
+                  {rec && <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: t.accent, color: '#0b0b0b' }}>Recommended</span>}
+                  <div className="flex items-center gap-2 mb-1.5" style={{ color: t.accent }}>
+                    <t.Icon className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-widest">{t.name}</span>
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <span className="text-3xl font-extrabold text-foreground">{p.price}</span>
+                    <span className="text-muted-foreground text-sm mb-1">{p.per}</span>
+                    {p.sub && <span className="text-xs font-semibold mb-1.5 ml-1.5" style={{ color: t.accent }}>{p.sub}</span>}
+                  </div>
+                  <p className="text-muted-foreground text-xs mt-0.5">{t.tagline}</p>
+                </button>
+              );
+            })}
+          </div>
 
           <div className="flex items-center gap-2 my-4"><div className="h-px bg-white/10 flex-1" /><span className="text-white/30 text-xs">or</span><div className="h-px bg-white/10 flex-1" /></div>
-
-          <button
-            onClick={() => setShowFreeWarning(true)}
-            disabled={busy}
-            className="w-full text-center text-sm text-muted-foreground hover:text-foreground py-2"
-          >
+          <button onClick={() => setShowFreeWarning(true)} disabled={busy} className="w-full text-center text-sm text-muted-foreground hover:text-foreground py-2">
             Just want in? Continue with free limited access →
           </button>
         </div>
       )}
 
-      {/* Free-tier warning */}
+      {/* Free-tier warning — red glow, pushes membership */}
       {step === 'paywall' && showFreeWarning && (
         <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-5">
-            <ShieldCheck className="w-7 h-7 text-white/50" />
+          <h1 className="text-xl font-extrabold text-foreground">Are you sure? Free is limited</h1>
+          <div
+            className="text-sm mt-4 mb-5 text-left rounded-2xl p-4 space-y-2 border"
+            style={{ borderColor: 'rgba(239,68,68,0.5)', boxShadow: '0 0 22px rgba(239,68,68,0.22)', background: 'rgba(239,68,68,0.04)' }}
+          >
+            <p className="text-red-400 font-semibold">Going free means you'll miss out:</p>
+            <p className="text-foreground/80">• A limited set of channels only.</p>
+            <p className="text-foreground/80">• <span className="text-red-400 font-medium">You won't see prior chat history</span> or member-only channels.</p>
+            <p className="text-foreground/80">• No members-only content, media library, or perks.</p>
+            <p className="text-muted-foreground pt-1">A membership unlocks everything — and it's just $8/mo billed yearly.</p>
           </div>
-          <h1 className="text-xl font-extrabold text-foreground">Heads up — free is limited</h1>
-          <div className="text-sm text-muted-foreground mt-3 mb-6 text-left bg-white/5 rounded-xl p-4 space-y-2">
-            <p>• You'll get in, but with a limited set of channels.</p>
-            <p>• <span className="text-foreground font-medium">You won't see prior chat history</span> or member-only channels.</p>
-            <p>• No members-only content, media library, or perks.</p>
-            <p className="text-white/50">You can upgrade any time to unlock everything.</p>
-          </div>
-          <Button size="lg" onClick={admit} disabled={busy} className="w-full h-12 font-bold text-white" style={{ background: '#5865F2' }}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Continue with limited access
+
+          {/* Primary = go back and get a membership */}
+          <Button size="lg" onClick={() => setShowFreeWarning(false)} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
+            ← Get a membership instead
           </Button>
-          <button onClick={() => setShowFreeWarning(false)} disabled={busy} className="w-full text-xs text-muted-foreground hover:text-foreground py-2 mt-2">
-            ← See membership options
-          </button>
+          {/* Secondary = continue free */}
+          <Button size="lg" variant="ghost" onClick={admit} disabled={busy} className="w-full h-11 mt-2 text-muted-foreground hover:text-foreground">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} No thanks, continue with limited access
+          </Button>
         </div>
       )}
 
