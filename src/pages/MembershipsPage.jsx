@@ -98,9 +98,11 @@ const CompareRow = ({ label, discord, homie, nomad }) => (
 // direct Stripe links are the fallback for logged-out users
 const STRIPE_LINKS = {
   discord_monthly:  'https://buy.stripe.com/28o15u6W5eaS5pebIL',
+  discord_yearly:   'https://buy.stripe.com/cNi6oGfqtcfU1Fjgdkf7i0i',  // $96/yr
   homies_yearly:    'https://buy.stripe.com/4gM3cu2DH1Bgdo15yGf7i08',
   homies_monthly:   'https://buy.stripe.com/00w5kCfqtbbQ3Nr1iqf7i07',
   nomad_monthly:    'https://buy.stripe.com/fZeg0o0xH0k2g3SfZ3',
+  nomad_yearly:     'https://buy.stripe.com/8x2dR81zDbbQgAdaT0f7i0j',  // $840/yr
 };
 
 const MembershipsPage = () => {
@@ -256,9 +258,21 @@ const MembershipsPage = () => {
                 <h2 className="text-2xl font-extrabold text-foreground">Discord Access</h2>
                 <p className="text-muted-foreground text-sm mt-1">Discord only — no app content included</p>
                 <div className="mt-5 flex items-end gap-1">
-                  <span className="text-5xl font-extrabold text-foreground">$10</span>
-                  <span className="text-muted-foreground text-sm mb-1.5">/ month</span>
+                  {billing === 'yearly' ? (
+                    <>
+                      <span className="text-5xl font-extrabold text-foreground">$96</span>
+                      <span className="text-muted-foreground text-sm mb-1.5">/ year</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-5xl font-extrabold text-foreground">$10</span>
+                      <span className="text-muted-foreground text-sm mb-1.5">/ month</span>
+                    </>
+                  )}
                 </div>
+                {billing === 'yearly' && (
+                  <p className="text-[#5865F2] text-xs font-semibold mt-1.5">Just $8/mo billed yearly — save $24</p>
+                )}
               </div>
               <div className="p-6 flex-1">
                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">What's included</p>
@@ -273,11 +287,11 @@ const MembershipsPage = () => {
                   size="lg"
                   className="w-full font-bold text-white hover:opacity-90 transition-opacity"
                   style={{ background: '#5865F2' }}
-                  onClick={() => handleJoin('discord', 'monthly')}
-                  disabled={checkoutLoading === 'discord_monthly'}
+                  onClick={() => handleJoin('discord', billing)}
+                  disabled={checkoutLoading === `discord_${billing}`}
                 >
-                  {checkoutLoading === 'discord_monthly' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Join — $10 / month
+                  {checkoutLoading === `discord_${billing}` ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {billing === 'yearly' ? 'Join — $96 / year' : 'Join — $10 / month'}
                 </Button>
               </div>
             </motion.div>
@@ -393,10 +407,21 @@ const MembershipsPage = () => {
                 <p className="text-sm mt-1" style={{ color: 'rgba(35,165,90,0.7)' }}>Everything in Homie + Discord, plus mentorship</p>
 
                 <div className="mt-5 flex items-end gap-1">
-                  <span className="text-5xl font-extrabold text-white">$100</span>
-                  <span className="text-sm mb-1.5" style={{ color: 'rgba(35,165,90,0.7)' }}>/ month</span>
+                  {billing === 'yearly' ? (
+                    <>
+                      <span className="text-5xl font-extrabold text-white">$840</span>
+                      <span className="text-sm mb-1.5" style={{ color: 'rgba(35,165,90,0.7)' }}>/ year</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-5xl font-extrabold text-white">$100</span>
+                      <span className="text-sm mb-1.5" style={{ color: 'rgba(35,165,90,0.7)' }}>/ month</span>
+                    </>
+                  )}
                 </div>
-                <p className="text-xs font-medium mt-1.5" style={{ color: 'rgba(35,165,90,0.8)' }}>Full mentorship + course included</p>
+                {billing === 'yearly'
+                  ? <p className="text-xs font-semibold mt-1.5" style={{ color: '#23A55A' }}>Just $70/mo billed yearly — save $360</p>
+                  : <p className="text-xs font-medium mt-1.5" style={{ color: 'rgba(35,165,90,0.8)' }}>Full mentorship + course included</p>}
               </div>
 
               {/* Features */}
@@ -415,11 +440,11 @@ const MembershipsPage = () => {
                   size="lg"
                   className="w-full font-bold text-white hover:opacity-90 transition-opacity"
                   style={{ background: 'linear-gradient(90deg, #23A55A 0%, #1a7d44 100%)' }}
-                  onClick={() => handleJoin('nomad', 'monthly')}
-                  disabled={checkoutLoading === 'nomad_monthly'}
+                  onClick={() => handleJoin('nomad', billing)}
+                  disabled={checkoutLoading === `nomad_${billing}`}
                 >
-                  {checkoutLoading === 'nomad_monthly' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Join Digital Nomad — $100 / mo
+                  {checkoutLoading === `nomad_${billing}` ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {billing === 'yearly' ? 'Join Digital Nomad — $840 / year' : 'Join Digital Nomad — $100 / mo'}
                 </Button>
               </div>
             </motion.div>
