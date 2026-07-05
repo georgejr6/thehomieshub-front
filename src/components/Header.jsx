@@ -178,11 +178,11 @@ const Header = ({
       <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
         {/* Discord + YouTube — desktop only */}
         <div className="hidden md:flex items-center gap-1">
-          <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer">
+          <Link to="/join">
             <Button variant="ghost" size="icon" className="text-[#5865F2] hover:text-[#5865F2] hover:bg-[#5865F2]/10" title="Join our Discord">
               <DiscordIcon className="h-5 w-5" />
             </Button>
-          </a>
+          </Link>
           <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer">
             <Button variant="ghost" size="icon" className="text-[#FF0000] hover:text-[#FF0000] hover:bg-[#FF0000]/10" title="YouTube Channel">
               <YouTubeIcon className="h-5 w-5" />

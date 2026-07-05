@@ -173,12 +173,12 @@ const LandingPage = ({ onLoginRequest }) => {
 
               {/* Community links */}
               <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
-                <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer">
+                <Link to="/join">
                   <Button variant="ghost" size="sm" className="text-[#5865F2] bg-[#5865F2]/10 hover:bg-[#5865F2]/20 gap-2">
                     <DiscordIcon className="h-4 w-4" />
                     Join Discord
                   </Button>
-                </a>
+                </Link>
                 <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer">
                   <Button variant="ghost" size="sm" className="text-[#FF0000] bg-[#FF0000]/10 hover:bg-[#FF0000]/20 gap-2">
                     <YouTubeIcon className="h-4 w-4" />
@@ -322,12 +322,12 @@ const LandingPage = ({ onLoginRequest }) => {
                 <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-glow-gold">
                   <Link to="/memberships">See Memberships</Link>
                 </Button>
-                <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer">
+                <Link to="/join">
                   <Button size="lg" variant="outline" className="border-[#5865F2]/50 text-[#5865F2] bg-[#5865F2]/10 hover:bg-[#5865F2]/20 gap-2">
                     <DiscordIcon className="h-5 w-5" />
                     Join Discord
                   </Button>
-                </a>
+                </Link>
                 <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer">
                   <Button size="lg" variant="outline" className="border-[#22c55e]/50 text-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/20 gap-2">
                     <DollarSign className="h-5 w-5" />
@@ -371,9 +371,9 @@ const LandingPage = ({ onLoginRequest }) => {
                 <h5 className="text-sm font-semibold">Follow Us</h5>
                 <ul className="space-y-1 text-sm text-muted-foreground">
                   <li>
-                    <a href="https://discord.gg/cxz8FQnbGf" target="_blank" rel="noopener noreferrer" className="text-[#5865F2] hover:text-[#5865F2]/80 flex items-center gap-1">
+                    <Link to="/join" className="text-[#5865F2] hover:text-[#5865F2]/80 flex items-center gap-1">
                       <DiscordIcon className="h-3 w-3" /> Discord
-                    </a>
+                    </Link>
                   </li>
                   <li>
                     <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer" className="text-[#FF0000] hover:text-[#FF0000]/80 flex items-center gap-1">
