@@ -127,7 +127,13 @@ export default function JoinGatePage() {
       setCodeSent(true);
       toast({ title: 'Code sent', description: `Check ${email} for a 6-digit code.` });
     } catch (err) {
-      toast({ title: 'Could not send code', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
+      // Already sent one recently — don't dead-end; let them enter the code they have.
+      if (err.response?.status === 429) {
+        setCodeSent(true);
+        toast({ title: 'A code was already sent', description: 'Check your email and enter it below — you can resend in a minute.' });
+      } else {
+        toast({ title: 'Could not send code', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
+      }
     } finally { setBusy(false); }
   };
 
@@ -209,17 +215,28 @@ export default function JoinGatePage() {
               <Button size="lg" onClick={sendCode} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Send my code
               </Button>
+              <button onClick={() => setCodeSent(true)} className="w-full text-xs text-muted-foreground hover:text-foreground py-1">
+                Already have a code? Enter it →
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
+              <p className="text-center text-xs text-muted-foreground">Enter the 6-digit code we emailed to <span className="text-foreground">{emailInput || status?.email}</span>.</p>
               <input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code"
                 className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-center tracking-[0.4em] text-lg text-foreground placeholder:tracking-normal placeholder:text-white/30 outline-none focus:border-primary/60" />
               <Button size="lg" onClick={confirmCode} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Confirm & continue
               </Button>
-              <button onClick={sendCode} disabled={busy} className="w-full text-xs text-muted-foreground hover:text-foreground py-1">Didn't get it? Resend code</button>
+              <div className="flex items-center justify-between">
+                <button onClick={() => { setCode(''); setCodeSent(false); }} disabled={busy} className="text-xs text-muted-foreground hover:text-foreground py-1">← Change email</button>
+                <button onClick={sendCode} disabled={busy} className="text-xs text-muted-foreground hover:text-foreground py-1">Resend code</button>
+              </div>
             </div>
           )}
+
+          <button onClick={connectDiscord} disabled={busy} className="w-full text-[11px] text-white/30 hover:text-white/60 py-2 mt-3">
+            Use a different Discord account
+          </button>
         </div>
       )}
 
