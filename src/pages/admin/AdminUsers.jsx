@@ -553,30 +553,41 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
   const loc = p?.location ? [p.location.city, p.location.region, p.location.country].filter(Boolean).join(', ') : null;
 
   const Fact = ({ label, value }) => (
-    <div className="flex justify-between gap-3 text-xs py-1 border-b border-border/40">
+    <div className="flex justify-between gap-4 text-sm py-1.5 border-b border-border/30">
       <span className="text-muted-foreground">{label}</span>
-      <span className="text-foreground text-right truncate max-w-[60%]">{value ?? '—'}</span>
+      <span className="text-foreground text-right truncate max-w-[62%] font-medium">{value ?? '—'}</span>
     </div>
   );
   const List = ({ icon: Icon, title, items, render }) => (
     <div>
-      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" /> {title} ({items?.length || 0})</p>
-      {items?.length ? <div className="space-y-1">{items.slice(0, 12).map((it, i) => <div key={i} className="text-xs text-foreground truncate">{render(it)}</div>)}</div> : <p className="text-xs text-muted-foreground">none</p>}
+      <p className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2"><Icon className="w-4 h-4" /> {title} <span className="text-muted-foreground/60 font-semibold">({items?.length || 0})</span></p>
+      {items?.length ? <div className="space-y-1.5">{items.slice(0, 12).map((it, i) => <div key={i} className="text-sm text-foreground/90 truncate">{render(it)}</div>)}</div> : <p className="text-sm text-muted-foreground">none</p>}
     </div>
   );
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Activity className="w-4 h-4 text-yellow-500" /> Activity — @{user.username}</DialogTitle>
-          <DialogDescription>What this person does on the app.</DialogDescription>
+      <DialogContent className="sm:max-w-[680px] rounded-2xl duration-300 data-[state=closed]:duration-200">
+        <DialogHeader className="pb-1">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-11 w-11 flex-shrink-0">
+              <AvatarImage src={p?.avatarUrl || user.avatarUrl} />
+              <AvatarFallback>{(user.username || '?')[0]?.toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <DialogTitle className="text-lg flex items-center gap-2">
+                <span className="truncate">{p?.displayName || p?.name || user.username}</span>
+                {p?.tier && p.tier !== 'none' && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/15 text-primary flex-shrink-0">{p.tier}</span>}
+              </DialogTitle>
+              <DialogDescription className="truncate">@{user.username}{loc ? `  ·  ${loc}` : ''}</DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
         {loading ? (
-          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : (
-          <div className="max-h-[65vh] overflow-y-auto space-y-4 py-1 pr-1">
-            <div>
+          <div className="max-h-[68vh] overflow-y-auto space-y-5 py-1 pr-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
               <Fact label="Location (by IP)" value={loc || 'unknown'} />
               <Fact label="ISP" value={p?.location?.isp} />
               <Fact label="Primary IP" value={p?.primaryIp} />
@@ -585,34 +596,35 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
               <Fact label="Member since" value={fmtD(p?.createdAt)} />
               <Fact label="Time in app (90d)" value={fmtDuration(a?.totalActiveMs)} />
               <Fact label="Following / Followers" value={`${p?.following || 0} / ${p?.followers || 0}`} />
-              <Fact label="Tier" value={p?.tier} />
               <Fact label="Email" value={p?.email} />
               <Fact label="Discord" value={p?.discordUsername} />
             </div>
 
             {p?.socials && ['instagram','twitter','tiktok','youtube','website'].some((k) => p.socials[k]) && (
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> Socials {p.socials.public ? '(public)' : '(private)'}</p>
-                <div className="space-y-0.5 text-xs">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2"><Globe className="w-4 h-4" /> Socials {p.socials.public ? '(public)' : '(private)'}</p>
+                <div className="space-y-1 text-sm">
                   {['instagram','twitter','tiktok','youtube','website'].filter((k) => p.socials[k]).map((k) => (
-                    <div key={k} className="flex justify-between gap-2"><span className="text-muted-foreground capitalize">{k}</span><span className="text-foreground truncate">{p.socials[k]}</span></div>
+                    <div key={k} className="flex justify-between gap-3"><span className="text-muted-foreground capitalize">{k}</span><span className="text-foreground truncate">{p.socials[k]}</span></div>
                   ))}
                 </div>
               </div>
             )}
 
-            <List icon={Globe} title="Top pages" items={a?.topPages} render={(it) => `${it._id}  ·  ${it.count}×`} />
-            <List icon={Video} title="Watch history" items={a?.watched} render={(it) => it.target?.title || `${it.target?.kind || 'video'} ${it.target?.id || ''}`} />
-            <List icon={Bookmark} title="Saved / shared" items={a?.saved} render={(it) => `${it.target?.kind || 'item'} ${it.target?.id || ''}`} />
-            <List icon={Music} title="Music played" items={a?.music} render={(it) => it.target?.title || it.target?.id} />
-            <List icon={Users2} title="Following" items={d?.following} render={(f) => `@${f.username}`} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+              <List icon={Globe} title="Top pages" items={a?.topPages} render={(it) => `${it._id}  ·  ${it.count}×`} />
+              <List icon={Video} title="Watch history" items={a?.watched} render={(it) => it.target?.title || `${it.target?.kind || 'video'} ${it.target?.id || ''}`} />
+              <List icon={Bookmark} title="Saved / shared" items={a?.saved} render={(it) => `${it.target?.kind || 'item'} ${it.target?.id || ''}`} />
+              <List icon={Music} title="Music played" items={a?.music} render={(it) => it.target?.title || it.target?.id} />
+              <List icon={Users2} title="Following" items={d?.following} render={(f) => `@${f.username}`} />
+            </div>
 
             {d?.botConversation && (
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" /> Bot conversation ({d.botConversation.status})</p>
-                <div className="space-y-1.5 bg-white/5 rounded-lg p-2 max-h-52 overflow-y-auto">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2"><MessageSquare className="w-4 h-4" /> Bot conversation <span className="text-muted-foreground/60 font-semibold">({d.botConversation.status})</span></p>
+                <div className="space-y-2 bg-muted/30 rounded-xl p-3 max-h-60 overflow-y-auto border border-border/40">
                   {(d.botConversation.messages || []).map((m, i) => (
-                    <div key={i} className={`text-xs ${m.role === 'bot' ? 'text-primary' : 'text-foreground'}`}>
+                    <div key={i} className={`text-sm leading-relaxed ${m.role === 'bot' ? 'text-primary' : 'text-foreground'}`}>
                       <span className="font-semibold">{m.role === 'bot' ? 'Bot' : '@' + user.username}:</span> {m.content}
                     </div>
                   ))}
