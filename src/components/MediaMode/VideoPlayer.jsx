@@ -6,6 +6,7 @@ import {
   Volume2, VolumeX, Maximize, Minimize,
 } from 'lucide-react';
 import MuxPlayer from '@mux/mux-player-react';
+import Watermark from '@/components/Watermark';
 import { useMedia } from '@/contexts/MediaContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -236,6 +237,7 @@ const VideoPlayer = () => {
       onMouseLeave={hideNow}
       onTouchStart={resetHide}
     >
+      <Watermark />
       {/* ── MuxPlayer — pointer-events disabled so our overlay owns all clicks ── */}
       {currentVideo.muxPlaybackId && !mediaError ? (
         <MuxPlayer

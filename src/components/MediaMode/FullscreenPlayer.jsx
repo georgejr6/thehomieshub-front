@@ -5,6 +5,7 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import Watermark from '@/components/Watermark';
 
 const FullscreenPlayer = () => {
   const { currentTrack, isPlaying, togglePlay, closeFullscreen } = useMedia();
@@ -89,6 +90,7 @@ const FullscreenPlayer = () => {
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[120] bg-black flex items-center justify-center font-sans"
     >
+        <Watermark />
         {currentTrack.type === 'video' ? (
              <video 
                 ref={videoRef}

@@ -21,6 +21,7 @@ import MintedCollectibleModal from '@/components/MintedCollectibleModal';
 import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 import { useMedia } from '@/contexts/MediaContext';
 import MuxPlayer from '@mux/mux-player-react';
+import Watermark from '@/components/Watermark';
 import { useNavigate } from 'react-router-dom';
 
 // Global mute state tracking outside component to persist across renders
@@ -510,6 +511,7 @@ const togglePlayPause = () => {
                     className="relative h-full flex-1 min-w-0 flex items-center justify-center overflow-hidden cursor-pointer"
                     onClick={togglePlayPause}
                 >
+                    <Watermark />
                     {isMux ? (
                         <MuxPlayer
                             ref={videoRef}
