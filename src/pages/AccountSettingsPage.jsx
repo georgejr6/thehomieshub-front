@@ -75,6 +75,19 @@ const AccountSettingsPage = () => {
   // Discord connect state
   const [discordLoading, setDiscordLoading] = useState(false);
   const [showDiscordOnProfile, setShowDiscordOnProfile] = useState(user?.showDiscordOnProfile ?? true);
+  const [socials, setSocials] = useState(user?.socials || {});
+  const [savingSocials, setSavingSocials] = useState(false);
+  const setSocial = (k, v) => setSocials((s) => ({ ...s, [k]: v }));
+  const handleSaveSocials = async () => {
+    setSavingSocials(true);
+    try {
+      await api.patch('/user/socials', socials);
+      toast({ title: 'Socials saved ✓', description: socials.public ? 'Your socials are now public on your profile.' : 'Saved (private).' });
+      if (refreshMe) refreshMe();
+    } catch {
+      toast({ title: 'Error', description: 'Could not save your socials.', variant: 'destructive' });
+    } finally { setSavingSocials(false); }
+  };
 
   // Email verification state
   const [verifyStep, setVerifyStep] = useState('idle'); // 'idle' | 'sending' | 'code' | 'verifying' | 'done'
@@ -464,6 +477,33 @@ const AccountSettingsPage = () => {
       {/* ── Connections tab ── */}
       </> /* end account tab (wallet) */}
       {activeTab === 'connections' && <>
+
+      {/* Social accounts */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-primary" />
+            <CardTitle>Social Accounts</CardTitle>
+          </div>
+          <CardDescription>Connect your socials so the community can find you.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {['instagram', 'twitter', 'tiktok', 'youtube', 'website'].map((k) => (
+            <div key={k} className="space-y-1">
+              <Label className="capitalize text-xs text-muted-foreground">{k}</Label>
+              <Input value={socials[k] || ''} onChange={(e) => setSocial(k, e.target.value)} placeholder={k === 'website' ? 'https://…' : `@your_${k}`} />
+            </div>
+          ))}
+          <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+            <Switch checked={!!socials.public} onCheckedChange={(v) => setSocial('public', v)} />
+            <div className="text-xs">
+              <p className="font-semibold text-foreground">Make my socials public</p>
+              <p className="text-amber-400/90 mt-0.5">⚠️ When on, <strong>anyone who views your profile can see and open these links.</strong> Leave off to keep them private.</p>
+            </div>
+          </div>
+          <Button onClick={handleSaveSocials} disabled={savingSocials}>{savingSocials ? 'Saving…' : 'Save socials'}</Button>
+        </CardContent>
+      </Card>
 
       {/* 5. Legal & About (New Section) */}
        <Card>

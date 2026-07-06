@@ -20,7 +20,13 @@ import api from '../api/homieshub';
 // Required terms-agreement gate for sign-up. Gates BOTH the OAuth buttons and
 // the email form — every new account (free included) must accept before joining.
 const TermsAgreement = ({ agreed, onChange }) => (
-  <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/30 p-3 my-4">
+  <div className="my-4 space-y-2">
+    <div className="rounded-md border border-border bg-muted/20 p-3 max-h-36 overflow-y-auto text-[11px] leading-relaxed text-muted-foreground">
+      <p className="font-semibold text-foreground mb-1">Data we collect (please read):</p>
+      <p>By creating an account you consent to us collecting and storing: your <strong>email</strong>, username, and Discord account info; your <strong>IP address</strong> and the approximate <strong>location</strong> and ISP derived from it; your device, browser, and login times; and your <strong>activity</strong> — pages you visit, time spent, videos you watch/save/share, music you play, searches, and who you follow. If you connect payment, we store your subscription status via Stripe. Messages with our team and bots (including automated Discord DMs) may be logged.</p>
+      <p className="mt-1">This data is used to run, secure, personalize, and improve the platform, prevent fraud/abuse (including correlating IPs to detect duplicate accounts), and message you about your membership. It is visible <strong>only to The Homies Hub team</strong> — we never sell it or show it to other members, except any social links you choose to make public. Full details are in our Terms.</p>
+    </div>
+  <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/30 p-3">
     <input
       id="agreeTerms"
       type="checkbox"
@@ -34,6 +40,7 @@ const TermsAgreement = ({ agreed, onChange }) => (
       <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">Privacy Policy</a>, and{' '}
       <a href="/community-guidelines" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">Community Guidelines</a>.
     </Label>
+  </div>
   </div>
 );
 

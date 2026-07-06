@@ -531,7 +531,7 @@ const fmtDuration = (ms) => {
 const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState(null);
+  const [d, setD] = useState(null);
 
   useEffect(() => {
     if (!isOpen || !user) return;
@@ -539,8 +539,8 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
     (async () => {
       setLoading(true);
       try {
-        const { data: resp } = await api.get(`/track/user/${user._id}/activity`);
-        if (!cancelled) setData(resp.result || null);
+        const { data: resp } = await api.get(`/admin/users/${user._id}/activity`);
+        if (!cancelled) setD(resp.result || null);
       } catch { if (!cancelled) toast({ title: 'Error', description: 'Failed to load activity.', variant: 'destructive' }); }
       finally { if (!cancelled) setLoading(false); }
     })();
@@ -548,34 +548,77 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
   }, [isOpen, user, toast]);
 
   if (!user) return null;
-  const fmt = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-  const Section = ({ icon: Icon, title, items, render }) => (
+  const p = d?.profile, a = d?.activity;
+  const fmtD = (x) => x ? new Date(x).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+  const loc = p?.location ? [p.location.city, p.location.region, p.location.country].filter(Boolean).join(', ') : null;
+
+  const Fact = ({ label, value }) => (
+    <div className="flex justify-between gap-3 text-xs py-1 border-b border-border/40">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-foreground text-right truncate max-w-[60%]">{value ?? '—'}</span>
+    </div>
+  );
+  const List = ({ icon: Icon, title, items, render }) => (
     <div>
       <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" /> {title} ({items?.length || 0})</p>
-      {items?.length ? (
-        <div className="space-y-1">{items.slice(0, 15).map((it, i) => <div key={i} className="text-xs text-foreground flex justify-between gap-2"><span className="truncate">{render(it)}</span><span className="text-muted-foreground shrink-0">{fmt(it.ts)}</span></div>)}</div>
-      ) : <p className="text-xs text-muted-foreground">none</p>}
+      {items?.length ? <div className="space-y-1">{items.slice(0, 12).map((it, i) => <div key={i} className="text-xs text-foreground truncate">{render(it)}</div>)}</div> : <p className="text-xs text-muted-foreground">none</p>}
     </div>
   );
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Activity className="w-4 h-4 text-yellow-500" /> Activity — @{user.username}</DialogTitle>
-          <DialogDescription>Behavior recorded since tracking went live.</DialogDescription>
+          <DialogDescription>What this person does on the app.</DialogDescription>
         </DialogHeader>
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : (
-          <div className="max-h-[60vh] overflow-y-auto space-y-4 py-1">
-            <div className="flex items-center gap-2 text-sm">
-              <Clockish /> <span className="text-muted-foreground">Total time in app:</span>
-              <span className="font-bold text-foreground">{fmtDuration(data?.totalActiveMs)}</span>
+          <div className="max-h-[65vh] overflow-y-auto space-y-4 py-1 pr-1">
+            <div>
+              <Fact label="Location (by IP)" value={loc || 'unknown'} />
+              <Fact label="ISP" value={p?.location?.isp} />
+              <Fact label="Primary IP" value={p?.primaryIp} />
+              <Fact label="Known IPs" value={p?.knownIps?.length ? String(p.knownIps.length) : '—'} />
+              <Fact label="Last login" value={fmtD(p?.lastLoginAt)} />
+              <Fact label="Member since" value={fmtD(p?.createdAt)} />
+              <Fact label="Time in app (90d)" value={fmtDuration(a?.totalActiveMs)} />
+              <Fact label="Following / Followers" value={`${p?.following || 0} / ${p?.followers || 0}`} />
+              <Fact label="Tier" value={p?.tier} />
+              <Fact label="Email" value={p?.email} />
+              <Fact label="Discord" value={p?.discordUsername} />
             </div>
-            <Section icon={Video} title="Watch history" items={data?.watched} render={(it) => it.target?.title || `${it.target?.kind || 'video'} ${it.target?.id || ''}`} />
-            <Section icon={Bookmark} title="Saved" items={data?.saved} render={(it) => `${it.target?.kind || 'item'} ${it.target?.id || ''}`} />
-            <Section icon={Music} title="Music played" items={data?.music} render={(it) => it.target?.title || it.target?.id} />
+
+            {p?.socials && ['instagram','twitter','tiktok','youtube','website'].some((k) => p.socials[k]) && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> Socials {p.socials.public ? '(public)' : '(private)'}</p>
+                <div className="space-y-0.5 text-xs">
+                  {['instagram','twitter','tiktok','youtube','website'].filter((k) => p.socials[k]).map((k) => (
+                    <div key={k} className="flex justify-between gap-2"><span className="text-muted-foreground capitalize">{k}</span><span className="text-foreground truncate">{p.socials[k]}</span></div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <List icon={Globe} title="Top pages" items={a?.topPages} render={(it) => `${it._id}  ·  ${it.count}×`} />
+            <List icon={Video} title="Watch history" items={a?.watched} render={(it) => it.target?.title || `${it.target?.kind || 'video'} ${it.target?.id || ''}`} />
+            <List icon={Bookmark} title="Saved / shared" items={a?.saved} render={(it) => `${it.target?.kind || 'item'} ${it.target?.id || ''}`} />
+            <List icon={Music} title="Music played" items={a?.music} render={(it) => it.target?.title || it.target?.id} />
+            <List icon={Users2} title="Following" items={d?.following} render={(f) => `@${f.username}`} />
+
+            {d?.botConversation && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" /> Bot conversation ({d.botConversation.status})</p>
+                <div className="space-y-1.5 bg-white/5 rounded-lg p-2 max-h-52 overflow-y-auto">
+                  {(d.botConversation.messages || []).map((m, i) => (
+                    <div key={i} className={`text-xs ${m.role === 'bot' ? 'text-primary' : 'text-foreground'}`}>
+                      <span className="font-semibold">{m.role === 'bot' ? 'Bot' : '@' + user.username}:</span> {m.content}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter>
@@ -794,7 +837,7 @@ const AdminUsers = () => {
                     {/* Avatar + name */}
                     <div
                       className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-                      onClick={() => navigate(`/profile/${user.username}`)}
+                      onClick={() => { setActivityTarget(user); setActivityOpen(true); }}
                     >
                       <Avatar className="h-9 w-9 flex-shrink-0">
                         <AvatarImage src={user.avatarUrl} />
