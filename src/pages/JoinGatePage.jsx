@@ -25,11 +25,11 @@ const Shell = ({ children }) => (
 );
 
 const StepDots = ({ active }) => {
-  const order = { connect: 0, email: 1, paywall: 2, done: 3 };
+  const order = { connect: 0, email: 1, done: 2 };
   const cur = order[active];
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
-      {[0, 1, 2, 3].map((i) => (
+      {[0, 1, 2].map((i) => (
         <span key={i} className={`h-1.5 rounded-full transition-all ${i <= cur ? 'w-8 bg-primary' : 'w-4 bg-white/15'}`} />
       ))}
     </div>
@@ -84,7 +84,7 @@ export default function JoinGatePage() {
       setEmailInput(s.email || '');
       if (s.admitted) { setStep('done'); setAdmittedTier(s.tier === 'discord' || s.tier === 'none' ? 'free' : s.tier); }
       else if (!s.emailVerified) setStep('email');
-      else setStep('paywall');
+      // else: email verified but not yet admitted — boot/confirm auto-admits (email = you're in)
       return s;
     } catch {
       setStep('connect');
@@ -105,7 +105,9 @@ export default function JoinGatePage() {
       }
       if (token || localStorage.getItem('access_token')) {
         const s = await load();
-        if (paid && s && s.emailVerified && !s.admitted) admit();
+        // Email confirmed = you're in. Auto-admit anyone verified-but-not-in
+        // (covers fresh confirms, paid returns, and resumed/bounced sessions).
+        if (s && s.emailVerified && !s.admitted) await admit();
       }
       setBooting(false);
     })();
@@ -142,8 +144,8 @@ export default function JoinGatePage() {
     setBusy(true);
     try {
       await api.post('/auth/verify-email/confirm', { code: code.trim() });
-      toast({ title: 'Email confirmed ✓' });
-      await load();
+      toast({ title: "Email confirmed ✓ — you're in!" });
+      await admit(); // email confirmed = in (New Homie). Membership upsell shown after.
     } catch (err) {
       toast({ title: 'Invalid code', description: err.response?.data?.message || 'Check the code and try again.', variant: 'destructive' });
     } finally { setBusy(false); }
@@ -240,94 +242,66 @@ export default function JoinGatePage() {
         </div>
       )}
 
-      {/* ── Step 3: Paywall — real tiers + monthly/yearly tabs ── */}
-      {step === 'paywall' && !showFreeWarning && (
-        <div>
-          <h1 className="text-2xl font-extrabold text-foreground text-center">You're verified ✓</h1>
-          <p className="text-muted-foreground text-sm mt-2 mb-5 text-center">Pick your membership to get in with full perks.</p>
-
-          {/* Billing toggle */}
-          <div className="flex items-center justify-center mb-5">
-            <div className="inline-flex bg-white/5 rounded-full p-1 border border-white/10">
-              {['monthly', 'yearly'].map((b) => (
-                <button key={b} onClick={() => setBilling(b)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-colors ${billing === b ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
-                  {b}{b === 'yearly' && <span className="ml-1 opacity-80">save</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {TIERS.map((t) => {
-              const p = t[billing];
-              const rec = t.recommended;
-              return (
-                <button key={t.key} onClick={() => startCheckout(t.key)} disabled={busy}
-                  className={`w-full text-left rounded-2xl p-4 transition-colors relative overflow-hidden ${rec ? 'border-2 bg-white/[0.03]' : 'border border-white/10 bg-card hover:border-white/25'}`}
-                  style={rec ? { borderColor: t.accent, boxShadow: `0 0 22px ${t.accent}33` } : undefined}>
-                  {rec && <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: t.accent, color: '#0b0b0b' }}>Recommended</span>}
-                  <div className="flex items-center gap-2 mb-1.5" style={{ color: t.accent }}>
-                    <t.Icon className="w-4 h-4" />
-                    <span className="text-xs font-bold uppercase tracking-widest">{t.name}</span>
-                  </div>
-                  <div className="flex items-end gap-1">
-                    <span className="text-3xl font-extrabold text-foreground">{p.price}</span>
-                    <span className="text-muted-foreground text-sm mb-1">{p.per}</span>
-                    {p.sub && <span className="text-xs font-semibold mb-1.5 ml-1.5" style={{ color: t.accent }}>{p.sub}</span>}
-                  </div>
-                  <p className="text-muted-foreground text-xs mt-0.5">{t.tagline}</p>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center gap-2 my-4"><div className="h-px bg-white/10 flex-1" /><span className="text-white/30 text-xs">or</span><div className="h-px bg-white/10 flex-1" /></div>
-          <button onClick={() => setShowFreeWarning(true)} disabled={busy} className="w-full text-center text-sm text-muted-foreground hover:text-foreground py-2">
-            Just want in? Continue with free limited access →
-          </button>
-        </div>
-      )}
-
-      {/* Free-tier warning — red glow, pushes membership */}
-      {step === 'paywall' && showFreeWarning && (
-        <div className="text-center">
-          <h1 className="text-xl font-extrabold text-foreground">Are you sure? Free is limited</h1>
-          <div
-            className="text-sm mt-4 mb-5 text-left rounded-2xl p-4 space-y-2 border"
-            style={{ borderColor: 'rgba(239,68,68,0.5)', boxShadow: '0 0 22px rgba(239,68,68,0.22)', background: 'rgba(239,68,68,0.04)' }}
-          >
-            <p className="text-red-400 font-semibold">Going free means you'll miss out:</p>
-            <p className="text-foreground/80">• A limited set of channels only.</p>
-            <p className="text-foreground/80">• <span className="text-red-400 font-medium">You won't see prior chat history</span> or member-only channels.</p>
-            <p className="text-foreground/80">• No members-only content, media library, or perks.</p>
-            <p className="text-muted-foreground pt-1">A membership unlocks everything — and it's just $8/mo billed yearly.</p>
-          </div>
-
-          {/* Primary = go back and get a membership */}
-          <Button size="lg" onClick={() => setShowFreeWarning(false)} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
-            ← Get a membership instead
-          </Button>
-          {/* Secondary = continue free */}
-          <Button size="lg" variant="ghost" onClick={admit} disabled={busy} className="w-full h-11 mt-2 text-muted-foreground hover:text-foreground">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} No thanks, continue with limited access
-          </Button>
-        </div>
-      )}
-
-      {/* ── Step 4: Done ── */}
+      {/* ── Step 3: You're in — Open Discord + membership upsell for free members ── */}
       {step === 'done' && (
         <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-6">
+          <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-5">
             <Check className="w-9 h-9 text-emerald-400" />
           </div>
           <h1 className="text-2xl font-extrabold text-foreground">You're in! 🎉</h1>
-          <p className="text-muted-foreground text-sm mt-2 mb-8">
-            You've been added to The Homies Discord{admittedTier && admittedTier !== 'free' ? ` as a ${admittedTier} member` : ''}. Open Discord to jump in.
+          <p className="text-muted-foreground text-sm mt-2 mb-6">
+            {admittedTier && admittedTier !== 'free'
+              ? `You've been added to The Homies as a ${admittedTier} member — everything's unlocked. Jump in below.`
+              : `You've been added to The Homies Discord. Jump in below.`}
           </p>
           <Button size="lg" onClick={() => (window.location.href = OPEN_DISCORD_URL)} className="w-full h-12 font-bold text-white" style={{ background: '#5865F2' }}>
             <DiscordIcon className="w-5 h-5 mr-2" /> Open Discord
           </Button>
+
+          {/* Upsell — only shown to free members */}
+          {(!admittedTier || admittedTier === 'free') && (
+            <div className="mt-8 text-left">
+              <div className="rounded-xl p-3 mb-4 border text-xs" style={{ borderColor: 'rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.05)' }}>
+                <span className="text-red-400 font-semibold">You're on free — it's limited.</span>{' '}
+                <span className="text-foreground/70">No prior chat history, member-only channels, or content. Upgrade to unlock everything:</span>
+              </div>
+
+              <div className="flex items-center justify-center mb-4">
+                <div className="inline-flex bg-white/5 rounded-full p-1 border border-white/10">
+                  {['monthly', 'yearly'].map((b) => (
+                    <button key={b} onClick={() => setBilling(b)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-colors ${billing === b ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                      {b}{b === 'yearly' && <span className="ml-1 opacity-80">save</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {TIERS.map((t) => {
+                  const p = t[billing];
+                  const rec = t.recommended;
+                  return (
+                    <button key={t.key} onClick={() => startCheckout(t.key)} disabled={busy}
+                      className={`w-full text-left rounded-2xl p-4 transition-colors relative overflow-hidden ${rec ? 'border-2 bg-white/[0.03]' : 'border border-white/10 bg-card hover:border-white/25'}`}
+                      style={rec ? { borderColor: t.accent, boxShadow: `0 0 22px ${t.accent}33` } : undefined}>
+                      {rec && <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: t.accent, color: '#0b0b0b' }}>Recommended</span>}
+                      <div className="flex items-center gap-2 mb-1.5" style={{ color: t.accent }}>
+                        <t.Icon className="w-4 h-4" />
+                        <span className="text-xs font-bold uppercase tracking-widest">{t.name}</span>
+                      </div>
+                      <div className="flex items-end gap-1">
+                        <span className="text-3xl font-extrabold text-foreground">{p.price}</span>
+                        <span className="text-muted-foreground text-sm mb-1">{p.per}</span>
+                        {p.sub && <span className="text-xs font-semibold mb-1.5 ml-1.5" style={{ color: t.accent }}>{p.sub}</span>}
+                      </div>
+                      <p className="text-muted-foreground text-xs mt-0.5">{t.tagline}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Shell>
