@@ -70,6 +70,7 @@ import StoryViewer from '@/components/StoryViewer';
 import WatchPage from './pages/WatchPage';
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage';
 import JoinGatePage from '@/pages/JoinGatePage';
+import EmailVerifyGate from '@/components/EmailVerifyGate';
 import RouteTracker from '@/components/RouteTracker';
 import HelpAssistant from '@/components/HelpAssistant';
 
@@ -299,6 +300,7 @@ const AppContent = React.memo(() => {
         </Helmet>
 
         <RouteTracker />
+        <EmailVerifyGate />
 
         <Routes>
             {/* --- Media Mode Routes --- */}
