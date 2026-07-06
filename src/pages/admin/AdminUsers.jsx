@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music, Download } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -697,6 +697,23 @@ const AdminUsers = () => {
     { key: 'free',    label: 'Free',           color: '#6b7280',  textColor: '#fff' },
   ];
 
+  const [downloadingEmails, setDownloadingEmails] = useState(false);
+  const downloadEmails = async () => {
+    setDownloadingEmails(true);
+    try {
+      const res = await api.get('/admin/email-export', { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `homies-email-list-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Email list downloaded 📥' });
+    } catch (err) {
+      toast({ title: 'Download failed', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
+    } finally { setDownloadingEmails(false); }
+  };
+
   return (
     <div className="p-4 md:p-8 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -705,6 +722,10 @@ const AdminUsers = () => {
           <p className="text-sm text-muted-foreground mt-0.5">{total} total users</p>
         </div>
         <form onSubmit={handleSearch} className="flex gap-2">
+          <Button type="button" variant="outline" onClick={downloadEmails} disabled={downloadingEmails} className="gap-2 whitespace-nowrap">
+            {downloadingEmails ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Emails
+          </Button>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
