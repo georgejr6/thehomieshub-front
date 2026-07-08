@@ -135,6 +135,13 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-07 (session 2)
+- **[FIX] Media Mode tabs not switching (Home/Videos/Music/Likes)** (`MediaApp.jsx`)
+  - Cause: `BASE_TABS` used capitalized labels (`'Home'`, `'Music'`, …) and `setActiveCategory(tab)` stored them, but every content-render branch compared against lowercase (`activeCategory === 'music'`, etc.). Only the default view worked because the context initializes `activeCategory` to lowercase `'home'`. Clicking Music/Videos/Likes matched no branch → hero with no rows, so "music" appeared stuck among the Home videos.
+  - Fix: tabs are now canonical lowercase keys with a `TAB_LABELS` map for display. Now Videos = videos only, Music = music only.
+- **[FEAT] Likes tab shows liked videos AND music, separated** (`MediaApp.jsx`)
+  - Previously only rendered liked music tracks. Now splits into "Liked Videos" (grid) and "Liked Music" rows via `likedVideos`/`likedTracks` memos filtered from all content by `likedIds`.
+
 ### 2026-07-07
 - **[FIX] Music player bar not showing in media mode** (`MediaContext.jsx`)
   - Symptom: on `/media` the audio played but the `MusicPlayer` control bar never appeared, so music couldn't be controlled.

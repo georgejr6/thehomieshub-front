@@ -105,9 +105,17 @@ const HeroBackground = ({ slides, staticFallback }) => {
   );
 };
 
-const BASE_TABS = ['Home', 'Videos', 'Music', 'Likes'];
-const PURCHASED_TAB = 'Purchased';
-const ADMIN_TAB = 'Admin';
+// Tab values are canonical lowercase KEYS — they must match the lowercase
+// `activeCategory === '…'` checks in the render branches below. Display labels
+// come from TAB_LABELS. (Using capitalized values here silently broke tab
+// switching because the render branches compare against lowercase.)
+const BASE_TABS = ['home', 'videos', 'music', 'likes'];
+const PURCHASED_TAB = 'purchased';
+const ADMIN_TAB = 'admin';
+const TAB_LABELS = {
+  home: 'Home', videos: 'Videos', music: 'Music', likes: 'Likes',
+  purchased: 'Purchased', admin: 'Admin',
+};
 
 const MediaApp = () => {
   const { postId } = useParams();
@@ -120,7 +128,7 @@ const MediaApp = () => {
     allTracks, genreRows, catalogLoading, playMedia,
     featuredVideo, trendingVideos, newVideos, movies, series, videoLoading, playVideo, currentVideo,
     hhVideos,
-    likedMedia,
+    likedMedia, likedIds,
     activeCategory, setActiveCategory,
     categoryRows, fetchCategoryRows,
     refreshHhVideos,
@@ -233,6 +241,15 @@ const MediaApp = () => {
     return buildSmartRows(pool);
   }, [trendingVideos, newVideos, movies, series, hhVideos]);
 
+  // ── Liked content, split so videos and music stay cleanly separated ───────
+  const likedSet = useMemo(() => new Set(likedIds), [likedIds]);
+  const likedTracks = useMemo(
+    () => allTracks.filter(t => likedSet.has(t.id)),
+    [allTracks, likedSet]);
+  const likedVideos = useMemo(
+    () => [...hhVideos, ...trendingVideos, ...newVideos, ...movies, ...series].filter(v => likedSet.has(v.id)),
+    [hhVideos, trendingVideos, newVideos, movies, series, likedSet]);
+
   const handleFeaturedPlay = useCallback(() => {
     if (!heroItem) return;
     heroIsVideo ? playVideo(heroItem) : playMedia(heroItem);
@@ -271,7 +288,7 @@ const MediaApp = () => {
                 onClick={() => setActiveCategory(tab)}>
                 {tab === ADMIN_TAB ? <><Settings2 className="w-3.5 h-3.5" />Admin</>
                   : tab === PURCHASED_TAB ? <><ShoppingBag className="w-3.5 h-3.5" />Purchased</>
-                  : tab}
+                  : TAB_LABELS[tab] || tab}
               </li>
             ))}
           </ul>
@@ -286,7 +303,7 @@ const MediaApp = () => {
                 onClick={() => setActiveCategory(tab)}>
                 {tab === ADMIN_TAB ? <><Settings2 className="w-3 h-3" />Admin</>
                   : tab === PURCHASED_TAB ? <><ShoppingBag className="w-3 h-3" />Purchased</>
-                  : tab}
+                  : TAB_LABELS[tab] || tab}
               </button>
             ))}
           </div>
@@ -361,12 +378,17 @@ const MediaApp = () => {
           </div>
 
         ) : activeCategory === 'likes' ? (
-          /* ── LIKES ───────────────────────────────────────────────────── */
-          <div className="pt-24 px-4 md:px-12 min-h-screen">
-            <h1 className="text-3xl font-bold mb-8">My List</h1>
-            {likedMedia.length > 0
-              ? <MediaRow title="Liked Tracks" items={likedMedia} />
-              : <p className="text-zinc-500 mt-4">Nothing liked yet.</p>}
+          /* ── LIKES — liked videos and music, kept separate ───────────── */
+          <div className="pt-24 px-4 md:px-12 min-h-screen space-y-8">
+            <h1 className="text-3xl font-bold">My List</h1>
+            {likedVideos.length === 0 && likedTracks.length === 0 ? (
+              <p className="text-zinc-500 mt-4">Nothing liked yet. Tap the heart on any video or track to save it here.</p>
+            ) : (
+              <>
+                {likedVideos.length > 0 && <MediaRow title="Liked Videos" items={likedVideos} onPlay={playVideo} isGrid />}
+                {likedTracks.length > 0 && <MediaRow title="Liked Music" items={likedTracks} />}
+              </>
+            )}
           </div>
 
         ) : activeCategory === PURCHASED_TAB ? (
