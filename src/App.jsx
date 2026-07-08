@@ -436,6 +436,9 @@ const AppContent = React.memo(() => {
                 <Route path="/support" element={<SupportPage />} />
 
                 <Route path="/creator-studio" element={<Navigate to="/go-live" replace />} />
+
+                {/* Catch-all: unknown paths (e.g. a stale /membership link) redirect home instead of white-screening. */}
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>
 
