@@ -135,6 +135,13 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-07
+- **[FIX] Music player bar not showing in media mode** (`MediaContext.jsx`)
+  - Symptom: on `/media` the audio played but the `MusicPlayer` control bar never appeared, so music couldn't be controlled.
+  - Cause: `MusicPlayer.jsx` render guard requires `hasEnteredMediaMode`, but that flag was only set by `confirmEnterMediaMode` (Sidebar warning-modal flow). Reaching `/media` via `MobileNav`'s `<Link to="/media">` or `VerticalVideo`'s `navigate('/media/:id')` bypassed it, leaving the flag `false`.
+  - Fix: `playMedia` now calls `setHasEnteredMediaMode(true)` so the player bar renders whenever playback starts, regardless of entry path.
+  - Note: `MiniPlayer.jsx` is dead code (never imported) and reads a non-existent `mediaMode` value — left as-is.
+
 ### 2026-04-12 (session 2)
 - **[FIX] Long-video gate firing for logged-in users** (`VerticalVideo.jsx`)
   - Added `!user` guard to the 3-minute gate — logged-in users now watch full videos in the feed without interruption

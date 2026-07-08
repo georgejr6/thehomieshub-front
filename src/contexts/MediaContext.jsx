@@ -285,6 +285,11 @@ export const MediaProvider = ({ children }) => {
 
   const playMedia = useCallback((track) => {
     isFirstRef.current = false;
+    // Being on the /media route via the mobile nav or a video deep-link doesn't run
+    // confirmEnterMediaMode, so hasEnteredMediaMode can still be false here. Set it
+    // when playback actually starts so the MusicPlayer bar renders regardless of how
+    // the user got into media mode.
+    setHasEnteredMediaMode(true);
     _loadTrack(track, true);
     if (track) trackEvent('music_play', { target: { kind: 'music', id: track.id || track._id, title: track.title || track.name } });
   }, [_loadTrack]);
