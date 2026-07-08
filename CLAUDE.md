@@ -135,6 +135,15 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-07 (session 3)
+- **[UX] Home tab groups video vs music** (`MediaApp.jsx`)
+  - Home now renders a **Watch** section (all video rows) then a **Listen** section (all music rows), each with a `SectionHeading`, instead of interleaving music between video rows. Videos/Music/Likes tabs already show one content type.
+- **[PERF] Stopped fetching Media library on every page load** (`MediaContext.jsx`)
+  - `hhVideos` (`/user/videos` + `/user/reels`) is only used in Media Mode but was fetched on provider mount → 2 heavy calls on *every* app page-load app-wide. Removed the provider-mount fetch; `MediaApp` still fetches on open. Also dropped `limit` 100 → 40.
+- **[PERF] One "Add to playlist" modal per row, not per card** (`MediaRow.jsx`)
+  - `AddToPlaylistModal` (Radix Dialog) was instantiated inside every `MediaCard` (hundreds of dialog trees across the page). Hoisted to a single modal per `MediaRow`, opened via `onAddToPlaylist(item)`.
+- Note: full video/music catalog still loads on provider mount because `trendingVideos` is used by `ExplorePage` and the music catalog primes the persistent player — left as-is.
+
 ### 2026-07-07 (session 2)
 - **[FIX] Media Mode tabs not switching (Home/Videos/Music/Likes)** (`MediaApp.jsx`)
   - Cause: `BASE_TABS` used capitalized labels (`'Home'`, `'Music'`, …) and `setActiveCategory(tab)` stored them, but every content-render branch compared against lowercase (`activeCategory === 'music'`, etc.). Only the default view worked because the context initializes `activeCategory` to lowercase `'home'`. Clicking Music/Videos/Likes matched no branch → hero with no rows, so "music" appeared stuck among the Home videos.

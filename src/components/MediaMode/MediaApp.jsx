@@ -117,6 +117,18 @@ const TAB_LABELS = {
   purchased: 'Purchased', admin: 'Admin',
 };
 
+// Divider between the video and music groups on the Home tab so it's obvious
+// which rows are watch vs listen.
+const SectionHeading = ({ icon: Icon, title, subtitle }) => (
+  <div className="flex items-center gap-3 pt-2 pb-1">
+    <Icon className="w-6 h-6 text-red-500 shrink-0" />
+    <div>
+      <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white leading-none">{title}</h2>
+      {subtitle && <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>}
+    </div>
+  </div>
+);
+
 const MediaApp = () => {
   const { postId } = useParams();
   const location = useLocation();
@@ -240,6 +252,9 @@ const MediaApp = () => {
     const pool = [...trendingVideos, ...newVideos, ...movies, ...series, ...hhVideos];
     return buildSmartRows(pool);
   }, [trendingVideos, newVideos, movies, series, hhVideos]);
+
+  const hasVideos = trendingVideos.length > 0 || newVideos.length > 0 || movies.length > 0
+    || series.length > 0 || hhVideos.length > 0 || categoryRows.some(c => c.items?.length > 0);
 
   // ── Liked content, split so videos and music stay cleanly separated ───────
   const likedSet = useMemo(() => new Set(likedIds), [likedIds]);
@@ -500,20 +515,33 @@ const MediaApp = () => {
             <div className={cn("relative z-10 pb-36 space-y-8 px-4 md:pl-12", heroItem ? "-mt-24" : "pt-24")}>
               {activeCategory === 'home' && (
                 <>
-                  {categoryRows.map(cat => cat.items.length > 0 && (
-                    <MediaRow key={cat.id} title={cat.name} items={cat.items} onPlay={playVideo} />
-                  ))}
-                  {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} isGrid />}
-                  {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}
-                  {allTracks.length > 0 && <MediaRow title="Music" items={allTracks} />}
-                  {newVideos.length > 0 && <MediaRow title="New on DIGITVL" items={newVideos} onPlay={playVideo} />}
-                  {movies.length > 0 && <MediaRow title="Movies" items={movies} onPlay={playVideo} />}
-                  {allTracks.length >= 5 && <MediaRow title="Top 10 Tracks" items={allTracks.slice(0, 10)} isRanked />}
-                  {series.length > 0 && <MediaRow title="Series" items={series} onPlay={playVideo} />}
-                  {genreRows.map(({ genre, items }) => <MediaRow key={genre} title={genre} items={items} />)}
-                  {smartVideoRows.map(({ title, items }) => (
-                    <MediaRow key={title} title={title} items={items} onPlay={playVideo} />
-                  ))}
+                  {/* ── WATCH: all video content grouped together ─────────── */}
+                  {hasVideos && (
+                    <>
+                      <SectionHeading icon={Film} title="Watch" subtitle="Movies, series & clips" />
+                      {categoryRows.map(cat => cat.items.length > 0 && (
+                        <MediaRow key={cat.id} title={cat.name} items={cat.items} onPlay={playVideo} />
+                      ))}
+                      {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} isGrid />}
+                      {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}
+                      {newVideos.length > 0 && <MediaRow title="New on DIGITVL" items={newVideos} onPlay={playVideo} />}
+                      {movies.length > 0 && <MediaRow title="Movies" items={movies} onPlay={playVideo} />}
+                      {series.length > 0 && <MediaRow title="Series" items={series} onPlay={playVideo} />}
+                      {smartVideoRows.map(({ title, items }) => (
+                        <MediaRow key={title} title={title} items={items} onPlay={playVideo} />
+                      ))}
+                    </>
+                  )}
+
+                  {/* ── LISTEN: all music grouped together ────────────────── */}
+                  {allTracks.length > 0 && (
+                    <>
+                      <SectionHeading icon={Music2} title="Listen" subtitle="Tracks from the catalog" />
+                      <MediaRow title="All Tracks" items={allTracks} />
+                      {allTracks.length >= 5 && <MediaRow title="Top 10 Tracks" items={allTracks.slice(0, 10)} isRanked />}
+                      {genreRows.map(({ genre, items }) => <MediaRow key={genre} title={genre} items={items} />)}
+                    </>
+                  )}
                 </>
               )}
               {activeCategory === 'videos' && (

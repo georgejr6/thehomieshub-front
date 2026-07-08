@@ -8,10 +8,9 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 20;
 
 // ── Card — clean inline hover, no floating popup ─────────────────────────────
-const MediaCard = ({ item, isRanked, rank, onPlay, onInfo, fullWidth = false }) => {
+const MediaCard = ({ item, isRanked, rank, onPlay, onInfo, onAddToPlaylist, fullWidth = false }) => {
   const { isLiked, toggleLike } = useMedia();
   const [isHovered, setIsHovered] = useState(false);
-  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
 
   return (
     <div className={cn(
@@ -85,7 +84,7 @@ const MediaCard = ({ item, isRanked, rank, onPlay, onInfo, fullWidth = false }) 
               <Check className="h-3 w-3" />
             </button>
             <button
-              onClick={e => { e.stopPropagation(); setIsAddToPlaylistOpen(true); }}
+              onClick={e => { e.stopPropagation(); onAddToPlaylist?.(item); }}
               className="border border-zinc-500 rounded-full p-1.5 hover:border-white text-zinc-400 hover:text-white transition-colors"
             >
               <Plus className="h-3 w-3" />
@@ -109,8 +108,6 @@ const MediaCard = ({ item, isRanked, rank, onPlay, onInfo, fullWidth = false }) 
           <p className="text-zinc-500 text-[10px]">{item.duration}</p>
         )}
       </div>
-
-      <AddToPlaylistModal isOpen={isAddToPlaylistOpen} onClose={() => setIsAddToPlaylistOpen(false)} mediaToAdd={item} />
     </div>
   );
 };
@@ -122,6 +119,8 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
   const handlePlay = onPlay || playMedia;
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [page, setPage] = useState(0);
+  // One shared "add to playlist" modal per row instead of one mounted per card.
+  const [playlistItem, setPlaylistItem] = useState(null);
 
   useEffect(() => { setPage(0); }, [title]);
 
@@ -159,6 +158,7 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
                 rank={page * PAGE_SIZE + index + 1}
                 onPlay={handlePlay}
                 onInfo={onInfo}
+                onAddToPlaylist={setPlaylistItem}
                 fullWidth
               />
             ))}
@@ -212,6 +212,7 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
                 rank={index + 1}
                 onPlay={handlePlay}
                 onInfo={onInfo}
+                onAddToPlaylist={setPlaylistItem}
               />
             ))}
           </div>
@@ -224,6 +225,12 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
           </button>
         </div>
       )}
+
+      <AddToPlaylistModal
+        isOpen={!!playlistItem}
+        onClose={() => setPlaylistItem(null)}
+        mediaToAdd={playlistItem}
+      />
     </div>
   );
 };

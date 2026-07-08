@@ -133,8 +133,8 @@ export const MediaProvider = ({ children }) => {
 
   const refreshHhVideos = useCallback(() => {
     Promise.all([
-      api.get('/user/videos', { params: { page: 1, limit: 100 } }).catch(() => null),
-      api.get('/user/reels',  { params: { page: 1, limit: 100 } }).catch(() => null),
+      api.get('/user/videos', { params: { page: 1, limit: 40 } }).catch(() => null),
+      api.get('/user/reels',  { params: { page: 1, limit: 40 } }).catch(() => null),
     ]).then(([vResp, rResp]) => {
       const videos = vResp?.data?.result?.items ?? vResp?.data?.result ?? [];
       const reels  = rResp?.data?.result?.items ?? rResp?.data?.result ?? [];
@@ -146,7 +146,10 @@ export const MediaProvider = ({ children }) => {
     });
   }, [normalizeHhItem]);
 
-  useEffect(() => { refreshHhVideos(); }, [refreshHhVideos]);
+  // NOTE: hhVideos is only consumed inside Media Mode (MediaApp), which fetches
+  // it itself when opened. We deliberately do NOT fetch it on provider mount —
+  // that made every page load app-wide fire two heavy /user/videos + /user/reels
+  // calls for content most visitors never see.
 
   // ── Fetch admin category rows ──────────────────────────────────────────────
   const fetchCategoryRows = useCallback(() => {
