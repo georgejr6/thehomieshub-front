@@ -50,6 +50,57 @@ const cutOffResponse = (text) => {
   return words.slice(0, cut).join(' ') + '...';
 };
 
+// Lightweight markdown renderer so model output shows as formatted text instead
+// of literal ** / *** / # / - characters. Handles the subset ChatGPT-style
+// answers use: bold, italic, inline code, headings, and bullet/numbered lists.
+const parseInline = (text) => {
+  const pattern = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|__(.+?)__|`([^`]+?)`|\*(.+?)\*|_(.+?)_/g;
+  const out = [];
+  let last = 0, m, k = 0;
+  while ((m = pattern.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    if (m[1] !== undefined) out.push(<strong key={k++}><em>{m[1]}</em></strong>);
+    else if (m[2] !== undefined) out.push(<strong key={k++}>{m[2]}</strong>);
+    else if (m[3] !== undefined) out.push(<strong key={k++}>{m[3]}</strong>);
+    else if (m[4] !== undefined) out.push(<code key={k++} className="px-1 py-0.5 rounded bg-white/10 text-[0.85em]">{m[4]}</code>);
+    else if (m[5] !== undefined) out.push(<em key={k++}>{m[5]}</em>);
+    else if (m[6] !== undefined) out.push(<em key={k++}>{m[6]}</em>);
+    last = pattern.lastIndex;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+};
+
+const FormattedText = ({ text }) => {
+  const lines = String(text || '').split('\n');
+  const blocks = [];
+  let list = null;
+  const flush = () => { if (list) { blocks.push(list); list = null; } };
+
+  lines.forEach((line) => {
+    const h = line.match(/^\s*(#{1,3})\s+(.*)$/);
+    const ul = line.match(/^\s*[-*•]\s+(.*)$/);
+    const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+    if (h)       { flush(); blocks.push({ type: 'h', text: h[2] }); }
+    else if (ul) { if (!list || list.type !== 'ul') { flush(); list = { type: 'ul', items: [] }; } list.items.push(ul[1]); }
+    else if (ol) { if (!list || list.type !== 'ol') { flush(); list = { type: 'ol', items: [] }; } list.items.push(ol[1]); }
+    else if (line.trim() === '') { flush(); }
+    else         { flush(); blocks.push({ type: 'p', text: line }); }
+  });
+  flush();
+
+  return (
+    <div className="space-y-1.5">
+      {blocks.map((b, i) => {
+        if (b.type === 'h') return <p key={i} className="font-bold mt-1">{parseInline(b.text)}</p>;
+        if (b.type === 'ul') return <ul key={i} className="list-disc pl-5 space-y-1">{b.items.map((it, j) => <li key={j}>{parseInline(it)}</li>)}</ul>;
+        if (b.type === 'ol') return <ol key={i} className="list-decimal pl-5 space-y-1">{b.items.map((it, j) => <li key={j}>{parseInline(it)}</li>)}</ol>;
+        return <p key={i}>{parseInline(b.text)}</p>;
+      })}
+    </div>
+  );
+};
+
 const UpgradeButton = ({ size = 'default' }) => (
   <Link to="/memberships">
     <Button
@@ -261,10 +312,10 @@ const MyAIPage = () => {
           <AvatarFallback>{msg.sender === 'ai' ? 'AI' : 'ME'}</AvatarFallback>
         </Avatar>
         <div className={cn(
-          "p-4 rounded-2xl max-w-[85%] md:max-w-[70%] text-sm md:text-base leading-relaxed shadow-lg whitespace-pre-wrap",
-          msg.sender === 'user' ? "text-white rounded-tr-none" : "bg-zinc-900 border border-white/10 text-zinc-100 rounded-tl-none"
+          "p-4 rounded-2xl max-w-[85%] md:max-w-[70%] text-sm md:text-base leading-relaxed shadow-lg",
+          msg.sender === 'user' ? "text-white rounded-tr-none whitespace-pre-wrap" : "bg-zinc-900 border border-white/10 text-zinc-100 rounded-tl-none"
         )} style={msg.sender === 'user' ? { background: bot.accent, color: '#0a0a0a' } : {}}>
-          {msg.content}
+          {msg.sender === 'ai' ? <FormattedText text={msg.content} /> : msg.content}
           {msg.sender === 'ai' && renderPlaceResults(msg.results)}
           {msg.sender === 'ai' && activeBot === 'directorybro' && msg.content && msg.content.length > 160 && (
             <button
