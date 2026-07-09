@@ -44,8 +44,11 @@ export const MediaProvider = ({ children }) => {
   const [currentTrack,   setCurrentTrack]   = useState(null);
   const [isPlaying,      setIsPlaying]      = useState(false);
   const [isLoading,      setIsLoading]      = useState(false);
-  const [currentTime,    setCurrentTime]    = useState(0);
-  const [duration,       setDuration]       = useState(0);
+  // NOTE: playback position (currentTime/duration) is intentionally NOT kept in
+  // this provider. It ticks ~4×/second and would re-render every consumer —
+  // including all 100+ media cards — freezing the UI on hover/click. The audio
+  // <element> is the source of truth; MusicPlayer reads position locally off
+  // audioRef. See MusicPlayer's own currentTime/duration state.
   const [volume,         setVolume]         = useState([80]);
   const [isMuted,        setIsMuted]        = useState(false);
 
@@ -196,8 +199,9 @@ export const MediaProvider = ({ children }) => {
     audio.volume = 0.8;
     audio.preload = 'none';
 
-    const onTime     = () => setCurrentTime(audio.currentTime);
-    const onDuration = () => { if (!isNaN(audio.duration)) setDuration(audio.duration); };
+    // No timeupdate/durationchange listeners here on purpose — position is read
+    // locally by MusicPlayer to keep this provider (and the card grid) from
+    // re-rendering on every tick. Only 'ended' matters here (auto-advance).
     const onEnded    = () => {
       setIsPlaying(false);
       const tks = tracksRef.current;
@@ -207,14 +211,10 @@ export const MediaProvider = ({ children }) => {
       _loadTrack(tks[(idx + 1) % tks.length], true);
     };
 
-    audio.addEventListener('timeupdate',     onTime);
-    audio.addEventListener('durationchange', onDuration);
     audio.addEventListener('ended',          onEnded);
 
     return () => {
       audio.pause();
-      audio.removeEventListener('timeupdate',     onTime);
-      audio.removeEventListener('durationchange', onDuration);
       audio.removeEventListener('ended',          onEnded);
     };
   }, []); // eslint-disable-line
@@ -232,8 +232,6 @@ export const MediaProvider = ({ children }) => {
     setCurrentTrack(track);
     setIsLoading(true);
     setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
     audio.src = track.audioUrl;
     audio.load();
 
@@ -265,7 +263,9 @@ export const MediaProvider = ({ children }) => {
   }, [isPlaying, isLoading]);
 
   const seek = useCallback((val) => {
-    if (audioRef.current) { audioRef.current.currentTime = val[0]; setCurrentTime(val[0]); }
+    // Setting audio.currentTime fires 'timeupdate', which MusicPlayer's local
+    // listener picks up — no provider state needed.
+    if (audioRef.current) { audioRef.current.currentTime = val[0]; }
   }, []);
 
   const skipForward = useCallback(() => {
@@ -366,7 +366,7 @@ export const MediaProvider = ({ children }) => {
       // Music
       allTracks, genreRows, catalogLoading,
       audioRef, currentTrack, isPlaying, isLoading,
-      currentTime, duration, volume, isMuted, setVolume, setIsMuted,
+      volume, isMuted, setVolume, setIsMuted,
       togglePlay, seek, skipForward, skipBack, playMedia, fmtTime,
       // Video
       featuredVideo, trendingVideos, newVideos, movies, series, videoLoading,

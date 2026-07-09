@@ -11,10 +11,33 @@ import { useMedia } from '@/contexts/MediaContext';
 const MusicPlayer = () => {
   const {
     audioRef, currentTrack, isPlaying, isLoading,
-    currentTime, duration, volume, isMuted, setVolume, setIsMuted,
+    volume, isMuted, setVolume, setIsMuted,
     togglePlay, seek, skipForward, skipBack, fmtTime,
     isLiked, toggleLike, exitMediaMode, closePlayer, hasEnteredMediaMode, currentVideo,
   } = useMedia();
+
+  // Playback position is tracked HERE (not in the media context) so the ~4×/sec
+  // ticks re-render only this bar, never the media card grid. Source of truth =
+  // the shared audio element on audioRef.
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration,    setDuration]    = useState(0);
+  useEffect(() => {
+    const audio = audioRef?.current;
+    if (!audio) return;
+    const onTime = () => setCurrentTime(audio.currentTime || 0);
+    const onDur  = () => { if (!isNaN(audio.duration)) setDuration(audio.duration || 0); };
+    onTime(); onDur();
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('durationchange', onDur);
+    audio.addEventListener('loadedmetadata', onDur);
+    return () => {
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('durationchange', onDur);
+      audio.removeEventListener('loadedmetadata', onDur);
+    };
+  }, [audioRef]);
+  // Reset the readout when the track changes.
+  useEffect(() => { setCurrentTime(0); setDuration(0); }, [currentTrack?.id]);
 
   const [isExpanded,  setIsExpanded]  = useState(false);
   const [vizMode,     setVizMode]     = useState(false);
