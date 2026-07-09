@@ -124,7 +124,9 @@ const MusicPlayer = () => {
     // Share from wherever the listener actually is (thehomies.app), not digitvl.
     // The /media?track= deep-link opens the app straight to this song.
     const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://www.thehomies.app';
-    const url = `${origin}/media?track=${currentTrack.id}`;
+    // /track/<id> serves a rich OG preview (cover + title) then bounces real
+    // listeners into the player at /media?track=<id>.
+    const url = `${origin}/track/${currentTrack.id}`;
     const title = `${currentTrack.title}${currentTrack.artist ? ` by ${currentTrack.artist}` : ''} · The Homies`;
     if (navigator.share) navigator.share({ title, url }).catch(() => {});
     else navigator.clipboard.writeText(url).catch(() => {});

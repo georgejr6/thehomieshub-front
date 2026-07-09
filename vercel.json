@@ -4,9 +4,11 @@
     { "source": "/watch/:id", "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
     { "source": "/post/:id",  "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
     { "source": "/media/:id", "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
+    { "source": "/track/:id", "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
     { "source": "/watch/:id", "destination": "https://backend.thehomies.app/og/watch/:id" },
     { "source": "/post/:id",  "destination": "https://backend.thehomies.app/og/post/:id"  },
     { "source": "/media/:id", "destination": "https://backend.thehomies.app/og/media/:id" },
+    { "source": "/track/:id", "destination": "https://backend.thehomies.app/og/track/:id" },
     { "source": "/:path*",    "destination": "/index.html" }
   ]
 }
