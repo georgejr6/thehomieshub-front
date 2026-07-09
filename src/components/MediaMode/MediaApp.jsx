@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Info, Search, X, Minimize2, ListMusic,
   Maximize, Loader2, ArrowLeft, Film, Music2, Settings2, CheckCircle2, ShoppingBag,
+  LayoutGrid, List,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -163,6 +164,22 @@ const MediaApp = () => {
     }
   }, []); // eslint-disable-line
 
+  // ── Deep-link: /media?track=<id> opens straight to a shared song ──────────
+  const trackParamHandled = React.useRef(false);
+  useEffect(() => {
+    if (trackParamHandled.current) return;
+    const id = new URLSearchParams(location.search).get('track');
+    if (!id || allTracks.length === 0) return;
+    const track = allTracks.find(t => String(t.id) === String(id));
+    if (track) {
+      trackParamHandled.current = true;
+      setActiveCategory('music');
+      playMedia(track);
+      // Drop the param so a refresh/minimize doesn't re-trigger playback.
+      window.history.replaceState({}, '', location.pathname);
+    }
+  }, [location.search, allTracks]); // eslint-disable-line
+
   // ── Auto-play video from vertical feed navigation ─────────────────────────
   useEffect(() => {
     const post = location.state?.post;
@@ -194,6 +211,11 @@ const MediaApp = () => {
   const [isSearchOpen, setIsSearchOpen]       = useState(false);
   const [infoItem, setInfoItem]               = useState(null);
 
+  // ── Music tab: isolated catalog search + genre filter + view mode ──────────
+  const [musicSearch, setMusicSearch] = useState('');
+  const [musicGenre, setMusicGenre]   = useState('all');
+  const [musicView, setMusicView]     = useState('rows'); // 'rows' | 'grid'
+
   useEffect(() => {
     const el = document.getElementById('media-scroller');
     if (!el) return;
@@ -218,6 +240,26 @@ const MediaApp = () => {
       )
     : []
   , [searchQuery, allContent]);
+
+  // ── Music catalog: genres, counts, and the filtered/searched result ────────
+  const musicGenres = useMemo(() => {
+    const counts = new Map();
+    allTracks.forEach(t => { if (t.genre) counts.set(t.genre, (counts.get(t.genre) || 0) + 1); });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([genre, count]) => ({ genre, count }));
+  }, [allTracks]);
+
+  const musicFiltered = useMemo(() => {
+    const q = musicSearch.trim().toLowerCase();
+    return allTracks.filter(t => {
+      if (musicGenre !== 'all' && t.genre !== musicGenre) return false;
+      if (!q) return true;
+      return (t.title?.toLowerCase().includes(q)
+        || t.artist?.toLowerCase().includes(q)
+        || t.genre?.toLowerCase().includes(q));
+    });
+  }, [allTracks, musicSearch, musicGenre]);
+
+  const musicIsFiltering = musicSearch.trim() !== '' || musicGenre !== 'all';
 
   // ── Hero resolution per tab ───────────────────────────────────────────────
   const heroItem = useMemo(() => {
@@ -533,13 +575,21 @@ const MediaApp = () => {
                     </>
                   )}
 
-                  {/* ── LISTEN: all music grouped together ────────────────── */}
+                  {/* ── LISTEN: music, segmented by genre (full browse in Music tab) ── */}
                   {allTracks.length > 0 && (
                     <>
-                      <SectionHeading icon={Music2} title="Listen" subtitle="Tracks from the catalog" />
-                      <MediaRow title="All Tracks" items={allTracks} />
+                      <div className="flex items-end justify-between">
+                        <SectionHeading icon={Music2} title="Listen"
+                          subtitle={`${allTracks.length} tracks across ${musicGenres.length} genres`} />
+                        <button onClick={() => setActiveCategory('music')}
+                          className="text-sm font-semibold text-red-500 hover:text-red-400 shrink-0 pb-1">
+                          Browse all →
+                        </button>
+                      </div>
                       {allTracks.length >= 5 && <MediaRow title="Top 10 Tracks" items={allTracks.slice(0, 10)} isRanked />}
-                      {genreRows.map(({ genre, items }) => <MediaRow key={genre} title={genre} items={items} />)}
+                      {genreRows.map(({ genre, items }) => (
+                        <MediaRow key={genre} title={`${genre} · ${items.length}`} items={items} />
+                      ))}
                     </>
                   )}
                 </>
@@ -568,14 +618,104 @@ const MediaApp = () => {
               )}
               {activeCategory === 'music' && (
                 <>
-                  {allTracks.length > 0 && <MediaRow title="All Tracks" items={allTracks} />}
-                  {allTracks.length >= 5 && <MediaRow title="Top 10" items={allTracks.slice(0, 10)} isRanked />}
-                  {genreRows.map(({ genre, items }) => <MediaRow key={genre} title={genre} items={items} />)}
-                  {likedMedia.length > 0 && <MediaRow title="Liked Tracks" items={likedMedia} />}
-                  {catalogLoading && (
+                  {/* ── Catalog controls: isolated search · genre filter · view ── */}
+                  <div className="space-y-4 mb-6">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3">
+                      {/* Isolated music search — parses ONLY the music catalog */}
+                      <div className="flex items-center gap-2 bg-black/40 border border-zinc-700 focus-within:border-red-500 rounded-full px-4 py-2.5 w-full md:max-w-md transition-colors">
+                        <Search className="h-4 w-4 text-zinc-400 shrink-0" />
+                        <input
+                          type="text"
+                          placeholder={`Search ${allTracks.length} tracks — title, artist, genre…`}
+                          className="bg-transparent border-none focus:ring-0 text-sm w-full text-white placeholder:text-zinc-500 outline-none"
+                          value={musicSearch}
+                          onChange={e => setMusicSearch(e.target.value)}
+                        />
+                        {musicSearch && (
+                          <button onClick={() => setMusicSearch('')} className="text-zinc-400 hover:text-white shrink-0">
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* View toggle: genre rows vs full grid */}
+                      <div className="flex items-center gap-1 bg-black/40 border border-zinc-700 rounded-full p-1 shrink-0 self-start">
+                        <button
+                          onClick={() => setMusicView('rows')}
+                          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors",
+                            musicView === 'rows' && !musicIsFiltering ? "bg-red-600 text-white" : "text-zinc-400 hover:text-white")}
+                          title="Browse by genre">
+                          <List className="w-3.5 h-3.5" /> Genres
+                        </button>
+                        <button
+                          onClick={() => setMusicView('grid')}
+                          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors",
+                            musicView === 'grid' || musicIsFiltering ? "bg-red-600 text-white" : "text-zinc-400 hover:text-white")}
+                          title="See the whole catalog">
+                          <LayoutGrid className="w-3.5 h-3.5" /> All {allTracks.length > 0 && `(${allTracks.length})`}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Genre filter chips */}
+                    {musicGenres.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => setMusicGenre('all')}
+                          className={cn("px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border",
+                            musicGenre === 'all' ? "bg-white text-black border-white" : "bg-transparent text-zinc-300 border-zinc-700 hover:border-zinc-500")}>
+                          All Genres
+                        </button>
+                        {musicGenres.map(({ genre, count }) => (
+                          <button
+                            key={genre}
+                            onClick={() => setMusicGenre(g => g === genre ? 'all' : genre)}
+                            className={cn("px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border",
+                              musicGenre === genre ? "bg-red-600 text-white border-red-600" : "bg-transparent text-zinc-300 border-zinc-700 hover:border-zinc-500")}>
+                            {genre} <span className="opacity-60">{count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {catalogLoading && allTracks.length === 0 ? (
                     <div className="flex items-center justify-center py-16">
                       <Loader2 className="h-8 w-8 animate-spin text-red-600" />
                     </div>
+                  ) : musicIsFiltering || musicView === 'grid' ? (
+                    /* ── FULL GRID — the entire (filtered) catalog, paginated ── */
+                    musicFiltered.length > 0 ? (
+                      <MediaRow
+                        title={
+                          musicSearch.trim()
+                            ? `Results for "${musicSearch.trim()}" (${musicFiltered.length})`
+                            : musicGenre !== 'all'
+                              ? `${musicGenre} (${musicFiltered.length})`
+                              : `All Tracks (${musicFiltered.length})`
+                        }
+                        items={musicFiltered}
+                        isGrid
+                      />
+                    ) : (
+                      <div className="text-center py-20 text-zinc-500">
+                        <Music2 className="w-12 h-12 mx-auto mb-4 text-zinc-700" />
+                        <p>No tracks match your search or filter.</p>
+                      </div>
+                    )
+                  ) : (
+                    /* ── GENRE-SEGMENTED ROWS (default browse) ────────────────── */
+                    <>
+                      {allTracks.length >= 5 && <MediaRow title="Top 10" items={allTracks.slice(0, 10)} isRanked />}
+                      {likedMedia.length > 0 && <MediaRow title="Liked Tracks" items={likedMedia} />}
+                      {genreRows.map(({ genre, items }) => (
+                        <MediaRow key={genre} title={`${genre} · ${items.length}`} items={items} />
+                      ))}
+                      {/* Everything else that didn't land in a genre row */}
+                      {allTracks.some(t => !t.genre) && (
+                        <MediaRow title="More from the Catalog" items={allTracks.filter(t => !t.genre)} />
+                      )}
+                    </>
                   )}
                 </>
               )}
