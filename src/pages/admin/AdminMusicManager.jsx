@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2, Music, Plus, Trash2, Pencil, Check, X, Search,
-  Play, Pause, Star, GripVertical, Save,
+  Play, Pause, Star, GripVertical, Save, DownloadCloud, BarChart3,
+  ListMusic, Headphones, Users, Clock, User as UserIcon, Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/api/homieshub';
 
@@ -12,6 +14,15 @@ const fmtDur = (s) => {
   const t = Math.floor(s || 0);
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 };
+// ms → "1h 4m" / "3m 12s" / "45s"
+const fmtMs = (ms) => {
+  const s = Math.round((ms || 0) / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+};
+const fmtTime = (d) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
 // Small inline audio preview button shared by search results + track rows.
 function PreviewButton({ url, id, playingId, setPlayingId, audioRef }) {
@@ -46,6 +57,147 @@ function Cover({ image, className = 'w-10 h-10' }) {
   );
 }
 
+// ── WHO listened to one song ──────────────────────────────────────────────────
+function SongListenersDialog({ song, isOpen, onOpenChange }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen || !song?.id) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await api.get(`/track/music/song/${encodeURIComponent(song.id)}`, { params: { days: 90 } });
+        if (!cancelled) setData(res.data?.result || null);
+      } catch { if (!cancelled) toast({ title: 'Failed to load listeners', variant: 'destructive' }); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, song?.id, toast]);
+
+  const listeners = data?.listeners || [];
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="truncate">{song?.title || 'Song'}</DialogTitle>
+          <DialogDescription>
+            {data?.totals
+              ? `${data.totals.plays} plays · ${fmtMs(data.totals.listenMs)} total listen · ${data.totals.playlistAdds} playlist add(s) · last 90 days`
+              : 'Who listened, and for how long.'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto py-1">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : listeners.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-8">No listens recorded yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {listeners.map((l, i) => (
+                <div key={i} className="flex items-center gap-3 text-sm p-2 rounded-lg border border-border bg-secondary/20">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${l.authed ? 'bg-green-500/10' : 'bg-muted'}`}>
+                    {l.authed ? <UserIcon className="w-4 h-4 text-green-500" /> : <Globe className="w-4 h-4 text-muted-foreground" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold truncate">{l.authed ? `@${l.username || 'member'}` : 'Anonymous'}</span>
+                      {!l.authed && <span className="font-mono text-xs text-muted-foreground">{l.ip}</span>}
+                      {l.addedToPlaylist ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">＋ playlist</span> : null}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1"><Headphones className="w-3 h-3" /> {l.plays} play(s)</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {fmtMs(l.listenMs)}</span>
+                      <span>{fmtTime(l.lastPlayed)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Per-song listening leaderboard ────────────────────────────────────────────
+function SongAnalytics() {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+  const [songs, setSongs] = useState([]);
+  const [target, setTarget] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async (d) => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/track/music/songs', { params: { days: d } });
+      setSongs(data?.result?.songs || []);
+    } catch { toast({ title: 'Failed to load song analytics', variant: 'destructive' }); }
+    finally { setLoading(false); }
+  }, [toast]);
+
+  useEffect(() => { load(days); }, [days, load]);
+
+  return (
+    <div className="bg-card border rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between gap-3 p-4 border-b">
+        <p className="text-sm font-semibold flex items-center gap-2"><BarChart3 className="w-4 h-4 text-primary" /> Listening — last {days} days</p>
+        <div className="flex gap-1.5">
+          {[7, 30, 90].map(d => (
+            <button key={d} onClick={() => setDays(d)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${days === d ? 'border-primary text-primary bg-primary/10' : 'border-border text-muted-foreground hover:bg-accent'}`}>
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+      {loading ? (
+        <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>
+      ) : songs.length === 0 ? (
+        <p className="text-center text-muted-foreground py-16 text-sm">No plays recorded in this window yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
+                <th className="text-left font-semibold py-2.5 px-4">#</th>
+                <th className="text-left font-semibold py-2.5 px-2">Song</th>
+                <th className="text-right font-semibold py-2.5 px-3">Plays</th>
+                <th className="text-right font-semibold py-2.5 px-3">Listeners</th>
+                <th className="text-right font-semibold py-2.5 px-3">Total time</th>
+                <th className="text-right font-semibold py-2.5 px-3">Avg</th>
+                <th className="text-right font-semibold py-2.5 px-4">＋Playlist</th>
+              </tr>
+            </thead>
+            <tbody>
+              {songs.map((s, i) => (
+                <tr key={s._id} onClick={() => { setTarget({ id: s._id, title: s.title }); setOpen(true); }}
+                  className="border-b border-border/50 last:border-0 hover:bg-muted/30 cursor-pointer">
+                  <td className="py-2.5 px-4 text-muted-foreground">{i + 1}</td>
+                  <td className="py-2.5 px-2 font-medium max-w-[260px] truncate">{s.title || <span className="text-muted-foreground font-mono text-xs">{s._id}</span>}</td>
+                  <td className="py-2.5 px-3 text-right">{s.plays}</td>
+                  <td className="py-2.5 px-3 text-right">
+                    {s.listeners}{s.members > 0 && <span className="text-muted-foreground text-xs"> ({s.members} member)</span>}
+                  </td>
+                  <td className="py-2.5 px-3 text-right text-muted-foreground">{fmtMs(s.listenMs)}</td>
+                  <td className="py-2.5 px-3 text-right text-muted-foreground">{fmtMs(s.avgListenMs)}</td>
+                  <td className="py-2.5 px-4 text-right">{s.playlistAdds}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <SongListenersDialog song={target} isOpen={open} onOpenChange={(o) => { setOpen(o); if (!o) setTarget(null); }} />
+    </div>
+  );
+}
+
 export default function AdminMusicManager() {
   const { toast } = useToast();
   const [categories, setCategories] = useState([]);
@@ -54,6 +206,11 @@ export default function AdminMusicManager() {
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Top-level view + full-library import
+  const [view, setView] = useState('playlists'); // 'playlists' | 'analytics'
+  const [importing, setImporting] = useState(false);
+  const [lastImport, setLastImport] = useState(null);
 
   // editor working copy
   const [editName, setEditName] = useState('');
@@ -85,6 +242,35 @@ export default function AdminMusicManager() {
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Show the most recent import run (batch date + counts).
+  const loadLastImport = useCallback(async () => {
+    try {
+      const { data } = await api.get('/admin/music-imports');
+      setLastImport((data?.result?.imports || [])[0] || null);
+    } catch { /* non-critical */ }
+  }, []);
+  useEffect(() => { loadLastImport(); }, [loadLastImport]);
+
+  // Sync the ENTIRE digitvl catalog into playlists (per-genre + Fresh Drops).
+  const runImport = async () => {
+    if (importing) return;
+    if (!confirm('Import the entire DIGITVL library into the app?\n\nThis rebuilds the per-genre playlists + a "Fresh Drops" trending playlist from every track in the catalog (including ones without cover art). Existing playlists with the same names are overwritten.')) return;
+    setImporting(true);
+    try {
+      const { data } = await api.post('/admin/music-categories/import-digitvl');
+      const r = data?.result;
+      toast({
+        title: 'DIGITVL library imported',
+        description: r ? `${r.total} tracks · ${r.withArt} with art · ${r.withoutArt} without · ${r.categories?.length || 0} playlists` : 'Done',
+      });
+      await Promise.all([load(), loadLastImport()]);
+    } catch (e) {
+      toast({ title: 'Import failed', description: e?.response?.data?.message || 'Try again.', variant: 'destructive' });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   // when selecting a category, hydrate the editor
   useEffect(() => {
@@ -184,16 +370,47 @@ export default function AdminMusicManager() {
     <div className="max-w-6xl mx-auto">
       <audio ref={audioRef} onEnded={() => setPlayingId(null)} className="hidden" />
 
-      <div className="flex items-center gap-3 mb-6">
-        <Music className="w-7 h-7 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Music Manager</h1>
-          <p className="text-sm text-muted-foreground">
-            Curate playlists from the digitvl catalog for the app's Music tab. Mark one playlist as Trending to feature it on the home screen.
-          </p>
+      <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
+        <div className="flex items-center gap-3">
+          <Music className="w-7 h-7 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Music Manager</h1>
+            <p className="text-sm text-muted-foreground">
+              Curate playlists from the digitvl catalog and see who's listening.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <Button onClick={runImport} disabled={importing} variant="secondary">
+            {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <DownloadCloud className="w-4 h-4 mr-2" />}
+            {importing ? 'Importing…' : 'Import entire DIGITVL library'}
+          </Button>
+          {lastImport && (
+            <p className="text-[11px] text-muted-foreground">
+              Last import {lastImport.batch}: {lastImport.total} tracks ({lastImport.withoutArt} w/o art)
+            </p>
+          )}
         </div>
       </div>
 
+      {/* View tabs */}
+      <div className="flex gap-2 mb-5">
+        {[
+          { key: 'playlists', label: 'Playlists', icon: ListMusic },
+          { key: 'analytics', label: 'Song Analytics', icon: BarChart3 },
+        ].map(t => (
+          <button key={t.key} onClick={() => setView(t.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+              view === t.key ? 'bg-primary/15 text-primary border-primary/30' : 'text-muted-foreground border-border hover:bg-accent'
+            }`}>
+            <t.icon className="w-4 h-4" /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'analytics' ? (
+        <SongAnalytics />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
         {/* ── Playlists list ── */}
         <div className="bg-card border rounded-xl p-4 h-fit">
@@ -324,6 +541,7 @@ export default function AdminMusicManager() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

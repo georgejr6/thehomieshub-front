@@ -78,9 +78,26 @@ export const MediaProvider = ({ children }) => {
   useEffect(() => { isPlayingRef.current = isPlaying;    }, [isPlaying]);
 
   // ── Fetch music catalog ────────────────────────────────────────────────────
+  // Prefer the admin-curated playlists (/music/categories) — that's the FULL
+  // library synced from digitvl, one row per playlist (Fresh Drops/trending
+  // first). Fall back to the trending-grouped catalog if none are curated yet.
   useEffect(() => {
-    musicApi.getNew()
-      .then(tracks => {
+    (async () => {
+      try {
+        const cats = await musicApi.getCategories();
+        if (cats.length) {
+          setGenreRows(cats.map(c => ({ genre: c.name, items: c.items })));
+          const flat = [];
+          const seen = new Set();
+          cats.forEach(c => c.items.forEach(t => {
+            if (!seen.has(t.id)) { seen.add(t.id); flat.push(t); }
+          }));
+          setAllTracks(flat);
+          if (flat.length > 0) setCurrentTrack(flat[0]);
+          return;
+        }
+        // Fallback: no curated playlists yet.
+        const tracks = await musicApi.getNew();
         setAllTracks(tracks);
         const map = {};
         tracks.forEach(t => {
@@ -89,14 +106,15 @@ export const MediaProvider = ({ children }) => {
             map[t.genre].push(t);
           }
         });
-        const rows = Object.entries(map)
-          .filter(([, items]) => items.length >= 2)
-          .map(([genre, items]) => ({ genre, items }));
-        setGenreRows(rows);
+        setGenreRows(
+          Object.entries(map)
+            .filter(([, items]) => items.length >= 2)
+            .map(([genre, items]) => ({ genre, items }))
+        );
         if (tracks.length > 0) setCurrentTrack(tracks[0]);
-      })
-      .catch(() => {})
-      .finally(() => setCatalogLoading(false));
+      } catch { /* degrade gracefully */ }
+      finally { setCatalogLoading(false); }
+    })();
   }, []);
 
   // ── Fetch video catalog ────────────────────────────────────────────────────
@@ -353,7 +371,12 @@ export const MediaProvider = ({ children }) => {
 
   const createPlaylist = (name) => setPlaylists(p => [...p, { id: Date.now(), name, items: [] }]);
   const deletePlaylist = (id)   => setPlaylists(p => p.filter(x => x.id !== id));
-  const addToPlaylist  = (pid, item) => setPlaylists(p => p.map(x => x.id === pid ? { ...x, items: [...x.items, item] } : x));
+  const addToPlaylist  = (pid, item) => {
+    setPlaylists(p => p.map(x => x.id === pid ? { ...x, items: [...x.items, item] } : x));
+    if (item && (item.type === 'audio' || item.mediaKind !== 'video')) {
+      trackEvent('playlist_add', { target: { kind: 'music', id: item.id || item._id, title: item.title || item.name } });
+    }
+  };
 
   const fmtTime = (s) => {
     const m = Math.floor((s || 0) / 60);

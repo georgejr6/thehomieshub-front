@@ -63,6 +63,18 @@ export function normalizeVideo(c) {
 
 export const musicApi = {
   getNew:          () => musicHttp.get('/music/trending').then(tracksOf),
+  // Curated playlists (admin-managed). Each becomes a browsable row in Media Mode.
+  // The trending playlist ("Fresh Drops") sorts first. This is how the FULL
+  // library is surfaced — not just the trending subset.
+  getCategories:   () => musicHttp.get('/music/categories').then(r =>
+    (r.data?.result?.categories || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      isTrending: !!c.isTrending,
+      items: (c.tracks || []).map(normalizeTrack),
+    })).filter(c => c.items.length > 0)
+  ),
   getGenres:       () => musicHttp.get('/music/genres').then(r => r.data?.result?.genres || []),
   getArtistTracks: (slug) => musicHttp.get('/music/catalog', { params: { search: slug } }).then(tracksOf),
   search:          (q) => musicHttp.get('/music/catalog', { params: { search: q } }).then(tracksOf),

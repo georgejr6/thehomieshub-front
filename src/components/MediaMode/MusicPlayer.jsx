@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { useMedia } from '@/contexts/MediaContext';
+import { trackEvent } from '@/lib/tracker';
 
 const MusicPlayer = () => {
   const {
@@ -21,10 +22,32 @@ const MusicPlayer = () => {
   // the shared audio element on audioRef.
   const [currentTime, setCurrentTime] = useState(0);
   const [duration,    setDuration]    = useState(0);
+
+  // ── Listen-time capture (analytics) ────────────────────────────────────────
+  // Accumulate ACTUAL time played for the current track (ignoring seeks) and
+  // emit a `music_listen` event when the track changes or the tab hides. This is
+  // what powers "how long did each person listen" in the admin song analytics.
+  const measuredRef = useRef({ id: null, title: null, ms: 0 });
+  const lastTRef    = useRef(0);
+  const flushListen = useCallback(() => {
+    const m = measuredRef.current;
+    if (m.id && m.ms >= 3000) {
+      trackEvent('music_listen', { target: { kind: 'music', id: m.id, title: m.title }, durationMs: Math.round(m.ms) });
+    }
+    m.ms = 0;
+  }, []);
+
   useEffect(() => {
     const audio = audioRef?.current;
     if (!audio) return;
-    const onTime = () => setCurrentTime(audio.currentTime || 0);
+    const onTime = () => {
+      const t = audio.currentTime || 0;
+      setCurrentTime(t);
+      const dt = t - lastTRef.current;
+      // Only count forward jumps under 2s as real listening (skips/seeks ignored).
+      if (dt > 0 && dt < 2 && isPlayingRef.current) measuredRef.current.ms += dt * 1000;
+      lastTRef.current = t;
+    };
     const onDur  = () => { if (!isNaN(audio.duration)) setDuration(audio.duration || 0); };
     onTime(); onDur();
     audio.addEventListener('timeupdate', onTime);
@@ -36,8 +59,27 @@ const MusicPlayer = () => {
       audio.removeEventListener('loadedmetadata', onDur);
     };
   }, [audioRef]);
-  // Reset the readout when the track changes.
-  useEffect(() => { setCurrentTime(0); setDuration(0); }, [currentTrack?.id]);
+
+  // On track change: flush the previous track's listen time, then start measuring
+  // the new one. Also reset the position readout.
+  useEffect(() => {
+    flushListen();
+    measuredRef.current = { id: currentTrack?.id || null, title: currentTrack?.title || null, ms: 0 };
+    lastTRef.current = 0;
+    setCurrentTime(0); setDuration(0);
+  }, [currentTrack?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flush on tab hide / unmount so we don't lose in-progress listens.
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') flushListen(); };
+    window.addEventListener('pagehide', flushListen);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flushListen);
+      document.removeEventListener('visibilitychange', onHide);
+      flushListen();
+    };
+  }, [flushListen]);
 
   const [isExpanded,  setIsExpanded]  = useState(false);
   const [vizMode,     setVizMode]     = useState(false);
