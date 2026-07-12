@@ -70,6 +70,7 @@ import StoryViewer from '@/components/StoryViewer';
 import WatchPage from './pages/WatchPage';
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage';
 import JoinGatePage from '@/pages/JoinGatePage';
+import FundyPage from '@/pages/FundyPage';
 import EmailVerifyGate from '@/components/EmailVerifyGate';
 import RouteTracker from '@/components/RouteTracker';
 import HelpAssistant from '@/components/HelpAssistant';
@@ -318,6 +319,9 @@ const AppContent = React.memo(() => {
 
             {/* --- My Apps (ecosystem hub) --- */}
             <Route path="/my-apps" element={<MyAppsPage />} />
+
+            {/* --- Fundraiser (public, standalone full-bleed) --- */}
+            <Route path="/fundy" element={<FundyPage />} />
 
             {/* --- Wallet Mode Routes (Guarded) --- */}
             <Route path="/wallet" element={
