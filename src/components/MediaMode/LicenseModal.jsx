@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { ShoppingCart, Check, Loader2, Music } from 'lucide-react';
+import { ShoppingCart, Loader2, Music } from 'lucide-react';
 import api from '@/api/homieshub';
 
 const fmtPrice = (cents) => `$${(cents / 100).toFixed((cents % 100) ? 2 : 0)}`;
@@ -13,23 +12,33 @@ export default function LicenseModal({ track, listing, isOpen, onOpenChange }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const tiers = listing?.tiers || [];
-  const [selected, setSelected] = useState(tiers[0]?.key || null);
-  const [loading, setLoading] = useState(false);
+  const [loadingKey, setLoadingKey] = useState(null);
 
-  const buy = async () => {
+  // Selecting a tier goes straight to checkout, in a NEW TAB. The blank tab is
+  // opened synchronously inside the click handler so browsers don't block it as
+  // a popup (opening after the await would be blocked).
+  const startCheckout = async (tier) => {
+    if (loadingKey) return;
     if (!user) { toast({ title: 'Log in to license this track' }); return; }
-    const tierKey = selected || tiers[0]?.key;
-    if (!tierKey) return;
-    setLoading(true);
+
+    const win = window.open('', '_blank');
+    setLoadingKey(tier.key);
     try {
-      const { data } = await api.post('/marketplace/license-checkout', { trackId: track.id, tierKey });
+      const { data } = await api.post('/marketplace/license-checkout', { trackId: track.id, tierKey: tier.key });
       const url = data?.result?.url;
-      if (url) { window.location.href = url; return; }
-      toast({ title: 'Could not start checkout', variant: 'destructive' });
+      if (url) {
+        if (win) win.location.href = url;
+        else window.open(url, '_blank'); // fallback if the blank tab was blocked
+        onOpenChange(false);
+      } else {
+        if (win) win.close();
+        toast({ title: 'Could not start checkout', variant: 'destructive' });
+      }
     } catch {
+      if (win) win.close();
       toast({ title: 'Could not start checkout', variant: 'destructive' });
     } finally {
-      setLoading(false);
+      setLoadingKey(null);
     }
   };
 
@@ -38,19 +47,18 @@ export default function LicenseModal({ track, listing, isOpen, onOpenChange }) {
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Music className="w-4 h-4 text-primary" /> License “{track?.title}”</DialogTitle>
-          <DialogDescription>Buy a license to use this track. Instant checkout — you get a receipt and license record.</DialogDescription>
+          <DialogDescription>Pick a license — checkout opens in a new tab. You get a receipt and a license record.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2 py-1">
           {tiers.map((t) => {
-            const active = selected === t.key;
+            const busy = loadingKey === t.key;
             return (
               <button
                 key={t.key}
-                onClick={() => setSelected(t.key)}
-                className={`w-full flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
-                  active ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'
-                }`}
+                onClick={() => startCheckout(t)}
+                disabled={!!loadingKey}
+                className="w-full flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3 text-left transition-colors hover:border-primary hover:bg-primary/10 disabled:opacity-60"
               >
                 <div className="min-w-0">
                   <p className="font-semibold text-sm">{t.label}</p>
@@ -58,7 +66,7 @@ export default function LicenseModal({ track, listing, isOpen, onOpenChange }) {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="font-bold">{fmtPrice(t.amountCents)}</span>
-                  {active && <Check className="w-4 h-4 text-primary" />}
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <ShoppingCart className="w-4 h-4 text-muted-foreground" />}
                 </div>
               </button>
             );
@@ -67,11 +75,6 @@ export default function LicenseModal({ track, listing, isOpen, onOpenChange }) {
             <p className="text-sm text-muted-foreground py-4 text-center">This track isn’t available to license right now.</p>
           )}
         </div>
-
-        <Button onClick={buy} disabled={loading || !tiers.length} className="w-full">
-          {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
-          {loading ? 'Starting checkout…' : 'Continue to checkout'}
-        </Button>
       </DialogContent>
     </Dialog>
   );

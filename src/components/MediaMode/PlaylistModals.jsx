@@ -65,12 +65,11 @@ export const ManagePlaylistsModal = ({ isOpen, onClose }) => {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const { toast } = useToast();
 
-    if (isCreateOpen) {
-        return <CreatePlaylistModal isOpen={true} onClose={() => setIsCreateOpen(false)} />;
-    }
-
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+      <>
+        {/* Never unmount an OPEN Radix dialog (leaves body pointer-events:none →
+            frozen UI). Instead close this one when the create dialog opens. */}
+        <Dialog open={isOpen && !isCreateOpen} onOpenChange={(o) => { if (!o && !isCreateOpen) onClose(); }}>
              <DialogContent className="bg-zinc-950 border-zinc-800 text-white sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>My Playlists</DialogTitle>
@@ -110,8 +109,8 @@ export const ManagePlaylistsModal = ({ isOpen, onClose }) => {
                             ))}
                         </div>
                     )}
-                    <Button 
-                        onClick={() => setIsCreateOpen(true)} 
+                    <Button
+                        onClick={() => setIsCreateOpen(true)}
                         className="w-full bg-white text-black hover:bg-zinc-200"
                     >
                         <Plus className="h-4 w-4 mr-2" /> Create New Playlist
@@ -119,6 +118,8 @@ export const ManagePlaylistsModal = ({ isOpen, onClose }) => {
                 </div>
              </DialogContent>
         </Dialog>
+        <CreatePlaylistModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />
+      </>
     );
 };
 
@@ -133,12 +134,11 @@ export const AddToPlaylistModal = ({ isOpen, onClose, mediaToAdd }) => {
         onClose();
     };
 
-    if (isCreateOpen) {
-        return <CreatePlaylistModal isOpen={true} onClose={() => setIsCreateOpen(false)} />;
-    }
-
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+      <>
+        {/* Never unmount an OPEN Radix dialog (leaves body pointer-events:none →
+            frozen UI). Close this one when the create dialog opens instead. */}
+        <Dialog open={isOpen && !isCreateOpen} onOpenChange={(o) => { if (!o && !isCreateOpen) onClose(); }}>
              <DialogContent className="bg-zinc-950 border-zinc-800 text-white sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Add to Playlist</DialogTitle>
@@ -169,8 +169,8 @@ export const AddToPlaylistModal = ({ isOpen, onClose, mediaToAdd }) => {
                             ))}
                         </div>
                     )}
-                    <Button 
-                        onClick={() => setIsCreateOpen(true)} 
+                    <Button
+                        onClick={() => setIsCreateOpen(true)}
                         className="w-full mt-4 bg-white text-black hover:bg-zinc-200"
                     >
                         <Plus className="h-4 w-4 mr-2" /> Create New Playlist
@@ -178,5 +178,7 @@ export const AddToPlaylistModal = ({ isOpen, onClose, mediaToAdd }) => {
                 </div>
              </DialogContent>
         </Dialog>
+        <CreatePlaylistModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />
+      </>
     );
 };

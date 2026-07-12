@@ -364,18 +364,62 @@ export const MediaProvider = ({ children }) => {
     setHasEnteredMediaMode(false);
   }, []);
 
-  // ── Likes / playlists ──────────────────────────────────────────────────────
-  const isLiked    = (id) => likedIds.includes(id);
-  const toggleLike = (item) => setLikedIds(p => p.includes(item.id) ? p.filter(x => x !== item.id) : [...p, item.id]);
-  const likedMedia = allTracks.filter(t => likedIds.includes(t.id));
+  // ── Likes / playlists (persisted per user → survive reloads & devices) ───────
+  const [likedTracks, setLikedTracks] = useState([]); // snapshots for My Likes
 
-  const createPlaylist = (name) => setPlaylists(p => [...p, { id: Date.now(), name, items: [] }]);
-  const deletePlaylist = (id)   => setPlaylists(p => p.filter(x => x.id !== id));
+  // Hydrate from the backend when the signed-in user changes.
+  useEffect(() => {
+    if (!user) { setLikedIds([]); setLikedTracks([]); setPlaylists([]); return; }
+    let cancelled = false;
+    api.get('/music/me/library')
+      .then(({ data }) => {
+        if (cancelled) return;
+        const r = data?.result || {};
+        setLikedIds(r.likedIds || []);
+        setLikedTracks(r.likes || []);
+        setPlaylists((r.playlists || []).map(p => ({ id: p.id, name: p.name, image: p.image, items: p.items || [] })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.sub]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isLiked    = (id) => likedIds.includes(id);
+  const toggleLike = (item) => {
+    const id = item.id;
+    const wasLiked = likedIds.includes(id);
+    setLikedIds(p => wasLiked ? p.filter(x => x !== id) : [...p, id]);
+    setLikedTracks(p => wasLiked ? p.filter(x => x.id !== id) : [...p, item]);
+    if (user) api.post('/music/me/likes', { track: item }).catch(() => {});
+  };
+  // Prefer persisted snapshots; fall back to catalog matches for anything not yet snapshotted.
+  const likedMedia = useMemo(() => {
+    const byId = new Map(likedTracks.map(t => [t.id, t]));
+    allTracks.forEach(t => { if (likedIds.includes(t.id) && !byId.has(t.id)) byId.set(t.id, t); });
+    return likedIds.map(id => byId.get(id)).filter(Boolean);
+  }, [likedIds, likedTracks, allTracks]);
+
+  const createPlaylist = (name, image = '') => {
+    if (!name?.trim()) return;
+    if (user) {
+      api.post('/music/me/playlists', { name: name.trim(), image })
+        .then(({ data }) => { const p = data?.result?.playlist; if (p) setPlaylists(prev => [...prev, p]); })
+        .catch(() => {});
+    } else {
+      setPlaylists(prev => [...prev, { id: `local-${Date.now()}`, name: name.trim(), image, items: [] }]);
+    }
+  };
+  const deletePlaylist = (id) => {
+    setPlaylists(p => p.filter(x => x.id !== id));
+    if (user && !String(id).startsWith('local-')) api.delete(`/music/me/playlists/${id}`).catch(() => {});
+  };
   const addToPlaylist  = (pid, item) => {
-    setPlaylists(p => p.map(x => x.id === pid ? { ...x, items: [...x.items, item] } : x));
+    setPlaylists(p => p.map(x => x.id === pid
+      ? (x.items.some(i => i.id === item.id) ? x : { ...x, items: [...x.items, item] })
+      : x));
     if (item && (item.type === 'audio' || item.mediaKind !== 'video')) {
       trackEvent('playlist_add', { target: { kind: 'music', id: item.id || item._id, title: item.title || item.name } });
     }
+    if (user && !String(pid).startsWith('local-')) api.post(`/music/me/playlists/${pid}/items`, { track: item }).catch(() => {});
   };
 
   const fmtTime = (s) => {

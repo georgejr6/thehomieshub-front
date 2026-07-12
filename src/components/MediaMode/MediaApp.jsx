@@ -136,6 +136,21 @@ const MediaApp = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Safety net: Radix can leave `pointer-events: none` on <body> if a dialog
+  // unmounts while open, freezing the whole UI. Clear it whenever no dialog is
+  // actually open. (Root causes are fixed too — this is belt-and-suspenders.)
+  useEffect(() => {
+    const fix = () => {
+      if (document.body.style.pointerEvents === 'none' &&
+          !document.querySelector('[role="dialog"][data-state="open"]')) {
+        document.body.style.pointerEvents = '';
+      }
+    };
+    const obs = new MutationObserver(fix);
+    obs.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+    return () => obs.disconnect();
+  }, []);
+
   const {
     minimizeMediaMode, exitMediaMode,
     allTracks, genreRows, catalogLoading, playMedia,

@@ -45,9 +45,10 @@ const MusicPlayer = () => {
     const onTime = () => {
       const t = audio.currentTime || 0;
       setCurrentTime(t);
+      // Accumulate real listen time. `timeupdate` only fires while playing, so a
+      // small forward delta is genuine playback; larger/backward jumps are seeks.
       const dt = t - lastTRef.current;
-      // Only count forward jumps under 2s as real listening (skips/seeks ignored).
-      if (dt > 0 && dt < 2 && isPlayingRef.current) measuredRef.current.ms += dt * 1000;
+      if (dt > 0 && dt < 2) measuredRef.current.ms += dt * 1000;
       lastTRef.current = t;
     };
     const onDur  = () => { if (!isNaN(audio.duration)) setDuration(audio.duration || 0); };
