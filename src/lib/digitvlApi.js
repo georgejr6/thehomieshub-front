@@ -75,6 +75,8 @@ export const musicApi = {
       items: (c.tracks || []).map(normalizeTrack),
     })).filter(c => c.items.length > 0)
   ),
+  // License listing for a track (null if not for sale). Powers the License button.
+  getListing:      (trackId) => musicHttp.get(`/music/listing/${trackId}`).then(r => r.data?.result?.listing || null).catch(() => null),
   getGenres:       () => musicHttp.get('/music/genres').then(r => r.data?.result?.genres || []),
   getArtistTracks: (slug) => musicHttp.get('/music/catalog', { params: { search: slug } }).then(tracksOf),
   search:          (q) => musicHttp.get('/music/catalog', { params: { search: q } }).then(tracksOf),

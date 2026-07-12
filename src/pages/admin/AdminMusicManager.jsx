@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2, Music, Plus, Trash2, Pencil, Check, X, Search,
   Play, Pause, Star, GripVertical, Save, DownloadCloud, BarChart3,
-  ListMusic, Headphones, Users, Clock, User as UserIcon, Globe,
+  ListMusic, Headphones, Users, Clock, User as UserIcon, Globe, ShoppingCart,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -194,6 +194,84 @@ function SongAnalytics() {
         </div>
       )}
       <SongListenersDialog song={target} isOpen={open} onOpenChange={(o) => { setOpen(o); if (!o) setTarget(null); }} />
+    </div>
+  );
+}
+
+// ── Songs bought / licensed ───────────────────────────────────────────────────
+function SongSales() {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState({ licenses: [], byTrack: [], totals: { count: 0, revenueCents: 0 } });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/admin/music/licenses');
+        if (!cancelled) setData(res.data?.result || { licenses: [], byTrack: [], totals: { count: 0, revenueCents: 0 } });
+      } catch { if (!cancelled) toast({ title: 'Failed to load sales', variant: 'destructive' }); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [toast]);
+
+  const money = (c) => `$${((c || 0) / 100).toFixed(2)}`;
+  const { licenses, byTrack, totals } = data;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="bg-card border rounded-xl p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Total revenue</p>
+          <p className="text-2xl font-bold mt-1">{money(totals.revenueCents)}</p>
+        </div>
+        <div className="bg-card border rounded-xl p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Licenses sold</p>
+          <p className="text-2xl font-bold mt-1">{totals.count}</p>
+        </div>
+        <div className="bg-card border rounded-xl p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Songs sold</p>
+          <p className="text-2xl font-bold mt-1">{byTrack.length}</p>
+        </div>
+      </div>
+
+      <div className="bg-card border rounded-xl overflow-hidden">
+        <p className="text-sm font-semibold p-4 border-b flex items-center gap-2"><Headphones className="w-4 h-4 text-primary" /> Recent licenses</p>
+        {loading ? (
+          <div className="flex justify-center py-14"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>
+        ) : licenses.length === 0 ? (
+          <p className="text-center text-muted-foreground py-14 text-sm">No songs bought or licensed yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
+                  <th className="text-left font-semibold py-2.5 px-4">Buyer</th>
+                  <th className="text-left font-semibold py-2.5 px-2">Song</th>
+                  <th className="text-left font-semibold py-2.5 px-3">License</th>
+                  <th className="text-right font-semibold py-2.5 px-3">Amount</th>
+                  <th className="text-left font-semibold py-2.5 px-3">DIGITVL</th>
+                  <th className="text-right font-semibold py-2.5 px-4">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {licenses.map((l) => (
+                  <tr key={l.id} className="border-b border-border/50 last:border-0">
+                    <td className="py-2.5 px-4 font-medium">{l.buyer}{l.buyerEmail && <span className="block text-[11px] text-muted-foreground">{l.buyerEmail}</span>}</td>
+                    <td className="py-2.5 px-2 max-w-[220px] truncate">{l.trackTitle || l.trackId}</td>
+                    <td className="py-2.5 px-3">{l.tierLabel || l.licenseType}</td>
+                    <td className="py-2.5 px-3 text-right">{money(l.amountCents)}</td>
+                    <td className="py-2.5 px-3">{l.digitvlRecorded ? <Check className="w-4 h-4 text-green-500" /> : <span className="text-xs text-muted-foreground">pending</span>}</td>
+                    <td className="py-2.5 px-4 text-right text-muted-foreground">{fmtTime(l.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -398,6 +476,7 @@ export default function AdminMusicManager() {
         {[
           { key: 'playlists', label: 'Playlists', icon: ListMusic },
           { key: 'analytics', label: 'Song Analytics', icon: BarChart3 },
+          { key: 'sales', label: 'Sales / Licenses', icon: ShoppingCart },
         ].map(t => (
           <button key={t.key} onClick={() => setView(t.key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
@@ -410,6 +489,8 @@ export default function AdminMusicManager() {
 
       {view === 'analytics' ? (
         <SongAnalytics />
+      ) : view === 'sales' ? (
+        <SongSales />
       ) : (
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
         {/* ── Playlists list ── */}

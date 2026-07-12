@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipBack, SkipForward,
   Volume2, VolumeX, Heart, ChevronUp, ChevronDown,
-  Activity, Maximize2, Share2, X,
+  Activity, Maximize2, Share2, X, ShoppingCart,
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { useMedia } from '@/contexts/MediaContext';
 import { trackEvent } from '@/lib/tracker';
+import { musicApi } from '@/lib/digitvlApi';
+import LicenseModal from './LicenseModal';
 
 const MusicPlayer = () => {
   const {
@@ -80,6 +82,17 @@ const MusicPlayer = () => {
       flushListen();
     };
   }, [flushListen]);
+
+  // Licensing: fetch this track's listing (null if not for sale).
+  const [listing,     setListing]     = useState(null);
+  const [showLicense, setShowLicense] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setListing(null);
+    const id = currentTrack?.id;
+    if (id) musicApi.getListing(id).then((l) => { if (!cancelled) setListing(l); });
+    return () => { cancelled = true; };
+  }, [currentTrack?.id]);
 
   const [isExpanded,  setIsExpanded]  = useState(false);
   const [vizMode,     setVizMode]     = useState(false);
@@ -301,6 +314,12 @@ const MusicPlayer = () => {
                           className="flex items-center gap-2 px-4 py-2 border border-zinc-600 rounded-lg text-sm text-white hover:border-white transition-colors">
                           <Share2 className="w-4 h-4" /> Share
                         </button>
+                        {listing?.tiers?.length > 0 && (
+                          <button onClick={() => setShowLicense(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-black bg-primary hover:bg-primary/90 transition-colors">
+                            <ShoppingCart className="w-4 h-4" /> Buy / License
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -382,6 +401,13 @@ const MusicPlayer = () => {
           </div>
         </div>
       </motion.div>
+
+      <LicenseModal
+        track={currentTrack}
+        listing={listing}
+        isOpen={showLicense}
+        onOpenChange={setShowLicense}
+      />
     </>
   );
 };
