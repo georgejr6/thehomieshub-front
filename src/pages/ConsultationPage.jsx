@@ -21,14 +21,16 @@ function Reveal({ children, i = 0, className = '' }) {
   );
 }
 
-const scrollToBook = () => {
-  const el = document.getElementById('book');
+const scrollTo = (id) => {
+  const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
+const scrollToPricing = () => scrollTo('pricing');
+const scrollToBook = () => scrollTo('book');
 
 function BookBtn({ label = 'Book a Consultation', className = '', size = 'lg', variant }) {
   return (
-    <Button size={size} variant={variant} onClick={scrollToBook}
+    <Button size={size} variant={variant} onClick={scrollToPricing}
       className={`font-semibold gap-2 ${!variant ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-glow-gold' : ''} ${className}`}>
       {label} <ArrowRight className="h-4 w-4" />
     </Button>
@@ -46,12 +48,6 @@ const PILLARS = [
 ];
 
 const PLANS = [
-  {
-    name: 'Discovery Call', price: 'Free', unit: '20 min',
-    tagline: 'Get clarity on your move.',
-    features: ['Map your goal → a real path', 'Where to start + what to skip', 'Honest take on your plan'],
-    cta: 'Book Free Call', action: 'book',
-  },
   {
     name: '30-Min Consultation', price: '$75', unit: '30 min',
     tagline: 'Focused answers, fast.',
@@ -88,7 +84,7 @@ const FAQ = [
 /* ── page ─────────────────────────────────────────────────────── */
 export default function ConsultationPage() {
   const { toast } = useToast();
-  const [form, setForm] = useState({ name: '', email: '', interest: '1-Hour Consultation', message: '' });
+  const [form, setForm] = useState({ name: '', email: '', city: '', dates: '', groupSize: '', needs: '' });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [busyPlan, setBusyPlan] = useState(null);
@@ -121,12 +117,13 @@ export default function ConsultationPage() {
     }
     setSending(true);
     try {
-      await api.post('/consultation', form);
+      await api.post('/consultation', { ...form, interest: 'City Tour' });
       setSent(true);
-      toast({ title: 'Request sent 🎉', description: "I'll reach out to book your session.", className: 'bg-green-500 text-white' });
+      toast({ title: 'Request sent 🎉', description: "I'll reach out to plan your tour.", className: 'bg-green-500 text-white' });
     } catch (err) {
       // graceful fallback so a lead is never lost
-      window.location.href = `mailto:georgeedosomwan@gmail.com?subject=Consultation%20request%20-%20${encodeURIComponent(form.interest)}&body=${encodeURIComponent(`Name: ${form.name}\nEmail: ${form.email}\n\n${form.message}`)}`;
+      const body = `Name: ${form.name}\nEmail: ${form.email}\nCity: ${form.city}\nDates: ${form.dates}\nGroup size: ${form.groupSize}\n\nWhat they need:\n${form.needs}`;
+      window.location.href = `mailto:georgeedosomwan@gmail.com?subject=${encodeURIComponent('Tour request - ' + (form.city || ''))}&body=${encodeURIComponent(body)}`;
     } finally {
       setSending(false);
     }
@@ -180,7 +177,7 @@ export default function ConsultationPage() {
                 </div>
                 <h3 className="mt-4 text-lg font-bold">{p.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{p.body}</p>
-                <button onClick={scrollToBook} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary opacity-0 transition group-hover:opacity-100">
+                <button onClick={scrollToPricing} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary opacity-0 transition group-hover:opacity-100">
                   Book a consultation <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -215,7 +212,7 @@ export default function ConsultationPage() {
           <h2 className="text-3xl font-bold sm:text-4xl">Pick your starting point</h2>
           <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Start with a free call, or jump straight into the package that fits. Every plan ends with a clear next step.</p>
         </Reveal>
-        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {PLANS.map((p, i) => (
             <Reveal key={p.name} i={i}>
               <div className={`relative flex h-full flex-col rounded-2xl border p-6 ${p.featured ? 'border-primary bg-primary/[0.06] shadow-glow-gold' : 'border-border bg-card'}`}>
@@ -298,15 +295,15 @@ export default function ConsultationPage() {
       <section id="book" className="px-5 py-20">
         <div className="mx-auto max-w-xl">
           <Reveal className="text-center">
-            <h2 className="text-3xl font-bold sm:text-4xl">Book your consultation</h2>
-            <p className="mt-3 text-muted-foreground">Tell me about your move. I'll reach out to lock in a time.</p>
+            <h2 className="text-3xl font-bold sm:text-4xl">Book a tour</h2>
+            <p className="mt-3 text-muted-foreground">Tours are custom, so tell me what you need — I'll build it around your trip and reach out with the details.</p>
           </Reveal>
           <Reveal i={1}>
             {sent ? (
               <div className="mt-8 rounded-2xl border border-green-500/40 bg-green-500/10 p-8 text-center">
                 <Check className="mx-auto h-8 w-8 text-green-500" />
-                <p className="mt-3 text-lg font-semibold">You're in the queue.</p>
-                <p className="mt-1 text-sm text-muted-foreground">I'll email you shortly to book your session. Talk soon.</p>
+                <p className="mt-3 text-lg font-semibold">Got it — request received.</p>
+                <p className="mt-1 text-sm text-muted-foreground">I'll email you shortly with tour options and pricing. Talk soon.</p>
               </div>
             ) : (
               <form onSubmit={submit} className="mt-8 space-y-3 rounded-2xl border border-border bg-card p-6">
@@ -316,18 +313,22 @@ export default function ConsultationPage() {
                   <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
                     placeholder="Email" type="email" className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
                 </div>
-                <select value={form.interest} onChange={(e) => setForm({ ...form, interest: e.target.value })}
-                  className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
-                  {['Free Discovery Call', '30-Min Consultation ($75)', '1-Hour Consultation ($150)', 'City Tour (contact)', 'Not sure yet'].map((o) => <option key={o}>{o}</option>)}
-                </select>
-                <textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })}
-                  placeholder="Where are you now, and where do you want to go? (optional)" rows={4}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    placeholder="City / where" className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+                  <input value={form.dates} onChange={(e) => setForm({ ...form, dates: e.target.value })}
+                    placeholder="When (dates)" className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+                  <input value={form.groupSize} onChange={(e) => setForm({ ...form, groupSize: e.target.value })}
+                    placeholder="How many people" className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+                </div>
+                <textarea value={form.needs} onChange={(e) => setForm({ ...form, needs: e.target.value })}
+                  placeholder="What are you looking for? (nightlife, food, orientation, translation, day trips, networking, content shoot, etc.)" rows={4}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
                 <Button type="submit" disabled={sending} className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {sending ? 'Sending…' : 'Request my consultation'}
+                  {sending ? 'Sending…' : 'Request my tour'}
                 </Button>
-                <p className="text-center text-xs text-muted-foreground">No spam. Your info is only used to book your session.</p>
+                <p className="text-center text-xs text-muted-foreground">No spam. Your info is only used to plan your tour.</p>
               </form>
             )}
           </Reveal>
