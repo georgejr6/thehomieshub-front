@@ -153,7 +153,7 @@ const MediaApp = () => {
 
   const {
     minimizeMediaMode, exitMediaMode,
-    allTracks, genreRows, catalogLoading, playMedia,
+    allTracks, genreRows, topTracks, catalogLoading, playMedia,
     featuredVideo, trendingVideos, newVideos, movies, series, videoLoading, playVideo, currentVideo,
     hhVideos,
     likedMedia, likedIds,
@@ -601,7 +601,9 @@ const MediaApp = () => {
                           Browse all →
                         </button>
                       </div>
-                      {allTracks.length >= 5 && <MediaRow title="Top 10 Tracks" items={allTracks.slice(0, 10)} isRanked />}
+                      {(topTracks.length ? topTracks : allTracks.slice(0, 10)).length >= 5 && (
+                        <MediaRow title="Top 10" items={(topTracks.length ? topTracks : allTracks.slice(0, 10))} isRanked />
+                      )}
                       {genreRows.map(({ genre, items }) => (
                         <MediaRow key={genre} title={`${genre} · ${items.length}`} items={items} />
                       ))}
@@ -721,7 +723,9 @@ const MediaApp = () => {
                   ) : (
                     /* ── GENRE-SEGMENTED ROWS (default browse) ────────────────── */
                     <>
-                      {allTracks.length >= 5 && <MediaRow title="Top 10" items={allTracks.slice(0, 10)} isRanked />}
+                      {(topTracks.length ? topTracks : allTracks.slice(0, 10)).length >= 5 && (
+                        <MediaRow title="Top 10" items={(topTracks.length ? topTracks : allTracks.slice(0, 10))} isRanked />
+                      )}
                       {likedMedia.length > 0 && <MediaRow title="Liked Tracks" items={likedMedia} />}
                       {genreRows.map(({ genre, items }) => (
                         <MediaRow key={genre} title={`${genre} · ${items.length}`} items={items} />

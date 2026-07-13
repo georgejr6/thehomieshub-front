@@ -77,6 +77,8 @@ export const musicApi = {
   ),
   // License listing for a track (null if not for sale). Powers the License button.
   getListing:      (trackId) => musicHttp.get(`/music/listing/${trackId}`).then(r => r.data?.result?.listing || null).catch(() => null),
+  // Top 10 — ranked by real plays, human songs seeded first (see backend /music/top).
+  getTop:          (limit = 10) => musicHttp.get('/music/top', { params: { limit } }).then(r => (r.data?.result?.tracks || []).map(normalizeTrack)).catch(() => []),
   getGenres:       () => musicHttp.get('/music/genres').then(r => r.data?.result?.genres || []),
   getArtistTracks: (slug) => musicHttp.get('/music/catalog', { params: { search: slug } }).then(tracksOf),
   search:          (q) => musicHttp.get('/music/catalog', { params: { search: q } }).then(tracksOf),

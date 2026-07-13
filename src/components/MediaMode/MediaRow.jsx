@@ -26,9 +26,12 @@ const MediaCard = ({ item, isRanked, rank, onPlay, onInfo, onAddToPlaylist, full
         </span>
       )}
 
-      {/* Card */}
+      {/* Card — square for audio (shows the full album cover), 16:9 for video */}
       <motion.div
-        className="relative aspect-video bg-zinc-800 rounded-sm overflow-hidden cursor-pointer"
+        className={cn(
+          "relative bg-zinc-800 rounded-sm overflow-hidden cursor-pointer",
+          item.type === 'audio' ? "aspect-square" : "aspect-video"
+        )}
         whileHover={{ scale: 1.05 }}
         transition={{ duration: 0.3 }}
         onHoverStart={() => setIsHovered(true)}

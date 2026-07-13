@@ -16,6 +16,7 @@ export const MediaProvider = ({ children }) => {
   // ── Music Catalog ──────────────────────────────────────────────────────────
   const [allTracks,      setAllTracks]      = useState([]);
   const [genreRows,      setGenreRows]      = useState([]);
+  const [topTracks,      setTopTracks]      = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
   // ── Video Catalog ──────────────────────────────────────────────────────────
@@ -116,6 +117,9 @@ export const MediaProvider = ({ children }) => {
       finally { setCatalogLoading(false); }
     })();
   }, []);
+
+  // ── Top 10 (play-ranked, human-seeded) ─────────────────────────────────────
+  useEffect(() => { musicApi.getTop(10).then(setTopTracks).catch(() => {}); }, []);
 
   // ── Fetch video catalog ────────────────────────────────────────────────────
   useEffect(() => {
@@ -431,7 +435,7 @@ export const MediaProvider = ({ children }) => {
   return (
     <MediaContext.Provider value={{
       // Music
-      allTracks, genreRows, catalogLoading,
+      allTracks, genreRows, topTracks, catalogLoading,
       audioRef, currentTrack, isPlaying, isLoading,
       volume, isMuted, setVolume, setIsMuted,
       togglePlay, seek, skipForward, skipBack, playMedia, fmtTime,
