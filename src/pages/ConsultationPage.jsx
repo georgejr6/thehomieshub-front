@@ -50,25 +50,25 @@ const PLANS = [
     name: 'Discovery Call', price: 'Free', unit: '20 min',
     tagline: 'Get clarity on your move.',
     features: ['Map your goal → a real path', 'Where to start + what to skip', 'Honest take on your plan'],
-    cta: 'Book Free Call',
+    cta: 'Book Free Call', action: 'book',
   },
   {
-    name: 'Trip Blueprint', price: '$149', unit: 'per trip',
-    tagline: 'Your city, fully sorted.',
-    features: ['Custom day-by-day itinerary', 'Safe zones, nightlife, ATMs, food', 'Local intel + tap-to-map links', 'Consultation recap included'],
-    cta: 'Get My Blueprint',
+    name: '30-Min Consultation', price: '$75', unit: '30 min',
+    tagline: 'Focused answers, fast.',
+    features: ['Trip, remote-work, or income questions', 'A clear, doable next step', 'Recap of what we cover'],
+    cta: 'Book — $75', action: 'checkout', plan: '30min',
   },
   {
-    name: 'Go Global Roadmap', price: '$499', unit: 'one-time',
-    tagline: 'Independent & global — with a method.',
-    features: ['Remote-work + income setup', 'Earning-overseas game plan', 'Relocation + networking roadmap', 'Content/brand strategy', '2 follow-up sessions'],
-    cta: 'Start My Roadmap', featured: true,
+    name: '1-Hour Consultation', price: '$150', unit: '1 hour',
+    tagline: 'Go deep on your whole move.',
+    features: ['Full plan: trip · remote work · earning overseas', 'Networking + content strategy', 'Action steps you can run', 'Written recap included'],
+    cta: 'Book — $150', action: 'checkout', plan: '1hr', featured: true,
   },
   {
-    name: 'On-Ground Guide', price: '$50', unit: 'per hour',
-    tagline: 'I take you around the city.',
-    features: ['Personal tour, any day', 'Live translation', 'Get acquainted, fast', 'Skip the rookie mistakes'],
-    cta: 'Book a Day',
+    name: 'City Tours', price: 'Contact', unit: 'for details',
+    tagline: 'On-the-ground, in person.',
+    features: ['Personal tour, any day', 'Live translation', 'Get acquainted fast', 'Skip the rookie mistakes'],
+    cta: 'Contact for Details', action: 'book',
   },
 ];
 
@@ -88,9 +88,30 @@ const FAQ = [
 /* ── page ─────────────────────────────────────────────────────── */
 export default function ConsultationPage() {
   const { toast } = useToast();
-  const [form, setForm] = useState({ name: '', email: '', interest: 'Go Global Roadmap', message: '' });
+  const [form, setForm] = useState({ name: '', email: '', interest: '1-Hour Consultation', message: '' });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [busyPlan, setBusyPlan] = useState(null);
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('paid') === '1') {
+      toast({ title: 'Payment received 🎉', description: "You're booked — I'll email you to lock in a time.", className: 'bg-green-500 text-white' });
+      window.history.replaceState({}, '', '/consultation');
+    }
+  }, []); // eslint-disable-line
+
+  const buyConsult = async (plan) => {
+    setBusyPlan(plan);
+    try {
+      const { data } = await api.post('/consultation/checkout', { plan });
+      if (data?.url) window.location.href = data.url;
+      else setBusyPlan(null);
+    } catch (err) {
+      toast({ title: 'Could not open checkout', description: 'Please try again.', variant: 'destructive' });
+      setBusyPlan(null);
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -214,14 +235,20 @@ export default function ConsultationPage() {
                     </li>
                   ))}
                 </ul>
-                <Button onClick={scrollToBook} className={`mt-6 w-full gap-2 ${p.featured ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}`} variant={p.featured ? undefined : 'outline'}>
+                <Button
+                  onClick={() => (p.action === 'checkout' ? buyConsult(p.plan) : scrollToBook())}
+                  disabled={busyPlan === p.plan}
+                  className={`mt-6 w-full gap-2 ${p.featured ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}`}
+                  variant={p.featured ? undefined : 'outline'}
+                >
+                  {busyPlan === p.plan ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {p.cta}
                 </Button>
               </div>
             </Reveal>
           ))}
         </div>
-        <p className="mt-6 text-center text-xs text-muted-foreground">Custom needs? Book a call and we'll shape a package around your move.</p>
+        <p className="mt-6 text-center text-xs text-muted-foreground">Secure checkout via Stripe · Tours are custom — hit "Contact for Details" and we'll shape it around your trip.</p>
       </section>
 
       {/* WHY */}
@@ -291,7 +318,7 @@ export default function ConsultationPage() {
                 </div>
                 <select value={form.interest} onChange={(e) => setForm({ ...form, interest: e.target.value })}
                   className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
-                  {['Free Discovery Call', 'Trip Blueprint', 'Go Global Roadmap', 'On-Ground Guide', 'Not sure yet'].map((o) => <option key={o}>{o}</option>)}
+                  {['Free Discovery Call', '30-Min Consultation ($75)', '1-Hour Consultation ($150)', 'City Tour (contact)', 'Not sure yet'].map((o) => <option key={o}>{o}</option>)}
                 </select>
                 <textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })}
                   placeholder="Where are you now, and where do you want to go? (optional)" rows={4}
