@@ -39,6 +39,10 @@ const MusicPlayer = () => {
     m.ms = 0;
   }, []);
 
+  // NOTE: depends on currentTrack?.id (not just audioRef). The <audio> element is
+  // created in the PARENT MediaProvider effect, which runs AFTER this child effect
+  // on first mount — so audioRef.current is null here at app start. Re-running when
+  // a track loads guarantees the element exists so the listeners actually attach.
   useEffect(() => {
     const audio = audioRef?.current;
     if (!audio) return;
@@ -61,7 +65,7 @@ const MusicPlayer = () => {
       audio.removeEventListener('durationchange', onDur);
       audio.removeEventListener('loadedmetadata', onDur);
     };
-  }, [audioRef]);
+  }, [audioRef, currentTrack?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On track change: flush the previous track's listen time, then start measuring
   // the new one. Also reset the position readout.
