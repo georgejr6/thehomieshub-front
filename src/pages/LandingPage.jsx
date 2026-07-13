@@ -152,15 +152,14 @@ const LandingPage = ({ onLoginRequest }) => {
                     Sign In
                   </Button>
                 ) : (
-                  <>
-                    <Button asChild size="lg" variant="outline" className="border-primary/40 text-foreground hover:bg-primary/10">
-                      <Link to="/memberships">View Memberships</Link>
-                    </Button>
-                    <Button asChild size="lg" variant="ghost" className="text-foreground hover:bg-primary/10">
-                      <Link to="/billing">Billing &amp; Membership</Link>
-                    </Button>
-                  </>
+                  <Button asChild size="lg" variant="outline" className="border-primary/40 text-foreground hover:bg-primary/10">
+                    <Link to="/memberships">View Memberships</Link>
+                  </Button>
                 )}
+                {/* Consultation funnel — shown to everyone */}
+                <Button asChild size="lg" variant="outline" className="border-primary/60 text-foreground hover:bg-primary/10">
+                  <Link to="/consultation">Book A Consultation</Link>
+                </Button>
               </div>
 
               {/* Connect-your-membership nudge for signed-in users */}

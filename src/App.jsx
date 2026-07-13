@@ -55,6 +55,7 @@ import SupportPage from '@/pages/SupportPage';
 import LandingPage from '@/pages/LandingPage';
 import MembershipsPage from '@/pages/MembershipsPage';
 import BillingPage from '@/pages/BillingPage';
+import ConsultationPage from '@/pages/ConsultationPage';
 import ConnectMembershipBanner from '@/components/ConnectMembershipBanner';
 import MarketplacePage from '@/pages/MarketplacePage';
 import PurchasesPage from '@/pages/PurchasesPage';
@@ -377,6 +378,7 @@ const AppContent = React.memo(() => {
                 <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
                 <Route path="/browse" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
                 <Route path="/memberships" element={<MembershipsPage />} />
+                <Route path="/consultation" element={<ConsultationPage />} />
                 <Route path="/billing" element={user ? <BillingPage /> : <Navigate to="/?openAuth=1&tab=signin" />} />
                 <Route path="/marketplace" element={<MarketplacePage />} />
                 <Route path="/purchases" element={user ? <PurchasesPage /> : <Navigate to="/" />} />
