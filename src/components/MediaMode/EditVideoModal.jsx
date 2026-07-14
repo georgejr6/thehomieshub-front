@@ -105,11 +105,11 @@ export const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('folder', 'backdrops');
-      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/files/upload', fd);
       const url = data?.result?.url || data?.url;
       if (url) onChange([...images, url]);
     } catch (err) {
-      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Upload failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -189,11 +189,11 @@ const EditVideoModal = ({ item, categories = [], onClose, onSaved }) => {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('folder', 'thumbnails');
-      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/files/upload', fd);
       const url = data?.result?.url || data?.url;
       if (url) setThumbnailUrl(url);
     } catch (err) {
-      toast({ title: 'Thumbnail upload failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Thumbnail upload failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setThumbLoading(false);
     }
@@ -237,7 +237,7 @@ const EditVideoModal = ({ item, categories = [], onClose, onSaved }) => {
       toast({ title: 'Saved' });
       onSaved?.();
     } catch (err) {
-      toast({ title: 'Save failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Save failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }

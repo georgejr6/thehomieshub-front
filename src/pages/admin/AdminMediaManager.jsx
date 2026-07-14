@@ -87,11 +87,11 @@ const BackdropEditor = ({ images, muxPlaybackId, onChange }) => {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('folder', 'backdrops');
-      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/files/upload', fd);
       const url = data?.result?.url || data?.url;
       if (url) onChange([...images, url]);
     } catch (err) {
-      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Upload failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -171,7 +171,7 @@ const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelet
       toast({ title: '📣 Announced on Discord!' });
       if (onAnnounce) onAnnounce();
     } catch (err) {
-      toast({ title: 'Announcement failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Announcement failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setAnnouncing(false);
     }
@@ -201,11 +201,11 @@ const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelet
       const fd = new FormData();
       fd.append('file', file);
       fd.append('folder', 'thumbnails');
-      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/files/upload', fd);
       const url = data?.result?.url || data?.url;
       if (url) setThumbnailUrl(url);
     } catch (err) {
-      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Upload failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setThumbLoading(false);
       if (thumbInputRef.current) thumbInputRef.current.value = '';
@@ -221,7 +221,7 @@ const VideoPreviewModal = ({ item, onClose, onFullEdit, onSaved, onHide, onDelet
       onSaved();
       onClose();
     } catch (err) {
-      toast({ title: 'Save failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Save failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -378,7 +378,7 @@ const EditModal = ({ item, categories, onClose, onSaved, onDelete }) => {
       await api.post(`/admin/videos/${itemId}/announce`, { _collectionType: item._collectionType || 'video' });
       toast({ title: '📣 Announced on Discord!' });
     } catch (err) {
-      toast({ title: 'Announcement failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Announcement failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setAnnouncing(false);
     }
@@ -390,11 +390,11 @@ const EditModal = ({ item, categories, onClose, onSaved, onDelete }) => {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('folder', 'thumbnails');
-      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/files/upload', fd);
       const url = data?.result?.url || data?.url;
       if (url) setThumbnailUrl(url);
     } catch (err) {
-      toast({ title: 'Thumbnail upload failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Thumbnail upload failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setThumbLoading(false);
     }
@@ -428,7 +428,7 @@ const EditModal = ({ item, categories, onClose, onSaved, onDelete }) => {
       toast({ title: 'Saved' });
       onSaved();
     } catch (err) {
-      toast({ title: 'Save failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Save failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -560,7 +560,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
       await api.post(`/admin/videos/${itemId}/announce`, { _collectionType: item._collectionType || 'video' });
       toast({ title: '📣 Announced on Discord!' });
     } catch (err) {
-      toast({ title: 'Announcement failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Announcement failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     }
   };
 
@@ -573,7 +573,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
       if (previewing && String(previewing._id || previewing.id) === itemId) setPreviewing(p => ({ ...p, visibility: next }));
       toast({ title: next === 'private' ? 'Hidden from public feed' : 'Visible again' });
     } catch (err) {
-      toast({ title: 'Failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     }
   };
 
@@ -586,7 +586,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
       if (previewing && String(previewing._id || previewing.id) === itemId) setPreviewing(null);
       toast({ title: 'Deleted' });
     } catch (err) {
-      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Delete failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     }
   };
 
@@ -702,7 +702,7 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
       onCategoriesChange();
       toast({ title: 'Category created' });
     } catch (err) {
-      toast({ title: 'Failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setCreating(false);
     }
@@ -717,7 +717,7 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
       setEditingId(null);
       toast({ title: 'Category renamed' });
     } catch (err) {
-      toast({ title: 'Failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -730,7 +730,7 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
       onCategoriesChange();
       toast({ title: 'Category deleted' });
     } catch (err) {
-      toast({ title: 'Failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
     }
   };
 
