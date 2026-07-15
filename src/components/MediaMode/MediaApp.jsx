@@ -295,11 +295,17 @@ const MediaApp = () => {
   const musicIsFiltering = musicSearch.trim() !== '' || musicGenre !== 'all';
 
   // ── Hero resolution per tab ───────────────────────────────────────────────
+  // A "starred" category (isFeatured) headlines the Videos page — its first
+  // video drives the hero. Falls back to the featured video, then newest.
+  const featuredCategory = useMemo(
+    () => categoryRows.find(c => c.isFeatured && c.items?.length > 0) || null,
+    [categoryRows]
+  );
   const heroItem = useMemo(() => {
-    if (activeCategory === 'videos') return featuredVideo || newVideos[0] || trendingVideos[0] || null;
+    if (activeCategory === 'videos') return featuredCategory?.items[0] || featuredVideo || newVideos[0] || trendingVideos[0] || null;
     if (activeCategory === 'music')  return allTracks[0] || null;
-    return featuredVideo || newVideos[0] || allTracks[0] || null;
-  }, [activeCategory, featuredVideo, newVideos, trendingVideos, allTracks]);
+    return featuredCategory?.items[0] || featuredVideo || newVideos[0] || allTracks[0] || null;
+  }, [activeCategory, featuredCategory, featuredVideo, newVideos, trendingVideos, allTracks]);
 
   const heroIsVideo = heroItem?.mediaKind === 'video';
 
@@ -632,7 +638,7 @@ const MediaApp = () => {
               {activeCategory === 'videos' && (
                 <>
                   {categoryRows.map(cat => cat.items.length > 0 && (
-                    <MediaRow key={cat.id} title={cat.name} items={cat.items} onPlay={playVideo} />
+                    <MediaRow key={cat.id} title={cat.isFeatured ? `★ ${cat.name}` : cat.name} items={cat.items} onPlay={playVideo} />
                   ))}
                   {hhVideos.length > 0 && <MediaRow title="The Homies" items={hhVideos} onPlay={playVideo} isGrid />}
                   {trendingVideos.length > 0 && <MediaRow title="Trending Now" items={trendingVideos} onPlay={playVideo} />}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Loader2, Film, ImagePlus, X, Plus, Pencil, Trash2,
   GripVertical, Check, Tag, FolderOpen, Camera, Play, EyeOff, Eye, Megaphone,
-  Music, Search, RefreshCw, Pause,
+  Music, Search, RefreshCw, Pause, Star,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -735,6 +735,16 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
     }
   };
 
+  const patchCat = async (cat, body, msg) => {
+    try {
+      await api.patch(`/admin/media-categories/${cat._id}`, body);
+      onCategoriesChange();
+      if (msg) toast({ title: msg });
+    } catch (err) {
+      toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex gap-2">
@@ -772,13 +782,27 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
                   </div>
                 ) : (
                   <div>
-                    <p className="text-white font-medium text-sm">{cat.name}</p>
+                    <p className="text-white font-medium text-sm flex items-center gap-1.5">
+                      {cat.name}
+                      {cat.isFeatured && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400/15 text-yellow-400 inline-flex items-center gap-0.5"><Star className="w-2.5 h-2.5 fill-current" />STAR</span>}
+                      {cat.isVisible === false && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white/10 text-gray-400">Hidden</span>}
+                    </p>
                     <p className="text-gray-500 text-xs mt-0.5">{cat.items?.length || 0} video{cat.items?.length !== 1 ? 's' : ''}</p>
                   </div>
                 )}
               </div>
               {editingId !== String(cat._id) && (
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => patchCat(cat, { isFeatured: !cat.isFeatured }, cat.isFeatured ? 'Removed as star' : '★ Now the featured category')}
+                    title="Star — headline the Videos page"
+                    className={`p-2 rounded-lg hover:bg-white/5 transition-colors ${cat.isFeatured ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}>
+                    <Star className={`w-4 h-4 ${cat.isFeatured ? 'fill-current' : ''}`} />
+                  </button>
+                  <button onClick={() => patchCat(cat, { isVisible: cat.isVisible === false }, cat.isVisible === false ? 'Visible in app' : 'Hidden from app')}
+                    title={cat.isVisible === false ? 'Hidden — click to show' : 'Visible — click to hide'}
+                    className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors">
+                    {cat.isVisible === false ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                   <button onClick={() => { setEditingId(String(cat._id)); setEditName(cat.name); }} title="Rename"
                     className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors">
                     <Pencil className="w-4 h-4" />
