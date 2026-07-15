@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   X, Plus, Pencil, Trash2, GripVertical, Loader2, Check,
   Film, FolderOpen, Tag, Star, Eye, EyeOff,
-  RefreshCw, RefreshCcw,
+  RefreshCw, RefreshCcw, Music, Search, Play, Pause,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -256,6 +256,16 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
     }
   };
 
+  const patchCat = async (cat, body, msg) => {
+    try {
+      await api.patch(`/admin/media-categories/${cat._id}`, body);
+      onCategoriesChange();
+      if (msg) toast({ title: msg });
+    } catch (err) {
+      toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Create new */}
@@ -295,13 +305,27 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
                   </div>
                 ) : (
                   <div>
-                    <p className="text-white font-medium text-sm">{cat.name}</p>
+                    <p className="text-white font-medium text-sm flex items-center gap-1.5">
+                      {cat.name}
+                      {cat.isFeatured && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400/15 text-yellow-400 inline-flex items-center gap-0.5"><Star className="w-2.5 h-2.5 fill-current" />STAR</span>}
+                      {cat.isVisible === false && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white/10 text-gray-400">Hidden</span>}
+                    </p>
                     <p className="text-gray-500 text-xs mt-0.5">{cat.items?.length || 0} item{cat.items?.length !== 1 ? 's' : ''}</p>
                   </div>
                 )}
               </div>
               {editingId !== String(cat._id) && (
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => patchCat(cat, { isFeatured: !cat.isFeatured }, cat.isFeatured ? 'Removed as star' : '★ Now the featured category')}
+                    title="Star — headline the Videos page"
+                    className={`p-2 rounded-lg hover:bg-white/5 transition-colors ${cat.isFeatured ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}>
+                    <Star className={`w-4 h-4 ${cat.isFeatured ? 'fill-current' : ''}`} />
+                  </button>
+                  <button onClick={() => patchCat(cat, { isVisible: cat.isVisible === false }, cat.isVisible === false ? 'Visible in app' : 'Hidden from app')}
+                    title={cat.isVisible === false ? 'Hidden — click to show' : 'Visible — click to hide'}
+                    className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors">
+                    {cat.isVisible === false ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                   <button onClick={() => startEdit(cat)} title="Rename"
                     className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors">
                     <Pencil className="w-4 h-4" />
@@ -316,6 +340,191 @@ const CategoriesTab = ({ categories, onCategoriesChange }) => {
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+// ── Music: rename modal ───────────────────────────────────────────────────────
+const MusicEditModal = ({ track, onClose, onSaved }) => {
+  const { toast } = useToast();
+  const [title, setTitle] = useState(track.title || '');
+  const [artist, setArtist] = useState(track.artist || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!title.trim()) { toast({ title: 'Title required', variant: 'destructive' }); return; }
+    setSaving(true);
+    try {
+      // A track can be in several playlists (its genre + Fresh Drops) — update all.
+      for (const cat of track._categories) {
+        const tracks = (cat.tracks || []).map((t) =>
+          String(t.trackId) === String(track.trackId) ? { ...t, title: title.trim(), artist: artist.trim() } : t
+        );
+        await api.patch(`/admin/music-categories/${cat._id}`, { tracks });
+      }
+      toast({ title: '🎵 Music updated' });
+      onSaved();
+    } catch (err) {
+      toast({ title: 'Save failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2"><Music className="w-4 h-4 text-fuchsia-400" />Edit music</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="flex gap-4 mb-5">
+          <div className="w-16 h-16 rounded-lg bg-[#0f0f0f] flex-shrink-0 overflow-hidden flex items-center justify-center">
+            {track.image ? <img src={track.image} alt="" className="w-full h-full object-cover" /> : <Music className="w-6 h-6 text-gray-600" />}
+          </div>
+          <div className="text-xs text-gray-500 flex-1 min-w-0">
+            <p>Genre: <span className="text-gray-300">{track.genre || '—'}</span></p>
+            <p className="mt-1">In playlists:</p>
+            <p className="text-gray-300 truncate">{track._categories.map(c => c.name).join(', ')}</p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="text-gray-400 text-xs">Title</label>
+            <Input value={title} onChange={e => setTitle(e.target.value)} className="bg-[#0f0f0f] border-[#2a2a2a] text-white mt-1" />
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs">Artist</label>
+            <Input value={artist} onChange={e => setArtist(e.target.value)} className="bg-[#0f0f0f] border-[#2a2a2a] text-white mt-1" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">Cancel</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-semibold">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Music Tab ─────────────────────────────────────────────────────────────────
+const MusicTab = () => {
+  const { toast } = useToast();
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [q, setQ] = useState('');
+  const [genre, setGenre] = useState('all');
+  const [editing, setEditing] = useState(null);
+  const [playingId, setPlayingId] = useState(null);
+  const audioRef = useRef(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/admin/music-categories');
+      setCats(data?.result?.categories || []);
+    } catch {
+      toast({ title: 'Failed to load music', variant: 'destructive' });
+    } finally { setLoading(false); }
+  }, []); // eslint-disable-line
+
+  useEffect(() => { load(); }, [load]);
+
+  const tracks = useMemo(() => {
+    const map = new Map();
+    for (const c of cats) {
+      for (const t of (c.tracks || [])) {
+        const id = String(t.trackId);
+        if (!map.has(id)) map.set(id, { ...t, trackId: id, _categories: [] });
+        map.get(id)._categories.push(c);
+      }
+    }
+    return [...map.values()];
+  }, [cats]);
+
+  const genreOptions = useMemo(() => ['all', ...cats.map(c => c.name)], [cats]);
+  const filtered = useMemo(() => tracks.filter(t => {
+    const okGenre = genre === 'all' || t._categories.some(c => c.name === genre);
+    const okQ = !q.trim() || `${t.title} ${t.artist}`.toLowerCase().includes(q.toLowerCase());
+    return okGenre && okQ;
+  }), [tracks, genre, q]);
+
+  const runSync = async () => {
+    if (!window.confirm('Sync the DigitVL library into the app?\n\nRebuilds the per-genre playlists from every track in the catalog (new releases show up here).')) return;
+    setSyncing(true);
+    try {
+      const { data } = await api.post('/admin/music-categories/import-digitvl');
+      const r = data?.result;
+      toast({ title: '🔄 Synced from DigitVL', description: r ? `${r.total} tracks · ${r.categories?.length || 0} playlists` : 'Done' });
+      load();
+    } catch (err) {
+      toast({ title: 'Sync failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
+    } finally { setSyncing(false); }
+  };
+
+  const togglePlay = (t) => {
+    if (playingId === t.trackId) { audioRef.current?.pause(); setPlayingId(null); return; }
+    setPlayingId(t.trackId);
+    setTimeout(() => { if (audioRef.current && t.audioUrl) { audioRef.current.src = t.audioUrl; audioRef.current.play().catch(() => {}); } }, 0);
+  };
+
+  return (
+    <div>
+      <audio ref={audioRef} onEnded={() => setPlayingId(null)} className="hidden" />
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search music…" className="bg-[#0f0f0f] border-[#1e1e1e] text-white pl-9" />
+        </div>
+        <select value={genre} onChange={e => setGenre(e.target.value)} className="bg-[#0f0f0f] border border-[#1e1e1e] text-white rounded-md h-10 px-3 text-sm">
+          {genreOptions.map(g => <option key={g} value={g}>{g === 'all' ? 'All categories' : g}</option>)}
+        </select>
+        <Button onClick={runSync} disabled={syncing} variant="outline" className="border-[#2a2a2a] bg-[#111] text-white hover:bg-[#1c1c1c]">
+          {syncing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}Sync DigitVL
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-500" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-gray-500">
+          <Music className="w-12 h-12 mx-auto mb-4 opacity-40" />
+          <p className="font-medium">No music here</p>
+          <p className="text-sm mt-1">Hit “Sync DigitVL” to pull your catalog in.</p>
+        </div>
+      ) : (
+        <>
+          <p className="text-xs text-gray-500 mb-3">{filtered.length} track{filtered.length === 1 ? '' : 's'}</p>
+          <div className="space-y-1">
+            {filtered.map(t => (
+              <div key={t.trackId} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#141414] group">
+                <button onClick={() => togglePlay(t)} className="w-11 h-11 rounded-lg bg-[#0f0f0f] flex-shrink-0 overflow-hidden flex items-center justify-center relative">
+                  {t.image ? <img src={t.image} alt="" className="w-full h-full object-cover" /> : <Music className="w-5 h-5 text-gray-600" />}
+                  <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    {playingId === t.trackId ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white" />}
+                  </span>
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-white truncate">{t.title}</div>
+                  <div className="text-sm text-gray-500 truncate">{t.artist || 'Unknown artist'}</div>
+                </div>
+                <div className="hidden sm:flex items-center gap-1.5 flex-wrap justify-end max-w-[45%]">
+                  {t._categories.map(c => (
+                    <span key={c._id} className="text-[11px] px-2 py-0.5 rounded-full bg-[#1a1a1a] text-gray-400 border border-[#262626]">{c.name}</span>
+                  ))}
+                </div>
+                <button onClick={() => setEditing(t)} title="Rename / edit"
+                  className="p-2 rounded-lg text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Pencil className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {editing && <MusicEditModal track={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </div>
   );
 };
@@ -359,15 +568,21 @@ const MediaAdminPanel = ({ onClose, onCategoriesChange, isInline = false }) => {
         <Tabs defaultValue="library" className="h-full">
           <TabsList className="bg-[#0f0f0f] border-b border-[#1e1e1e] w-full rounded-none px-6 h-auto py-2 gap-1 flex-shrink-0">
             <TabsTrigger value="library" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
-              <Film className="w-4 h-4 mr-1.5" />Library
+              <Film className="w-4 h-4 mr-1.5" />Videos
+            </TabsTrigger>
+            <TabsTrigger value="music" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
+              <Music className="w-4 h-4 mr-1.5" />Music
             </TabsTrigger>
             <TabsTrigger value="categories" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
-              <Tag className="w-4 h-4 mr-1.5" />Categories
+              <Tag className="w-4 h-4 mr-1.5" />Video Categories
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="library" className="px-6 py-5 focus:outline-none">
             <LibraryTab categories={categories} onCategoriesChange={handleCategoriesChange} />
+          </TabsContent>
+          <TabsContent value="music" className="px-6 py-5 focus:outline-none">
+            <MusicTab />
           </TabsContent>
           <TabsContent value="categories" className="px-6 py-5 focus:outline-none">
             <CategoriesTab categories={categories} onCategoriesChange={handleCategoriesChange} />
