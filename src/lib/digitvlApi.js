@@ -82,6 +82,9 @@ export const musicApi = {
   getGenres:       () => musicHttp.get('/music/genres').then(r => r.data?.result?.genres || []),
   getArtistTracks: (slug) => musicHttp.get('/music/catalog', { params: { search: slug } }).then(tracksOf),
   search:          (q) => musicHttp.get('/music/catalog', { params: { search: q } }).then(tracksOf),
+  // Newest uploads — catalog is returned newest-first (-created_at), so this is
+  // the true "New Releases" list (a brand-new drop shows up at the top).
+  getNewReleases:  (limit = 15) => musicHttp.get('/music/catalog', { params: { limit } }).then(tracksOf).catch(() => []),
 };
 
 export const videoApi = {

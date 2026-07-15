@@ -116,11 +116,10 @@ const MediaCard = ({ item, isRanked, rank, onPlay, onInfo, onAddToPlaylist, full
 };
 
 // ── Row ───────────────────────────────────────────────────────────────────────
-const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onInfo }) => {
+const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onInfo, onTitleClick }) => {
   const rowRef = useRef(null);
   const { playMedia } = useMedia();
   const handlePlay = onPlay || playMedia;
-  const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [page, setPage] = useState(0);
   // One shared "add to playlist" modal per row instead of one mounted per card.
   const [playlistItem, setPlaylistItem] = useState(null);
@@ -130,23 +129,37 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
   const totalPages = isGrid ? Math.ceil(items.length / PAGE_SIZE) : 1;
   const pageItems = isGrid ? items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : items;
 
+  // Infinite-loop scroll: hitting the right arrow past the end wraps back to the
+  // first item; hitting left from the start wraps to the end.
   const scroll = dir => {
-    if (!rowRef.current) return;
-    const amount = dir === 'left' ? -700 : 700;
-    rowRef.current.scrollBy({ left: amount, behavior: 'smooth' });
-  };
-
-  const handleScroll = () => {
-    if (rowRef.current) setShowLeftArrow(rowRef.current.scrollLeft > 0);
+    const el = rowRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const step = 700;
+    if (dir === 'right') {
+      if (el.scrollLeft >= max - 8) el.scrollTo({ left: 0, behavior: 'smooth' });
+      else el.scrollBy({ left: step, behavior: 'smooth' });
+    } else {
+      if (el.scrollLeft <= 8) el.scrollTo({ left: max, behavior: 'smooth' });
+      else el.scrollBy({ left: -step, behavior: 'smooth' });
+    }
   };
 
   if (!items || items.length === 0) return null;
 
   return (
     <div className="mb-8 relative group/row">
-      <h2 className="text-lg md:text-xl font-bold text-white mb-3 px-0.5 inline-flex items-center gap-1.5 cursor-pointer hover:text-zinc-300 transition-colors">
+      <h2
+        onClick={onTitleClick}
+        className={cn(
+          "text-lg md:text-xl font-bold text-white mb-3 px-0.5 inline-flex items-center gap-1.5 transition-colors",
+          onTitleClick ? "cursor-pointer hover:text-zinc-300" : ""
+        )}
+      >
         {title}
-        <ChevronRight className="h-4 w-4 opacity-0 group-hover/row:opacity-100 transition-opacity text-zinc-400" />
+        {onTitleClick && (
+          <ChevronRight className="h-4 w-4 opacity-0 group-hover/row:opacity-100 transition-opacity text-zinc-400" />
+        )}
       </h2>
 
       {isGrid ? (
@@ -192,10 +205,7 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
         /* Horizontal scroll row */
         <div className="relative group">
           <button
-            className={cn(
-              "absolute left-0 top-0 bottom-0 z-40 w-10 flex items-center justify-center bg-black/70 hover:bg-black/90 transition-all duration-200",
-              showLeftArrow ? "opacity-0 group-hover:opacity-100" : "opacity-0 pointer-events-none"
-            )}
+            className="absolute left-0 top-0 bottom-0 z-40 w-10 flex items-center justify-center bg-black/70 hover:bg-black/90 opacity-0 group-hover:opacity-100 transition-all duration-200"
             onClick={() => scroll('left')}
           >
             <ChevronLeft className="h-6 w-6 text-white" />
@@ -203,7 +213,6 @@ const MediaRow = ({ title, items, isRanked = false, isGrid = false, onPlay, onIn
 
           <div
             ref={rowRef}
-            onScroll={handleScroll}
             className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth py-2 px-0.5"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >

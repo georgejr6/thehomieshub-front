@@ -153,7 +153,7 @@ const MediaApp = () => {
 
   const {
     minimizeMediaMode, exitMediaMode,
-    allTracks, genreRows, topTracks, catalogLoading, playMedia,
+    allTracks, genreRows, topTracks, top10, newReleases, catalogLoading, playMedia,
     featuredVideo, trendingVideos, newVideos, movies, series, videoLoading, playVideo, currentVideo,
     hhVideos,
     likedMedia, likedIds,
@@ -230,6 +230,8 @@ const MediaApp = () => {
   const [musicSearch, setMusicSearch] = useState('');
   const [musicGenre, setMusicGenre]   = useState('all');
   const [musicView, setMusicView]     = useState('rows'); // 'rows' | 'grid'
+  // Clicking a section title opens that section full-page as a paginated gallery.
+  const [sectionView, setSectionView] = useState(null); // { title, items } | null
 
   useEffect(() => {
     const el = document.getElementById('media-scroller');
@@ -720,19 +722,45 @@ const MediaApp = () => {
                         <p>No tracks match your search or filter.</p>
                       </div>
                     )
+                  ) : sectionView ? (
+                    /* ── SECTION GALLERY — a section opened full-page, paginated ── */
+                    <div>
+                      <button
+                        onClick={() => setSectionView(null)}
+                        className="inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white mb-4"
+                      >
+                        <ArrowLeft className="w-4 h-4" /> Back to browse
+                      </button>
+                      <MediaRow
+                        title={`${sectionView.title} (${sectionView.items.length})`}
+                        items={sectionView.items}
+                        isGrid
+                        isRanked={!!sectionView.ranked}
+                      />
+                    </div>
                   ) : (
                     /* ── GENRE-SEGMENTED ROWS (default browse) ────────────────── */
                     <>
-                      {(topTracks.length ? topTracks : allTracks.slice(0, 10)).length >= 5 && (
-                        <MediaRow title="Top 10" items={(topTracks.length ? topTracks : allTracks.slice(0, 10))} isRanked />
+                      {top10.length >= 5 && (
+                        <MediaRow title="Top 10" items={top10} isRanked
+                          onTitleClick={() => setSectionView({ title: 'Top 10', items: top10, ranked: true })} />
                       )}
-                      {likedMedia.length > 0 && <MediaRow title="Liked Tracks" items={likedMedia} />}
+                      {newReleases.length > 0 && (
+                        <MediaRow title="New Releases" items={newReleases}
+                          onTitleClick={() => setSectionView({ title: 'New Releases', items: newReleases })} />
+                      )}
+                      {likedMedia.length > 0 && (
+                        <MediaRow title="Liked Tracks" items={likedMedia}
+                          onTitleClick={() => setSectionView({ title: 'Liked Tracks', items: likedMedia })} />
+                      )}
                       {genreRows.map(({ genre, items }) => (
-                        <MediaRow key={genre} title={`${genre} · ${items.length}`} items={items} />
+                        <MediaRow key={genre} title={`${genre} · ${items.length}`} items={items}
+                          onTitleClick={() => setSectionView({ title: genre, items })} />
                       ))}
                       {/* Everything else that didn't land in a genre row */}
                       {allTracks.some(t => !t.genre) && (
-                        <MediaRow title="More from the Catalog" items={allTracks.filter(t => !t.genre)} />
+                        <MediaRow title="More from the Catalog" items={allTracks.filter(t => !t.genre)}
+                          onTitleClick={() => setSectionView({ title: 'More from the Catalog', items: allTracks.filter(t => !t.genre) })} />
                       )}
                     </>
                   )}

@@ -17,6 +17,7 @@ export const MediaProvider = ({ children }) => {
   const [allTracks,      setAllTracks]      = useState([]);
   const [genreRows,      setGenreRows]      = useState([]);
   const [topTracks,      setTopTracks]      = useState([]);
+  const [newReleases,    setNewReleases]    = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
   // ── Video Catalog ──────────────────────────────────────────────────────────
@@ -120,6 +121,19 @@ export const MediaProvider = ({ children }) => {
 
   // ── Top 10 (play-ranked, human-seeded) ─────────────────────────────────────
   useEffect(() => { musicApi.getTop(10).then(setTopTracks).catch(() => {}); }, []);
+
+  // ── New Releases (newest uploads, catalog -created_at) ─────────────────────
+  useEffect(() => { musicApi.getNewReleases(15).then(setNewReleases).catch(() => {}); }, []);
+
+  // Top 10 padded with the freshest drops when there aren't yet 10 played tracks
+  // (young catalog) — so a brand-new release still surfaces on the Top 10 row.
+  const top10 = useMemo(() => {
+    const base = (topTracks || []).slice(0, 10);
+    if (base.length >= 10) return base;
+    const have = new Set(base.map(t => t.id));
+    const pad = (newReleases || []).filter(t => !have.has(t.id));
+    return [...base, ...pad].slice(0, 10);
+  }, [topTracks, newReleases]);
 
   // ── Fetch video catalog ────────────────────────────────────────────────────
   useEffect(() => {
@@ -395,11 +409,13 @@ export const MediaProvider = ({ children }) => {
     setLikedTracks(p => wasLiked ? p.filter(x => x.id !== id) : [...p, item]);
     if (user) api.post('/music/me/likes', { track: item }).catch(() => {});
   };
-  // Prefer persisted snapshots; fall back to catalog matches for anything not yet snapshotted.
+  // Prefer LIVE catalog data (fresh covers/titles) over the like-time snapshot,
+  // so a track whose cover changed after being liked shows the updated art.
+  // Fall back to the snapshot for liked tracks not present in the current catalog.
   const likedMedia = useMemo(() => {
-    const byId = new Map(likedTracks.map(t => [t.id, t]));
-    allTracks.forEach(t => { if (likedIds.includes(t.id) && !byId.has(t.id)) byId.set(t.id, t); });
-    return likedIds.map(id => byId.get(id)).filter(Boolean);
+    const liveById = new Map(allTracks.map(t => [t.id, t]));
+    const snapById = new Map(likedTracks.map(t => [t.id, t]));
+    return likedIds.map(id => liveById.get(id) || snapById.get(id)).filter(Boolean);
   }, [likedIds, likedTracks, allTracks]);
 
   const createPlaylist = (name, image = '') => {
@@ -435,7 +451,7 @@ export const MediaProvider = ({ children }) => {
   return (
     <MediaContext.Provider value={{
       // Music
-      allTracks, genreRows, topTracks, catalogLoading,
+      allTracks, genreRows, topTracks, top10, newReleases, catalogLoading,
       audioRef, currentTrack, isPlaying, isLoading,
       volume, isMuted, setVolume, setIsMuted,
       togglePlay, seek, skipForward, skipBack, playMedia, fmtTime,
@@ -459,7 +475,6 @@ export const MediaProvider = ({ children }) => {
       setPendingPlay,
       // legacy compat
       popularVideos: allTracks,
-      newReleases: [...allTracks].slice().reverse(),
       isFullscreenPlayer: false,
       closeFullscreen: () => {},
     }}>
