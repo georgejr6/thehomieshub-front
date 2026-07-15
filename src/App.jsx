@@ -308,6 +308,13 @@ const AppContent = React.memo(() => {
             {/* --- Media Mode Routes --- */}
             <Route path="/media" element={<MediaLayout />}>
                 <Route index element={<MediaApp />} />
+                {/* Per-tab URLs so a refresh stays on the same tab (music/videos/etc). */}
+                <Route path="home" element={<MediaApp />} />
+                <Route path="videos" element={<MediaApp />} />
+                <Route path="music" element={<MediaApp />} />
+                <Route path="likes" element={<MediaApp />} />
+                <Route path="purchased" element={<MediaApp />} />
+                <Route path="admin" element={<MediaApp />} />
                 <Route path=":postId" element={<MediaApp />} />
             </Route>
             

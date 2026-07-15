@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useMedia } from '@/contexts/MediaContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -130,9 +130,12 @@ const SectionHeading = ({ icon: Icon, title, subtitle }) => (
   </div>
 );
 
+const ROUTABLE_TABS = ['home', 'videos', 'music', 'likes', 'purchased', 'admin'];
+
 const MediaApp = () => {
   const { postId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -162,6 +165,19 @@ const MediaApp = () => {
     refreshHhVideos,
     purchases, fetchPurchases,
   } = useMedia();
+
+  // Keep the active tab in the URL (/media/<tab>) so a refresh or shared link
+  // lands on the same tab (music stays music, videos stays videos).
+  const goTab = useCallback((tab) => {
+    setActiveCategory(tab);
+    navigate(`/media/${tab}`);
+  }, [navigate, setActiveCategory]);
+
+  // Sync the tab FROM the URL on load + browser back/forward.
+  useEffect(() => {
+    const seg = location.pathname.split('/')[2];
+    if (seg && ROUTABLE_TABS.includes(seg)) setActiveCategory(seg);
+  }, [location.pathname]); // eslint-disable-line
 
 
   // Re-fetch HH videos every time Media Mode opens (picks up newly uploaded content)
@@ -350,7 +366,7 @@ const MediaApp = () => {
           </button>
 
           <span className="text-red-600 font-black text-xl md:text-2xl tracking-tighter cursor-pointer select-none"
-            onClick={() => setActiveCategory('home')}>DIGITVL</span>
+            onClick={() => goTab('home')}>DIGITVL</span>
 
           {/* Desktop tabs */}
           <ul className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-300">
@@ -359,7 +375,7 @@ const MediaApp = () => {
                 className={cn("hover:text-white cursor-pointer transition-colors flex items-center gap-1",
                   activeCategory === tab && "text-white font-bold",
                   tab === ADMIN_TAB && activeCategory !== ADMIN_TAB && "text-zinc-500 hover:text-zinc-300")}
-                onClick={() => setActiveCategory(tab)}>
+                onClick={() => goTab(tab)}>
                 {tab === ADMIN_TAB ? <><Settings2 className="w-3.5 h-3.5" />Admin</>
                   : tab === PURCHASED_TAB ? <><ShoppingBag className="w-3.5 h-3.5" />Purchased</>
                   : TAB_LABELS[tab] || tab}
@@ -374,7 +390,7 @@ const MediaApp = () => {
                 className={cn("whitespace-nowrap transition-colors flex items-center gap-1",
                   activeCategory === tab ? "text-white font-bold" : "text-zinc-400",
                   tab === ADMIN_TAB && activeCategory !== ADMIN_TAB && "text-zinc-500")}
-                onClick={() => setActiveCategory(tab)}>
+                onClick={() => goTab(tab)}>
                 {tab === ADMIN_TAB ? <><Settings2 className="w-3 h-3" />Admin</>
                   : tab === PURCHASED_TAB ? <><ShoppingBag className="w-3 h-3" />Purchased</>
                   : TAB_LABELS[tab] || tab}
@@ -598,7 +614,7 @@ const MediaApp = () => {
                       <div className="flex items-end justify-between">
                         <SectionHeading icon={Music2} title="Listen"
                           subtitle={`${allTracks.length} tracks across ${musicGenres.length} genres`} />
-                        <button onClick={() => setActiveCategory('music')}
+                        <button onClick={() => goTab('music')}
                           className="text-sm font-semibold text-red-500 hover:text-red-400 shrink-0 pb-1">
                           Browse all →
                         </button>
