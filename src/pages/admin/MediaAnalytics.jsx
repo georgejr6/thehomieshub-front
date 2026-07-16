@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Loader2, BarChart3, Music, Film, Globe, Headphones, Clock, Eye,
   User as UserIcon, Radio, Users, UserCheck, PlayCircle, Timer, Download,
+  Bell, Ban, Activity, ChevronRight, MapPin, Link2,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/api/homieshub';
-import { GlassPanel, StatTile } from '@/components/admin/glass';
+import { GlassPanel, StatTile, MetricPill } from '@/components/admin/glass';
 
 // ── formatters ────────────────────────────────────────────────────────────────
 const fmtMs = (ms) => {
@@ -336,15 +338,244 @@ function LiveNow() {
   );
 }
 
+// ── One visitor's analytics profile (account OR anonymous-by-IP) ──────────────
+const EVENT_LABEL = {
+  music_play: 'Played', music_listen: 'Listened', video_watch: 'Watched', reel_watch: 'Watched reel',
+  video_save: 'Saved', playlist_add: 'Added to playlist', pageview: 'Viewed page', session_start: 'Started session', app_active: 'Opened app',
+};
+
+function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen || !visitor) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const type = visitor.authed ? 'user' : 'anon';
+        const id = visitor.authed ? visitor.userSub : visitor.ip;
+        const res = await api.get('/track/audience/profile', { params: { type, id, days: 90 } });
+        if (!cancelled) setData(res.data?.result || null);
+      } catch { if (!cancelled) toast({ title: 'Failed to load profile', variant: 'destructive' }); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, visitor, toast]);
+
+  const idn = data?.identity;
+  const t = data?.totals;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[720px] max-h-[88vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className={`w-9 h-9 rounded-full flex items-center justify-center ${visitor?.authed ? 'bg-emerald-500/15' : 'bg-white/10'}`}>
+              {visitor?.authed ? <UserIcon className="w-4 h-4 text-emerald-400" /> : <Globe className="w-4 h-4 text-white/60" />}
+            </span>
+            <span className="truncate">{visitor?.authed ? `@${visitor.username || 'member'}` : 'Anonymous visitor'}</span>
+            {idn?.isBanned && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 flex items-center gap-1"><Ban className="w-3 h-3" />banned</span>}
+          </DialogTitle>
+          <DialogDescription className="flex items-center gap-3 flex-wrap">
+            {idn?.ip && <span className="font-mono flex items-center gap-1"><MapPin className="w-3 h-3" />{idn.ip}</span>}
+            {idn?.source && <span className="flex items-center gap-1"><Globe className="w-3 h-3" />{idn.source}</span>}
+            {idn?.lastSeen && <span>last seen {fmtTime(idn.lastSeen)}</span>}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="overflow-y-auto -mx-1 px-1 space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-white/40" /></div>
+          ) : !data ? (
+            <p className="text-center text-sm text-white/40 py-10">No data.</p>
+          ) : (
+            <>
+              {/* stat pills */}
+              <div className="flex flex-wrap gap-2">
+                <MetricPill label="plays" value={fmtN(t.plays)} accent="primary" />
+                <MetricPill label="listen" value={fmtMs(t.listenMs)} accent="fuchsia" />
+                <MetricPill label="views" value={fmtN(t.views)} accent="sky" />
+                <MetricPill label="time in app" value={fmtMs(t.activeMs)} accent="emerald" />
+              </div>
+
+              {/* notify / push guidance */}
+              <div className={`rounded-xl border p-3 text-sm flex items-start gap-2.5 ${data.canPush ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-white/10 bg-white/[0.03]'}`}>
+                <Bell className={`w-4 h-4 mt-0.5 flex-shrink-0 ${data.canPush ? 'text-emerald-400' : 'text-white/40'}`} />
+                {data.canPush ? (
+                  <div>
+                    <p className="text-white/80">This member can receive push notifications.</p>
+                    <button onClick={() => navigate('/admin/push')} className="text-emerald-400 text-xs font-semibold hover:underline mt-0.5">Open Push Notifications →</button>
+                  </div>
+                ) : (
+                  <p className="text-white/60">Anonymous — can't be pushed directly. You're automatically alerted (Telegram) when this IP returns, and if it matches a dormant account.</p>
+                )}
+              </div>
+
+              {/* linked accounts */}
+              {(idn?.linkedAccounts?.length > 0 || idn?.ips?.length > 1) && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-[11px] uppercase tracking-widest text-white/40 mb-2 flex items-center gap-1"><Link2 className="w-3 h-3" /> Linked</p>
+                  {idn.linkedAccounts?.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {idn.linkedAccounts.map((a) => (
+                        <span key={a._id} className="text-xs px-2 py-1 rounded-lg bg-white/[0.05] border border-white/10">@{a.username}{a.isBanned ? ' (banned)' : ''}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {idn.ips.map((ip) => <span key={ip} className="text-xs font-mono px-2 py-1 rounded-lg bg-white/[0.05] border border-white/10">{ip}</span>)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="grid md:grid-cols-2 gap-3">
+                {/* songs */}
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-[11px] uppercase tracking-widest text-white/40 mb-2 flex items-center gap-1"><Music className="w-3 h-3" /> Songs they play</p>
+                  {data.songs.length === 0 ? <p className="text-sm text-white/40 py-2">No plays yet.</p> : (
+                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                      {data.songs.map((s) => (
+                        <div key={s._id} className="flex items-center gap-2 text-sm">
+                          <span className="flex-1 truncate">{s.title || <span className="font-mono text-xs text-white/40">{s._id}</span>}</span>
+                          <span className="text-xs text-white/45 flex-shrink-0">{s.plays}× · {fmtMs(s.listenMs)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* videos */}
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-[11px] uppercase tracking-widest text-white/40 mb-2 flex items-center gap-1"><Film className="w-3 h-3" /> Videos they watch</p>
+                  {data.videos.length === 0 ? <p className="text-sm text-white/40 py-2">No views yet.</p> : (
+                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                      {data.videos.map((v) => (
+                        <div key={v._id} className="flex items-center gap-2 text-sm">
+                          <span className="flex-1 truncate">{v.title || <span className="font-mono text-xs text-white/40">{v._id}</span>}{v.kind === 'reel' && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-primary/15 text-primary">reel</span>}</span>
+                          <span className="text-xs text-white/45 flex-shrink-0">{v.views}× · {fmtMs(v.watchMs)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* timeline */}
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-[11px] uppercase tracking-widest text-white/40 mb-2 flex items-center gap-1"><Activity className="w-3 h-3" /> Recent activity</p>
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {data.timeline.map((e, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-white/60">
+                      <span className="text-white/40 w-24 flex-shrink-0">{fmtTime(e.ts)}</span>
+                      <span className="text-white/80 flex-shrink-0">{EVENT_LABEL[e.type] || e.type}</span>
+                      <span className="truncate">{e.target?.title || e.path || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Audience list ─────────────────────────────────────────────────────────────
+function Audience({ days }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [visitors, setVisitors] = useState([]);
+  const [q, setQ] = useState('');
+  const [target, setTarget] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get('/track/audience', { params: { days } });
+        if (!cancelled) setVisitors(data?.result?.visitors || []);
+      } catch { if (!cancelled) toast({ title: 'Failed to load audience', variant: 'destructive' }); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [days, toast]);
+
+  const filtered = q.trim()
+    ? visitors.filter((v) => `${v.username || ''} ${v.ip || ''}`.toLowerCase().includes(q.toLowerCase()))
+    : visitors;
+
+  const members = visitors.filter((v) => v.authed).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile index={0} accent="primary" icon={Users} label="Visitors" value={loading ? '' : fmtN(visitors.length)} loading={loading} sub={`in the last ${days} days`} />
+        <StatTile index={1} accent="emerald" icon={UserCheck} label="Members" value={loading ? '' : fmtN(members)} loading={loading} sub="signed-in accounts" />
+        <StatTile index={2} accent="sky" icon={Globe} label="Anonymous" value={loading ? '' : fmtN(visitors.length - members)} loading={loading} sub="by IP" />
+        <StatTile index={3} accent="fuchsia" icon={PlayCircle} label="Total plays" value={loading ? '' : fmtN(visitors.reduce((a, v) => a + (v.plays || 0), 0))} loading={loading} sub="across everyone" />
+      </div>
+
+      <GlassPanel className="overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+          <Users className="w-4 h-4 text-primary" />
+          <p className="text-sm font-semibold">Audience · last {days} days</p>
+          <span className="text-xs text-white/40 ml-1 hidden sm:inline">click anyone to see their profile</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or IP…"
+            className="ml-auto bg-white/[0.04] border border-white/10 rounded-lg h-8 px-3 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/25 w-44" />
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-white/40" /></div>
+        ) : filtered.length === 0 ? (
+          <p className="text-center text-white/40 py-16 text-sm">No visitors in this window yet.</p>
+        ) : (
+          <div className="divide-y divide-white/[0.06]">
+            {filtered.map((v) => (
+              <button key={v.key} onClick={() => { setTarget(v); setOpen(true); }}
+                className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.04] transition-colors">
+                <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${v.authed ? 'bg-emerald-500/15' : 'bg-white/[0.06]'}`}>
+                  {v.authed ? <UserIcon className="w-4 h-4 text-emerald-400" /> : <Globe className="w-4 h-4 text-white/50" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold truncate">{v.authed ? `@${v.username || 'member'}` : 'Anonymous'}</span>
+                    <span className="font-mono text-xs text-white/40">{v.ip}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-white/45 mt-0.5 flex-wrap">
+                    <span className="flex items-center gap-1"><Headphones className="w-3 h-3" />{v.plays} plays</span>
+                    <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{v.views} views</span>
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{fmtMs(v.listenMs)}</span>
+                    <span>last seen {fmtTime(v.lastSeen)}</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-white/25 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </GlassPanel>
+
+      <AudienceProfileDialog visitor={target} isOpen={open} onOpenChange={(o) => { setOpen(o); if (!o) setTarget(null); }} />
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 const TABS = [
+  { key: 'audience', label: 'Listeners', icon: Users },
   { key: 'songs', label: 'Songs', icon: Music },
   { key: 'videos', label: 'Videos', icon: Film },
   { key: 'traffic', label: 'Traffic', icon: Globe },
 ];
 
 export default function MediaAnalytics() {
-  const [tab, setTab] = useState('songs');
+  const [tab, setTab] = useState('audience');
   const [days, setDays] = useState(30);
 
   return (
@@ -372,6 +603,7 @@ export default function MediaAnalytics() {
         </div>
       </div>
 
+      {tab === 'audience' && <Audience days={days} />}
       {tab === 'songs' && <MediaLeaderboard kind="song" days={days} />}
       {tab === 'videos' && <MediaLeaderboard kind="video" days={days} />}
       {tab === 'traffic' && <TrafficSources days={days} />}

@@ -135,6 +135,10 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 (session 5) — Audience profiles (Listeners tab)
+- **[FEAT] Backend** (`routes/track.js`, admin-gated): `GET /track/audience` (one row per visitor — account by userSub, else anonymous by IP — with plays/views/listen time/last seen) + `GET /track/audience/profile?type=user|anon&id=` (that visitor's songs, videos, recent activity timeline, sessions, linked accounts/known IPs, traffic source, `canPush`).
+- **[FEAT] Frontend** (`admin/MediaAnalytics.jsx`): new **Listeners** tab (now the default) — searchable list of everyone (members + anon by IP); click any row → `AudienceProfileDialog` showing stat pills, songs they play, videos they watch, a recent-activity timeline, linked accounts, traffic source, and push guidance (members → link to /admin/push; anon → note that backend already alerts on dormant-IP return).
+
 ### 2026-07-16 (session 4) — /media/admin immersive + management tools
 - **[UI] Immersive panel** — MediaAdminPanel inline container widened to `max-w-[1700px]` + `min-h-[calc(100vh-7rem)]`. Sits inside `#media-scroller` under the fixed nav (`pt-16` wrapper in MediaApp), so header/footer/mobile menu are never covered.
 - **[FEAT] Inline performance numbers + sort** — Music tab shows real play counts per track (from `/track/music/songs?days=365`) + sort (Most played / A–Z / Z–A). Video Library shows view counts per item (from `/track/media/videos?days=365`) + sort (Newest / Most viewed / A–Z).
