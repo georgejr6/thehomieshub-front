@@ -2,15 +2,17 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   X, Plus, Pencil, Trash2, GripVertical, Loader2, Check,
   Film, FolderOpen, Tag, Star, Eye, EyeOff,
-  RefreshCw, RefreshCcw, Music, Search, Play, Pause,
+  RefreshCw, RefreshCcw, Music, Search, Play, Pause, BarChart3,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMedia } from '@/contexts/MediaContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/api/homieshub';
 import { useToast } from '@/components/ui/use-toast';
 import EditVideoModal from './EditVideoModal';
+import MediaAnalytics from '@/pages/admin/MediaAnalytics';
 
 // ── Library Tab ───────────────────────────────────────────────────────────────
 const LibraryTab = ({ categories, onCategoriesChange }) => {
@@ -416,8 +418,11 @@ const MusicTab = () => {
   const [q, setQ] = useState('');
   const [genre, setGenre] = useState('all');
   const [editing, setEditing] = useState(null);
-  const [playingId, setPlayingId] = useState(null);
-  const audioRef = useRef(null);
+
+  // Play through the SHARED player bar (MediaContext), not a separate hidden
+  // <audio>, so admin previews and the visible bottom player stay in sync.
+  const { playMedia, togglePlay: playerToggle, currentTrack: playerTrack, isPlaying: playerIsPlaying } = useMedia();
+  const activeTrackId = String(playerTrack?.id || '');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -463,15 +468,23 @@ const MusicTab = () => {
     } finally { setSyncing(false); }
   };
 
-  const togglePlay = (t) => {
-    if (playingId === t.trackId) { audioRef.current?.pause(); setPlayingId(null); return; }
-    setPlayingId(t.trackId);
-    setTimeout(() => { if (audioRef.current && t.audioUrl) { audioRef.current.src = t.audioUrl; audioRef.current.play().catch(() => {}); } }, 0);
+  const handleTrackPlay = (t) => {
+    if (!t.audioUrl) { toast({ title: 'No audio for this track' }); return; }
+    if (activeTrackId === String(t.trackId)) { playerToggle(); return; }
+    playMedia({
+      id: String(t.trackId),
+      title: t.title,
+      artist: t.artist || 'Unknown artist',
+      cover: t.image || `https://picsum.photos/seed/${t.trackId}/400/400`,
+      audioUrl: t.audioUrl,
+      type: 'audio',
+      genre: t.genre || '',
+      producers: Array.isArray(t.producers) ? t.producers : [],
+    });
   };
 
   return (
     <div>
-      <audio ref={audioRef} onEnded={() => setPlayingId(null)} className="hidden" />
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -497,12 +510,15 @@ const MusicTab = () => {
         <>
           <p className="text-xs text-gray-500 mb-3">{filtered.length} track{filtered.length === 1 ? '' : 's'}</p>
           <div className="space-y-1">
-            {filtered.map(t => (
-              <div key={t.trackId} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#141414] group">
-                <button onClick={() => togglePlay(t)} className="w-11 h-11 rounded-lg bg-[#0f0f0f] flex-shrink-0 overflow-hidden flex items-center justify-center relative">
+            {filtered.map(t => {
+              const isThis = activeTrackId === String(t.trackId);
+              const showPause = isThis && playerIsPlaying;
+              return (
+              <div key={t.trackId} className={`flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#141414] group ${isThis ? 'bg-[#141414]' : ''}`}>
+                <button onClick={() => handleTrackPlay(t)} className="w-11 h-11 rounded-lg bg-[#0f0f0f] flex-shrink-0 overflow-hidden flex items-center justify-center relative">
                   {t.image ? <img src={t.image} alt="" className="w-full h-full object-cover" /> : <Music className="w-5 h-5 text-gray-600" />}
-                  <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    {playingId === t.trackId ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white" />}
+                  <span className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${isThis ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {showPause ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white" />}
                   </span>
                 </button>
                 <div className="flex-1 min-w-0">
@@ -519,7 +535,8 @@ const MusicTab = () => {
                   <Pencil className="w-4 h-4" />
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -549,15 +566,23 @@ const MediaAdminPanel = ({ onClose, onCategoriesChange, isInline = false }) => {
     onCategoriesChange?.();
   }, [loadCategories, onCategoriesChange]);
 
+  const glassTab = "data-[state=active]:bg-white/[0.08] data-[state=active]:text-white data-[state=active]:border-white/15 text-white/50 hover:text-white rounded-xl border border-transparent px-3.5 py-2 transition-colors";
+
   const content = (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e1e1e] flex-shrink-0">
-        <h2 className="text-white font-bold text-lg flex items-center gap-2">
-          <Film className="w-5 h-5 text-red-500" /> Media Manager
-        </h2>
+      <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-white/10 flex-shrink-0">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-primary/15 border border-white/10 flex items-center justify-center">
+              <Film className="w-5 h-5 text-primary" />
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Media Manager</h2>
+          </div>
+          <p className="text-sm text-white/45 mt-2">Manage your videos, music and categories — and see who's watching, from where, in the Analytics tab.</p>
+        </div>
         {!isInline && onClose && (
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors flex-shrink-0">
             <X className="w-5 h-5" />
           </button>
         )}
@@ -566,16 +591,11 @@ const MediaAdminPanel = ({ onClose, onCategoriesChange, isInline = false }) => {
       {/* Tabs */}
       <div className="flex-1 overflow-y-auto">
         <Tabs defaultValue="library" className="h-full">
-          <TabsList className="bg-[#0f0f0f] border-b border-[#1e1e1e] w-full rounded-none px-6 h-auto py-2 gap-1 flex-shrink-0">
-            <TabsTrigger value="library" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
-              <Film className="w-4 h-4 mr-1.5" />Videos
-            </TabsTrigger>
-            <TabsTrigger value="music" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
-              <Music className="w-4 h-4 mr-1.5" />Music
-            </TabsTrigger>
-            <TabsTrigger value="categories" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
-              <Tag className="w-4 h-4 mr-1.5" />Video Categories
-            </TabsTrigger>
+          <TabsList className="bg-transparent w-full rounded-none px-6 h-auto py-3 gap-1.5 flex-shrink-0 justify-start flex-wrap">
+            <TabsTrigger value="library" className={glassTab}><Film className="w-4 h-4 mr-1.5" />Videos</TabsTrigger>
+            <TabsTrigger value="music" className={glassTab}><Music className="w-4 h-4 mr-1.5" />Music</TabsTrigger>
+            <TabsTrigger value="categories" className={glassTab}><Tag className="w-4 h-4 mr-1.5" />Categories</TabsTrigger>
+            <TabsTrigger value="analytics" className={glassTab}><BarChart3 className="w-4 h-4 mr-1.5" />Analytics</TabsTrigger>
           </TabsList>
 
           <TabsContent value="library" className="px-6 py-5 focus:outline-none">
@@ -587,6 +607,9 @@ const MediaAdminPanel = ({ onClose, onCategoriesChange, isInline = false }) => {
           <TabsContent value="categories" className="px-6 py-5 focus:outline-none">
             <CategoriesTab categories={categories} onCategoriesChange={handleCategoriesChange} />
           </TabsContent>
+          <TabsContent value="analytics" className="px-6 py-5 focus:outline-none">
+            <MediaAnalytics />
+          </TabsContent>
         </Tabs>
       </div>
     </>
@@ -594,8 +617,8 @@ const MediaAdminPanel = ({ onClose, onCategoriesChange, isInline = false }) => {
 
   if (isInline) {
     return (
-      <div className="w-full max-w-4xl mx-auto px-4 pb-20">
-        <div className="bg-[#0a0a0a] border border-[#1e1e1e] rounded-2xl overflow-hidden flex flex-col min-h-[70vh]">
+      <div className="w-full max-w-5xl mx-auto px-4 pb-24">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_40px_-12px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col min-h-[70vh]">
           {content}
         </div>
       </div>

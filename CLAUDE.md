@@ -135,6 +135,12 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 (session 3) — Media-mode admin (/media/admin) got the updates
+- **IMPORTANT surface note:** `/media/admin` renders `MediaMode/MediaAdminPanel.jsx` (via `MediaApp` admin tab), NOT `admin/AdminMediaManager.jsx` (which is `/admin/media`). They're near-duplicate "Media Manager" UIs. George checks **/media/admin**, so apply media-manager changes THERE (or both).
+- **[FIX] MediaAdminPanel MusicTab** now plays through the shared `MusicPlayer` bar (`MediaContext.playMedia`) instead of its own hidden `<audio>` (same fix as AdminMediaManager).
+- **[FEAT] Analytics tab** added to MediaAdminPanel (renders `MediaAnalytics`).
+- **[UI] Glass redesign** of MediaAdminPanel (frosted panel, big title, explanatory sub-copy, glass tab bar) + `MediaAnalytics` now uses the glass kit with interactive `StatTile` headline stats (plays/views, audience, watch/listen time, traffic sessions/visitors/signups) + a Live-now strip.
+
 ### 2026-07-16 (session 2) — Admin panel glass redesign
 - **[UI] Glass admin design kit** (`components/admin/glass.jsx`, new) — reusable `GlassPanel`, `StatTile` (big interactive stat w/ accents + trend + click-through), `SectionTitle`, `MetricPill`. Foundation for all admin pages to share one clean frosted-glass look. Accent classes are STATIC maps (Tailwind JIT can't see interpolated class names — don't build `bg-${x}` strings).
 - **[UI] AdminLayout** (`admin/AdminLayout.jsx`) — glass sidebar with grouped nav (Overview/Content/Community/Business), ambient gradient backdrop, bigger text, glow active states. Logout is a plain button now (was shadcn Button).
