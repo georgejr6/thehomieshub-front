@@ -33,6 +33,7 @@ export function normalizeTrack(t) {
     tags: t.genre ? [t.genre] : [],
     explicit: t.explicit || false,
     album: t.album || '',
+    producers: Array.isArray(t.producers) ? t.producers : [],
   };
 }
 

@@ -314,6 +314,9 @@ const MusicPlayer = () => {
                       </div>
                       {currentTrack.genre && <p className="text-sm text-gray-500 uppercase tracking-wider">{currentTrack.genre}</p>}
                       {currentTrack.explicit && <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded">EXPLICIT</span>}
+                      {currentTrack.producers?.length > 0 && (
+                        <p className="text-sm text-gray-400">Produced by {currentTrack.producers.join(', ')}</p>
+                      )}
                       <div className="pt-2 flex gap-2 flex-wrap">
                         <button onClick={handleShare}
                           className="flex items-center gap-2 px-4 py-2 border border-zinc-600 rounded-lg text-sm text-white hover:border-white transition-colors">
