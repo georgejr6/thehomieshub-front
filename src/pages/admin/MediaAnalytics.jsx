@@ -544,6 +544,132 @@ function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
   );
 }
 
+// ── Mini daily bar chart (no chart lib) ───────────────────────────────────────
+const BAR_COLOR = { primary: 'bg-primary', emerald: 'bg-emerald-400', sky: 'bg-sky-400', fuchsia: 'bg-fuchsia-400' };
+function MiniBarChart({ series, dataKey, accent = 'primary', format = fmtN }) {
+  if (!series?.length) return <div className="h-32 flex items-center justify-center text-white/30 text-sm">No data in this window.</div>;
+  const max = Math.max(...series.map(d => d[dataKey] || 0), 1);
+  const color = BAR_COLOR[accent] || BAR_COLOR.primary;
+  return (
+    <div className="h-32 flex items-end gap-0.5">
+      {series.map((d, i) => {
+        const h = Math.max(2, Math.round(((d[dataKey] || 0) / max) * 100));
+        return (
+          <div key={i} className="flex-1 min-w-0 group relative flex flex-col justify-end h-full">
+            <div className={`${color} rounded-sm opacity-70 group-hover:opacity-100 transition-opacity`} style={{ height: `${h}%` }} />
+            <div className="pointer-events-none absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-black/90 border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-white z-10">
+              {(d.date || '').slice(5)} · {format(d[dataKey] || 0)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Reusable visitor row (list + drill-downs) ─────────────────────────────────
+function VisitorRow({ v, rank, onClick }) {
+  return (
+    <button onClick={onClick} className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.04] transition-colors">
+      {rank != null && <span className={`w-6 text-center text-sm font-bold flex-shrink-0 ${rank <= 3 ? 'text-primary' : 'text-white/40'}`}>{rank}</span>}
+      <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${v.authed ? 'bg-emerald-500/15' : 'bg-white/[0.06]'}`}>
+        {v.authed ? <UserIcon className="w-4 h-4 text-emerald-400" /> : <Globe className="w-4 h-4 text-white/50" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold truncate">{v.authed ? `@${v.username || 'member'}` : 'Anonymous'}</span>
+          <span className="font-mono text-xs text-white/40">{v.ip}</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-white/45 mt-0.5 flex-wrap">
+          <span className="flex items-center gap-1"><Headphones className="w-3 h-3" />{v.plays} plays</span>
+          <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{v.views} views</span>
+          <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{fmtMs(v.listenMs)}</span>
+          <span>last seen {fmtTime(v.lastSeen)}</span>
+        </div>
+      </div>
+      <ChevronRight className="w-4 h-4 text-white/25 flex-shrink-0" />
+    </button>
+  );
+}
+
+// ── Drill-down when a stat card is clicked ────────────────────────────────────
+const METRIC_META = {
+  visitors: { label: 'Visitors', key: 'visitors', accent: 'primary', icon: Users, desc: 'Everyone who visited — members and anonymous.' },
+  members: { label: 'Members', key: 'members', accent: 'emerald', icon: UserCheck, desc: 'Signed-in accounts active in this window.' },
+  anon: { label: 'Anonymous', key: 'anon', accent: 'sky', icon: Globe, desc: 'Visitors without an account, counted by IP.' },
+  plays: { label: 'Total plays', key: 'plays', accent: 'fuchsia', icon: PlayCircle, desc: 'Song plays across everyone.' },
+};
+function MetricDetailDialog({ metric, days, visitors, isOpen, onOpenChange, onPick }) {
+  const meta = METRIC_META[metric] || METRIC_META.visitors;
+  const [series, setSeries] = useState([]);
+  const [songs, setSongs] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !metric) return;
+    let cancelled = false;
+    setLoading(true);
+    const jobs = [api.get('/track/timeseries', { params: { days } }).then(r => { if (!cancelled) setSeries(r.data?.result?.series || []); }).catch(() => {})];
+    if (metric === 'plays') jobs.push(api.get('/track/music/songs', { params: { days } }).then(r => { if (!cancelled) setSongs(r.data?.result?.songs || []); }).catch(() => {}));
+    Promise.all(jobs).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, metric, days]);
+
+  const list = metric === 'members' ? visitors.filter(v => v.authed) : metric === 'anon' ? visitors.filter(v => !v.authed) : visitors;
+  const total = metric === 'plays'
+    ? visitors.reduce((a, v) => a + (v.plays || 0), 0)
+    : metric === 'members' ? visitors.filter(v => v.authed).length
+    : metric === 'anon' ? visitors.filter(v => !v.authed).length
+    : visitors.length;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[780px] max-h-[88vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><meta.icon className="w-5 h-5 text-primary" /> {meta.label}</DialogTitle>
+          <DialogDescription>{meta.desc}</DialogDescription>
+        </DialogHeader>
+        <div className="overflow-y-auto -mx-1 px-1 space-y-4">
+          <div className="flex items-baseline gap-3">
+            <span className="text-5xl font-black tracking-tight">{fmtN(total)}</span>
+            <span className="text-sm text-white/50">in the last {days} days</span>
+          </div>
+          <GlassPanel className="p-4">
+            <p className="text-xs uppercase tracking-widest text-white/40 mb-3">{meta.label} per day</p>
+            {loading ? <div className="h-32 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div>
+              : <MiniBarChart series={series} dataKey={meta.key} accent={meta.accent} />}
+          </GlassPanel>
+          {metric === 'plays' ? (
+            <GlassPanel className="overflow-hidden">
+              <p className="text-sm font-semibold px-4 py-3 border-b border-white/10">Top songs</p>
+              {songs.length === 0 ? <p className="text-center text-white/40 py-10 text-sm">No plays yet.</p> : (
+                <div className="divide-y divide-white/[0.06] max-h-[42vh] overflow-y-auto">
+                  {songs.slice(0, 60).map((s, i) => (
+                    <div key={s._id} className="flex items-center gap-3 px-4 py-2 text-sm">
+                      <span className="w-5 text-white/40 flex-shrink-0">{i + 1}</span>
+                      <span className="flex-1 truncate">{s.title || <span className="font-mono text-xs text-white/40">{s._id}</span>}</span>
+                      <span className="text-white/50 flex-shrink-0">{s.plays} plays · {fmtMs(s.listenMs)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </GlassPanel>
+          ) : (
+            <GlassPanel className="overflow-hidden">
+              <p className="text-sm font-semibold px-4 py-3 border-b border-white/10">{meta.label} ({list.length})</p>
+              {list.length === 0 ? <p className="text-center text-white/40 py-10 text-sm">Nobody yet.</p> : (
+                <div className="divide-y divide-white/[0.06] max-h-[42vh] overflow-y-auto">
+                  {list.map((v) => <VisitorRow key={v.key} v={v} onClick={() => onPick(v)} />)}
+                </div>
+              )}
+            </GlassPanel>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Audience list (mode: 'recent' | 'superfans') ──────────────────────────────
 function Audience({ days, mode = 'recent' }) {
   const { toast } = useToast();
@@ -553,6 +679,7 @@ function Audience({ days, mode = 'recent' }) {
   const [q, setQ] = useState('');
   const [target, setTarget] = useState(null);
   const [open, setOpen] = useState(false);
+  const [detailMetric, setDetailMetric] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -576,10 +703,10 @@ function Audience({ days, mode = 'recent' }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatTile index={0} accent="primary" icon={Users} label="Visitors" value={loading ? '' : fmtN(visitors.length)} loading={loading} sub={`in the last ${days} days`} />
-        <StatTile index={1} accent="emerald" icon={UserCheck} label="Members" value={loading ? '' : fmtN(members)} loading={loading} sub="signed-in accounts" />
-        <StatTile index={2} accent="sky" icon={Globe} label="Anonymous" value={loading ? '' : fmtN(visitors.length - members)} loading={loading} sub="by IP" />
-        <StatTile index={3} accent="fuchsia" icon={PlayCircle} label="Total plays" value={loading ? '' : fmtN(visitors.reduce((a, v) => a + (v.plays || 0), 0))} loading={loading} sub="across everyone" />
+        <StatTile index={0} accent="primary" icon={Users} label="Visitors" value={loading ? '' : fmtN(visitors.length)} loading={loading} sub="tap to break down" onClick={() => setDetailMetric('visitors')} />
+        <StatTile index={1} accent="emerald" icon={UserCheck} label="Members" value={loading ? '' : fmtN(members)} loading={loading} sub="tap to break down" onClick={() => setDetailMetric('members')} />
+        <StatTile index={2} accent="sky" icon={Globe} label="Anonymous" value={loading ? '' : fmtN(visitors.length - members)} loading={loading} sub="tap to break down" onClick={() => setDetailMetric('anon')} />
+        <StatTile index={3} accent="fuchsia" icon={PlayCircle} label="Total plays" value={loading ? '' : fmtN(visitors.reduce((a, v) => a + (v.plays || 0), 0))} loading={loading} sub="tap to break down" onClick={() => setDetailMetric('plays')} />
       </div>
 
       <GlassPanel className="overflow-hidden">
@@ -597,32 +724,16 @@ function Audience({ days, mode = 'recent' }) {
         ) : (
           <div className="divide-y divide-white/[0.06]">
             {filtered.map((v, i) => (
-              <button key={v.key} onClick={() => { setTarget(v); setOpen(true); }}
-                className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.04] transition-colors">
-                {superfans && <span className={`w-6 text-center text-sm font-bold flex-shrink-0 ${i < 3 ? 'text-primary' : 'text-white/40'}`}>{i + 1}</span>}
-                <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${v.authed ? 'bg-emerald-500/15' : 'bg-white/[0.06]'}`}>
-                  {v.authed ? <UserIcon className="w-4 h-4 text-emerald-400" /> : <Globe className="w-4 h-4 text-white/50" />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold truncate">{v.authed ? `@${v.username || 'member'}` : 'Anonymous'}</span>
-                    <span className="font-mono text-xs text-white/40">{v.ip}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-white/45 mt-0.5 flex-wrap">
-                    <span className="flex items-center gap-1"><Headphones className="w-3 h-3" />{v.plays} plays</span>
-                    <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{v.views} views</span>
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{fmtMs(v.listenMs)}</span>
-                    <span>last seen {fmtTime(v.lastSeen)}</span>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-white/25 flex-shrink-0" />
-              </button>
+              <VisitorRow key={v.key} v={v} rank={superfans ? i + 1 : null} onClick={() => { setTarget(v); setOpen(true); }} />
             ))}
           </div>
         )}
       </GlassPanel>
 
       <AudienceProfileDialog visitor={target} isOpen={open} onOpenChange={(o) => { setOpen(o); if (!o) setTarget(null); }} />
+      <MetricDetailDialog metric={detailMetric} days={days} visitors={visitors}
+        isOpen={!!detailMetric} onOpenChange={(o) => { if (!o) setDetailMetric(null); }}
+        onPick={(v) => { setDetailMetric(null); setTarget(v); setOpen(true); }} />
     </div>
   );
 }

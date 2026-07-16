@@ -135,6 +135,10 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 (session 7) — Clickable stat cards → drill-down analytics
+- **[FEAT] Backend** `GET /track/timeseries?days=` — daily visitors/members/anon/plays/views/listenMs for charts.
+- **[FEAT] Frontend** — the Audience stat tiles (Visitors/Members/Anonymous/Total Plays) are now clickable → `MetricDetailDialog` with a per-day bar chart (`MiniBarChart`, no chart lib) + the relevant breakdown list (visitors/members/anon lists → open profile on click; Total Plays → top songs). Extracted `VisitorRow` (reused by the list + drill-downs).
+
 ### 2026-07-16 (session 6) — Watchlist + Superfans + message/push from profile
 - **[FEAT] Notify-on-return watchlist** — in an audience profile, "Notify me when they return" toggles a watch (account or IP) via `POST/DELETE /track/audience/watch`. Backend `POST /api/track` ingest pings admin (Telegram, 6h throttle) on the watched visitor's next `session_start`. New model `AudienceWatch`.
 - **[FEAT] Superfans tab** — `Audience` component now takes `mode`; Superfans fetches `/track/audience?sort=engagement` (most listen time/plays first) with rank numbers. Backend audience list accepts `sort=engagement|recent`.
