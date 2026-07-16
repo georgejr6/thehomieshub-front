@@ -3,11 +3,12 @@ import {
   Loader2, BarChart3, Music, Film, Globe, Headphones, Clock, Eye,
   User as UserIcon, Radio, Users, UserCheck, PlayCircle, Timer, Download,
   Bell, Ban, Activity, ChevronRight, MapPin, Link2, MessageSquare, Star,
+  TrendingUp, UserPlus, AlertTriangle, Send, Zap, Flame,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/api/homieshub';
-import { GlassPanel, StatTile, MetricPill } from '@/components/admin/glass';
+import { GlassPanel, StatTile, MetricPill, InfoTip } from '@/components/admin/glass';
 
 // ── formatters ────────────────────────────────────────────────────────────────
 const fmtMs = (ms) => {
@@ -738,10 +739,244 @@ function Audience({ days, mode = 'recent' }) {
   );
 }
 
+// ── Growth: funnel + DAU/WAU/MAU + landing conversion ─────────────────────────
+function GrowthView({ days }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [funnel, setFunnel] = useState(null);
+  const [actives, setActives] = useState(null);
+  const [landing, setLanding] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      api.get('/track/funnel', { params: { days } }).then(r => r.data?.result).catch(() => null),
+      api.get('/track/actives').then(r => r.data?.result).catch(() => null),
+      api.get('/track/landing', { params: { days } }).then(r => r.data?.result?.surfaces || []).catch(() => []),
+    ]).then(([f, a, l]) => {
+      if (cancelled) return;
+      setFunnel(f); setActives(a); setLanding(l); setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [days]);
+
+  const pct = (n, d) => (d > 0 ? Math.round((n / d) * 100) : 0);
+  const steps = funnel ? [
+    { label: 'Visitors', value: funnel.visitors, accent: 'primary', info: 'Distinct people (members + anonymous by IP) we tracked in this window.' },
+    { label: 'Signed up', value: funnel.signups, accent: 'sky', rate: pct(funnel.signups, funnel.visitors), info: 'New accounts created in this window.' },
+    { label: 'Started paying', value: funnel.paid, accent: 'emerald', rate: pct(funnel.paid, funnel.signups), info: 'Of those new accounts, how many became paying members.' },
+  ] : [];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile index={0} accent="primary" icon={Zap} label="DAU" value={loading ? '' : fmtN(actives?.dau)} loading={loading} sub="active today" info="Daily Active Users — distinct people active in the last 24h." />
+        <StatTile index={1} accent="sky" icon={Users} label="WAU" value={loading ? '' : fmtN(actives?.wau)} loading={loading} sub="active this week" info="Weekly Active Users — distinct people active in the last 7 days." />
+        <StatTile index={2} accent="fuchsia" icon={TrendingUp} label="MAU" value={loading ? '' : fmtN(actives?.mau)} loading={loading} sub="active this month" info="Monthly Active Users — distinct people active in the last 30 days." />
+        <StatTile index={3} accent="emerald" icon={Flame} label="Stickiness" value={loading ? '' : `${actives?.stickiness || 0}%`} loading={loading} sub="DAU ÷ MAU" info="How 'sticky' the app is: what share of monthly users show up on a given day. 20%+ is healthy." />
+      </div>
+
+      {/* Funnel */}
+      <GlassPanel className="p-5">
+        <div className="flex items-center gap-1.5 mb-4">
+          <p className="text-sm font-semibold">Conversion funnel · last {days} days</p>
+          <InfoTip text="Visitor → signup → paying. The % under each step is its conversion from the step before." />
+        </div>
+        {loading ? <div className="h-24 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div> : (
+          <div className="flex items-stretch gap-2">
+            {steps.map((s, i) => (
+              <React.Fragment key={s.label}>
+                {i > 0 && (
+                  <div className="flex flex-col items-center justify-center px-1">
+                    <ChevronRight className="w-5 h-5 text-white/25" />
+                    <span className="text-xs font-bold text-white/60">{s.rate}%</span>
+                  </div>
+                )}
+                <div className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center">
+                  <p className="text-[11px] uppercase tracking-wider text-white/40 inline-flex items-center gap-1 justify-center">{s.label}<InfoTip text={s.info} /></p>
+                  <p className="text-3xl font-black mt-1 tabular-nums">{fmtN(s.value)}</p>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+      </GlassPanel>
+
+      {/* Active users trend */}
+      <GlassPanel className="p-5">
+        <p className="text-xs uppercase tracking-widest text-white/40 mb-3">Active users per day · 30 days</p>
+        {loading ? <div className="h-32 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div>
+          : <MiniBarChart series={actives?.series || []} dataKey="actives" accent="primary" />}
+      </GlassPanel>
+
+      {/* Landing → conversion */}
+      <GlassPanel className="overflow-hidden">
+        <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/10">
+          <p className="text-sm font-semibold">Where they land, and does it convert?</p>
+          <InfoTip text="First page each visitor hit, then how many came back and how many ever signed in. Tells you which entry points actually convert." />
+        </div>
+        {loading ? <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-white/40" /></div>
+          : landing.length === 0 ? <p className="text-center text-white/40 py-12 text-sm">No landing data yet.</p> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wide text-white/40 border-b border-white/10">
+                  <th className="text-left font-semibold py-2.5 px-4">Landing surface</th>
+                  <th className="text-right font-semibold py-2.5 px-3">Visitors</th>
+                  <th className="text-right font-semibold py-2.5 px-3">Returning</th>
+                  <th className="text-right font-semibold py-2.5 px-3">Signed in</th>
+                  <th className="text-right font-semibold py-2.5 px-4">Avg time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {landing.map((s) => (
+                  <tr key={s._id} className="border-b border-white/[0.06] last:border-0">
+                    <td className="py-2.5 px-4 font-medium capitalize">{s._id || 'home'}</td>
+                    <td className="py-2.5 px-3 text-right">{fmtN(s.visitors)}</td>
+                    <td className="py-2.5 px-3 text-right text-white/60">{pct(s.returning, s.visitors)}%</td>
+                    <td className="py-2.5 px-3 text-right text-emerald-400">{pct(s.converted, s.visitors)}%</td>
+                    <td className="py-2.5 px-4 text-right text-white/50">{fmtMs(s.avgDurationMs)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassPanel>
+    </div>
+  );
+}
+
+// ── Re-engage a member (DM / push) ────────────────────────────────────────────
+function ReengageDialog({ username, isOpen, onOpenChange }) {
+  const { toast } = useToast();
+  const [msg, setMsg] = useState('');
+  const [title, setTitle] = useState('');
+  const [sending, setSending] = useState(false);
+  useEffect(() => { if (isOpen) { setMsg(''); setTitle(''); } }, [isOpen]);
+
+  const dm = async () => {
+    if (!msg.trim()) return;
+    setSending(true);
+    try { await api.post('/messages/send', { recipientUsername: username, content: msg.trim() }); toast({ title: `Message sent to @${username}` }); onOpenChange(false); }
+    catch (e) { toast({ title: 'Failed', description: e.response?.data?.message, variant: 'destructive' }); }
+    finally { setSending(false); }
+  };
+  const push = async () => {
+    if (!msg.trim()) return;
+    setSending(true);
+    try { const { data } = await api.post('/admin/push/send', { title: title.trim() || 'The Homies', body: msg.trim(), usernames: [username] }); toast({ title: data?.message || 'Push sent' }); onOpenChange(false); }
+    catch (e) { toast({ title: 'Push failed', description: e.response?.data?.message, variant: 'destructive' }); }
+    finally { setSending(false); }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>Re-engage @{username}</DialogTitle>
+          <DialogDescription>Pull them back with a DM or a push notification.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Push title (optional)"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-lg h-9 px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/25" />
+          <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={3} placeholder="We miss you — here's what's new…"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/25 resize-none" />
+          <div className="flex gap-2">
+            <button onClick={dm} disabled={sending || !msg.trim()} className="flex-1 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-1.5">
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />} Message
+            </button>
+            <button onClick={push} disabled={sending || !msg.trim()} className="flex-1 h-9 rounded-lg bg-primary text-black text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-1.5">
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />} Push
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── At-risk / dormant members ─────────────────────────────────────────────────
+function AtRiskView() {
+  const { toast } = useToast();
+  const [days, setDays] = useState(14);
+  const [paidOnly, setPaidOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState([]);
+  const [reTarget, setReTarget] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api.get('/admin/members/dormant', { params: { days, paid: paidOnly ? 1 : 0 } })
+      .then(r => { if (!cancelled) setMembers(r.data?.result?.members || []); })
+      .catch(() => { if (!cancelled) toast({ title: 'Failed to load', variant: 'destructive' }); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [days, paidOnly, toast]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm text-white/60">Members with no visit in</p>
+          <div className="flex gap-1.5">
+            {[7, 14, 30].map(d => (
+              <button key={d} onClick={() => setDays(d)} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${days === d ? 'border-primary text-primary bg-primary/10' : 'border-white/10 text-white/50 hover:bg-white/[0.06]'}`}>{d}d+</button>
+            ))}
+          </div>
+          <InfoTip text="Accounts that logged in before but haven't been back within this many days. Newest-cold first — the easiest to win back." />
+        </div>
+        <label className="flex items-center gap-2 text-xs text-white/60 cursor-pointer select-none">
+          <input type="checkbox" checked={paidOnly} onChange={e => setPaidOnly(e.target.checked)} className="accent-primary w-4 h-4" />
+          Paying members only
+        </label>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <StatTile index={0} accent="rose" icon={AlertTriangle} label="At-risk" value={loading ? '' : fmtN(members.length)} loading={loading} sub={`quiet ${days}+ days`} info="Members who've gone cold. Reach out before they churn." />
+        <StatTile index={1} accent="amber" icon={Flame} label="Paying at-risk" value={loading ? '' : fmtN(members.filter(m => m.paying).length)} loading={loading} sub="paying + inactive" info="The most important to save — they're paying but drifting away." />
+      </div>
+
+      <GlassPanel className="overflow-hidden">
+        <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/10">
+          <p className="text-sm font-semibold">Going cold</p>
+          <InfoTip text="Tap Re-engage to DM or push a member right here." />
+        </div>
+        {loading ? <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-white/40" /></div>
+          : members.length === 0 ? <p className="text-center text-white/40 py-12 text-sm">Nobody's gone cold in this window. 🎉</p> : (
+          <div className="divide-y divide-white/[0.06]">
+            {members.map((m) => (
+              <div key={m.username} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center flex-shrink-0"><UserIcon className="w-4 h-4 text-white/50" /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold truncate">@{m.username}</span>
+                    {m.paying && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">{m.tier || 'paying'}</span>}
+                  </div>
+                  <p className="text-xs text-white/45">last seen {m.daysSince}d ago{m.email ? ` · ${m.email}` : ''}</p>
+                </div>
+                <button onClick={() => setReTarget(m.username)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/15 text-white/80 hover:bg-white/10 flex items-center gap-1.5 flex-shrink-0">
+                  <Send className="w-3.5 h-3.5" /> Re-engage
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassPanel>
+
+      <ReengageDialog username={reTarget} isOpen={!!reTarget} onOpenChange={(o) => { if (!o) setReTarget(null); }} />
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 const TABS = [
   { key: 'audience', label: 'Listeners', icon: Users },
   { key: 'superfans', label: 'Superfans', icon: Star },
+  { key: 'growth', label: 'Growth', icon: TrendingUp },
+  { key: 'atrisk', label: 'At-risk', icon: AlertTriangle },
   { key: 'songs', label: 'Songs', icon: Music },
   { key: 'videos', label: 'Videos', icon: Film },
   { key: 'traffic', label: 'Traffic', icon: Globe },
@@ -778,6 +1013,8 @@ export default function MediaAnalytics() {
 
       {tab === 'audience' && <Audience days={days} mode="recent" />}
       {tab === 'superfans' && <Audience days={days} mode="superfans" />}
+      {tab === 'growth' && <GrowthView days={days} />}
+      {tab === 'atrisk' && <AtRiskView />}
       {tab === 'songs' && <MediaLeaderboard kind="song" days={days} />}
       {tab === 'videos' && <MediaLeaderboard kind="video" days={days} />}
       {tab === 'traffic' && <TrafficSources days={days} />}

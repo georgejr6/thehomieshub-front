@@ -24,6 +24,48 @@ const fmtMs = (ms) => {
   if (m < 60) return `${m}m`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 };
+const timeAgo = (d) => {
+  const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
+  if (s < 60) return 'now';
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+};
+
+// ── Recent activity feed (new members, watch returns, applications) ───────────
+const ALERT_ICON = { signup: Users, watch: Bell, application: FileText };
+function AlertsFeed() {
+  const [alerts, setAlerts] = useState(null);
+  useEffect(() => {
+    api.get('/admin/alerts').then(({ data }) => setAlerts(data?.result?.alerts || [])).catch(() => setAlerts([]));
+  }, []);
+  return (
+    <GlassPanel className="p-5">
+      <SectionTitle sub="New members, watched-visitor returns, and pending applications.">Recent activity</SectionTitle>
+      {alerts === null ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div>
+      ) : alerts.length === 0 ? (
+        <p className="text-white/40 text-sm py-6 text-center">Nothing new right now.</p>
+      ) : (
+        <div className="space-y-1.5 max-h-96 overflow-y-auto">
+          {alerts.map((a, i) => {
+            const Icon = ALERT_ICON[a.kind] || Bell;
+            return (
+              <div key={i} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                <span className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center flex-shrink-0"><Icon className="w-4 h-4 text-white/60" /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{a.title}</p>
+                  <p className="text-xs text-white/45 truncate">{a.detail}</p>
+                </div>
+                <span className="text-xs text-white/35 flex-shrink-0">{timeAgo(a.ts)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </GlassPanel>
+  );
+}
 
 // ── Gift points dialog ────────────────────────────────────────────────────────
 const AdminGiftDialog = () => {
@@ -325,14 +367,19 @@ const AdminDashboard = () => {
         <GlassPanel className="p-5">
           <SectionTitle sub="Jump straight into the tools you use most.">Quick actions</SectionTitle>
           <div className="grid grid-cols-2 gap-3">
-            <ActionTile icon={BarChart3} label="Analytics" desc="Listeners, songs & traffic" accent="emerald" onClick={() => navigate('/admin/analytics')} />
+            <ActionTile icon={BarChart3} label="Analytics" desc="Listeners, growth & traffic" accent="emerald" onClick={() => navigate('/admin/analytics')} />
+            <ActionTile icon={DollarSign} label="Revenue" desc="MRR, sales & transactions" accent="emerald" onClick={() => navigate('/admin/revenue')} />
             <ActionTile icon={Film} label="Media" desc="Videos, music & thumbnails" accent="primary" onClick={() => navigate('/admin/media')} />
             <ActionTile icon={Users} label="Users" desc="Manage & moderate" accent="sky" onClick={() => navigate('/admin/users')} />
             <ActionTile icon={Activity} label="Visitors" desc="Sessions & IP lookup" accent="fuchsia" onClick={() => navigate('/admin/visitors')} />
-            <ActionTile icon={DollarSign} label="Monetization" desc="Subs & applications" accent="emerald" onClick={() => navigate('/admin/monetization')} />
             <ActionTile icon={Bell} label="Push" desc="Send notifications" accent="rose" onClick={() => navigate('/admin/push')} />
           </div>
         </GlassPanel>
+      </section>
+
+      {/* Recent activity feed */}
+      <section>
+        <AlertsFeed />
       </section>
 
       {/* Platform summary */}

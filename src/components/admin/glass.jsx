@@ -1,6 +1,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, ArrowUpRight } from 'lucide-react';
+import { Loader2, ArrowUpRight, Info } from 'lucide-react';
+
+// Small "explain this" icon with a hover tooltip. Use to annotate any metric.
+export const InfoTip = ({ text, className = '' }) => (
+  <span className={`relative inline-flex group/tip align-middle ${className}`}>
+    <Info className="w-3.5 h-3.5 text-white/30 hover:text-white/70 cursor-help" />
+    <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover/tip:block w-56 z-[60] rounded-lg border border-white/15 bg-black/95 px-2.5 py-1.5 text-[11px] leading-snug text-white/80 shadow-xl normal-case tracking-normal font-normal">
+      {text}
+    </span>
+  </span>
+);
 
 // ── Glass design kit for the admin panel ──────────────────────────────────────
 // Shared translucent "glass" primitives so every admin page reads as one clean,
@@ -41,7 +51,7 @@ export const SectionTitle = ({ children, sub, right, className = '' }) => (
 // optional trend badge. Hover-lifts and glows; click-through when onClick given.
 export const StatTile = ({
   label, value, sub, icon: Icon, accent = 'primary',
-  onClick, loading = false, trend, index = 0,
+  onClick, loading = false, trend, index = 0, info,
 }) => {
   const a = ACCENTS[accent] || ACCENTS.primary;
   const clickable = typeof onClick === 'function';
@@ -58,7 +68,7 @@ export const StatTile = ({
         ${clickable ? `cursor-pointer hover:-translate-y-0.5 ${a.glow}` : 'cursor-default'}`}
     >
       <div className="flex items-start justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50 inline-flex items-center gap-1">{label}{info && <InfoTip text={info} />}</span>
         <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${a.chip} border border-white/10`}>
           {Icon && <Icon className="w-5 h-5" />}
         </span>

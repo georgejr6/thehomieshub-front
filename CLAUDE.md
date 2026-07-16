@@ -135,6 +135,13 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 (session 9) — Revenue + Growth + At-risk + Alerts + helper tooltips
+- **[FEAT] Revenue page** (`AdminRevenue.jsx`, route `/admin/revenue`, sidebar Business → Wallet). Est. MRR (tier counts × price), paying members, one-off revenue (window + all-time), by-source bars, MRR-by-tier, daily revenue chart, recent transactions. Backend `GET /admin/revenue?days=` sums Order/VideoPurchase/SongLicense/IAPPurchase/Fundraiser from Mongo (subscription MRR estimated since amounts live in Stripe).
+- **[FEAT] Growth tab** (Analytics): DAU/WAU/MAU + stickiness, visitor→signup→paid funnel, daily-actives chart, landing→conversion table. Backend `GET /track/funnel`, `GET /track/actives` (+ existing `/track/landing`).
+- **[FEAT] At-risk tab** (Analytics): dormant members (no visit in 7/14/30d, paying-only toggle) with one-click Re-engage (DM/push) via `ReengageDialog`. Backend `GET /admin/members/dormant`.
+- **[FEAT] Recent activity feed** on the dashboard (new members / watch returns / pending applications). Backend `GET /admin/alerts` composes from existing collections (no new write path).
+- **[UI] Helper tooltips** — new `InfoTip` in the glass kit + `info` prop on `StatTile`; used across the new views to explain every metric.
+
 ### 2026-07-16 (session 8) — Analytics as a standalone /admin page
 - **[FEAT]** New `/admin/analytics` route + `AdminAnalytics.jsx` page (in AdminLayout, admin-only) that renders the SAME `MediaAnalytics` component as `/media/admin` — so the full analytics (Listeners/Superfans/Songs/Videos/Traffic + drill-downs) is available in the standalone admin panel too, and the two never drift. Added an **Analytics** sidebar item (Overview group); dashboard Analytics shortcuts now point to `/admin/analytics`.
 
