@@ -135,6 +135,11 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 (session 6) — Watchlist + Superfans + message/push from profile
+- **[FEAT] Notify-on-return watchlist** — in an audience profile, "Notify me when they return" toggles a watch (account or IP) via `POST/DELETE /track/audience/watch`. Backend `POST /api/track` ingest pings admin (Telegram, 6h throttle) on the watched visitor's next `session_start`. New model `AudienceWatch`.
+- **[FEAT] Superfans tab** — `Audience` component now takes `mode`; Superfans fetches `/track/audience?sort=engagement` (most listen time/plays first) with rank numbers. Backend audience list accepts `sort=engagement|recent`.
+- **[FEAT] Message / push a member from their profile** — for signed-in visitors, the profile has a composer: "Send message" (`/messages/send`) and "Send push" (`/admin/push/send` with their username). Anonymous visitors show the notify-on-return note instead.
+
 ### 2026-07-16 (session 5) — Audience profiles (Listeners tab)
 - **[FEAT] Backend** (`routes/track.js`, admin-gated): `GET /track/audience` (one row per visitor — account by userSub, else anonymous by IP — with plays/views/listen time/last seen) + `GET /track/audience/profile?type=user|anon&id=` (that visitor's songs, videos, recent activity timeline, sessions, linked accounts/known IPs, traffic source, `canPush`).
 - **[FEAT] Frontend** (`admin/MediaAnalytics.jsx`): new **Listeners** tab (now the default) — searchable list of everyone (members + anon by IP); click any row → `AudienceProfileDialog` showing stat pills, songs they play, videos they watch, a recent-activity timeline, linked accounts, traffic source, and push guidance (members → link to /admin/push; anon → note that backend already alerts on dormant-IP return).

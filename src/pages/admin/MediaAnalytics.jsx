@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Loader2, BarChart3, Music, Film, Globe, Headphones, Clock, Eye,
   User as UserIcon, Radio, Users, UserCheck, PlayCircle, Timer, Download,
-  Bell, Ban, Activity, ChevronRight, MapPin, Link2,
+  Bell, Ban, Activity, ChevronRight, MapPin, Link2, MessageSquare, Star,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/api/homieshub';
@@ -346,25 +345,66 @@ const EVENT_LABEL = {
 
 function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [watched, setWatched] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [pushTitle, setPushTitle] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const vType = visitor?.authed ? 'user' : 'anon';
+  const vId = visitor?.authed ? visitor?.userSub : visitor?.ip;
+  const vLabel = visitor?.authed ? `@${visitor?.username || 'member'}` : (visitor?.ip || 'visitor');
 
   useEffect(() => {
     if (!isOpen || !visitor) return;
     let cancelled = false;
+    setMsg(''); setPushTitle('');
     (async () => {
       setLoading(true);
       try {
-        const type = visitor.authed ? 'user' : 'anon';
-        const id = visitor.authed ? visitor.userSub : visitor.ip;
-        const res = await api.get('/track/audience/profile', { params: { type, id, days: 90 } });
-        if (!cancelled) setData(res.data?.result || null);
+        const res = await api.get('/track/audience/profile', { params: { type: vType, id: vId, days: 90 } });
+        if (!cancelled) { setData(res.data?.result || null); setWatched(!!res.data?.result?.watched); }
       } catch { if (!cancelled) toast({ title: 'Failed to load profile', variant: 'destructive' }); }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [isOpen, visitor, toast]);
+  }, [isOpen, visitor, vType, vId, toast]);
+
+  const toggleWatch = async () => {
+    setWatchBusy(true);
+    try {
+      if (watched) {
+        await api.delete('/track/audience/watch', { params: { type: vType, id: vId } });
+        setWatched(false); toast({ title: 'Stopped watching' });
+      } else {
+        await api.post('/track/audience/watch', { type: vType, id: vId, label: vLabel });
+        setWatched(true); toast({ title: "You'll be pinged when they return" });
+      }
+    } catch { toast({ title: 'Failed', variant: 'destructive' }); }
+    finally { setWatchBusy(false); }
+  };
+
+  const sendDM = async () => {
+    if (!msg.trim() || !visitor?.username) return;
+    setSending(true);
+    try {
+      await api.post('/messages/send', { recipientUsername: visitor.username, content: msg.trim() });
+      toast({ title: `Message sent to @${visitor.username}` }); setMsg('');
+    } catch (e) { toast({ title: 'Failed to send', description: e.response?.data?.message, variant: 'destructive' }); }
+    finally { setSending(false); }
+  };
+
+  const sendPush = async () => {
+    if (!msg.trim() || !visitor?.username) return;
+    setSending(true);
+    try {
+      const { data } = await api.post('/admin/push/send', { title: pushTitle.trim() || 'The Homies', body: msg.trim(), usernames: [visitor.username] });
+      toast({ title: data?.message || 'Push sent' });
+    } catch (e) { toast({ title: 'Push failed', description: e.response?.data?.message, variant: 'destructive' }); }
+    finally { setSending(false); }
+  };
 
   const idn = data?.identity;
   const t = data?.totals;
@@ -402,16 +442,35 @@ function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
                 <MetricPill label="time in app" value={fmtMs(t.activeMs)} accent="emerald" />
               </div>
 
-              {/* notify / push guidance */}
-              <div className={`rounded-xl border p-3 text-sm flex items-start gap-2.5 ${data.canPush ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-white/10 bg-white/[0.03]'}`}>
-                <Bell className={`w-4 h-4 mt-0.5 flex-shrink-0 ${data.canPush ? 'text-emerald-400' : 'text-white/40'}`} />
+              {/* Re-engage: watch toggle + (members) message/push composer */}
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-sm font-semibold flex items-center gap-1.5"><Bell className="w-4 h-4 text-primary" /> Re-engage</span>
+                  <button onClick={toggleWatch} disabled={watchBusy}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 transition-colors ${watched ? 'bg-primary/15 text-primary border-primary/30' : 'border-white/15 text-white/70 hover:bg-white/10'}`}>
+                    {watchBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (watched ? <Star className="w-3.5 h-3.5 fill-current" /> : <Bell className="w-3.5 h-3.5" />)}
+                    {watched ? 'Watching — notify on return' : 'Notify me when they return'}
+                  </button>
+                </div>
                 {data.canPush ? (
-                  <div>
-                    <p className="text-white/80">This member can receive push notifications.</p>
-                    <button onClick={() => navigate('/admin/push')} className="text-emerald-400 text-xs font-semibold hover:underline mt-0.5">Open Push Notifications →</button>
+                  <div className="space-y-2">
+                    <input value={pushTitle} onChange={e => setPushTitle(e.target.value)} placeholder="Push title (optional)"
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-lg h-9 px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/25" />
+                    <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={2} placeholder={`Message @${visitor.username || 'member'}…`}
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/25 resize-none" />
+                    <div className="flex gap-2">
+                      <button onClick={sendDM} disabled={sending || !msg.trim()}
+                        className="flex-1 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-1.5">
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />} Send message
+                      </button>
+                      <button onClick={sendPush} disabled={sending || !msg.trim()}
+                        className="flex-1 h-9 rounded-lg bg-primary text-black text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-1.5">
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />} Send push
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-white/60">Anonymous — can't be pushed directly. You're automatically alerted (Telegram) when this IP returns, and if it matches a dormant account.</p>
+                  <p className="text-xs text-white/50">Anonymous — can't push a browser directly. With <span className="text-white/70">notify on return</span> on, you'll get a Telegram ping the moment this IP is back so you can catch them live. (Also auto-flagged if the IP matches a dormant account.)</p>
                 )}
               </div>
 
@@ -485,9 +544,10 @@ function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
   );
 }
 
-// ── Audience list ─────────────────────────────────────────────────────────────
-function Audience({ days }) {
+// ── Audience list (mode: 'recent' | 'superfans') ──────────────────────────────
+function Audience({ days, mode = 'recent' }) {
   const { toast } = useToast();
+  const superfans = mode === 'superfans';
   const [loading, setLoading] = useState(true);
   const [visitors, setVisitors] = useState([]);
   const [q, setQ] = useState('');
@@ -499,13 +559,13 @@ function Audience({ days }) {
     (async () => {
       setLoading(true);
       try {
-        const { data } = await api.get('/track/audience', { params: { days } });
+        const { data } = await api.get('/track/audience', { params: { days, sort: superfans ? 'engagement' : 'recent' } });
         if (!cancelled) setVisitors(data?.result?.visitors || []);
       } catch { if (!cancelled) toast({ title: 'Failed to load audience', variant: 'destructive' }); }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [days, toast]);
+  }, [days, superfans, toast]);
 
   const filtered = q.trim()
     ? visitors.filter((v) => `${v.username || ''} ${v.ip || ''}`.toLowerCase().includes(q.toLowerCase()))
@@ -524,8 +584,8 @@ function Audience({ days }) {
 
       <GlassPanel className="overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
-          <Users className="w-4 h-4 text-primary" />
-          <p className="text-sm font-semibold">Audience · last {days} days</p>
+          {superfans ? <Star className="w-4 h-4 text-primary fill-current" /> : <Users className="w-4 h-4 text-primary" />}
+          <p className="text-sm font-semibold">{superfans ? 'Superfans · most listening' : 'Audience'} · last {days} days</p>
           <span className="text-xs text-white/40 ml-1 hidden sm:inline">click anyone to see their profile</span>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or IP…"
             className="ml-auto bg-white/[0.04] border border-white/10 rounded-lg h-8 px-3 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/25 w-44" />
@@ -536,9 +596,10 @@ function Audience({ days }) {
           <p className="text-center text-white/40 py-16 text-sm">No visitors in this window yet.</p>
         ) : (
           <div className="divide-y divide-white/[0.06]">
-            {filtered.map((v) => (
+            {filtered.map((v, i) => (
               <button key={v.key} onClick={() => { setTarget(v); setOpen(true); }}
                 className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.04] transition-colors">
+                {superfans && <span className={`w-6 text-center text-sm font-bold flex-shrink-0 ${i < 3 ? 'text-primary' : 'text-white/40'}`}>{i + 1}</span>}
                 <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${v.authed ? 'bg-emerald-500/15' : 'bg-white/[0.06]'}`}>
                   {v.authed ? <UserIcon className="w-4 h-4 text-emerald-400" /> : <Globe className="w-4 h-4 text-white/50" />}
                 </span>
@@ -569,6 +630,7 @@ function Audience({ days }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 const TABS = [
   { key: 'audience', label: 'Listeners', icon: Users },
+  { key: 'superfans', label: 'Superfans', icon: Star },
   { key: 'songs', label: 'Songs', icon: Music },
   { key: 'videos', label: 'Videos', icon: Film },
   { key: 'traffic', label: 'Traffic', icon: Globe },
@@ -603,7 +665,8 @@ export default function MediaAnalytics() {
         </div>
       </div>
 
-      {tab === 'audience' && <Audience days={days} />}
+      {tab === 'audience' && <Audience days={days} mode="recent" />}
+      {tab === 'superfans' && <Audience days={days} mode="superfans" />}
       {tab === 'songs' && <MediaLeaderboard kind="song" days={days} />}
       {tab === 'videos' && <MediaLeaderboard kind="video" days={days} />}
       {tab === 'traffic' && <TrafficSources days={days} />}
