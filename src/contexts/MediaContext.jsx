@@ -53,6 +53,7 @@ export const MediaProvider = ({ children }) => {
   // audioRef. See MusicPlayer's own currentTime/duration state.
   const [volume,         setVolume]         = useState([80]);
   const [isMuted,        setIsMuted]        = useState(false);
+  const [repeatOne,      setRepeatOne]      = useState(false); // loop the current track
 
   // ── UI ─────────────────────────────────────────────────────────────────────
   const [showWarning,         setShowWarning]         = useState(false);
@@ -67,6 +68,13 @@ export const MediaProvider = ({ children }) => {
   const tracksRef    = useRef([]);
   const trackRef     = useRef(null);
   const isPlayingRef = useRef(false);
+  // Play-ranked queue (most-popular first) + what we've already auto-played this
+  // session + the loop flag — all refs so the mount-once audio 'ended' handler
+  // reads live values without being re-created.
+  const rankedRef    = useRef([]);
+  const playedRef    = useRef(new Set());
+  const repeatRef    = useRef(false);
+  useEffect(() => { repeatRef.current = repeatOne; }, [repeatOne]);
 
   // Pending video to play after login (set by gate's "Sign In" / "Create Account" buttons)
   const pendingPlayRef = useRef(null);
@@ -134,6 +142,19 @@ export const MediaProvider = ({ children }) => {
     const pad = (newReleases || []).filter(t => !have.has(t.id));
     return [...base, ...pad].slice(0, 10);
   }, [topTracks, newReleases]);
+
+  // ── Play-ranked queue for "most popular next" auto-advance ─────────────────
+  // Most-popular tracks (play-ranked, see backend /music/top) first, then the
+  // rest of the catalog. When a song ends and the user isn't looping, we play
+  // the next most-popular track they haven't heard yet this session.
+  useEffect(() => {
+    const seen = new Set();
+    const ranked = [];
+    for (const t of [...(topTracks || []), ...(allTracks || [])]) {
+      if (t && t.id && t.audioUrl && !seen.has(t.id)) { seen.add(t.id); ranked.push(t); }
+    }
+    rankedRef.current = ranked;
+  }, [topTracks, allTracks]);
 
   // ── Fetch video catalog ────────────────────────────────────────────────────
   useEffect(() => {
@@ -240,11 +261,14 @@ export const MediaProvider = ({ children }) => {
     // re-rendering on every tick. Only 'ended' matters here (auto-advance).
     const onEnded    = () => {
       setIsPlaying(false);
-      const tks = tracksRef.current;
-      const cur = trackRef.current;
-      if (!tks.length) return;
-      const idx = tks.findIndex(t => t.id === cur?.id);
-      _loadTrack(tks[(idx + 1) % tks.length], true);
+      // Loop the current track if the user turned repeat on.
+      if (repeatRef.current) {
+        const a = audioRef.current;
+        if (a) { a.currentTime = 0; a.play().then(() => setIsPlaying(true)).catch(() => {}); }
+        return;
+      }
+      const next = _pickNextPopular();
+      if (next) _loadTrack(next, true);
     };
 
     audio.addEventListener('ended',          onEnded);
@@ -260,11 +284,26 @@ export const MediaProvider = ({ children }) => {
     if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
   }, [volume, isMuted]);
 
+  // ── Pick the next most-popular track not yet auto-played this session ───────
+  const _pickNextPopular = useCallback(() => {
+    const ranked = rankedRef.current;
+    const cur = trackRef.current;
+    if (!ranked.length) return null;
+    let next = ranked.find(t => t.id !== cur?.id && !playedRef.current.has(t.id));
+    if (!next) {
+      // Heard everything — start the rotation over (keep current out of the pick).
+      playedRef.current = new Set(cur?.id ? [cur.id] : []);
+      next = ranked.find(t => t.id !== cur?.id);
+    }
+    return next || null;
+  }, []);
+
   // ── Load a track ───────────────────────────────────────────────────────────
   const _loadTrack = useCallback((track, autoplay) => {
     const audio = audioRef.current;
     if (!audio || !track?.audioUrl) return;
 
+    if (track.id) playedRef.current.add(track.id); // mark heard (for popular-next)
     setCurrentTrack(track);
     setIsLoading(true);
     setIsPlaying(false);
@@ -454,6 +493,7 @@ export const MediaProvider = ({ children }) => {
       allTracks, genreRows, topTracks, top10, newReleases, catalogLoading,
       audioRef, currentTrack, isPlaying, isLoading,
       volume, isMuted, setVolume, setIsMuted,
+      repeatOne, setRepeatOne, toggleRepeat: () => setRepeatOne(v => !v),
       togglePlay, seek, skipForward, skipBack, playMedia, fmtTime,
       // Video
       featuredVideo, trendingVideos, newVideos, movies, series, videoLoading,

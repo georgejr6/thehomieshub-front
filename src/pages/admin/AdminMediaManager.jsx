@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Loader2, Film, ImagePlus, X, Plus, Pencil, Trash2,
   GripVertical, Check, Tag, FolderOpen, Camera, Play, EyeOff, Eye, Megaphone,
-  Music, Search, RefreshCw, Pause, Star,
+  Music, Search, RefreshCw, Pause, Star, BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import MuxPlayer from '@mux/mux-player-react';
 import api from '@/api/homieshub';
+import { useMedia } from '@/contexts/MediaContext';
+import MediaAnalytics from './MediaAnalytics';
 
 // ── BackdropEditor ────────────────────────────────────────────────────────────
 const fmt = (s) => { const t = Math.floor(s); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`; };
@@ -899,8 +901,12 @@ const MusicLibraryTab = () => {
   const [q, setQ] = useState('');
   const [genre, setGenre] = useState('all');
   const [editing, setEditing] = useState(null);
-  const [playingId, setPlayingId] = useState(null);
-  const audioRef = useRef(null);
+
+  // Play through the SHARED player (the bottom MusicPlayer bar), not a separate
+  // hidden <audio>. So admin previews and the visible player stay in sync — one
+  // thing plays at a time and the bar reflects what the admin clicked.
+  const { playMedia, togglePlay: playerToggle, currentTrack: playerTrack, isPlaying: playerIsPlaying } = useMedia();
+  const activeTrackId = String(playerTrack?.id || '');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -955,25 +961,24 @@ const MusicLibraryTab = () => {
     }
   };
 
-  const togglePlay = (t) => {
-    if (playingId === t.trackId) {
-      audioRef.current?.pause();
-      setPlayingId(null);
-      return;
-    }
-    setPlayingId(t.trackId);
-    setTimeout(() => {
-      if (audioRef.current && t.audioUrl) {
-        audioRef.current.src = t.audioUrl;
-        audioRef.current.play().catch(() => {});
-      }
-    }, 0);
+  const handleTrackPlay = (t) => {
+    if (!t.audioUrl) { toast({ title: 'No audio for this track' }); return; }
+    // Same track already loaded → just toggle the shared player.
+    if (activeTrackId === String(t.trackId)) { playerToggle(); return; }
+    playMedia({
+      id: String(t.trackId),
+      title: t.title,
+      artist: t.artist || 'Unknown artist',
+      cover: t.image || `https://picsum.photos/seed/${t.trackId}/400/400`,
+      audioUrl: t.audioUrl,
+      type: 'audio',
+      genre: t.genre || '',
+      producers: Array.isArray(t.producers) ? t.producers : [],
+    });
   };
 
   return (
     <div>
-      <audio ref={audioRef} onEnded={() => setPlayingId(null)} className="hidden" />
-
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="relative flex-1 min-w-[200px]">
@@ -1003,13 +1008,16 @@ const MusicLibraryTab = () => {
         <>
           <p className="text-xs text-gray-500 mb-3">{filtered.length} track{filtered.length === 1 ? '' : 's'}</p>
           <div className="space-y-1">
-            {filtered.map((t) => (
-              <div key={t.trackId} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#141414] group">
-                <button onClick={() => togglePlay(t)}
+            {filtered.map((t) => {
+              const isThis = activeTrackId === String(t.trackId);
+              const showPause = isThis && playerIsPlaying;
+              return (
+              <div key={t.trackId} className={`flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#141414] group ${isThis ? 'bg-[#141414]' : ''}`}>
+                <button onClick={() => handleTrackPlay(t)}
                   className="w-11 h-11 rounded-lg bg-[#0f0f0f] flex-shrink-0 overflow-hidden flex items-center justify-center relative">
                   {t.image ? <img src={t.image} alt="" className="w-full h-full object-cover" /> : <Music className="w-5 h-5 text-gray-600" />}
-                  <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    {playingId === t.trackId ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white" />}
+                  <span className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${isThis ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {showPause ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white" />}
                   </span>
                 </button>
                 <div className="flex-1 min-w-0">
@@ -1026,7 +1034,8 @@ const MusicLibraryTab = () => {
                   <Pencil className="w-4 h-4" />
                 </Button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -1069,6 +1078,9 @@ const AdminMediaManager = () => {
             <TabsTrigger value="categories" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
               <Tag className="w-4 h-4 mr-1.5" />Video Categories
             </TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-[#272727] data-[state=active]:text-white text-gray-400 rounded-lg">
+              <BarChart3 className="w-4 h-4 mr-1.5" />Analytics
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="library">
@@ -1079,6 +1091,9 @@ const AdminMediaManager = () => {
           </TabsContent>
           <TabsContent value="categories">
             <CategoriesTab categories={categories} onCategoriesChange={loadCategories} />
+          </TabsContent>
+          <TabsContent value="analytics">
+            <MediaAnalytics />
           </TabsContent>
         </Tabs>
       </div>

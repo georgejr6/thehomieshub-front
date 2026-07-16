@@ -28,6 +28,7 @@ import FeatureLockedModal from '@/components/FeatureLockedModal';
 import PlaceView from '@/components/PlaceView';
 import MediaApp from '@/components/MediaMode/MediaApp';
 import MusicPlayer from '@/components/MediaMode/MusicPlayer';
+import SongPage from '@/components/MediaMode/SongPage';
 import WalletIsolationMode from '@/components/WalletIsolationMode';
 import WagersPage from '@/pages/WagersPage';
 import WagerDetailPage from '@/pages/WagerDetailPage';
@@ -316,6 +317,12 @@ const AppContent = React.memo(() => {
                 <Route path="purchased" element={<MediaApp />} />
                 <Route path="admin" element={<MediaApp />} />
                 <Route path=":postId" element={<MediaApp />} />
+            </Route>
+
+            {/* --- Dedicated per-song pages (share links land here) --- */}
+            <Route element={<MediaLayout />}>
+                <Route path="/song/:id" element={<SongPage />} />
+                <Route path="/track/:id" element={<SongPage />} />
             </Route>
             
             {/* --- My AI Route (Guarded) CHANGED to /AI --- */}

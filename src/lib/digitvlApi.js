@@ -76,6 +76,12 @@ export const musicApi = {
       items: (c.tracks || []).map(normalizeTrack),
     })).filter(c => c.items.length > 0)
   ),
+  // Single track by id — fresh metadata + audio URL. Powers the dedicated song
+  // page (/song/:id) when opened cold (not yet in the loaded catalog).
+  getTrack:        (id) => musicHttp.get(`/music/track/${id}`).then(r => {
+    const t = r.data?.result?.track;
+    return t ? normalizeTrack(t) : null;
+  }).catch(() => null),
   // License listing for a track (null if not for sale). Powers the License button.
   getListing:      (trackId) => musicHttp.get(`/music/listing/${trackId}`).then(r => r.data?.result?.listing || null).catch(() => null),
   // Top 10 — ranked by real plays, human songs seeded first (see backend /music/top).

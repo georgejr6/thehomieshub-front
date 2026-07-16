@@ -135,6 +135,18 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 — Media mode: shared admin player, analytics tab, song pages, popular-next
+- **[FIX] Admin Media Manager plays through the shared player** (`admin/AdminMediaManager.jsx`)
+  - The Music tab used its own hidden `<audio>` element, so admin previews played *independently* of the bottom `MusicPlayer` bar. Now it calls `MediaContext.playMedia()` — one thing plays at a time and the visible bar reflects the admin's click. (The other admin page `AdminMusicManager.jsx` still uses its own `PreviewButton` audio for the playlist-editor previews — left as-is for now.)
+- **[FEAT] Admin-only Analytics tab** (`admin/MediaAnalytics.jsx`, new; added as a tab in `AdminMediaManager`)
+  - Sub-tabs Songs / Videos / Traffic + a "Live now" strip. Click any row → who watched/listened with **IP**, play/view counts, and watch/listen time. Admin-gated by the existing `/admin/media` route guard (`user?.isAdmin`).
+  - Backend: `routes/track.js` gained `GET /track/media/videos`, `GET /track/media/video/:id`, `GET /track/sources` (referrer→source buckets). All under the existing admin gate. (Songs analytics `/track/music/songs` + `/track/music/song/:id` already existed.)
+- **[FEAT] Dedicated song page** `/song/:id` (+ `/track/:id`) (`components/MediaMode/SongPage.jsx`, new)
+  - Share links land here, auto-play the track, show cover/artist/actions + an "Up next · Popular" list. Backend OG (`routes/og.js`) now bounces browsers to `/song/:id` instead of `/media?track=`. Uses `musicApi.getTrack(id)` (new) → `GET /api/music/track/:id`.
+- **[FEAT] Auto-continue by most-popular + loop toggle** (`contexts/MediaContext.jsx`, `MusicPlayer.jsx`)
+  - When a song ends and repeat is off, playback auto-advances to the next **most-popular** unheard track (ranked via `/music/top` + catalog). Added a `repeatOne` loop toggle (Repeat button in the player bar + on the song page). Explicit skip-forward stays sequential.
+- Note: digitvl.app is meant to mirror this media mode ("skin of Homies media", DIGITVL red, backend.thehomies.app) — delivery mechanism pending decision. This app is the source of truth.
+
 ### 2026-07-07 (session 3)
 - **[UX] Home tab groups video vs music** (`MediaApp.jsx`)
   - Home now renders a **Watch** section (all video rows) then a **Listen** section (all music rows), each with a `SectionHeading`, instead of interleaving music between video rows. Videos/Music/Likes tabs already show one content type.

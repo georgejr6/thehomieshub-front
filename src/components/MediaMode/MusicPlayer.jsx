@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipBack, SkipForward,
   Volume2, VolumeX, Heart, ChevronUp, ChevronDown,
-  Activity, Maximize2, Share2, X, ShoppingCart,
+  Activity, Maximize2, Share2, X, ShoppingCart, Repeat,
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { useMedia } from '@/contexts/MediaContext';
@@ -17,6 +17,7 @@ const MusicPlayer = () => {
     volume, isMuted, setVolume, setIsMuted,
     togglePlay, seek, skipForward, skipBack, fmtTime,
     isLiked, toggleLike, exitMediaMode, closePlayer, hasEnteredMediaMode, currentVideo,
+    repeatOne, toggleRepeat,
   } = useMedia();
 
   // Playback position is tracked HERE (not in the media context) so the ~4×/sec
@@ -377,6 +378,11 @@ const MusicPlayer = () => {
                   </button>
                   <button onClick={skipForward} className="text-white hover:text-gray-300 transition-colors">
                     <SkipForward className="w-5 h-5" />
+                  </button>
+                  <button onClick={toggleRepeat}
+                    className={`transition-colors ${repeatOne ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
+                    title={repeatOne ? 'Looping this song' : 'Loop this song'}>
+                    <Repeat className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="flex items-center gap-2 w-full max-w-md">
