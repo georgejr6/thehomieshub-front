@@ -135,6 +135,12 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 (session 2) — Admin panel glass redesign
+- **[UI] Glass admin design kit** (`components/admin/glass.jsx`, new) — reusable `GlassPanel`, `StatTile` (big interactive stat w/ accents + trend + click-through), `SectionTitle`, `MetricPill`. Foundation for all admin pages to share one clean frosted-glass look. Accent classes are STATIC maps (Tailwind JIT can't see interpolated class names — don't build `bg-${x}` strings).
+- **[UI] AdminLayout** (`admin/AdminLayout.jsx`) — glass sidebar with grouped nav (Overview/Content/Community/Business), ambient gradient backdrop, bigger text, glow active states. Logout is a plain button now (was shadcn Button).
+- **[UI] AdminDashboard** (`admin/AdminDashboard.jsx`) — rebuilt as an interactive hub: big glass stat tiles (click-through), a **Live snapshot** panel (auto-refreshing `/track/live` + top song `/track/music/songs` + top traffic `/track/sources`), quick-action tiles, and a platform summary grid. Explanatory sub-copy throughout. Gift/Message dialogs unchanged.
+- Next: apply the same glass kit to the other admin pages (Users/Content/Visitors/Media) as we build more management + analytics features.
+
 ### 2026-07-16 — Media mode: shared admin player, analytics tab, song pages, popular-next
 - **[FIX] Admin Media Manager plays through the shared player** (`admin/AdminMediaManager.jsx`)
   - The Music tab used its own hidden `<audio>` element, so admin previews played *independently* of the bottom `MusicPlayer` bar. Now it calls `MediaContext.playMedia()` — one thing plays at a time and the visible bar reflects the admin's click. (The other admin page `AdminMusicManager.jsx` still uses its own `PreviewButton` audio for the playlist-editor previews — left as-is for now.)
