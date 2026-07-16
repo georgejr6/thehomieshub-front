@@ -135,6 +135,12 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 (session 4) — /media/admin immersive + management tools
+- **[UI] Immersive panel** — MediaAdminPanel inline container widened to `max-w-[1700px]` + `min-h-[calc(100vh-7rem)]`. Sits inside `#media-scroller` under the fixed nav (`pt-16` wrapper in MediaApp), so header/footer/mobile menu are never covered.
+- **[FEAT] Inline performance numbers + sort** — Music tab shows real play counts per track (from `/track/music/songs?days=365`) + sort (Most played / A–Z / Z–A). Video Library shows view counts per item (from `/track/media/videos?days=365`) + sort (Newest / Most viewed / A–Z).
+- **[FEAT] Bulk video actions** — multi-select (per-row + select-all) with a sticky bulk bar: Make public, Make subscribers-only, Add to category, Delete. Loops existing per-item `/admin/videos/:id` + `/admin/media-categories/:id` endpoints.
+- **[FEAT] CSV export** — each analytics table (songs/videos/traffic) has an Export CSV button (client-side).
+
 ### 2026-07-16 (session 3) — Media-mode admin (/media/admin) got the updates
 - **IMPORTANT surface note:** `/media/admin` renders `MediaMode/MediaAdminPanel.jsx` (via `MediaApp` admin tab), NOT `admin/AdminMediaManager.jsx` (which is `/admin/media`). They're near-duplicate "Media Manager" UIs. George checks **/media/admin**, so apply media-manager changes THERE (or both).
 - **[FIX] MediaAdminPanel MusicTab** now plays through the shared `MusicPlayer` bar (`MediaContext.playMedia`) instead of its own hidden `<audio>` (same fix as AdminMediaManager).

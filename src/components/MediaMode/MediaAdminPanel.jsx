@@ -24,6 +24,10 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
   const [q, setQ] = useState('');
   const [syncingId, setSyncingId] = useState(null);
   const [bulkSyncing, setBulkSyncing] = useState(false);
+  const [viewsById, setViewsById] = useState({});
+  const [sort, setSort] = useState('newest'); // newest | views | az
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -34,6 +38,19 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
   }, []); // eslint-disable-line
 
   useEffect(() => { load(); }, [load]);
+
+  // Real view counts so the admin sees performance right in the library.
+  useEffect(() => {
+    api.get('/track/media/videos', { params: { days: 365 } })
+      .then(({ data }) => {
+        const map = {};
+        for (const v of (data?.result?.videos || [])) map[String(v._id)] = v.views || 0;
+        setViewsById(map);
+      })
+      .catch(() => {});
+  }, []);
+
+  const viewsOf = (item) => viewsById[String(item._id || item.id)] || 0;
 
   const handleSaved = () => {
     setEditing(null);
@@ -115,9 +132,72 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     }
   };
 
+  // ── selection + bulk actions ──
+  const idOf = (item) => String(item._id || item.id);
+  const toggleSelect = (item) => setSelected(prev => {
+    const n = new Set(prev); const id = idOf(item);
+    n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+  const clearSelection = () => setSelected(new Set());
+  const selectedItems = () => items.filter(i => selected.has(idOf(i)));
+
+  const bulkVisibility = async (next) => {
+    const list = selectedItems();
+    if (!list.length) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(list.map(i => api.patch(`/admin/videos/${idOf(i)}`, { visibility: next, _collectionType: i._collectionType })));
+      setItems(prev => prev.map(i => selected.has(idOf(i)) ? { ...i, visibility: next } : i));
+      toast({ title: `${list.length} set to ${next === 'public' ? 'public' : 'subscribers only'}` });
+      clearSelection();
+    } catch { toast({ title: 'Bulk update failed', variant: 'destructive' }); }
+    finally { setBulkBusy(false); }
+  };
+
+  const bulkDelete = async () => {
+    const list = selectedItems();
+    if (!list.length) return;
+    if (!window.confirm(`Delete ${list.length} item(s)? This cannot be undone.`)) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(list.map(i => api.delete(`/admin/videos/${idOf(i)}`, { params: { collectionType: i._collectionType } })));
+      const ids = new Set(list.map(idOf));
+      setItems(prev => prev.filter(i => !ids.has(idOf(i))));
+      toast({ title: `${list.length} deleted` });
+      clearSelection();
+    } catch { toast({ title: 'Bulk delete failed', variant: 'destructive' }); }
+    finally { setBulkBusy(false); }
+  };
+
+  const bulkAddToCategory = async (cat) => {
+    const list = selectedItems();
+    if (!list.length || !cat) return;
+    setBulkBusy(true);
+    try {
+      const existing = new Set((cat.items || []).map(i => i.itemId));
+      const additions = list.filter(i => !existing.has(idOf(i))).map(i => ({ itemId: idOf(i), itemType: i._collectionType || 'video' }));
+      if (additions.length) {
+        await api.patch(`/admin/media-categories/${cat._id}`, { items: [...(cat.items || []), ...additions] });
+        onCategoriesChange();
+      }
+      toast({ title: `Added ${additions.length} to ${cat.name}` });
+      clearSelection();
+    } catch { toast({ title: 'Failed to add to category', variant: 'destructive' }); }
+    finally { setBulkBusy(false); }
+  };
+
   const filtered = q.trim()
     ? items.filter(v => (v.title || '').toLowerCase().includes(q.toLowerCase()))
     : items;
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    if (sort === 'views') arr.sort((a, b) => viewsOf(b) - viewsOf(a));
+    else if (sort === 'az') arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    return arr; // 'newest' keeps backend order (already newest-first)
+  }, [filtered, sort, viewsById]); // eslint-disable-line
+
+  const allSelected = sorted.length > 0 && sorted.every(i => selected.has(idOf(i)));
+  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set(sorted.map(idOf)));
 
   if (loading) return (
     <div className="flex justify-center py-20">
@@ -129,9 +209,15 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     <>
       {editing && <EditVideoModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} />}
 
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search videos…"
           className="bg-[#1a1a1a] border-[#333] text-white h-9 text-sm focus:border-blue-500 flex-1 max-w-xs" />
+        <select value={sort} onChange={e => setSort(e.target.value)}
+          className="bg-[#0f0f0f] border border-[#1e1e1e] text-white rounded-md h-9 px-3 text-sm">
+          <option value="newest">Newest</option>
+          <option value="views">Most viewed</option>
+          <option value="az">A–Z</option>
+        </select>
         <Button onClick={handleBulkSync} disabled={bulkSyncing}
           className="bg-[#1a1a1a] hover:bg-[#272727] text-white border border-[#333] h-9 px-3 text-xs gap-1.5 flex-shrink-0">
           {bulkSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
@@ -139,24 +225,55 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
         </Button>
       </div>
 
-      {filtered.length === 0 ? (
+      {/* Select-all + count */}
+      <div className="flex items-center justify-between mb-2 px-1">
+        <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+          <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="accent-primary w-4 h-4" />
+          Select all
+        </label>
+        <span className="text-xs text-gray-500">{sorted.length} item{sorted.length === 1 ? '' : 's'}</span>
+      </div>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="sticky top-0 z-10 flex items-center gap-2 flex-wrap mb-3 p-2.5 rounded-xl border border-primary/30 bg-primary/10 backdrop-blur-md">
+          <span className="text-sm font-semibold text-white px-1">{selected.size} selected</span>
+          <Button size="sm" onClick={() => bulkVisibility('public')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><Eye className="w-3.5 h-3.5 mr-1" />Public</Button>
+          <Button size="sm" onClick={() => bulkVisibility('subscribers')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><EyeOff className="w-3.5 h-3.5 mr-1" />Subscribers</Button>
+          <select defaultValue="" disabled={bulkBusy}
+            onChange={e => { const c = categories.find(c => String(c._id) === e.target.value); if (c) bulkAddToCategory(c); e.target.value = ''; }}
+            className="h-8 bg-[#0f0f0f] border border-white/15 text-white rounded-md px-2 text-xs">
+            <option value="" disabled>Add to category…</option>
+            {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+          </select>
+          <Button size="sm" onClick={bulkDelete} disabled={bulkBusy} className="h-8 bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/20"><Trash2 className="w-3.5 h-3.5 mr-1" />Delete</Button>
+          {bulkBusy && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+          <button onClick={clearSelection} className="text-xs text-gray-300 hover:text-white ml-auto px-2">Clear</button>
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-500">
           <Film className="w-12 h-12 mb-3" /><p>No videos found.</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(item => {
+          {sorted.map(item => {
             const id = String(item._id || item.id);
             const isSyncing = syncingId === id;
             const needsMuxSync = item.muxAssetId && !item.muxPlaybackId;
+            const isSel = selected.has(id);
             return (
-              <div key={id} className="flex items-center gap-3 rounded-xl bg-[#0f0f0f] border border-[#1e1e1e] hover:border-[#2a2a2a] p-3 transition-colors">
+              <div key={id} className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${isSel ? 'bg-primary/10 border-primary/40' : 'bg-[#0f0f0f] border-[#1e1e1e] hover:border-[#2a2a2a]'}`}>
+                <input type="checkbox" checked={isSel} onChange={() => toggleSelect(item)}
+                  className="accent-primary w-4 h-4 flex-shrink-0" onClick={e => e.stopPropagation()} />
                 {item.thumbnailUrl
                   ? <img src={item.thumbnailUrl} alt={item.title} className="w-20 h-12 object-cover rounded-lg flex-shrink-0" />
                   : <div className="w-20 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center flex-shrink-0"><Film className="w-5 h-5 text-gray-600" /></div>}
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-medium text-sm truncate">{item.title || 'Untitled'}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-xs text-gray-400 inline-flex items-center gap-1"><Eye className="w-3 h-3" />{viewsOf(item).toLocaleString()}</span>
                     <span className="text-xs text-gray-500 bg-[#1a1a1a] px-2 py-0.5 rounded-full">{item._collectionType}</span>
                     {item.muxPlaybackId
                       ? <span className="text-xs text-green-600 font-mono">✓ Mux</span>
@@ -424,6 +541,9 @@ const MusicTab = () => {
   const { playMedia, togglePlay: playerToggle, currentTrack: playerTrack, isPlaying: playerIsPlaying } = useMedia();
   const activeTrackId = String(playerTrack?.id || '');
 
+  const [playsById, setPlaysById] = useState({});
+  const [sort, setSort] = useState('popular'); // popular | az | za
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -435,6 +555,17 @@ const MusicTab = () => {
   }, []); // eslint-disable-line
 
   useEffect(() => { load(); }, [load]);
+
+  // Real play counts (all-time-ish) so the admin sees performance while managing.
+  useEffect(() => {
+    api.get('/track/music/songs', { params: { days: 365 } })
+      .then(({ data }) => {
+        const map = {};
+        for (const s of (data?.result?.songs || [])) map[String(s._id)] = s;
+        setPlaysById(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const tracks = useMemo(() => {
     const map = new Map();
@@ -454,6 +585,15 @@ const MusicTab = () => {
     const okQ = !q.trim() || `${t.title} ${t.artist}`.toLowerCase().includes(q.toLowerCase());
     return okGenre && okQ;
   }), [tracks, genre, q]);
+
+  const playsOf = (t) => playsById[String(t.trackId)]?.plays || 0;
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    if (sort === 'popular') arr.sort((a, b) => playsOf(b) - playsOf(a));
+    else if (sort === 'az') arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    else if (sort === 'za') arr.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+    return arr;
+  }, [filtered, sort, playsById]); // eslint-disable-line
 
   const runSync = async () => {
     if (!window.confirm('Sync the DigitVL library into the app?\n\nRebuilds the per-genre playlists from every track in the catalog (new releases show up here).')) return;
@@ -493,6 +633,11 @@ const MusicTab = () => {
         <select value={genre} onChange={e => setGenre(e.target.value)} className="bg-[#0f0f0f] border border-[#1e1e1e] text-white rounded-md h-10 px-3 text-sm">
           {genreOptions.map(g => <option key={g} value={g}>{g === 'all' ? 'All categories' : g}</option>)}
         </select>
+        <select value={sort} onChange={e => setSort(e.target.value)} className="bg-[#0f0f0f] border border-[#1e1e1e] text-white rounded-md h-10 px-3 text-sm" title="Sort">
+          <option value="popular">Most played</option>
+          <option value="az">A–Z</option>
+          <option value="za">Z–A</option>
+        </select>
         <Button onClick={runSync} disabled={syncing} variant="outline" className="border-[#2a2a2a] bg-[#111] text-white hover:bg-[#1c1c1c]">
           {syncing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}Sync DigitVL
         </Button>
@@ -508,11 +653,12 @@ const MusicTab = () => {
         </div>
       ) : (
         <>
-          <p className="text-xs text-gray-500 mb-3">{filtered.length} track{filtered.length === 1 ? '' : 's'}</p>
+          <p className="text-xs text-gray-500 mb-3">{sorted.length} track{sorted.length === 1 ? '' : 's'}</p>
           <div className="space-y-1">
-            {filtered.map(t => {
+            {sorted.map(t => {
               const isThis = activeTrackId === String(t.trackId);
               const showPause = isThis && playerIsPlaying;
+              const plays = playsOf(t);
               return (
               <div key={t.trackId} className={`flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#141414] group ${isThis ? 'bg-[#141414]' : ''}`}>
                 <button onClick={() => handleTrackPlay(t)} className="w-11 h-11 rounded-lg bg-[#0f0f0f] flex-shrink-0 overflow-hidden flex items-center justify-center relative">
@@ -525,7 +671,10 @@ const MusicTab = () => {
                   <div className="font-medium text-white truncate">{t.title}</div>
                   <div className="text-sm text-gray-500 truncate">{t.artist || 'Unknown artist'}</div>
                 </div>
-                <div className="hidden sm:flex items-center gap-1.5 flex-wrap justify-end max-w-[45%]">
+                <div className="flex items-center gap-1 text-xs text-gray-400 flex-shrink-0 tabular-nums" title={`${plays} plays`}>
+                  <Play className="w-3 h-3 fill-current" /> {plays.toLocaleString()}
+                </div>
+                <div className="hidden sm:flex items-center gap-1.5 flex-wrap justify-end max-w-[35%]">
                   {t._categories.map(c => (
                     <span key={c._id} className="text-[11px] px-2 py-0.5 rounded-full bg-[#1a1a1a] text-gray-400 border border-[#262626]">{c.name}</span>
                   ))}
@@ -617,8 +766,10 @@ const MediaAdminPanel = ({ onClose, onCategoriesChange, isInline = false }) => {
 
   if (isInline) {
     return (
-      <div className="w-full max-w-5xl mx-auto px-4 pb-24">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_40px_-12px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col min-h-[70vh]">
+      // Immersive: near-full width + tall, but stays inside the media scroller so
+      // the top nav / footer / mobile menu are never covered.
+      <div className="w-full max-w-[1700px] mx-auto px-2 sm:px-5 pb-28">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_40px_-12px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col min-h-[calc(100vh-7rem)]">
           {content}
         </div>
       </div>

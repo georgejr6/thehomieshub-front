@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Loader2, BarChart3, Music, Film, Globe, Headphones, Clock, Eye,
-  User as UserIcon, Radio, Users, UserCheck, PlayCircle, Timer,
+  User as UserIcon, Radio, Users, UserCheck, PlayCircle, Timer, Download,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
@@ -18,6 +18,26 @@ const fmtMs = (ms) => {
 };
 const fmtTime = (d) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const fmtN = (n) => Number(n || 0).toLocaleString();
+
+// ── CSV export (client-side) ──────────────────────────────────────────────────
+function toCsv(rows) {
+  return rows.map(r => r.map(cell => {
+    const s = String(cell ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(',')).join('\n');
+}
+function downloadCsv(filename, header, dataRows) {
+  const blob = new Blob([toCsv([header, ...dataRows])], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
+}
+const CsvButton = ({ onClick }) => (
+  <button onClick={onClick} className="ml-auto flex items-center gap-1.5 text-xs text-white/50 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-2.5 py-1 transition-colors">
+    <Download className="w-3.5 h-3.5" /> Export CSV
+  </button>
+);
 
 // ── WHO consumed one item (song listeners OR video viewers), with IP ──────────
 function AudienceDialog({ item, kind, isOpen, onOpenChange }) {
@@ -148,7 +168,16 @@ function MediaLeaderboard({ kind, days }) {
         <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
           <BarChart3 className="w-4 h-4 text-primary" />
           <p className="text-sm font-semibold">{kind === 'video' ? 'Top videos' : 'Top songs'} · last {days} days</p>
-          <span className="text-xs text-white/40 ml-1">click a row to see who + their IP</span>
+          <span className="text-xs text-white/40 ml-1 hidden sm:inline">click a row to see who + their IP</span>
+          {rows.length > 0 && <CsvButton onClick={() => {
+            const header = kind === 'video'
+              ? ['Rank', 'Video', 'Kind', 'Views', 'Viewers', 'Members', 'Watch time (s)', 'Avg watch (s)', 'Last watched', 'ID']
+              : ['Rank', 'Song', 'Plays', 'Listeners', 'Members', 'Listen time (s)', 'Avg listen (s)', 'Playlist adds', 'Last played', 'ID'];
+            const dataRows = rows.map((s, i) => kind === 'video'
+              ? [i + 1, s.title || '', s.kind || 'video', s.views, s.viewers, s.members || 0, Math.round((s.watchMs || 0) / 1000), Math.round((s.avgWatchMs || 0) / 1000), fmtTime(s.lastWatched), s._id]
+              : [i + 1, s.title || '', s.plays, s.listeners, s.members || 0, Math.round((s.listenMs || 0) / 1000), Math.round((s.avgListenMs || 0) / 1000), s.playlistAdds || 0, fmtTime(s.lastPlayed), s._id]);
+            downloadCsv(`${kind === 'video' ? 'videos' : 'songs'}-${days}d.csv`, header, dataRows);
+          }} />}
         </div>
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-white/40" /></div>
@@ -233,6 +262,11 @@ function TrafficSources({ days }) {
         <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
           <Globe className="w-4 h-4 text-primary" />
           <p className="text-sm font-semibold">Where visitors come from · last {days} days</p>
+          {data.sources.length > 0 && <CsvButton onClick={() => downloadCsv(
+            `traffic-${days}d.csv`,
+            ['Source', 'Sessions', 'Visitors', 'Signed up', 'Avg time (s)'],
+            data.sources.map(s => [s.source, s.sessions, s.visitors, s.converted, Math.round((s.avgDurationMs || 0) / 1000)]),
+          )} />}
         </div>
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-white/40" /></div>
