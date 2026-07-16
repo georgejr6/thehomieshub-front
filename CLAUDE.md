@@ -135,6 +135,9 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-07-16 (session 8) — Analytics as a standalone /admin page
+- **[FEAT]** New `/admin/analytics` route + `AdminAnalytics.jsx` page (in AdminLayout, admin-only) that renders the SAME `MediaAnalytics` component as `/media/admin` — so the full analytics (Listeners/Superfans/Songs/Videos/Traffic + drill-downs) is available in the standalone admin panel too, and the two never drift. Added an **Analytics** sidebar item (Overview group); dashboard Analytics shortcuts now point to `/admin/analytics`.
+
 ### 2026-07-16 (session 7) — Clickable stat cards → drill-down analytics
 - **[FEAT] Backend** `GET /track/timeseries?days=` — daily visitors/members/anon/plays/views/listenMs for charts.
 - **[FEAT] Frontend** — the Audience stat tiles (Visitors/Members/Anonymous/Total Plays) are now clickable → `MetricDetailDialog` with a per-day bar chart (`MiniBarChart`, no chart lib) + the relevant breakdown list (visitors/members/anon lists → open profile on click; Total Plays → top songs). Extracted `VisitorRow` (reused by the list + drill-downs).

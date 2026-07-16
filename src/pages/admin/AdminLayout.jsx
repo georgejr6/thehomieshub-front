@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { Clapperboard, LayoutDashboard, Users, FolderKanban, LogOut, Home, Settings, DollarSign, Shield, UserPlus, Film, Bell, Music, Activity } from 'lucide-react';
+import { Clapperboard, LayoutDashboard, Users, FolderKanban, LogOut, Home, Settings, DollarSign, Shield, UserPlus, Film, Bell, Music, Activity, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const AdminLayout = ({ children }) => {
@@ -18,6 +18,7 @@ const AdminLayout = ({ children }) => {
       heading: 'Overview',
       items: [
         { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'moderator'] },
+        { to: '/admin/analytics', icon: BarChart3, label: 'Analytics', roles: ['admin'] },
         { to: '/admin/visitors', icon: Activity, label: 'Visitors', roles: ['admin', 'moderator'] },
       ],
     },

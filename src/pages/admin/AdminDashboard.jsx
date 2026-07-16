@@ -320,12 +320,12 @@ const AdminDashboard = () => {
 
       {/* Live + quick actions */}
       <section className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-        <LiveSnapshot onOpenAnalytics={() => navigate('/admin/media')} />
+        <LiveSnapshot onOpenAnalytics={() => navigate('/admin/analytics')} />
 
         <GlassPanel className="p-5">
           <SectionTitle sub="Jump straight into the tools you use most.">Quick actions</SectionTitle>
           <div className="grid grid-cols-2 gap-3">
-            <ActionTile icon={BarChart3} label="Analytics" desc="Songs, videos & traffic" accent="emerald" onClick={() => navigate('/admin/media')} />
+            <ActionTile icon={BarChart3} label="Analytics" desc="Listeners, songs & traffic" accent="emerald" onClick={() => navigate('/admin/analytics')} />
             <ActionTile icon={Film} label="Media" desc="Videos, music & thumbnails" accent="primary" onClick={() => navigate('/admin/media')} />
             <ActionTile icon={Users} label="Users" desc="Manage & moderate" accent="sky" onClick={() => navigate('/admin/users')} />
             <ActionTile icon={Activity} label="Visitors" desc="Sessions & IP lookup" accent="fuchsia" onClick={() => navigate('/admin/visitors')} />
