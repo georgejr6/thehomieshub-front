@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, FileText, Heart, Mail, Crown } from 'lucide-react';
+import StoreBadges from '@/components/StoreBadges';
 
 const Footer = () => {
     const currentYear = new Date().getFullYear();
@@ -14,8 +15,12 @@ const Footer = () => {
                         <p className="text-sm text-muted-foreground">
                             A community for men to connect, share experiences, and grow together.
                         </p>
+                        <div className="pt-1">
+                            <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide mb-2">Get the app</h4>
+                            <StoreBadges surface="footer" size="sm" />
+                        </div>
                     </div>
-                    
+
                     <div className="space-y-3">
                         <h4 className="font-semibold text-sm">Legal</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">

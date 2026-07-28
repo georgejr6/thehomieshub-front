@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import MobileNav from '@/components/MobileNav';
 import Footer from '@/components/Footer';
+import GetAppBanner from '@/components/GetAppBanner';
 import HomePage from '@/pages/HomePage';
 import CommunitiesPage from '@/pages/CommunitiesPage';
 import ExplorePage from '@/pages/ExplorePage';
@@ -150,6 +151,7 @@ const MainLayout = ({
             location.pathname.startsWith('/live-stream') && "ml-0 h-[calc(100vh-3.5rem)] pb-0" 
         )}>
           {!isImmersiveMode && <ConnectMembershipBanner />}
+          {!isImmersiveMode && <GetAppBanner />}
           <div className="flex-1">
              <Outlet />
           </div>

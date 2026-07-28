@@ -3,7 +3,7 @@ import {
   Loader2, BarChart3, Music, Film, Globe, Headphones, Clock, Eye,
   User as UserIcon, Radio, Users, UserCheck, PlayCircle, Timer, Download,
   Bell, Ban, Activity, ChevronRight, MapPin, Link2, MessageSquare, Star,
-  TrendingUp, UserPlus, AlertTriangle, Send, Zap, Flame,
+  TrendingUp, UserPlus, AlertTriangle, Send, Zap, Flame, Smartphone,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
@@ -746,6 +746,7 @@ function GrowthView({ days }) {
   const [funnel, setFunnel] = useState(null);
   const [actives, setActives] = useState(null);
   const [landing, setLanding] = useState([]);
+  const [appDownloads, setAppDownloads] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -754,9 +755,10 @@ function GrowthView({ days }) {
       api.get('/track/funnel', { params: { days } }).then(r => r.data?.result).catch(() => null),
       api.get('/track/actives').then(r => r.data?.result).catch(() => null),
       api.get('/track/landing', { params: { days } }).then(r => r.data?.result?.surfaces || []).catch(() => []),
-    ]).then(([f, a, l]) => {
+      api.get('/track/app-downloads', { params: { days } }).then(r => r.data?.result).catch(() => null),
+    ]).then(([f, a, l, ad]) => {
       if (cancelled) return;
-      setFunnel(f); setActives(a); setLanding(l); setLoading(false);
+      setFunnel(f); setActives(a); setLanding(l); setAppDownloads(ad); setLoading(false);
     });
     return () => { cancelled = true; };
   }, [days]);
@@ -800,6 +802,43 @@ function GrowthView({ days }) {
               </React.Fragment>
             ))}
           </div>
+        )}
+      </GlassPanel>
+
+      {/* App download clicks */}
+      <GlassPanel className="p-5">
+        <div className="flex items-center gap-1.5 mb-4">
+          <p className="text-sm font-semibold">Mobile app download clicks · last {days} days</p>
+          <InfoTip text="Clicks on the App Store / Play Store CTAs across the site (header, footer, banner). This is click-through, not actual installs — Apple/Google don't share real download counts with us; check App Store Connect / Play Console for those." />
+        </div>
+        {loading ? <div className="h-24 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div> : (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+              <StatTile index={0} accent="primary" icon={Smartphone} label="Total clicks" value={fmtN(appDownloads?.totalClicks)} sub="all platforms" />
+              <StatTile index={1} accent="sky" icon={Smartphone} label="App Store" value={fmtN(appDownloads?.byPlatform?.find(p => p.platform === 'ios')?.clicks)} sub="iOS clicks" />
+              <StatTile index={2} accent="emerald" icon={Smartphone} label="Google Play" value={fmtN(appDownloads?.byPlatform?.find(p => p.platform === 'android')?.clicks)} sub="Android clicks" />
+            </div>
+            {appDownloads?.bySurface?.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] uppercase tracking-wide text-white/40 border-b border-white/10">
+                      <th className="text-left font-semibold py-2 px-3">Surface</th>
+                      <th className="text-right font-semibold py-2 px-3">Clicks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {appDownloads.bySurface.map((s) => (
+                      <tr key={s.surface} className="border-b border-white/[0.06] last:border-0">
+                        <td className="py-2 px-3 capitalize">{s.surface}</td>
+                        <td className="py-2 px-3 text-right">{fmtN(s.clicks)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </GlassPanel>
 
