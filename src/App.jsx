@@ -8,6 +8,7 @@ import Sidebar from '@/components/Sidebar';
 import MobileNav from '@/components/MobileNav';
 import Footer from '@/components/Footer';
 import GetAppBanner from '@/components/GetAppBanner';
+import GetAppSignedOutModal from '@/components/GetAppSignedOutModal';
 import HomePage from '@/pages/HomePage';
 import CommunitiesPage from '@/pages/CommunitiesPage';
 import ExplorePage from '@/pages/ExplorePage';
@@ -152,6 +153,7 @@ const MainLayout = ({
         )}>
           {!isImmersiveMode && <ConnectMembershipBanner />}
           {!isImmersiveMode && <GetAppBanner />}
+          {!isImmersiveMode && <GetAppSignedOutModal />}
           <div className="flex-1">
              <Outlet />
           </div>

@@ -56,12 +56,12 @@ const HelpAssistant = () => {
 
   return (
     <>
-      {/* Floating trigger — top-right, below the header, never blocks content */}
+      {/* Floating trigger — bottom-right, clears the mobile bottom nav */}
       <button
         aria-label="Help & navigate"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'fixed top-16 right-4 z-[70] h-11 w-11 rounded-full flex items-center justify-center',
+          'fixed bottom-20 md:bottom-6 right-4 z-[70] h-11 w-11 rounded-full flex items-center justify-center',
           'bg-primary text-primary-foreground shadow-lg shadow-primary/30',
           'hover:scale-105 active:scale-95 transition-transform',
           'ring-2 ring-primary/40 animate-pulse',
@@ -75,7 +75,7 @@ const HelpAssistant = () => {
           {/* click-away backdrop */}
           <div className="fixed inset-0 z-[65]" onClick={() => setOpen(false)} />
 
-          <div className="fixed top-28 right-4 z-[70] w-[min(92vw,360px)] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+          <div className="fixed bottom-36 md:bottom-24 right-4 z-[70] w-[min(92vw,360px)] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
             <div className="p-3 border-b border-border">
               <p className="text-sm font-semibold text-foreground mb-2">Where do you want to go?</p>
               <div className="flex items-center gap-2">

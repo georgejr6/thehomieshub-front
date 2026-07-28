@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store, Wallet, Package } from 'lucide-react';
+import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store, Wallet, Package, Smartphone } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,31 @@ import { useFeatures } from '@/contexts/FeatureContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import api from '@/api/homieshub';
 import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
+import StoreBadges from '@/components/StoreBadges';
+
+const GetAppSidebarButton = () => (
+  <Popover>
+    <PopoverTrigger asChild>
+      <Button
+        size="icon"
+        variant="outline"
+        className="w-12 h-12 rounded-full border-primary/30 text-primary hover:bg-primary/10"
+        title="Get the App"
+      >
+        <Smartphone className="h-5 w-5" />
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent side="top" className="w-80">
+      <div className="grid gap-3">
+        <div className="space-y-1">
+          <h4 className="font-medium leading-none text-primary">Get the Homies Hub app</h4>
+          <p className="text-sm text-muted-foreground">Now live on the App Store and Google Play.</p>
+        </div>
+        <StoreBadges surface="sidebar" />
+      </div>
+    </PopoverContent>
+  </Popover>
+);
 
 const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot }) => {
   const location = useLocation();
@@ -310,6 +335,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
       
       <div className="absolute bottom-0 left-0 right-0 p-2 bg-background border-t z-10 pb-safe">
          <div className="flex flex-col items-center justify-center gap-4 my-4">
+            <GetAppSidebarButton />
             {createPostAccess.status !== 'hidden' && (
                 <Button 
                     onClick={() => { onPostClick(); if(isMobile) onMobileClose(); }} 
