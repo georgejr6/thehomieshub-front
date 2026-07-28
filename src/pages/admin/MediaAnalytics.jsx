@@ -774,6 +774,7 @@ function GrowthView({ days }) {
   const [actives, setActives] = useState(null);
   const [landing, setLanding] = useState([]);
   const [appDownloads, setAppDownloads] = useState(null);
+  const [platformBreakdown, setPlatformBreakdown] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -783,9 +784,10 @@ function GrowthView({ days }) {
       api.get('/track/actives').then(r => r.data?.result).catch(() => null),
       api.get('/track/landing', { params: { days } }).then(r => r.data?.result?.surfaces || []).catch(() => []),
       api.get('/track/app-downloads', { params: { days } }).then(r => r.data?.result).catch(() => null),
-    ]).then(([f, a, l, ad]) => {
+      api.get('/track/platform-breakdown', { params: { days } }).then(r => r.data?.result).catch(() => null),
+    ]).then(([f, a, l, ad, pb]) => {
       if (cancelled) return;
-      setFunnel(f); setActives(a); setLanding(l); setAppDownloads(ad); setLoading(false);
+      setFunnel(f); setActives(a); setLanding(l); setAppDownloads(ad); setPlatformBreakdown(pb); setLoading(false);
     });
     return () => { cancelled = true; };
   }, [days]);
@@ -797,8 +799,42 @@ function GrowthView({ days }) {
     { label: 'Started paying', value: funnel.paid, accent: 'emerald', rate: pct(funnel.paid, funnel.signups), info: 'Of those new accounts, how many became paying members.' },
   ] : [];
 
+  const platformOf = (id) => platformBreakdown?.byPlatform?.find(p => p.platform === id);
+  const platformTotal = platformBreakdown?.byPlatform?.reduce((a, p) => a + p.sessions, 0) || 0;
+
   return (
     <div className="space-y-4">
+      {/* App vs web — who's actually on the mobile app, incl. anonymous visitors */}
+      <GlassPanel className="p-5">
+        <div className="flex items-center gap-1.5 mb-4">
+          <p className="text-sm font-semibold">Mobile app vs. web · last {days} days</p>
+          <InfoTip text="Classified from each visitor's raw User-Agent — the app's network requests don't look like a browser's (no Mozilla/Safari/Chrome tokens), so this works even for visitors who never signed in, using data already being collected. No app update required." />
+        </div>
+        {loading ? <div className="h-24 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div> : (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+              <StatTile index={0} accent="sky" icon={Smartphone} label="iOS App" value={fmtN(platformOf('ios_app')?.sessions)} sub={`${pct(platformOf('ios_app')?.sessions, platformTotal)}% of sessions`} />
+              <StatTile index={1} accent="emerald" icon={Smartphone} label="Android App" value={fmtN(platformOf('android_app')?.sessions)} sub={`${pct(platformOf('android_app')?.sessions, platformTotal)}% of sessions`} />
+              <StatTile index={2} accent="primary" icon={Globe} label="Web" value={fmtN(platformOf('web')?.sessions)} sub={`${pct(platformOf('web')?.sessions, platformTotal)}% of sessions`} />
+              <StatTile index={3} accent="fuchsia" icon={UserCheck} label="App, never signed in" value={fmtN((platformOf('ios_app')?.anonymous || 0) + (platformOf('android_app')?.anonymous || 0))} sub="anonymous app visitors" />
+            </div>
+            {platformBreakdown?.sampleUAs?.length > 0 && (
+              <details className="text-xs text-white/40">
+                <summary className="cursor-pointer hover:text-white/60">Sample raw User-Agents (verify classification)</summary>
+                <div className="mt-2 space-y-1.5">
+                  {platformBreakdown.sampleUAs.map((s) => (
+                    <div key={s.platform}>
+                      <span className="text-white/60 font-semibold">{s.platform}:</span>{' '}
+                      {s.samples.map((ua, i) => <span key={i} className="block truncate ml-3">{ua}</span>)}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </>
+        )}
+      </GlassPanel>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatTile index={0} accent="primary" icon={Zap} label="DAU" value={loading ? '' : fmtN(actives?.dau)} loading={loading} sub="active today" info="Daily Active Users — distinct people active in the last 24h." />
         <StatTile index={1} accent="sky" icon={Users} label="WAU" value={loading ? '' : fmtN(actives?.wau)} loading={loading} sub="active this week" info="Weekly Active Users — distinct people active in the last 7 days." />
