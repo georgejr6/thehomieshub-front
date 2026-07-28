@@ -35,6 +35,33 @@ function downloadCsv(filename, header, dataRows) {
   a.href = url; a.download = filename; document.body.appendChild(a); a.click();
   a.remove(); URL.revokeObjectURL(url);
 }
+// ── Send the app-download announcement email preview to the admin inbox ───────
+function AppDownloadEmailPreviewButton() {
+  const { toast } = useToast();
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    setSending(true);
+    try {
+      const r = await api.post('/admin/email/preview-app-download');
+      toast({ title: 'Preview sent', description: r.data?.message || 'Check your inbox.' });
+    } catch (err) {
+      toast({ title: 'Failed to send', description: err.response?.data?.message || err.message, variant: 'destructive' });
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <button
+      onClick={send}
+      disabled={sending}
+      className="ml-auto flex items-center gap-1.5 text-xs text-white/50 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
+    >
+      {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+      Email me a preview
+    </button>
+  );
+}
+
 const CsvButton = ({ onClick }) => (
   <button onClick={onClick} className="ml-auto flex items-center gap-1.5 text-xs text-white/50 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-2.5 py-1 transition-colors">
     <Download className="w-3.5 h-3.5" /> Export CSV
@@ -810,6 +837,7 @@ function GrowthView({ days }) {
         <div className="flex items-center gap-1.5 mb-4">
           <p className="text-sm font-semibold">Mobile app download clicks · last {days} days</p>
           <InfoTip text="Clicks on the App Store / Play Store CTAs across the site (header, footer, banner). This is click-through, not actual installs — Apple/Google don't share real download counts with us; check App Store Connect / Play Console for those." />
+          <AppDownloadEmailPreviewButton />
         </div>
         {loading ? <div className="h-24 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div> : (
           <>
