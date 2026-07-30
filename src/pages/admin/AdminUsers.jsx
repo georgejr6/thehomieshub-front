@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music, Download, IdCard, MapPin } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music, Download, Fingerprint, MapPin } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -594,7 +594,7 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
         ) : (
           <div className="max-h-[68vh] overflow-y-auto space-y-6 py-1 pr-2">
             <div>
-              <SectionHeader icon={IdCard} title="Identity" />
+              <SectionHeader icon={Fingerprint} title="Identity" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
                 <Fact label="Real name (OAuth)" value={p?.name} />
                 <Fact label="Email" value={p?.email} />
