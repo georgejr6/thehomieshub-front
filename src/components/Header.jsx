@@ -258,10 +258,9 @@ const Header = ({
                      <span>{user.effectiveTier === 'discord' ? 'Upgrade to Homie' : 'Upgrade your membership'}</span>
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => navigate('/studio')}>
-                  <Store className="mr-2 h-4 w-4" />
-                  <span>Creator Studio</span>
-                </DropdownMenuItem>
+                {/* Creator Studio hidden 2026-07-30 (George) -- fake Monetization tab + unresolved
+                    marketplace payout gaps found in audit; reserved for when it's actually fixed.
+                    Route still redirects safely if someone has the old URL bookmarked. */}
                 <DropdownMenuItem onClick={() => navigate('/purchases')}>
                   <ShoppingBag className="mr-2 h-4 w-4" />
                   <span>My Purchases</span>

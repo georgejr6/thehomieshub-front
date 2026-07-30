@@ -70,7 +70,6 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
 
   const handleLike = () => {
     if (!user) { onLoginRequest(); return; }
-    if (post.isFrogzClip) return; // synthetic ID — no backend like endpoint
     if (isLikeLoading) return;
     
     setIsLikeLoading(true);

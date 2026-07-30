@@ -183,7 +183,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
       label: 'Earn',
       items: [
         { to: '/marketplace', icon: ShoppingBag, label: 'Marketplace' },
-        ...(user ? [{ to: '/studio', icon: Store, label: 'Creator Studio' }] : []),
+        // Creator Studio hidden 2026-07-30 -- see Header.jsx for why
       ],
     },
     {

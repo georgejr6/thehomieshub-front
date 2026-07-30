@@ -19,7 +19,7 @@ import GoLivePage from '@/pages/GoLivePage';
 import LiveStreamPage from '@/pages/LiveStreamPage';
 import LivePage from '@/pages/LivePage';
 import LibraryPage from '@/pages/LibraryPage';
-import CreatorStudioPage from '@/pages/CreatorStudioPage';
+// CreatorStudioPage import removed 2026-07-30 -- route hidden, see below. Page file kept as-is.
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
 import InboxPage from '@/pages/InboxPage';
 import MyAIPage from '@/pages/MyAIPage';
@@ -358,8 +358,11 @@ const AppContent = React.memo(() => {
                 <Route path="settings" element={<WalletIsolationMode activeTab="settings" />} />
             </Route>
 
-            {/* Creator Studio — store, products, earnings, content, live */}
-            <Route path="/studio" element={user ? <CreatorStudioPage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />} />
+            {/* Creator Studio hidden 2026-07-30 (George) -- fake Monetization tab (localStorage-only,
+                no backend) + unresolved marketplace seller-payout gap found in audit. Route redirects
+                home instead of 404ing so old bookmarks/links don't break oddly. Reserved for when
+                it's actually fixed -- don't re-enable without addressing those two issues first. */}
+            <Route path="/studio" element={<Navigate to="/" />} />
             <Route path="/studio/stream" element={user ? <GoLivePage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />} />
 
             {/* Go Live — standalone page (has its own header, no sidebar) */}

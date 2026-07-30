@@ -459,7 +459,6 @@ const togglePlayPause = () => {
 
         if (action === 'like') {
             if (isLikeLoading) return;
-            if (post.isFrogzClip) return; // external clips have no DB id
             setIsLikeLoading(true);
             const currentlyLiked = isPostLiked(String(post.id));
             setLikeCount(prev => currentlyLiked ? Math.max(0, prev - 1) : prev + 1);
@@ -467,7 +466,6 @@ const togglePlayPause = () => {
             setTimeout(() => setIsLikeLoading(false), 500);
         } else if (action === 'save') {
             if (isSaveLoading) return;
-            if (post.isFrogzClip) return; // external clips have no DB id
             setIsSaveLoading(true);
             await togglePostSave({ targetType: commentTargetType, targetId: post.id });
             setTimeout(() => setIsSaveLoading(false), 500);
