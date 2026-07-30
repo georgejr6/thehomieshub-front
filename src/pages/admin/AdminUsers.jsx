@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music, Download } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music, Download, IdCard, MapPin } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -558,9 +558,15 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
       <span className="text-foreground text-right truncate max-w-[62%] font-medium">{value ?? '—'}</span>
     </div>
   );
+  const SectionHeader = ({ icon: Icon, title, count }) => (
+    <p className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2">
+      <Icon className="w-4 h-4" /> {title}
+      {count != null && <span className="text-muted-foreground/60 font-semibold">({count})</span>}
+    </p>
+  );
   const List = ({ icon: Icon, title, items, render }) => (
     <div>
-      <p className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2"><Icon className="w-4 h-4" /> {title} <span className="text-muted-foreground/60 font-semibold">({items?.length || 0})</span></p>
+      <SectionHeader icon={Icon} title={title} count={items?.length || 0} />
       {items?.length ? <div className="space-y-1.5">{items.slice(0, 12).map((it, i) => <div key={i} className="text-sm text-foreground/90 truncate">{render(it)}</div>)}</div> : <p className="text-sm text-muted-foreground">none</p>}
     </div>
   );
@@ -586,23 +592,39 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : (
-          <div className="max-h-[68vh] overflow-y-auto space-y-5 py-1 pr-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-              <Fact label="Location (by IP)" value={loc || 'unknown'} />
-              <Fact label="ISP" value={p?.location?.isp} />
-              <Fact label="Primary IP" value={p?.primaryIp} />
-              <Fact label="Known IPs" value={p?.knownIps?.length ? String(p.knownIps.length) : '—'} />
-              <Fact label="Last login" value={fmtD(p?.lastLoginAt)} />
-              <Fact label="Member since" value={fmtD(p?.createdAt)} />
-              <Fact label="Time in app (90d)" value={fmtDuration(a?.totalActiveMs)} />
-              <Fact label="Following / Followers" value={`${p?.following || 0} / ${p?.followers || 0}`} />
-              <Fact label="Email" value={p?.email} />
-              <Fact label="Discord" value={p?.discordUsername} />
+          <div className="max-h-[68vh] overflow-y-auto space-y-6 py-1 pr-2">
+            <div>
+              <SectionHeader icon={IdCard} title="Identity" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+                <Fact label="Real name (OAuth)" value={p?.name} />
+                <Fact label="Email" value={p?.email} />
+                <Fact label="Discord handle" value={p?.discordUsername} />
+                <Fact label="Member since" value={fmtD(p?.createdAt)} />
+              </div>
+            </div>
+
+            <div>
+              <SectionHeader icon={MapPin} title="Location & Access" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+                <Fact label="Location (by IP)" value={loc || 'unknown'} />
+                <Fact label="ISP" value={p?.location?.isp} />
+                <Fact label="Primary IP" value={p?.primaryIp} />
+                <Fact label="Known IPs" value={p?.knownIps?.length ? String(p.knownIps.length) : '—'} />
+                <Fact label="Last login" value={fmtD(p?.lastLoginAt)} />
+              </div>
+            </div>
+
+            <div>
+              <SectionHeader icon={Activity} title="Engagement" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+                <Fact label="Time in app (90d)" value={fmtDuration(a?.totalActiveMs)} />
+                <Fact label="Following / Followers" value={`${p?.following || 0} / ${p?.followers || 0}`} />
+              </div>
             </div>
 
             {p?.socials && ['instagram','twitter','tiktok','youtube','website'].some((k) => p.socials[k]) && (
               <div>
-                <p className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2"><Globe className="w-4 h-4" /> Socials {p.socials.public ? '(public)' : '(private)'}</p>
+                <SectionHeader icon={Globe} title={`Socials ${p.socials.public ? '(public)' : '(private)'}`} />
                 <div className="space-y-1 text-sm">
                   {['instagram','twitter','tiktok','youtube','website'].filter((k) => p.socials[k]).map((k) => (
                     <div key={k} className="flex justify-between gap-3"><span className="text-muted-foreground capitalize">{k}</span><span className="text-foreground truncate">{p.socials[k]}</span></div>
@@ -611,17 +633,20 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
-              <List icon={Globe} title="Top pages" items={a?.topPages} render={(it) => `${it._id}  ·  ${it.count}×`} />
-              <List icon={Video} title="Watch history" items={a?.watched} render={(it) => it.target?.title || `${it.target?.kind || 'video'} ${it.target?.id || ''}`} />
-              <List icon={Bookmark} title="Saved / shared" items={a?.saved} render={(it) => `${it.target?.kind || 'item'} ${it.target?.id || ''}`} />
-              <List icon={Music} title="Music played" items={a?.music} render={(it) => it.target?.title || it.target?.id} />
-              <List icon={Users2} title="Following" items={d?.following} render={(f) => `@${f.username}`} />
+            <div>
+              <SectionHeader icon={Video} title="Activity" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+                <List icon={Globe} title="Top pages" items={a?.topPages} render={(it) => `${it._id}  ·  ${it.count}×`} />
+                <List icon={Video} title="Watch history" items={a?.watched} render={(it) => it.target?.title || `${it.target?.kind || 'video'} ${it.target?.id || ''}`} />
+                <List icon={Bookmark} title="Saved / shared" items={a?.saved} render={(it) => `${it.target?.kind || 'item'} ${it.target?.id || ''}`} />
+                <List icon={Music} title="Music played" items={a?.music} render={(it) => it.target?.title || it.target?.id} />
+                <List icon={Users2} title="Following" items={d?.following} render={(f) => `@${f.username}`} />
+              </div>
             </div>
 
             {d?.botConversation && (
               <div>
-                <p className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2"><MessageSquare className="w-4 h-4" /> Bot conversation <span className="text-muted-foreground/60 font-semibold">({d.botConversation.status})</span></p>
+                <SectionHeader icon={MessageSquare} title="Bot conversation" count={d.botConversation.status} />
                 <div className="space-y-2 bg-muted/30 rounded-xl p-3 max-h-60 overflow-y-auto border border-border/40">
                   {(d.botConversation.messages || []).map((m, i) => (
                     <div key={i} className={`text-sm leading-relaxed ${m.role === 'bot' ? 'text-primary' : 'text-foreground'}`}>
