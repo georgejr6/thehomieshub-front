@@ -1,9 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
-import { Play, Pause, Heart, Share2, Repeat, ArrowLeft, Music, Loader2 } from 'lucide-react';
+import { Play, Pause, Heart, Share2, Repeat, ArrowLeft, Music, Loader2, Gift } from 'lucide-react';
 import { useMedia } from '@/contexts/MediaContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { musicApi } from '@/lib/digitvlApi';
+import api from '@/api/homieshub';
+import PayWithCardModal from '@/components/PayWithCardModal';
+
+// Only creator in the catalog today — see docs/CREATOR_ONBOARDING_DESIGN.md
+// in digitvl-x402 for when this needs to become per-track/per-artist.
+const DEFAULT_TIP_OWNER_SLUG = 'mwosa';
 
 // Dedicated per-song page (/song/:id and /track/:id).
 // Opening a share link lands here, auto-plays the track through the shared
@@ -17,10 +24,25 @@ const SongPage = () => {
     isLiked, toggleLike, repeatOne, toggleRepeat,
   } = useMedia();
 
+  const { user, triggerLockedFeature } = useAuth();
   const [track, setTrack] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [tipModalOpen, setTipModalOpen] = useState(false);
   const autoPlayedFor = useRef(null); // song id we've already auto-started
+
+  const fetchTipIntent = useCallback(async () => {
+    const resp = await api.post('/x402/tip-intent', {
+      ownerSlug: DEFAULT_TIP_OWNER_SLUG,
+      amountMicroUsdc: 250_000, // $0.25 default tip — TODO: let the user pick an amount
+    });
+    return resp?.data?.result;
+  }, []);
+
+  const handleTipClick = () => {
+    if (!user) { triggerLockedFeature?.(); return; }
+    setTipModalOpen(true);
+  };
 
   // Resolve the track: prefer the already-loaded catalog, else fetch it cold.
   useEffect(() => {
@@ -151,6 +173,11 @@ const SongPage = () => {
                   title="Share">
                   <Share2 className="w-5 h-5" />
                 </button>
+                <button onClick={handleTipClick}
+                  className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white text-sm font-medium"
+                  title={`Tip ${track.artist || 'the artist'}`}>
+                  <Gift className="w-4 h-4" /> Tip
+                </button>
               </div>
             </div>
           </div>
@@ -178,6 +205,16 @@ const SongPage = () => {
           </div>
         </div>
       )}
+
+      <PayWithCardModal
+        open={tipModalOpen}
+        onClose={() => setTipModalOpen(false)}
+        title={`Tip ${track.artist || 'the artist'}`}
+        intentFetcher={fetchTipIntent}
+        onSettled={() => {
+          setTimeout(() => setTipModalOpen(false), 1200);
+        }}
+      />
     </div>
   );
 };
