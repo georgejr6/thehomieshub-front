@@ -63,11 +63,17 @@ export const WagerProvider = ({ children }) => {
 
     const senderAddr = connectedWallet.address;
 
-    // ── Mock mode: no on-chain contract yet ────────────────────────────────────
+    // BUG FIX (2026-07-30): this used to silently fake a join with
+    // txId:'mock_txn' and tell the user "Joined! $X locked in escrow" when
+    // NOTHING real happened -- a race between wager creation returning and
+    // its contract finishing async deployment (or ALGORAND_DEPLOYER_MNEMONIC
+    // not being configured) landed here with no visible error, so a real
+    // user could believe they'd placed a real wager. The backend now
+    // rejects joins on undeployed wagers outright (verifyJoinTransaction
+    // has nothing real to check against), so this must fail loudly here
+    // too instead of pretending to succeed.
     if (!wager?.algorandAppId || !wager?.escrowAddress) {
-      await joinWagerAPI(wagerId, { side, amountMicro: toMicroUSDC(amount), txId: 'mock_txn' });
-      toast({ title: 'Joined!', description: `$${amount.toFixed(2)} locked in escrow.` });
-      return;
+      throw new Error('This wager isn\'t ready to accept stakes yet — its on-chain contract is still deploying. Try again in a moment.');
     }
 
     const appId     = wager.algorandAppId;
