@@ -264,23 +264,14 @@ if (avatarFile) {
             </div>
           </div>
 
-          {/* Display Name */}
+          {/* Username — shown first; if it's still an auto-generated default,
+              this is the primary thing we want them to notice and fix. */}
           <div className="grid gap-2">
-            <Label htmlFor="displayName">
-              Display Name <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="displayName"
-              value={formData.displayName}
-              onChange={handleInputChange}
-              placeholder="John Doe"
-              disabled={loading}
-              maxLength={50}
-            />
-          </div>
-
-          {/* Username */}
-          <div className="grid gap-2">
+            {userData?.usernameIsDefault && (
+              <p className="text-xs font-medium text-primary">
+                👋 You're on a temporary username — pick your own below!
+              </p>
+            )}
             <Label htmlFor="username">
               Username <span className="text-destructive">*</span>
             </Label>
@@ -294,11 +285,27 @@ if (avatarFile) {
                 className="pl-8"
                 disabled={loading}
                 maxLength={30}
+                autoFocus={!!userData?.usernameIsDefault}
               />
             </div>
             <p className="text-xs text-muted-foreground">
               Letters, numbers, underscores, and hyphens only. Min 3 characters.
             </p>
+          </div>
+
+          {/* Display Name */}
+          <div className="grid gap-2">
+            <Label htmlFor="displayName">
+              Display Name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="displayName"
+              value={formData.displayName}
+              onChange={handleInputChange}
+              placeholder="John Doe"
+              disabled={loading}
+              maxLength={50}
+            />
           </div>
 
           {/* Bio */}
