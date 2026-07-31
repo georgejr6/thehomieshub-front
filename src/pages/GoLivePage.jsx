@@ -154,7 +154,9 @@ const GoLivePage = ({ onLoginRequest }) => {
     // Form State
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [notifyFollowers, setNotifyFollowers] = useState(true);
+    // Was never actually sent to the backend before (dead checkbox) — now
+    // wired through for real. Defaults off until explicitly turned on.
+    const [notifyFollowers, setNotifyFollowers] = useState(false);
     const [discordAnnounce, setDiscordAnnounce] = useState(true);
 
     // History
@@ -433,7 +435,7 @@ const GoLivePage = ({ onLoginRequest }) => {
         setIsCreatingStream(true);
         try {
             const streamMode = streamMethod === 'webcam' ? 'browser' : 'software';
-            const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce });
+            const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce, notifyFollowers });
             if (data.status) {
                 setStreamData({
                     url: data.result.rtmpUrl,
@@ -603,7 +605,7 @@ const GoLivePage = ({ onLoginRequest }) => {
             let whipUrl = streamData.whipUrl; // may be stale-from-a-prior-render; overwritten below if we just created
             if (!isSaved) {
                 const streamMode = streamMethod === 'webcam' ? 'browser' : 'software';
-                const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce });
+                const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce, notifyFollowers });
                 if (!data.status) {
                     toast({ title: 'Error', description: data.message || 'Failed to create stream.', variant: 'destructive' });
                     setIsGoingLive(false);
