@@ -18,6 +18,7 @@ import UserProfilePage from '@/pages/UserProfilePage';
 import GoLivePage from '@/pages/GoLivePage';
 import LiveStreamPage from '@/pages/LiveStreamPage';
 import LivePage from '@/pages/LivePage';
+import VodPage from '@/pages/VodPage';
 import LibraryPage from '@/pages/LibraryPage';
 // CreatorStudioPage import removed 2026-07-30 -- route hidden, see below. Page file kept as-is.
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
@@ -425,7 +426,13 @@ const AppContent = React.memo(() => {
                         <LiveStreamPage onLoginRequest={handleLoginRequest} />
                     </FeatureGuard>
                 } />
-                
+
+                <Route path="/vod/:streamId" element={
+                    <FeatureGuard feature="live_streaming">
+                        <VodPage />
+                    </FeatureGuard>
+                } />
+
                 <Route path="/library" element={
                     <FeatureGuard feature="library">
                         <LibraryPage onUpgradeRequest={handleUpgradeRequest} onLoginRequest={handleLoginRequest} onPostClick={handleOpenPostModal} />

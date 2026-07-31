@@ -60,6 +60,7 @@ const RealUserProfilePage = () => {
   const [videos, setVideos] = useState([]);
   const [reels, setReels] = useState([]);
   const [products, setProducts] = useState([]);
+  const [vods, setVods] = useState([]);
 
   // Favorites only for own profile
   const [favorites, setFavorites] = useState({ videos: [], reels: [] });
@@ -260,6 +261,14 @@ const RealUserProfilePage = () => {
       .catch(() => setProducts([]));
   }, [profileUser?._id]);
 
+  // Load this creator's past broadcast recordings for the Streams tab.
+  useEffect(() => {
+    if (!username) { setVods([]); return; }
+    api.get(`/live/vods/${username}`)
+      .then((r) => setVods(r.data?.result?.vods || []))
+      .catch(() => setVods([]));
+  }, [username]);
+
   const usd = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 
   const buyProduct = async (p) => {
@@ -277,8 +286,9 @@ const RealUserProfilePage = () => {
   };
 
   const showShop = isOwnProfile || products.length > 0;
-  const tabCount = 3 + (showShop ? 1 : 0) + (isOwnProfile ? 1 : 0);
-  const colsClass = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' }[tabCount] || 'grid-cols-4';
+  const showStreams = isOwnProfile || vods.length > 0;
+  const tabCount = 3 + (showShop ? 1 : 0) + (showStreams ? 1 : 0) + (isOwnProfile ? 1 : 0);
+  const colsClass = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-6' }[tabCount] || 'grid-cols-4';
 
   const handleFollow = async () => {
     if (!currentUser) {
@@ -574,6 +584,11 @@ const RealUserProfilePage = () => {
                   <ShoppingBag className="h-3.5 w-3.5" /> Shop
                 </TabsTrigger>
               )}
+              {showStreams && (
+                <TabsTrigger value="streams" className="flex items-center gap-1.5">
+                  <Play className="h-3.5 w-3.5" /> Streams
+                </TabsTrigger>
+              )}
               {isOwnProfile && <TabsTrigger value="favorites">Favorites</TabsTrigger>}
             </TabsList>
 
@@ -684,6 +699,45 @@ const RealUserProfilePage = () => {
                           ) : (
                             "This user has nothing for sale yet."
                           )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            )}
+
+            {showStreams && (
+              <TabsContent value="streams" className="mt-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {vods.length > 0 ? (
+                    vods.map((v) => (
+                      <Link key={v.id} to={`/vod/${v.id}`} className="block group">
+                        <Card className="overflow-hidden hover:border-primary/50 transition-colors">
+                          <div className="relative aspect-video bg-zinc-900">
+                            <img
+                              src={`https://image.mux.com/${v.vodPlaybackId}/thumbnail.png?time=2`}
+                              alt={v.title}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                              <Play className="h-8 w-8 text-white/0 group-hover:text-white/90 transition-colors" />
+                            </div>
+                          </div>
+                          <CardContent className="p-3">
+                            <p className="text-sm font-medium line-clamp-2">{v.title}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(v.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="col-span-full">
+                      <Card>
+                        <CardContent className="p-6 text-center text-muted-foreground">
+                          {isOwnProfile ? "Your past broadcasts will show up here after you go live." : "No past broadcasts yet."}
                         </CardContent>
                       </Card>
                     </div>
