@@ -635,9 +635,18 @@ const GoLivePage = ({ onLoginRequest }) => {
                         </h1>
                     </div>
                     {isLive && (
-                        <Button variant="destructive" onClick={handleEndStream} className="font-bold shadow-red-500/20 shadow-lg">
-                            End Stream
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="secondary"
+                                onClick={() => copyToClipboard(`${window.location.origin}/live-stream/${user?.username}`)}
+                                className="font-semibold gap-2"
+                            >
+                                <Share2 className="h-4 w-4" /> Copy Watch Link
+                            </Button>
+                            <Button variant="destructive" onClick={handleEndStream} className="font-bold shadow-red-500/20 shadow-lg">
+                                End Stream
+                            </Button>
+                        </div>
                     )}
                 </header>
 
