@@ -452,7 +452,32 @@ const GoLivePage = ({ onLoginRequest }) => {
                 };
                 ws.onerror = () => { clearTimeout(timeout); reject(new Error('Broadcast connection failed')); };
                 ws.onclose = (e) => { if (e.code !== 1000) clearTimeout(timeout); };
-            }).then(ws => { broadcastWsRef.current = ws; });
+            }).then(ws => {
+                broadcastWsRef.current = ws;
+                // Post-connect: the handler above only mattered for the initial
+                // "ready"/"error" race. Replace it so a later failure (e.g. ffmpeg
+                // dying mid-stream because Mux dropped the RTMP connection) is
+                // actually surfaced instead of silently swallowed by an
+                // already-settled promise.
+                ws.onmessage = (e) => {
+                    try {
+                        const msg = JSON.parse(e.data);
+                        if (msg.type === 'error') {
+                            console.error('[broadcast] mid-stream error:', msg.message, msg.detail);
+                            toast({
+                                title: 'Stream disconnected',
+                                description: msg.detail ? `${msg.message} (${msg.detail})` : msg.message,
+                                variant: 'destructive',
+                                duration: 15000,
+                            });
+                            setConnectionWarning('failed');
+                        }
+                    } catch (_) {}
+                };
+                ws.onclose = (e) => {
+                    if (e.code !== 1000) console.warn('[broadcast] WS closed unexpectedly', e.code, e.reason);
+                };
+            });
 
             // Pick best supported codec
             if (typeof MediaRecorder === 'undefined') {
