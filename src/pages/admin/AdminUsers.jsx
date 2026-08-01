@@ -686,10 +686,10 @@ const AdminUsers = () => {
   const [tierFilter, setTierFilter] = useState('all'); // 'all' | 'discord' | 'homies' | 'nomad' | 'stripe' | 'free'
   const limit = 20;
 
-  const loadUsers = useCallback(async (q = searchTerm, p = page) => {
+  const loadUsers = useCallback(async (q = searchTerm, p = page, tier = tierFilter) => {
     setLoading(true);
     try {
-      const { data } = await api.get('/admin/users', { params: { q, page: p, limit } });
+      const { data } = await api.get('/admin/users', { params: { q, page: p, limit, tier } });
       if (data.status) {
         setUsers(data.result.items || []);
         setTotal(data.result.pagination?.total || 0);
@@ -699,16 +699,25 @@ const AdminUsers = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, page]);
+  }, [searchTerm, page, tierFilter]);
 
   useEffect(() => {
     loadUsers();
-  }, [page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, tierFilter]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(1);
-    loadUsers(searchTerm, 1);
+    loadUsers(searchTerm, 1, tierFilter);
+  };
+
+  // BUG FIX (2026-08-01): tier filtering now happens server-side (see
+  // getUsers in admin.controller.js) -- picking a new filter must reset to
+  // page 1 and refetch, not just re-slice whatever page was already loaded.
+  const handleTierFilterChange = (key) => {
+    setTierFilter(key);
+    setPage(1);
   };
 
   const handleBan = async (user) => {
@@ -757,13 +766,9 @@ const AdminUsers = () => {
     setUsers(prev => prev.map(u => set.has(String(u._id)) ? { ...u, isBanned: true } : u));
   };
 
-  const filteredUsers = users.filter(u => {
-    if (tierFilter === 'all') return true;
-    if (tierFilter === 'stripe') return u.subscription?.isActive;
-    if (tierFilter === 'free') return !u.subscription?.isActive && !isMembershipActive(u);
-    if (tierFilter === 'expired') return !isMembershipActive(u) && u.membership?.expiresAt;
-    return isMembershipActive(u) && u.membership?.tier === tierFilter;
-  });
+  // Tier filtering now happens server-side (getUsers query in
+  // admin.controller.js) -- `users` is already the correctly-filtered page.
+  const filteredUsers = users;
 
   const totalPages = Math.ceil(total / limit);
 
@@ -833,7 +838,7 @@ const AdminUsers = () => {
           {FILTERS.map(f => (
             <button
               key={f.key}
-              onClick={() => setTierFilter(f.key)}
+              onClick={() => handleTierFilterChange(f.key)}
               className="px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-all"
               style={tierFilter === f.key
                 ? { backgroundColor: f.color || '#333', borderColor: f.color || '#666', color: f.textColor }
@@ -842,7 +847,7 @@ const AdminUsers = () => {
             >
               {f.label}
               {tierFilter === f.key && tierFilter !== 'all' && (
-                <span className="ml-1.5 opacity-80 text-xs">({filteredUsers.length})</span>
+                <span className="ml-1.5 opacity-80 text-xs">({total})</span>
               )}
               {tierFilter === 'all' && f.key === 'all' && (
                 <span className="ml-1.5 opacity-70 text-xs">({users.length})</span>
