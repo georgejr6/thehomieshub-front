@@ -684,6 +684,10 @@ const AdminUsers = () => {
   const [activityTarget, setActivityTarget] = useState(null);
   const [activityOpen, setActivityOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState('all'); // 'all' | 'discord' | 'homies' | 'nomad' | 'stripe' | 'free'
+  // Live count per tier -- shown on EVERY tab at once, not just the active
+  // one, so the numbers are always visible and always reflect the full
+  // dataset (see getUserTierCounts in admin.controller.js).
+  const [tierCounts, setTierCounts] = useState({});
   const limit = 20;
 
   const loadUsers = useCallback(async (q = searchTerm, p = page, tier = tierFilter) => {
@@ -701,15 +705,30 @@ const AdminUsers = () => {
     }
   }, [searchTerm, page, tierFilter]);
 
+  const loadTierCounts = useCallback(async (q = searchTerm) => {
+    try {
+      const { data } = await api.get('/admin/users/tier-counts', { params: { q } });
+      if (data.status) setTierCounts(data.result.counts || {});
+    } catch (err) {
+      // non-critical -- tabs just won't show a count if this fails
+    }
+  }, [searchTerm]);
+
   useEffect(() => {
     loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, tierFilter]);
 
+  useEffect(() => {
+    loadTierCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(1);
     loadUsers(searchTerm, 1, tierFilter);
+    loadTierCounts(searchTerm);
   };
 
   // BUG FIX (2026-08-01): tier filtering now happens server-side (see
@@ -759,6 +778,7 @@ const AdminUsers = () => {
 
   const handleMembershipUpdate = (userId, patch) => {
     setUsers(prev => prev.map(u => u._id === userId ? { ...u, ...patch } : u));
+    loadTierCounts(); // a grant/revoke moves someone between tiers -- keep the tab counts live
   };
 
   const handleClusterBanned = (bannedIds) => {
@@ -823,7 +843,7 @@ const AdminUsers = () => {
           <Button type="submit" variant="outline" size="icon" disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           </Button>
-          <Button type="button" variant="ghost" size="icon" onClick={() => loadUsers()} disabled={loading}>
+          <Button type="button" variant="ghost" size="icon" onClick={() => { loadUsers(); loadTierCounts(); }} disabled={loading}>
             <RefreshCw className="h-4 w-4" />
           </Button>
         </form>
@@ -846,11 +866,8 @@ const AdminUsers = () => {
               }
             >
               {f.label}
-              {tierFilter === f.key && tierFilter !== 'all' && (
-                <span className="ml-1.5 opacity-80 text-xs">({total})</span>
-              )}
-              {tierFilter === 'all' && f.key === 'all' && (
-                <span className="ml-1.5 opacity-70 text-xs">({users.length})</span>
+              {tierCounts[f.key] != null && (
+                <span className="ml-1.5 opacity-80 text-xs">({tierCounts[f.key]})</span>
               )}
             </button>
           ))}
