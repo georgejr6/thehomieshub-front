@@ -14,10 +14,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useContent } from '@/contexts/ContentContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import api from '@/api/homieshub';
 
-const EditTitleModal = ({ isOpen, onOpenChange, currentTitle, onSave }) => {
+const EditTitleModal = ({ isOpen, onOpenChange, currentTitle, onSave, fieldLabel = 'Title', multiline = false }) => {
   const [newTitle, setNewTitle] = useState(currentTitle);
 
   React.useEffect(() => {
@@ -35,12 +36,16 @@ const EditTitleModal = ({ isOpen, onOpenChange, currentTitle, onSave }) => {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit Title</DialogTitle>
-          <DialogDescription>Update the title for this content.</DialogDescription>
+          <DialogTitle>Edit {fieldLabel}</DialogTitle>
+          <DialogDescription>Update the {fieldLabel.toLowerCase()} for this content.</DialogDescription>
         </DialogHeader>
         <div className="py-4">
-          <Label htmlFor="edit-title-input">Title</Label>
-          <Input id="edit-title-input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+          <Label htmlFor="edit-title-input">{fieldLabel}</Label>
+          {multiline ? (
+            <Textarea id="edit-title-input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} maxLength={10000} rows={5} />
+          ) : (
+            <Input id="edit-title-input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -55,11 +60,30 @@ const EditTitleModal = ({ isOpen, onOpenChange, currentTitle, onSave }) => {
 const MoreOptionsDropdown = ({ post, stream, isOwnProfile }) => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { deletePost, banUser, terminateStream, updateStreamTitle } = useContent();
+  const { deletePost, updatePostText, banUser, terminateStream, updateStreamTitle } = useContent();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
   const content = post || stream;
   const isStream = !!stream;
+
+  // BUG FIX: this used to just remove the post from local React state --
+  // no backend call at all, so a "deleted" post reappeared on refresh.
+  // Mirrors the working pattern already used by handleAdminDelete right
+  // below (and by VerticalVideo.jsx's owner-delete for reels/videos).
+  const handleOwnerDelete = async () => {
+    if (!window.confirm('Delete this post? This cannot be undone.')) return;
+    try {
+      const bt = content.backendType;
+      const ep = bt === 'video' ? `/user/videos/${content.id}`
+        : bt === 'reel' ? `/user/reels/${content.id}`
+        : `/user/posts/${content.id}`;
+      await api.delete(ep);
+      deletePost(content.id);
+      toast({ title: 'Post Deleted', variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Delete failed', description: err?.response?.data?.message || err.message, variant: 'destructive' });
+    }
+  };
 
   const handleAdminDelete = async () => {
     if (!window.confirm('Delete this post? This cannot be undone.')) return;
@@ -96,13 +120,21 @@ const MoreOptionsDropdown = ({ post, stream, isOwnProfile }) => {
     });
   }
 
-  const handleTitleUpdate = (newTitle) => {
+  // BUG FIX: this never called the backend at all -- it just fired a fake
+  // "Title Updated!" toast. Community posts don't have a `title` field
+  // either (thread text lives at content.content.text); PATCH /user/posts/:id
+  // is text-only (matches the backend's editMyPost, and mobile's edit flow).
+  const handleTitleUpdate = async (newValue) => {
     if (isStream) {
-        updateStreamTitle(stream.id, newTitle);
-    } else {
-        // Here you would call a function to update post title
-        // updatePostTitle(post.id, newTitle)
-        toast({ title: 'Title Updated!', description: 'The post title has been changed.' });
+      updateStreamTitle(stream.id, newValue);
+      return;
+    }
+    try {
+      await api.patch(`/user/posts/${content.id}`, { text: newValue });
+      updatePostText(content.id, newValue);
+      toast({ title: 'Post updated' });
+    } catch (err) {
+      toast({ title: 'Edit failed', description: err?.response?.data?.message || err.message, variant: 'destructive' });
     }
   };
 
@@ -127,15 +159,17 @@ const MoreOptionsDropdown = ({ post, stream, isOwnProfile }) => {
         <DropdownMenuSeparator />
         {isOwnProfile && !isStream ? (
           <>
-            <DropdownMenuItem onSelect={() => setEditModalOpen(true)}>
-              <Edit className="mr-2 h-4 w-4" />
-              <span>Edit Post</span>
-            </DropdownMenuItem>
+            {content?.backendType === 'community_post' && content?.type === 'thread' && (
+              <DropdownMenuItem onSelect={() => setEditModalOpen(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                <span>Edit Post</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => handleGenericInteraction('🚧 Feature In Progress', "Pinning posts is coming soon! 🚀")}>
               <Star className="mr-2 h-4 w-4" />
               <span>Pin to Profile</span>
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onSelect={() => deletePost(content.id)}>
+            <DropdownMenuItem className="text-destructive" onSelect={handleOwnerDelete}>
               <Trash2 className="mr-2 h-4 w-4" />
               <span>Delete Post</span>
             </DropdownMenuItem>
@@ -199,8 +233,10 @@ const MoreOptionsDropdown = ({ post, stream, isOwnProfile }) => {
      <EditTitleModal
         isOpen={isEditModalOpen}
         onOpenChange={setEditModalOpen}
-        currentTitle={content?.title || content?.description}
+        currentTitle={isStream ? (content?.title || content?.description) : (content?.content?.text || '')}
         onSave={handleTitleUpdate}
+        fieldLabel={isStream ? 'Title' : 'Post Text'}
+        multiline={!isStream}
       />
     </>
   );

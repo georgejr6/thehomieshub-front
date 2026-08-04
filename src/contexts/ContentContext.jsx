@@ -329,6 +329,14 @@ const loadMyLibrary = async () => {
     setCommunityPosts(prev => prev.filter(p => p.id !== id));
   };
 
+  // Reflects a saved text edit (PATCH /user/posts/:id) in local state --
+  // callers are responsible for making the actual backend call first.
+  const updatePostText = (id, newText) => {
+    setCommunityPosts(prev => prev.map(p =>
+      p.id === id ? { ...p, content: { ...p.content, text: newText } } : p
+    ));
+  };
+
   const getTripPosts = (tripId) => {
     return communityPosts.filter(p => p.type === 'clip' || p.type === 'image').slice(0, 5);
   };
@@ -600,6 +608,7 @@ const togglePostSave = async ({ targetType, targetId }) => {
     addReel,
     addPost,
     deletePost,
+    updatePostText,
     getTripPosts,
     toggleFollowTrip,
     markStoryAsViewed: () => {},
