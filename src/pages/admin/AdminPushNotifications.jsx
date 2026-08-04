@@ -105,11 +105,13 @@ const AdminPushNotifications = () => {
   // Broadcast form
   const [bcTitle, setBcTitle]   = useState('');
   const [bcBody, setBcBody]     = useState('');
+  const [bcLink, setBcLink]     = useState('');
   const [bcSending, setBcSending] = useState(false);
 
   // Targeted form
   const [tgTitle, setTgTitle]   = useState('');
   const [tgBody, setTgBody]     = useState('');
+  const [tgLink, setTgLink]     = useState('');
   const [tgUsers, setTgUsers]   = useState('');
   const [tgSending, setTgSending] = useState(false);
 
@@ -136,9 +138,10 @@ const AdminPushNotifications = () => {
     if (!bcTitle.trim() || !bcBody.trim()) return;
     setBcSending(true);
     try {
-      const { data } = await api.post('/admin/push/broadcast', { title: bcTitle, body: bcBody });
+      const data_ = bcLink.trim() ? { url: bcLink.trim() } : undefined;
+      const { data } = await api.post('/admin/push/broadcast', { title: bcTitle, body: bcBody, data: data_ });
       toast({ title: 'Broadcast sent!', description: data.message });
-      setBcTitle(''); setBcBody('');
+      setBcTitle(''); setBcBody(''); setBcLink('');
       loadData();
     } catch (err) {
       toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
@@ -152,9 +155,10 @@ const AdminPushNotifications = () => {
     if (!tgTitle.trim() || !tgBody.trim() || !usernames.length) return;
     setTgSending(true);
     try {
-      const { data } = await api.post('/admin/push/send', { title: tgTitle, body: tgBody, usernames });
+      const data_ = tgLink.trim() ? { url: tgLink.trim() } : undefined;
+      const { data } = await api.post('/admin/push/send', { title: tgTitle, body: tgBody, usernames, data: data_ });
       toast({ title: 'Notification sent!', description: data.message });
-      setTgTitle(''); setTgBody(''); setTgUsers('');
+      setTgTitle(''); setTgBody(''); setTgUsers(''); setTgLink('');
       loadData();
     } catch (err) {
       toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
@@ -246,6 +250,15 @@ const AdminPushNotifications = () => {
                   />
                   <p className="text-[10px] text-muted-foreground mt-1 text-right">{bcBody.length}/250</p>
                 </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Link (optional)</label>
+                  <Input
+                    value={bcLink}
+                    onChange={e => setBcLink(e.target.value)}
+                    placeholder="e.g. https://youtube.com/watch?v=..."
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">Tapping the notification opens this link — only works once the next app build ships (older installs will just ignore it).</p>
+                </div>
               </div>
 
               {/* Preview */}
@@ -330,6 +343,15 @@ const AdminPushNotifications = () => {
                     maxLength={250}
                     className="resize-none"
                   />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Link (optional)</label>
+                  <Input
+                    value={tgLink}
+                    onChange={e => setTgLink(e.target.value)}
+                    placeholder="e.g. https://youtube.com/watch?v=..."
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">Tapping the notification opens this link — only works once the next app build ships (older installs will just ignore it).</p>
                 </div>
               </div>
 
