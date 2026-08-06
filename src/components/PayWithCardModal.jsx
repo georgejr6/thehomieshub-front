@@ -66,7 +66,12 @@ export default function PayWithCardModal({ open, onClose, title, intentFetcher, 
         setStage('ready');
       } catch (err) {
         if (cancelled) return;
-        setErrorMsg(err.message || 'Something went wrong starting the payment');
+        // BUG FIX: err here is a raw Axios error when intentFetcher's api
+        // call fails (e.g. digitvl-x402 rejecting a bad ownerSlug) -- err.message
+        // alone was a generic "Request failed with status code 404" instead
+        // of the backend's actual reason. Match the confirm-failure path
+        // below, which already reads the real message correctly.
+        setErrorMsg(err?.response?.data?.message || err.message || 'Something went wrong starting the payment');
         setStage('error');
       }
     })();

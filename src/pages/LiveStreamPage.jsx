@@ -247,7 +247,14 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                   playbackId={isVod ? stream.vodPlaybackId : stream.playbackId}
                   autoPlay
                   muted={false}
-                  style={{ width: '100%', height: '100%', aspectRatio: '16/9' }}
+                  // BUG FIX: forcing aspectRatio:'16/9' here fought the parent's
+                  // width/height:100% sizing and the player's own object-contain
+                  // fit, making vertical (portrait) broadcasts render tiny and
+                  // letterboxed inside an oversized landscape box instead of
+                  // filling the available space with the source's real aspect
+                  // ratio. The flex-1 parent + object-contain already handle
+                  // both orientations correctly without it.
+                  style={{ width: '100%', height: '100%' }}
                   className="w-full h-full object-contain"
                   onError={handlePlayerError}
                   metadata={{

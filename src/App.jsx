@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Routes, Route, useLocation, Navigate, useNavigate, Outlet } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate, useNavigate, Outlet, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import Header from '@/components/Header';
@@ -68,6 +68,8 @@ import PurchasesPage from '@/pages/PurchasesPage';
 import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
+import PayPage from '@/pages/PayPage';
+import api from '@/api/homieshub';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -186,6 +188,35 @@ const MediaLayout = () => {
 };
 
 const WalletLayout = () => {
+  // BUG FIX: this page is the destination of the mobile app's wallet-connect
+  // browser sheet (WalletContext.tsx's connectAlgoWallet), which is a fresh
+  // browser context with no session -- previously the user landed here
+  // logged out and had to sign in a second time before they could do
+  // anything. Mobile passes a short-lived single-use handoff code via
+  // ?code=, exchanged here for a real session token via the same
+  // /auth/handoff-exchange endpoint PayPage.jsx uses.
+  //
+  // SECURITY: this used to pass the mobile app's real access token directly
+  // as ?token= -- a review found that gets permanently logged (analytics
+  // DB, admin Visitors panel, CDN access logs). A handoff code is worthless
+  // once used/expired, so it leaking the same way is a non-issue.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { setAccessToken } = useAuth();
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (!code) return;
+    (async () => {
+      try {
+        const resp = await api.post('/auth/handoff-exchange', { code });
+        const token = resp?.data?.result?.access_token;
+        if (token) await setAccessToken(token);
+      } catch { /* fall back to the normal signed-out wallet page */ }
+    })();
+    searchParams.delete('code');
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="min-h-screen bg-black text-white relative">
        <div className="absolute top-4 left-4 z-50">
@@ -370,6 +401,13 @@ const AppContent = React.memo(() => {
             <Route path="/go-live" element={
                 user ? <GoLivePage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />
             } />
+
+            {/* Standalone payment page for the mobile app's in-app browser sheet
+                (see src/pages/PayPage.jsx) -- deliberately NOT gated on `user`,
+                since it authenticates via a ?token= query param instead of the
+                web app's own session, and mobile opens this in a fresh browser
+                context with no session of its own yet. */}
+            <Route path="/pay" element={<PayPage />} />
 
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
