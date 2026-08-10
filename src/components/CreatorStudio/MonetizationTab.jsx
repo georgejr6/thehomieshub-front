@@ -76,7 +76,7 @@ const MonetizationTab = () => {
                     <CardDescription>Once payouts are connected, list something to sell.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3 sm:grid-cols-2">
-                    <Link to="/creator-studio?tab=trips" className="flex items-center gap-3 rounded-xl border p-3 hover:border-primary/50 transition-colors">
+                    <Link to="/trips" className="flex items-center gap-3 rounded-xl border p-3 hover:border-primary/50 transition-colors">
                         <MapPin className="h-5 w-5 text-primary shrink-0" />
                         <div>
                             <p className="text-sm font-medium">Sell a trip guide</p>

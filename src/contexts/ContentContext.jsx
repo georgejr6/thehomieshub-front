@@ -155,7 +155,12 @@ function mapCommunityPostToFeedItem(p) {
         endsIn: p.poll.expiresAt ? new Date(p.poll.expiresAt).toLocaleDateString() : ""
       } : null,
       trip: p?.trip ? {
-        title: "Trip",
+        // Creators type the title as the first line of the guide text (see
+        // TripsPage/PostModal). Fall back to destinations, then a generic label.
+        title:
+          (p?.text ? String(p.text).split("\n")[0].trim().slice(0, 80) : "") ||
+          (Array.isArray(p.trip.destinations) && p.trip.destinations.length ? p.trip.destinations.join(" → ") : "") ||
+          "Trip",
         coverImage: p.trip.coverImageUrl || "",
         duration: `${p.trip.durationDays ?? 1} days`,
         destinations: Array.isArray(p.trip.destinations) ? p.trip.destinations : [],

@@ -20,7 +20,9 @@ import LiveStreamPage from '@/pages/LiveStreamPage';
 import LivePage from '@/pages/LivePage';
 import VodPage from '@/pages/VodPage';
 import LibraryPage from '@/pages/LibraryPage';
-// CreatorStudioPage import removed 2026-07-30 -- route hidden, see below. Page file kept as-is.
+// Re-enabled 2026-08-10 -- Creator Studio (content mgmt + analytics + ecommerce) is live again.
+import CreatorStudioPage from '@/pages/CreatorStudioPage';
+import TripsPage from '@/pages/TripsPage';
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
 import InboxPage from '@/pages/InboxPage';
 import MyAIPage from '@/pages/MyAIPage';
@@ -511,7 +513,9 @@ const AppContent = React.memo(() => {
                 <Route path="/child-safety" element={<ChildSafetyPage />} />
                 <Route path="/support" element={<SupportPage />} />
 
-                <Route path="/creator-studio" element={<Navigate to="/go-live" replace />} />
+                <Route path="/creator-studio" element={user ? <CreatorStudioPage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />} />
+                <Route path="/trips" element={<TripsPage onLoginRequest={handleLoginRequest} />} />
+                <Route path="/experiences" element={<Navigate to="/trips" replace />} />
 
                 {/* Catch-all: unknown paths (e.g. a stale /membership link) redirect home instead of white-screening. */}
                 <Route path="*" element={<Navigate to="/" replace />} />

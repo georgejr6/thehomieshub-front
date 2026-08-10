@@ -10,11 +10,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import MonetizationTab from '@/components/CreatorStudio/MonetizationTab';
 import StoreTab from '@/components/CreatorStudio/StoreTab';
-import TripsTab from '@/components/CreatorStudio/TripsTab';
+import HomiesStudioCard from '@/components/CreatorStudio/HomiesStudioCard';
 import UploadMomentModal from '@/components/UploadReelModal';
 import { useAuth } from '@/contexts/AuthContext';
 import BackButton from '@/components/BackButton';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '@/api/homieshub';
 
 function safeArray(v) {
@@ -34,8 +34,17 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
   const [uploadOpen, setUploadOpen] = useState(false);
+
+  // Honor deep-links like /creator-studio?tab=store from other pages.
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && ['overview', 'store', 'content', 'live', 'monetization', 'settings'].includes(t)) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
 
   // Real Creator Studio stats (replaces the old placeholder numbers).
   const [dash, setDash] = useState(null);
@@ -215,15 +224,11 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
       </div>
 
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 md:w-auto md:grid-cols-7 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-3 md:w-auto md:grid-cols-6 lg:w-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="store" className="flex items-center gap-1.5">
             <ShoppingBag className="h-3.5 w-3.5" />
             Store
-          </TabsTrigger>
-          <TabsTrigger value="trips" className="flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5" />
-            Trips
           </TabsTrigger>
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="live" className="flex items-center gap-1.5">
@@ -282,42 +287,22 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
             </Card>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="col-span-4">
+          {/* Homies Studio (redirect) + Trips module */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <HomiesStudioCard />
+            <Card className="flex flex-col justify-between">
               <CardHeader>
-                <CardTitle>Recent Content Performance</CardTitle>
-              </CardHeader>
-              <CardContent className="pl-2">
-                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                  Chart Placeholder (Analytics)
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="col-span-3">
-              <CardHeader>
-                <CardTitle>Recent Comments</CardTitle>
-                <CardDescription>Latest activity from your audience.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" /> Sell experiences</CardTitle>
+                <CardDescription>Turn places you've been into paid trip guides — attach your existing posts or add new moments.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-4 text-sm">
-                    <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
-                    <div>
-                      <p className="font-semibold">user123</p>
-                      <p className="text-muted-foreground">Great video! Keep it up.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4 text-sm">
-                    <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
-                    <div>
-                      <p className="font-semibold">travel_fan</p>
-                      <p className="text-muted-foreground">Where is this location?</p>
-                    </div>
-                  </div>
-                </div>
+                <Button className="gap-2" onClick={() => navigate('/trips')}>
+                  <MapPin className="h-4 w-4" /> Open Trips
+                </Button>
               </CardContent>
             </Card>
           </div>
+
         </TabsContent>
 
         {/* ✅ Content tab (new) */}
@@ -552,10 +537,6 @@ const CreatorStudioPage = ({ onLoginRequest }) => {
 
         <TabsContent value="store">
           <StoreTab />
-        </TabsContent>
-
-        <TabsContent value="trips">
-          <TripsTab />
         </TabsContent>
 
         <TabsContent value="monetization">

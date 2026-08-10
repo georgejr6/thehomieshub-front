@@ -20,6 +20,12 @@ const TripView = ({ isOpen, onClose, post }) => {
   if (!post || post.type !== 'trip') return null;
   const trip = post.content.trip;
   const photos = Array.isArray(post.content?.images) ? post.content.images : [];
+  // The title is derived from the first line of text; don't show it twice.
+  const rawText = post.content.text || '';
+  const firstLine = rawText.split('\n')[0].trim();
+  const bodyText = (firstLine && firstLine === trip.title)
+    ? rawText.split('\n').slice(1).join('\n').trim()
+    : rawText;
   const isOwner = user && user.username === post.user.username;
   const locked = !!post.locked && !isOwner;
   const unlock = post.unlock || null;
@@ -96,7 +102,7 @@ const TripView = ({ isOpen, onClose, post }) => {
             </div>
 
             <p className="text-white/70 text-sm mb-6 leading-relaxed whitespace-pre-wrap">
-              {post.content.text || "Join me on this adventure! We're exploring hidden gems and local favorites."}
+              {bodyText || "Join me on this adventure! We're exploring hidden gems and local favorites."}
             </p>
 
             {unlock && (
