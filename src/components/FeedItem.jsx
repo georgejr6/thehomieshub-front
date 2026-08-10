@@ -200,6 +200,13 @@ const FeedItem = ({ post, onLoginRequest, compact = false }) => {
                 <div className="mt-3 md:mt-4 relative rounded-xl overflow-hidden cursor-pointer group shadow-lg" onClick={() => setIsTripViewOpen(true)}>
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors z-10" />
                     <img className="w-full aspect-[16/9] object-cover" alt={post.content.trip.title} src={post.content.trip.coverImage || "https://images.unsplash.com/photo-1542749191-320c458c8435"} />
+                    {post.unlock && (
+                        <div className="absolute top-3 right-3 z-20">
+                            <span className="flex items-center gap-1 bg-black/70 text-primary text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
+                                {post.locked ? '🔒' : '✓'} ${((post.unlock.priceCents || 0) / 100).toFixed(2)} guide
+                            </span>
+                        </div>
+                    )}
                     <div className="absolute inset-0 z-20 flex flex-col justify-end p-4 md:p-6 bg-gradient-to-t from-black via-black/40 to-transparent">
                         <div className="w-full">
                                 <div className="flex items-center gap-2 mb-2"><span className="bg-primary text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Trip</span></div>

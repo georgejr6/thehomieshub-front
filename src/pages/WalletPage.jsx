@@ -13,6 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import WalletConnectModal from '@/components/WalletConnectModal';
+import PayoutConnect from '@/components/CreatorStudio/PayoutConnect';
 import { cn } from '@/lib/utils';
 import api from "@/api/homieshub";
 
@@ -30,57 +31,6 @@ const transactionHistory = [
     { id: 3, type: 'earnings', details: 'Received from Livestream', amount: 250, date: '2025-10-07' },
     { id: 4, type: 'payout', details: 'Payout requested', amount: -2000, date: '2025-10-05' },
 ];
-
-const payoutHistory = [
-    { date: '2025-09-15', points: 5000, amount: 50.00, status: 'Completed' },
-    { date: '2025-08-20', points: 3500, amount: 35.00, status: 'Completed' },
-];
-
-const RequestPayoutDialog = () => {
-    const [points, setPoints] = useState('');
-    const grossAmount = points ? parseFloat(points) / 100 : 0;
-    const platformFee = grossAmount * 0.10;
-    const finalAmount = grossAmount - platformFee;
-    const { toast } = useToast();
-
-    const handleRequest = () => {
-        toast({
-            title: "✅ Payout Requested",
-            description: `Your request for ${points} points ($${finalAmount.toFixed(2)}) has been submitted.`,
-        });
-    }
-
-    return (
-        <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-                <DialogTitle>Request Payout</DialogTitle>
-                <DialogDescription>Enter the amount of points you'd like to cash out. 100 points = $1.00 USD (before fees).</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="points" className="text-right">Points to Cash Out</Label>
-                    <Input id="points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="e.g., 5000" className="col-span-3" />
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Gross Amount:</span>
-                    <span>${grossAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Platform Fee (10%):</span>
-                    <span className="text-destructive">-${platformFee.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2">
-                    <span>You'll receive:</span>
-                    <span>${finalAmount.toFixed(2)}</span>
-                </div>
-            </div>
-            <DialogFooter>
-                <Button variant="outline">Cancel</Button>
-                <Button onClick={handleRequest}>Confirm Request</Button>
-            </DialogFooter>
-        </DialogContent>
-    )
-}
 
 const WalletPage = ({ onLoginRequest }) => {
     const {  enterWalletMode, connectedWallet } = useWallet();
@@ -117,11 +67,9 @@ const WalletPage = ({ onLoginRequest }) => {
         startCheckout(packKey);
     };
 
+    // Payout setup is intentionally NOT premium-gated — anyone should be able to
+    // connect a payout account and start earning right away.
     const handleTabChange = (value) => {
-        if (value === 'earnings' && !isPremium) {
-            triggerLockedFeature();
-            return;
-        }
         setActiveTab(value);
     }
 
@@ -250,7 +198,6 @@ const WalletPage = ({ onLoginRequest }) => {
                         <TabsTrigger value="earnings">
                             <DollarSign className="mr-2 h-4 w-4" />
                             Creator Earnings
-                            {!isPremium && <Lock className="ml-2 h-3 w-3 opacity-50" />}
                         </TabsTrigger>
                         <TabsTrigger value="transactions"><Receipt className="mr-2 h-4 w-4" />Transactions</TabsTrigger>
                     </TabsList>
@@ -291,51 +238,7 @@ const WalletPage = ({ onLoginRequest }) => {
                             </TabsContent>
 
                             <TabsContent value="earnings" forceMount={true} className={activeTab === "earnings" ? "block" : "hidden"}>
-                                <Card>
-                                    <CardHeader>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <CardTitle>Creator Earnings & Payouts</CardTitle>
-                                                <p className="text-muted-foreground text-sm">Manage your earned points and request payouts.</p>
-                                            </div>
-                                            <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <Button><Send className="mr-2 h-4 w-4" /> Request Payout</Button>
-                                                </DialogTrigger>
-                                                <RequestPayoutDialog />
-                                            </Dialog>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <Card className="bg-card/80 p-4 mb-6">
-                                            <p className="text-muted-foreground text-sm">Available for Payout</p>
-                                            <p className="text-2xl font-bold text-primary">{walletPoints.toLocaleString()} Pts</p>
-                                        </Card>
-                                        <h3 className="text-lg font-semibold mb-2">Payout History</h3>
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Date</TableHead>
-                                                    <TableHead>Points</TableHead>
-                                                    <TableHead>Amount (USD)</TableHead>
-                                                    <TableHead>Status</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {payoutHistory.length > 0 ? payoutHistory.map((p, i) => (
-                                                    <TableRow key={i}>
-                                                        <TableCell>{p.date}</TableCell>
-                                                        <TableCell>{p.points.toLocaleString()}</TableCell>
-                                                        <TableCell>${p.amount.toFixed(2)}</TableCell>
-                                                        <TableCell><span className="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-xs">{p.status}</span></TableCell>
-                                                    </TableRow>
-                                                )) : (
-                                                    <TableRow><TableCell colSpan={4} className="text-center">No payout history yet.</TableCell></TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    </CardContent>
-                                </Card>
+                                <PayoutConnect />
                             </TabsContent>
 
                             <TabsContent value="transactions" forceMount={true} className={activeTab === "transactions" ? "block" : "hidden"}>

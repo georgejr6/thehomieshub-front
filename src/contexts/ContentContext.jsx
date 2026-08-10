@@ -129,6 +129,10 @@ function mapCommunityPostToFeedItem(p) {
     isNSFW: !!p?.isNSFW,
     isSubscriberOnly: !!p?.isSubscriberOnly,
 
+    // Trip-guide paywall (set by backend when a trip is a paid guide)
+    locked: !!p?.locked,
+    unlock: p?.unlock || null,
+
     timestamp: p?.createdAt ? new Date(p.createdAt).toLocaleDateString() : "",
 
     user: {

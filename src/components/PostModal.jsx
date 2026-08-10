@@ -676,17 +676,54 @@ const PostComposer = ({ type, onBack, onPostSuccess }) => {
                 if (trip.coverFile) {
                     coverUrl = await uploadImageToSpaces(trip.coverFile, "trips/covers");
                 }
+
+                // Upload attached trip photos → media[] of {url, type}.
+                const mediaFiles = Array.isArray(trip.mediaFiles) ? trip.mediaFiles : [];
+                const uploaded = await Promise.all(
+                    mediaFiles.map((f) => uploadImageToSpaces(f, "trips/media").catch(() => ""))
+                );
+                const media = uploaded.filter(Boolean).map((url) => ({ url, type: "image" }));
+
                 const resp = await api.post("/user/community/trip", {
                     text,
                     cover_image: coverUrl || "",     // IMPORTANT: must be a URL, not blob preview
                     duration: durationDays || 1,
                     budget: budgetToNumber(trip.budget),
-                    destinations
+                    destinations,
+                    media,
                 });
 
                 const created = resp?.data?.result?.post;
                 addPost(created);
-                toast({ title: "Posted!", description: "Your trip post is live." });
+
+                // If a price was set, list it as a paid trip guide linked to the post.
+                const priceCents = Math.round(parseFloat(trip.price || "0") * 100);
+                if (priceCents > 0) {
+                    const postId = created?._id || created?.id;
+                    const guideTitle = (destinations.join(", ") || "Trip guide").slice(0, 120);
+                    try {
+                        await api.post("/marketplace/products", {
+                            title: guideTitle,
+                            type: "trip_guide",
+                            priceCents,
+                            description: (text || "").slice(0, 4000),
+                            images: [coverUrl, ...media.map((m) => m.url)].filter(Boolean).slice(0, 6),
+                            linkedPostId: postId || undefined,
+                        });
+                        toast({ title: "Trip guide listed 🎉", description: `Live for sale at $${(priceCents / 100).toFixed(2)}.` });
+                    } catch (err) {
+                        const code = err?.response?.data?.error?.code || err?.response?.data?.code;
+                        if (code === "upgrade_required") {
+                            toast({ title: "Trip posted — upgrade to sell", description: "Selling needs a Homie ($15/mo) membership. Your trip is live free for now." });
+                        } else if (code === "no_store") {
+                            toast({ title: "Trip posted — open your store", description: "Open a store first, then list it for sale." });
+                        } else {
+                            toast({ title: "Trip posted, but listing failed", description: "You can list it later from your store.", variant: "destructive" });
+                        }
+                    }
+                } else {
+                    toast({ title: "Posted!", description: "Your trip post is live." });
+                }
                 onPostSuccess();
                 return;
             }
@@ -1562,6 +1599,11 @@ const TripForm = ({ onChange }) => {
     const [coverPreview, setCoverPreview] = useState(null);
     const coverInputRef = useRef(null);
     const [coverFile, setCoverFile] = useState(null);
+    // Photos attached to the trip (the "moments"). [{ file, preview }]
+    const [mediaFiles, setMediaFiles] = useState([]);
+    const mediaInputRef = useRef(null);
+    // Optional paid guide: blank/0 = free.
+    const [price, setPrice] = useState('');
 
 
     useEffect(() => {
@@ -1575,9 +1617,11 @@ const TripForm = ({ onChange }) => {
                 location,
                 hashtags,
                 coverFile,
+                mediaFiles: mediaFiles.map(m => m.file),
+                price,
             }
         });
-    }, [destinations, startDate, endDate, budget, location, hashtags, coverPreview]);
+    }, [destinations, startDate, endDate, budget, location, hashtags, coverPreview, mediaFiles, price]);
 
     const handleCoverFile = (file) => {
         if (!file) return;
@@ -1586,6 +1630,14 @@ const TripForm = ({ onChange }) => {
         setCoverFile(file);
         setCoverPreview(URL.createObjectURL(file));
     };
+
+    const handleAddMedia = (files) => {
+        const picked = Array.from(files || []).filter(f => f.type.startsWith("image/"));
+        if (!picked.length) return;
+        setMediaFiles(prev => [...prev, ...picked.map(f => ({ file: f, preview: URL.createObjectURL(f) }))].slice(0, 20));
+    };
+
+    const removeMedia = (idx) => setMediaFiles(prev => prev.filter((_, i) => i !== idx));
 
 
     const handleAddDestination = () => setDestinations([...destinations, { id: Math.random(), name: '' }]);
@@ -1619,6 +1671,40 @@ const TripForm = ({ onChange }) => {
                     </>
                 )}
                 <input ref={coverInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleCoverFile(e.target.files[0])} />
+            </div>
+
+            {/* Trip photos / moments */}
+            <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                    <Label className="text-foreground">Photos <span className="text-muted-foreground text-xs">(moments from the trip)</span></Label>
+                    <span className="text-xs text-muted-foreground">{mediaFiles.length}/20</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                    {mediaFiles.map((m, idx) => (
+                        <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-border group">
+                            <img src={m.preview} alt={`Trip photo ${idx + 1}`} className="w-full h-full object-cover" />
+                            <button
+                                type="button"
+                                onClick={() => removeMedia(idx)}
+                                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Remove photo"
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    ))}
+                    {mediaFiles.length < 20 && (
+                        <button
+                            type="button"
+                            onClick={() => mediaInputRef.current?.click()}
+                            className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
+                        >
+                            <PlusCircle className="h-5 w-5 mb-1" />
+                            <span className="text-[10px]">Add photos</span>
+                        </button>
+                    )}
+                </div>
+                <input ref={mediaInputRef} type="file" className="hidden" accept="image/*" multiple onChange={(e) => handleAddMedia(e.target.files)} />
             </div>
 
             <div className="space-y-3">
@@ -1674,6 +1760,27 @@ const TripForm = ({ onChange }) => {
                         </div>
                     ))}
                 </div>
+            </div>
+
+            {/* Monetize — sell this trip as a paid guide, or leave blank for free */}
+            <div className="rounded-xl border border-border p-3 bg-muted/20 space-y-2">
+                <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-primary" />
+                    <Label className="text-foreground">Sell as a guide <span className="text-muted-foreground text-xs font-normal">(optional)</span></Label>
+                </div>
+                <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Price in USD — leave blank to post FREE"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="bg-muted/50 text-foreground"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                    Set a price to lock the guide + photos behind a paywall. Buyers unlock it; you keep 70%.
+                    Selling needs a Homie membership + a store, and payouts connected in your Wallet.
+                </p>
             </div>
 
             <div className="space-y-2">
