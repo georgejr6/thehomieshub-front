@@ -135,6 +135,12 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-08-10 — Trip monetization + Stripe Connect payout onboarding
+- **[FEAT] Trip photos + pricing** (`PostModal.jsx` `TripForm`): multi-photo picker (moments) + optional price → creates a linked `trip_guide` product on post. Uploads via `/files/upload` (images only; video TODO via Mux).
+- **[FEAT] Trip paywall UI**: `TripView.jsx` rewritten — real photo gallery + locked state with "Unlock for $X" → `/marketplace/checkout`; removed mock timeline/follow stubs. `FeedItem.jsx` shows 🔒/✓ price badge on paid trip cards. `ContentContext.jsx` maps `locked`/`unlock`.
+- **[FEAT] PayoutConnect stepper** (`components/CreatorStudio/PayoutConnect.jsx`): status-aware Stripe Connect onboarding (status → connect-link redirect → dashboard-link). Surfaced on **Wallet → Creator Earnings** (`WalletPage.jsx`; removed the premium gate + mock payout dialog/history) and in `MonetizationTab.jsx` (replaced the fully-mocked localStorage flow with real dashboard stats).
+- **[NOTE]** Creator Studio route (`/creator-studio`) is still redirected to `/go-live` (App.jsx) — TripsTab/MonetizationTab there remain unreachable; monetization now lives in PostModal + Wallet.
+
 ### 2026-07-16 (session 9) — Revenue + Growth + At-risk + Alerts + helper tooltips
 - **[FEAT] Revenue page** (`AdminRevenue.jsx`, route `/admin/revenue`, sidebar Business → Wallet). Est. MRR (tier counts × price), paying members, one-off revenue (window + all-time), by-source bars, MRR-by-tier, daily revenue chart, recent transactions. Backend `GET /admin/revenue?days=` sums Order/VideoPurchase/SongLicense/IAPPurchase/Fundraiser from Mongo (subscription MRR estimated since amounts live in Stripe).
 - **[FEAT] Growth tab** (Analytics): DAU/WAU/MAU + stickiness, visitor→signup→paid funnel, daily-actives chart, landing→conversion table. Backend `GET /track/funnel`, `GET /track/actives` (+ existing `/track/landing`).
