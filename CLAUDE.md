@@ -135,6 +135,14 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-08-10 (later) — Creator Studio re-enabled + dedicated Trips module
+- **[STRUCTURE] Creator Studio live again** (`/creator-studio`, logged-in only). Refocused on content mgmt + analytics + engagement + ecommerce/prices. **Trips tab removed** (now its own module). Honors `?tab=` deep-links. Removed placeholder chart + mock comments from Overview.
+- **[FEAT] Homies Studio card** (`components/CreatorStudio/HomiesStudioCard.jsx`): preview of clip/edit features + button that opens `studio.thehomies.app` in a new tab (membership nudge; no hardcoded pricing).
+- **[FEAT] Trips module** (`pages/TripsPage.jsx`, route `/trips`; `/experiences`→`/trips`): dedicated experience builder — attach existing posts as moments (`/user/my-content`, photo posts) or add new photos / create post / go live; set price → trip_guide product. Backend `createTrip` accepts `attachedPostIds`.
+- **[NAV] Sidebar** "Earn" section: added Trips + Creator Studio (logged-in).
+- **[FIX] ContentContext** derives real trip title from first line of text (was always "Trip"); `TripView` strips the duplicate title line. `MonetizationTab` trips link → `/trips`.
+- Note: `components/CreatorStudio/TripsTab.jsx` is now unused (superseded by `/trips`).
+
 ### 2026-08-10 — Trip monetization + Stripe Connect payout onboarding
 - **[FEAT] Trip photos + pricing** (`PostModal.jsx` `TripForm`): multi-photo picker (moments) + optional price → creates a linked `trip_guide` product on post. Uploads via `/files/upload` (images only; video TODO via Mux).
 - **[FEAT] Trip paywall UI**: `TripView.jsx` rewritten — real photo gallery + locked state with "Unlock for $X" → `/marketplace/checkout`; removed mock timeline/follow stubs. `FeedItem.jsx` shows 🔒/✓ price badge on paid trip cards. `ContentContext.jsx` maps `locked`/`unlock`.
