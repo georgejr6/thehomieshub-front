@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import api from '@/api/homieshub';
+import CryptoUnlockButton from '@/components/CryptoUnlockButton';
 
 const usd = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
 
@@ -108,10 +109,13 @@ const TripView = ({ isOpen, onClose, post }) => {
             {unlock && (
               <div className="mt-auto pt-4 border-t border-white/10">
                 {locked ? (
-                  <Button className="w-full font-bold bg-primary text-black hover:bg-primary/90 gap-2" onClick={handleUnlock} disabled={unlocking}>
-                    {unlocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-                    Unlock guide — {usd(unlock.priceCents)}
-                  </Button>
+                  <div className="space-y-2">
+                    <Button className="w-full font-bold bg-primary text-black hover:bg-primary/90 gap-2" onClick={handleUnlock} disabled={unlocking}>
+                      {unlocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                      Unlock guide — {usd(unlock.priceCents)}
+                    </Button>
+                    <CryptoUnlockButton productId={unlock.productId} priceCents={unlock.priceCents} onSuccess={() => window.location.reload()} />
+                  </div>
                 ) : (
                   <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
                     <Check className="h-4 w-4" /> {isOwner ? 'Your paid guide' : 'Unlocked'}
@@ -154,10 +158,15 @@ const TripView = ({ isOpen, onClose, post }) => {
                     {' '}@{post.user.username}'s trip.
                   </p>
                 </div>
-                <Button className="gap-2" onClick={handleUnlock} disabled={unlocking}>
-                  {unlocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-                  Unlock for {usd(unlock?.priceCents)}
-                </Button>
+                <div className="w-full max-w-xs space-y-2">
+                  <Button className="w-full gap-2" onClick={handleUnlock} disabled={unlocking}>
+                    {unlocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                    Unlock for {usd(unlock?.priceCents)}
+                  </Button>
+                  {unlock?.productId && (
+                    <CryptoUnlockButton productId={unlock.productId} priceCents={unlock.priceCents} onSuccess={() => window.location.reload()} />
+                  )}
+                </div>
               </div>
             ) : photos.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-16 text-muted-foreground">
