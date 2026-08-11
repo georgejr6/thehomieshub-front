@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import algosdk from 'algosdk';
 import { Button } from '@/components/ui/button';
 import { Loader2, Coins, ExternalLink } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { useToast } from '@/components/ui/use-toast';
-import { algodClient, buildWagerPaymentTxn, getUSDCBalance } from '@/lib/algorand';
+import { buildUsdcTransfer, submitSignedTxnOn, getUSDCBalanceOn } from '@/lib/algorand';
 import api from '@/api/homieshub';
 
 // Transak onramp so a buyer with no crypto can buy USDC on Algorand.
@@ -50,17 +49,9 @@ const CryptoUnlockButton = ({ productId, priceCents, onSuccess, className }) => 
       const quote = q?.result;
       if (!quote?.payTo || !quote?.amountUsd) throw new Error('Could not get a price quote.');
 
-      // Safety: src/lib/algorand.js is pinned to TESTNET (asset id + node). If the
-      // backend has moved to mainnet, block rather than sign the wrong asset on
-      // the wrong network. Update src/lib/algorand.js before enabling mainnet.
-      if (quote.network && quote.network !== 'testnet') {
-        toast({ title: 'Crypto checkout unavailable', description: 'Card checkout still works — crypto is being finalized.', variant: 'destructive' });
-        setBusy(false);
-        return;
-      }
-
-      // 3) Make sure they actually hold enough USDC — otherwise route to onramp.
-      const bal = await getUSDCBalance(address);
+      // 3) Make sure they actually hold enough USDC on the quote's network —
+      //    otherwise route to onramp.
+      const bal = await getUSDCBalanceOn(quote.network, address);
       if (bal !== null && bal < quote.amountUsd) {
         toast({
           title: 'Not enough USDC',
@@ -71,17 +62,19 @@ const CryptoUnlockButton = ({ productId, priceCents, onSuccess, className }) => 
         return;
       }
 
-      // 4) Build + sign + submit the USDC transfer to the platform wallet.
+      // 4) Build + sign + submit the USDC transfer on the quote's network,
+      //    using the quote's asset id (mainnet-safe — follows the backend).
       toast({ title: 'Approve payment', description: 'Sign the USDC payment in Pera.' });
-      const txn = await buildWagerPaymentTxn({
-        senderAddress: address,
-        escrowAddress: quote.payTo,
+      const txn = await buildUsdcTransfer({
+        network: quote.network,
+        assetId: quote.assetId,
+        from: address,
+        to: quote.payTo,
         amountUSDC: quote.amountUsd,
         note: `buy:${productId}`,
       });
       const [[signed]] = await signTransactions([[{ txn, signers: [address] }]]);
-      const { txId } = await algodClient.sendRawTransaction(signed).do();
-      await algosdk.waitForConfirmation(algodClient, txId, 6);
+      const txId = await submitSignedTxnOn(quote.network, signed);
 
       // 5) Confirm with the backend (verifies on-chain, unlocks, pays seller).
       toast({ title: 'Confirming…', description: 'Unlocking your purchase.' });

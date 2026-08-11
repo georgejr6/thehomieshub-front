@@ -74,6 +74,51 @@ export const submitSignedTxn = async (signedTxn) => {
   return txId;
 };
 
+// ── Network-aware helpers (marketplace crypto checkout follows the backend
+// quote's network so a mainnet flip can't send the wrong asset). Wager code
+// keeps using the testnet constants above unchanged. ──────────────────────────
+const NODE_FOR = {
+  testnet: 'https://testnet-api.algonode.cloud',
+  mainnet: 'https://mainnet-api.algonode.cloud',
+};
+const USDC_FOR = { testnet: 10458941, mainnet: 31566704 };
+const netKey = (n) => (n === 'mainnet' ? 'mainnet' : 'testnet');
+
+export const algodClientFor = (network) => new algosdk.Algodv2('', NODE_FOR[netKey(network)], '');
+export const usdcAssetFor = (network) => USDC_FOR[netKey(network)];
+
+export const getUSDCBalanceOn = async (network, address) => {
+  try {
+    const info = await algodClientFor(network).accountInformation(address).do();
+    const asset = info['assets']?.find((a) => a['asset-id'] === usdcAssetFor(network));
+    return asset ? toUSDC(asset.amount) : 0;
+  } catch (err) {
+    console.error('Failed to fetch USDC balance:', err);
+    return null;
+  }
+};
+
+// Build a USDC transfer on a specific network, using the quote's asset id.
+export const buildUsdcTransfer = async ({ network, assetId, from, to, amountUSDC, note }) => {
+  const client = algodClientFor(network);
+  const params = await client.getTransactionParams().do();
+  return algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+    from,
+    to,
+    amount: toMicroUSDC(amountUSDC),
+    assetIndex: assetId ?? usdcAssetFor(network),
+    note: note ? new TextEncoder().encode(note) : undefined,
+    suggestedParams: params,
+  });
+};
+
+export const submitSignedTxnOn = async (network, signedTxn) => {
+  const client = algodClientFor(network);
+  const { txId } = await client.sendRawTransaction(signedTxn).do();
+  await algosdk.waitForConfirmation(client, txId, 4);
+  return txId;
+};
+
 // Shorten an Algorand address for display
 export const shortAddress = (address) => {
   if (!address) return '';
