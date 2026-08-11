@@ -204,6 +204,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
     { to: '/admin/users',        icon: Users,           label: 'Users' },
     { to: '/admin/content',      icon: FolderKanban,    label: 'Content' },
     { to: '/admin/monetization', icon: DollarSign,      label: 'Monetization' },
+    { to: '/admin/payouts',      icon: Wallet,          label: 'Payouts' },
     { to: '/admin/features',     icon: Settings,        label: 'Features' },
     { to: '/admin/invite',       icon: UserPlus,        label: 'Invite Users' },
   ];
