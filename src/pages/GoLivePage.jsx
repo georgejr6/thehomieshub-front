@@ -389,7 +389,7 @@ const GoLivePage = ({ onLoginRequest }) => {
         setIsCreatingStream(true);
         try {
             const streamMode = streamMethod === 'webcam' ? 'browser' : 'software';
-            const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce });
+            const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce, notifyFollowers });
             if (data.status) {
                 setStreamData({
                     url: data.result.rtmpUrl,
@@ -518,7 +518,7 @@ const GoLivePage = ({ onLoginRequest }) => {
             let streamId = liveStreamId;
             if (!isSaved) {
                 const streamMode = streamMethod === 'webcam' ? 'browser' : 'software';
-                const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce });
+                const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce, notifyFollowers });
                 if (!data.status) {
                     toast({ title: 'Error', description: data.message || 'Failed to create stream.', variant: 'destructive' });
                     setIsGoingLive(false);
