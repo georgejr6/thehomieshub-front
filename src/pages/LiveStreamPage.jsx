@@ -246,17 +246,23 @@ const LiveStreamPage = ({ onLoginRequest }) => {
     );
   }
 
-  // Stream ended but Mux is still rendering the replay — don't show a dead
-  // player or a stale months-old recording; tell the viewer it's processing.
+  // Stream ended without a ready replay — don't show a dead player or a stale
+  // months-old recording. If it ended recently the replay is likely still
+  // rendering on Mux; if it ended a while ago with no VOD, one was never
+  // recorded, so say so honestly instead of "check back" forever.
   if (stream.status === 'disabled' && (stream.vodProcessing || !stream.vodPlaybackId)) {
+    const endedMs = stream.endedAt ? (Date.now() - new Date(stream.endedAt).getTime()) : Infinity;
+    const stillRendering = endedMs < 15 * 60 * 1000; // <15min → probably processing
     return (
       <div className="h-screen w-full flex items-center justify-center bg-black text-white">
         <div className="flex flex-col items-center text-center gap-4 max-w-md px-6">
           <PlayCircle className="h-16 w-16 text-primary/50" />
           <h2 className="text-xl font-bold">This stream has ended</h2>
           <p className="text-white/50 text-sm">
-            @{username} ended the stream {formatAgo(stream.endedAt)}. The replay is still
-            processing — check back in a few minutes to watch it from the start.
+            @{username} ended the stream {formatAgo(stream.endedAt)}.{' '}
+            {stillRendering
+              ? 'The replay is still processing — check back in a few minutes to watch it from the start.'
+              : 'A replay isn’t available for this stream.'}
           </p>
           <Button variant="outline" onClick={() => navigate('/live')}>Browse Live Streams</Button>
         </div>
