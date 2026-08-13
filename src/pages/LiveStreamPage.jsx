@@ -61,14 +61,21 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   const [isGiftOpen, setIsGiftOpen] = useState(false);
   const [liveGiftEvent, setLiveGiftEvent] = useState(null);
 
-  // Player warm-up retry (max 6 attempts = ~30s)
+  // Player warm-up retry
   const [playerKey, setPlayerKey] = useState(1);
   const [isWarmingUp, setIsWarmingUp] = useState(false);
   const [playerGaveUp, setPlayerGaveUp] = useState(false);
   const retryTimerRef = useRef(null);
   const retryCountRef = useRef(0);
   const handlePlayerError = () => {
-    if (retryCountRef.current >= 6) {
+    // While the stream is still LIVE, transient LL-HLS errors (encoder hiccup,
+    // brief buffer underrun) are normal — keep retrying indefinitely behind a
+    // "warming up" overlay. Only permanently give up (show "unavailable") once
+    // the stream is NOT active, so a still-live broadcast never looks dead.
+    // This is what caused "error every few seconds → Stream unavailable"
+    // despite the stream never ending.
+    const stillLive = stream?.status === 'active';
+    if (!stillLive && retryCountRef.current >= 6) {
       setIsWarmingUp(false);
       setPlayerGaveUp(true);
       return;
@@ -81,6 +88,22 @@ const LiveStreamPage = ({ onLoginRequest }) => {
     }, 5000);
   };
   useEffect(() => () => clearTimeout(retryTimerRef.current), []);
+
+  // Current playback position of the VOD, so recorded chat can replay in sync.
+  const [vodTime, setVodTime] = useState(0);
+
+  // "3 minutes ago" style relative time for the ended-stream banner.
+  const formatAgo = (d) => {
+    if (!d) return '';
+    const secs = Math.max(0, Math.floor((Date.now() - new Date(d).getTime()) / 1000));
+    if (secs < 60) return 'just now';
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  };
 
   // Owner controls
   const isOwner = user && stream && user.username === stream.creator?.username;
@@ -223,7 +246,25 @@ const LiveStreamPage = ({ onLoginRequest }) => {
     );
   }
 
-  // Stream ended — show VOD recording
+  // Stream ended but Mux is still rendering the replay — don't show a dead
+  // player or a stale months-old recording; tell the viewer it's processing.
+  if (stream.status === 'disabled' && (stream.vodProcessing || !stream.vodPlaybackId)) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-black text-white">
+        <div className="flex flex-col items-center text-center gap-4 max-w-md px-6">
+          <PlayCircle className="h-16 w-16 text-primary/50" />
+          <h2 className="text-xl font-bold">This stream has ended</h2>
+          <p className="text-white/50 text-sm">
+            @{username} ended the stream {formatAgo(stream.endedAt)}. The replay is still
+            processing — check back in a few minutes to watch it from the start.
+          </p>
+          <Button variant="outline" onClick={() => navigate('/live')}>Browse Live Streams</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Stream ended — show VOD recording (replay ready)
   const isVod = stream.status === 'disabled' && stream.vodPlaybackId;
 
   return (
@@ -245,8 +286,9 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                   key={playerKey}
                   streamType={isVod ? "on-demand" : "ll-live"}
                   playbackId={isVod ? stream.vodPlaybackId : stream.playbackId}
-                  autoPlay
+                  autoPlay={isVod ? "muted" : true}
                   muted={false}
+                  onTimeUpdate={isVod ? (e) => setVodTime(e?.target?.currentTime || 0) : undefined}
                   // BUG FIX: forcing aspectRatio:'16/9' here fought the parent's
                   // width/height:100% sizing and the player's own object-contain
                   // fit, making vertical (portrait) broadcasts render tiny and
@@ -421,6 +463,13 @@ const LiveStreamPage = ({ onLoginRequest }) => {
               </div>
             </div>
 
+            {isVod && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-white/50">
+                <PlayCircle className="h-3.5 w-3.5 text-white/40" />
+                <span>This stream ended {formatAgo(stream.endedAt)} — you're watching the replay from the start.</span>
+              </div>
+            )}
+
             {stream.description && (
               <p className="text-white/40 text-sm mt-3 line-clamp-2">{stream.description}</p>
             )}
@@ -429,14 +478,24 @@ const LiveStreamPage = ({ onLoginRequest }) => {
 
         {/* ── RIGHT: Live Chat ── */}
         <aside className="w-full lg:w-[340px] h-[45vh] lg:h-screen shrink-0 border-t lg:border-t-0 lg:border-l border-white/5">
-          <LiveChat
-            streamId={String(stream._id || stream.id)}
-            isCollapsible
-            onGiftMessage={(msg) => {
-              setLiveGiftEvent(msg);
-              setTimeout(() => setLiveGiftEvent(null), 3500);
-            }}
-          />
+          {isVod ? (
+            <LiveChat
+              streamId={String(stream._id || stream.id)}
+              isCollapsible
+              replay
+              replaySeconds={vodTime}
+              streamStartMs={stream.streamStartedAt ? new Date(stream.streamStartedAt).getTime() : null}
+            />
+          ) : (
+            <LiveChat
+              streamId={String(stream._id || stream.id)}
+              isCollapsible
+              onGiftMessage={(msg) => {
+                setLiveGiftEvent(msg);
+                setTimeout(() => setLiveGiftEvent(null), 3500);
+              }}
+            />
+          )}
         </aside>
       </div>
 

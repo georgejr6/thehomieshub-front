@@ -9,7 +9,7 @@ import api from '@/api/homieshub';
 
 const WS_BASE = import.meta.env.VITE_WS_URL || 'wss://backend.thehomies.app';
 
-export default function LiveChat({ streamId, isCollapsible = true, className, onGiftMessage }) {
+export default function LiveChat({ streamId, isCollapsible = true, className, onGiftMessage, replay = false, replaySeconds = 0, streamStartMs = null }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -54,17 +54,18 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
     });
   }, []);
 
-  // Load chat history once on mount
+  // Load chat history once on mount. In replay mode, pull the FULL recorded
+  // log (?replay=1) instead of just the live tail.
   useEffect(() => {
     if (!streamId || historyLoadedRef.current) return;
     historyLoadedRef.current = true;
-    api.get(`/live/${streamId}/chat`)
+    api.get(`/live/${streamId}/chat${replay ? '?replay=1' : ''}`)
       .then(({ data }) => {
         const history = data?.result?.messages || [];
         if (history.length) setMessages(history);
       })
       .catch(() => {});
-  }, [streamId]);
+  }, [streamId, replay]);
 
   const connect = useCallback(() => {
     if (!streamId) return;
@@ -112,13 +113,23 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
   }, [streamId, addMessage]);
 
   useEffect(() => {
+    if (replay) return; // VOD replay is read-only — no live socket
     connect();
     return () => {
       clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [connect]);
+  }, [connect, replay]);
+
+  // In replay mode, only reveal messages up to the VOD's current playback
+  // position, so the recorded chat plays back in sync with the video.
+  const visibleMessages = (replay && streamStartMs)
+    ? messages.filter((m) => {
+        const t = new Date(m.timestamp).getTime();
+        return Number.isNaN(t) ? true : (t - streamStartMs) <= replaySeconds * 1000;
+      })
+    : messages;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -146,9 +157,15 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-sm">Live Chat</h2>
-          <span className="text-xs text-white/40 bg-white/5 rounded px-1.5 py-0.5">{viewerCount.toLocaleString()} watching</span>
-          <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-green-500" : "bg-white/20")} title={connected ? "Connected" : "Connecting..."} />
+          <h2 className="font-semibold text-sm">{replay ? 'Chat Replay' : 'Live Chat'}</h2>
+          {replay ? (
+            <span className="text-xs text-white/40 bg-white/5 rounded px-1.5 py-0.5">recorded</span>
+          ) : (
+            <>
+              <span className="text-xs text-white/40 bg-white/5 rounded px-1.5 py-0.5">{viewerCount.toLocaleString()} watching</span>
+              <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-green-500" : "bg-white/20")} title={connected ? "Connected" : "Connecting..."} />
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -168,10 +185,12 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 min-h-0">
-        {messages.length === 0 && (
-          <p className="text-white/20 text-xs text-center pt-8">Chat is empty. Be the first to say something!</p>
+        {visibleMessages.length === 0 && (
+          <p className="text-white/20 text-xs text-center pt-8">
+            {replay ? 'No chat was recorded for this stream.' : 'Chat is empty. Be the first to say something!'}
+          </p>
         )}
-        {messages.map((msg, i) => {
+        {visibleMessages.map((msg, i) => {
 
           // User joined
           if (msg.type === 'join') {
@@ -248,7 +267,9 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/5 shrink-0">
-        {user ? (
+        {replay ? (
+          <p className="text-white/30 text-xs text-center py-2">Chat replay — messages play back with the recording</p>
+        ) : user ? (
           <form onSubmit={sendChat} className="flex gap-2">
             <Input
               value={input}

@@ -172,6 +172,16 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [connectionWarning, setConnectionWarning] = useState(null); // null | 'checking' | 'ok' | 'failed'
     const muxCheckRef = useRef(null);
 
+    // Detect a VIRTUAL camera (OBS Virtual Cam, ManyCam, Snap Camera, etc.)
+    // selected in Direct Webcam mode. Piping a virtual cam through the browser
+    // → MediaRecorder → server ffmpeg bridge is exactly the setup that freezes
+    // and drops (scene changes don't propagate, viewers see a frozen frame).
+    // If someone's on OBS they should use Streaming Software mode — direct
+    // RTMP into Mux — so we surface a clear steer instead of a silent freeze.
+    const VIRTUAL_CAM_RE = /obs|virtual|lsvcam|manycam|snap\s?camera|xsplit|droidcam|ndi|vcam/i;
+    const selectedCam = videoDevices.find((d) => d.deviceId === selectedVideoDeviceId);
+    const usingVirtualCam = streamMethod === 'webcam' && cameraEnabled && VIRTUAL_CAM_RE.test(selectedCam?.label || '');
+
     // Admin-only features
     const isAdmin = user?.email === 'forthehomies96@gmail.com';
     const [donationBotEnabled, setDonationBotEnabled] = useState(false);
@@ -739,6 +749,21 @@ const GoLivePage = ({ onLoginRequest }) => {
                             {/* METHOD: WEBCAM */}
                             {streamMethod === 'webcam' && (
                                 <div className="w-full max-w-5xl space-y-4">
+                                    {/* Virtual-camera steer — OBS/etc. through the browser bridge freezes */}
+                                    {usingVirtualCam && !isLive && (
+                                        <Alert className="bg-red-950/40 border-red-800/60">
+                                            <AlertCircle className="h-4 w-4 text-red-400" />
+                                            <AlertTitle className="text-red-300">You're using a virtual camera ({selectedCam?.label || 'OBS'})</AlertTitle>
+                                            <AlertDescription className="text-red-300/80 text-xs mt-1">
+                                                Streaming a virtual camera (OBS, ManyCam, etc.) through Direct Webcam is unstable — the video freezes and scene changes won't reach viewers. For OBS/Streamlabs, switch to <strong>Streaming Software</strong> mode and paste the RTMP key directly into OBS for a rock-solid stream.
+                                                <div className="mt-2">
+                                                    <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/50 text-red-300 hover:bg-red-500/10" onClick={() => setStreamMethod('software')}>
+                                                        Switch to Streaming Software
+                                                    </Button>
+                                                </div>
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
                                     {/* Video Container */}
                                     <div className="relative aspect-video bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl border border-white/10 group ring-1 ring-white/5">
                                         {/* Status Indicators */}
