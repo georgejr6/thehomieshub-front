@@ -129,6 +129,11 @@ const GoLivePage = ({ onLoginRequest }) => {
     const [liveStreamId, setLiveStreamId] = useState(null);
     const [isCreatingStream, setIsCreatingStream] = useState(false);
     const [isGoingLive, setIsGoingLive] = useState(false);
+    // True while we've started broadcasting but are still waiting for Mux to
+    // CONFIRM it's actually receiving video. We no longer flip straight to
+    // "ON AIR" off the local preview — that was the bug that showed the creator
+    // "You are Live" while viewers sat on "Stream Starting Soon".
+    const [isConfirmingLive, setIsConfirmingLive] = useState(false);
     const [softwareStreamStatus, setSoftwareStreamStatus] = useState('idle'); // 'idle' | 'active'
     const [softwarePlaybackId, setSoftwarePlaybackId] = useState(null);
     const pollRef = useRef(null);
@@ -554,36 +559,56 @@ const GoLivePage = ({ onLoginRequest }) => {
                 if (!ok) { setIsGoingLive(false); return; }
             }
 
-            // Tell the backend we're live → triggers follower email notifications
+            // Tell the backend we're broadcasting → Discord/follower notifications
             if (streamId) {
                 await api.post(`/live/${streamId}/go-live`);
             }
 
-            setIsLive(true);
-            toast({ title: "🔴 You are Live!", description: "Broadcasting started successfully.", className: "bg-red-600 text-white border-none" });
-
-            // Verify Mux is actually receiving video — check at 12s and 24s
-            const capturedStreamId = streamId;
+            // DO NOT claim "live" yet. Poll Mux until it confirms it's actually
+            // receiving video, THEN flip to ON AIR. This is the honest signal:
+            // if Mux never goes active, the creator sees a clear failure instead
+            // of a false "You are Live" while viewers are stuck on the setup
+            // screen. (Mux ingest usually confirms within a few seconds.)
+            setIsGoingLive(false);
+            setIsConfirmingLive(true);
             setConnectionWarning('checking');
-            const check = async () => {
+
+            const capturedStreamId = streamId;
+            const startedAt = Date.now();
+            const CONFIRM_TIMEOUT_MS = 30000;
+            const confirm = async () => {
                 try {
                     const { data } = await api.get(`/live/${capturedStreamId}/mux-status`);
                     if (data.result?.muxStatus === 'active') {
+                        if (muxCheckRef.current) { clearInterval(muxCheckRef.current); muxCheckRef.current = null; }
+                        setIsConfirmingLive(false);
+                        setIsLive(true);
                         setConnectionWarning('ok');
-                    } else {
-                        setConnectionWarning('failed');
-                        toast({
-                            title: 'Connection issue detected',
-                            description: 'Mux is not receiving your video. Viewers cannot see the stream. Try ending and restarting, or use OBS/software mode.',
-                            variant: 'destructive',
-                            duration: 12000,
-                        });
+                        toast({ title: "🔴 You are Live!", description: "Confirmed — viewers can now see your stream.", className: "bg-red-600 text-white border-none" });
+                        return;
                     }
-                } catch (_) {}
+                } catch (_) { /* transient — keep polling until the deadline */ }
+
+                if (Date.now() - startedAt > CONFIRM_TIMEOUT_MS) {
+                    if (muxCheckRef.current) { clearInterval(muxCheckRef.current); muxCheckRef.current = null; }
+                    setIsConfirmingLive(false);
+                    setConnectionWarning('failed');
+                    // Tear down the failed pipeline so a retry starts clean.
+                    if (mediaRecorderRef.current) { try { mediaRecorderRef.current.stop(); } catch (_) {} mediaRecorderRef.current = null; }
+                    if (broadcastWsRef.current) { broadcastWsRef.current.close(); broadcastWsRef.current = null; }
+                    toast({
+                        title: 'Could not confirm your stream',
+                        description: 'Mux never received your video after 30s, so you are NOT live. Check your connection and try again, or use OBS / Streaming Software mode.',
+                        variant: 'destructive',
+                        duration: 14000,
+                    });
+                }
             };
-            muxCheckRef.current = setTimeout(check, 12000);
+            muxCheckRef.current = setInterval(confirm, 3000);
+            confirm(); // fire once immediately in case Mux is already active
         } catch (err) {
             toast({ title: 'Failed to go live', description: err.message || 'Something went wrong. Try again.', variant: 'destructive' });
+            setIsConfirmingLive(false);
         } finally {
             setIsGoingLive(false);
         }
@@ -591,8 +616,9 @@ const GoLivePage = ({ onLoginRequest }) => {
 
     const handleEndStream = async () => {
         setIsLive(false);
+        setIsConfirmingLive(false);
         setConnectionWarning(null);
-        if (muxCheckRef.current) { clearTimeout(muxCheckRef.current); muxCheckRef.current = null; }
+        if (muxCheckRef.current) { clearInterval(muxCheckRef.current); muxCheckRef.current = null; }
         setUsingFallback(false);
         setDonationBotEnabled(false);
         if (donationBotRef.current) { clearInterval(donationBotRef.current); donationBotRef.current = null; }
@@ -651,16 +677,16 @@ const GoLivePage = ({ onLoginRequest }) => {
                 </header>
 
                 {/* Connection warning banner */}
-                {isLive && connectionWarning === 'checking' && (
+                {(isLive || isConfirmingLive) && connectionWarning === 'checking' && (
                     <div className="bg-yellow-500/10 border-b border-yellow-500/30 px-4 py-2 flex items-center gap-2 text-yellow-400 text-sm">
                         <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                        Verifying viewers can see your stream…
+                        Connecting… waiting for Mux to confirm viewers can see your stream. You are not live yet.
                     </div>
                 )}
-                {isLive && connectionWarning === 'failed' && (
+                {connectionWarning === 'failed' && (
                     <div className="bg-red-500/10 border-b border-red-500/40 px-4 py-2 flex items-center gap-2 text-red-400 text-sm">
                         <ShieldX className="h-3.5 w-3.5 shrink-0" />
-                        <span><strong>Viewers cannot see you.</strong> Your video is not reaching Mux. End the stream and try again, or switch to OBS/software mode.</span>
+                        <span><strong>Not live — viewers cannot see you.</strong> Your video is not reaching Mux. Try again, or switch to OBS/software mode.</span>
                     </div>
                 )}
                 {isLive && connectionWarning === 'ok' && (
@@ -846,10 +872,10 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                     <Button
                                                         size="lg"
                                                         onClick={handleGoLive}
-                                                        disabled={isGoingLive}
+                                                        disabled={isGoingLive || isConfirmingLive}
                                                         className="font-bold text-lg shadow-xl min-w-[160px] bg-[#FE2C55] hover:bg-[#FE2C55]/90"
                                                     >
-                                                        {isGoingLive ? <Loader2 className="h-5 w-5 animate-spin" /> : 'GO LIVE'}
+                                                        {isGoingLive ? <Loader2 className="h-5 w-5 animate-spin" /> : isConfirmingLive ? <span className="flex items-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Connecting…</span> : 'GO LIVE'}
                                                     </Button>
                                                 </div>
                                             )}
@@ -862,10 +888,10 @@ const GoLivePage = ({ onLoginRequest }) => {
                                         <Button
                                             size="lg"
                                             onClick={handleGoLive}
-                                            disabled={isGoingLive}
+                                            disabled={isGoingLive || isConfirmingLive}
                                             className="sm:hidden w-full h-14 font-bold text-xl shadow-xl bg-[#FE2C55] hover:bg-[#FE2C55]/90"
                                         >
-                                            {isGoingLive ? <Loader2 className="h-6 w-6 animate-spin" /> : '🔴 GO LIVE'}
+                                            {isGoingLive ? <Loader2 className="h-6 w-6 animate-spin" /> : isConfirmingLive ? <span className="flex items-center gap-2"><Loader2 className="h-6 w-6 animate-spin" /> Connecting…</span> : '🔴 GO LIVE'}
                                         </Button>
                                     )}
 
