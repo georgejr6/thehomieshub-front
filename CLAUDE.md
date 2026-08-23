@@ -135,6 +135,9 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-08-23 — Admin panel for the announcement banner
+- **`src/pages/admin/AdminBanners.jsx`** (new), wired at `/admin/banners` (`src/App.jsx`) + sidebar entry (`src/pages/admin/AdminLayout.jsx`): create/pause/delete the in-app top-of-feed banner against `homieshub-backend`'s `/api/admin/banners` CRUD — style, audience (all/free/paid), optional CTA + auto-expire. Only one banner is ever live; creating a new one pauses the current one.
+
 ### 2026-08-10 (later) — Creator Studio re-enabled + dedicated Trips module
 - **[STRUCTURE] Creator Studio live again** (`/creator-studio`, logged-in only). Refocused on content mgmt + analytics + engagement + ecommerce/prices. **Trips tab removed** (now its own module). Honors `?tab=` deep-links. Removed placeholder chart + mock comments from Overview.
 - **[FEAT] Homies Studio card** (`components/CreatorStudio/HomiesStudioCard.jsx`): preview of clip/edit features + button that opens `studio.thehomies.app` in a new tab (membership nudge; no hardcoded pricing).
