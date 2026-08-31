@@ -15,10 +15,7 @@ import ExplorePage from '@/pages/ExplorePage';
 import SubscriptionsPage from '@/pages/SubscriptionsPage';
 import SearchResultsPage from '@/pages/SearchResultsPage';
 import UserProfilePage from '@/pages/UserProfilePage';
-import GoLivePage from '@/pages/GoLivePage';
-import LiveStreamPage from '@/pages/LiveStreamPage';
-import LivePage from '@/pages/LivePage';
-import VodPage from '@/pages/VodPage';
+import LiveComingSoon from '@/components/LiveComingSoon';
 import LibraryPage from '@/pages/LibraryPage';
 // Re-enabled 2026-08-10 -- Creator Studio (content mgmt + analytics + ecommerce) is live again.
 import CreatorStudioPage from '@/pages/CreatorStudioPage';
@@ -399,11 +396,12 @@ const AppContent = React.memo(() => {
                 home instead of 404ing so old bookmarks/links don't break oddly. Reserved for when
                 it's actually fixed -- don't re-enable without addressing those two issues first. */}
             <Route path="/studio" element={<Navigate to="/" />} />
-            <Route path="/studio/stream" element={user ? <GoLivePage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />} />
-
-            {/* Go Live — standalone page (has its own header, no sidebar) */}
+            {/* Live streaming paused 2026-08-15 (George) -- music is the priority right now,
+                broadcasting stays gated behind a Coming Soon notice until it's reworked.
+                GoLivePage itself is untouched, just not routed to. */}
+            <Route path="/studio/stream" element={user ? <LiveComingSoon /> : <Navigate to="/" />} />
             <Route path="/go-live" element={
-                user ? <GoLivePage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />
+                user ? <LiveComingSoon /> : <Navigate to="/" />
             } />
 
             {/* Standalone payment page for the mobile app's in-app browser sheet
@@ -459,23 +457,11 @@ const AppContent = React.memo(() => {
                     </FeatureGuard>
                 } />
                 
-                <Route path="/live" element={
-                    <FeatureGuard feature="live_streaming">
-                        <LivePage onLoginRequest={handleLoginRequest} />
-                    </FeatureGuard>
-                } />
-                
-                <Route path="/live-stream/:username" element={
-                    <FeatureGuard feature="live_streaming">
-                        <LiveStreamPage onLoginRequest={handleLoginRequest} />
-                    </FeatureGuard>
-                } />
+                <Route path="/live" element={<LiveComingSoon />} />
 
-                <Route path="/vod/:streamId" element={
-                    <FeatureGuard feature="live_streaming">
-                        <VodPage />
-                    </FeatureGuard>
-                } />
+                <Route path="/live-stream/:username" element={<LiveComingSoon />} />
+
+                <Route path="/vod/:streamId" element={<LiveComingSoon />} />
 
                 <Route path="/library" element={
                     <FeatureGuard feature="library">
