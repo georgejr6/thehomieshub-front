@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Mic, Bot, Sparkles, ChevronLeft, StopCircle, HelpCircle, ArrowRight, Lock, Crown, Compass, MapPin, ExternalLink, Mail, Check } from 'lucide-react';
+import { Mic, Bot, Sparkles, ChevronLeft, StopCircle, HelpCircle, ArrowRight, Lock, Crown, Compass, MapPin, ExternalLink, Mail, Check, Scissors, Wallet, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '@/api/homieshub';
+import { createClipJob, getClipJob } from '@/api/aiClips';
 
 const FREE_LIMIT = 3;
 
@@ -42,7 +44,37 @@ const BOTS = {
       'Hidden gems in Lisbon',
     ],
   },
+  clip: {
+    key: 'clip',
+    name: 'Clip It',
+    tag: 'Paste a Link · Get a Clip',
+    icon: Scissors,
+    accent: '#a78bfa', // violet
+    // Not a plain text proxy like the other two bots -- URL-paste messages
+    // in this thread are handled by handleClipMessage() below, which calls
+    // POST /api/ai/clip via src/api/aiClips.js instead of hitting `endpoint`.
+    endpoint: null,
+    bubbles: [
+      'Paste a YouTube link to clip',
+      'Paste a TikTok link to clip',
+      'Paste an Instagram Reel link to clip',
+    ],
+  },
 };
+
+// URL-paste detection for the clip thread -- deliberately simple per the
+// current scope (URL-paste only; drag-and-drop upload and instruction
+// passthrough are later phases).
+const isLikelyUrl = (text) => /^https?:\/\//i.test(String(text || '').trim());
+
+const CLIP_STATUS_LABEL = {
+  queued: 'Queued',
+  processing: 'Processing',
+  done: 'Done',
+  error: 'Failed',
+  expired: 'Expired',
+};
+const CLIP_TERMINAL_STATUSES = ['done', 'error', 'expired'];
 
 const cutOffResponse = (text) => {
   const words = String(text || '').split(' ');
@@ -117,6 +149,9 @@ const greetingFor = (bot, user, isUnlimited) => {
   if (bot.key === 'directorybro') {
     return `Hey${user?.name ? ` ${user.name}` : ''} — I'm DirectoryBro. Tell me where you want to go and your budget, and I'll plan the trip, find flights, and surface the best-value spots.`;
   }
+  if (bot.key === 'clip') {
+    return `Hey${user?.name ? ` ${user.name}` : ''} — paste a video link (YouTube, TikTok, Instagram, etc.) and I'll turn it into a clip. It's billed straight from your wallet points, no subscription needed.`;
+  }
   return isUnlimited
     ? `What's good${user?.name ? ` ${user.name}` : ''}. Ask me anything about the community, memberships, or travel.`
     : user
@@ -139,6 +174,7 @@ const MyAIPage = () => {
   const [threads, setThreads] = useState(() => ({
     homies: [{ id: 1, sender: 'ai', content: greetingFor(BOTS.homies, user, isUnlimited) }],
     directorybro: [{ id: 1, sender: 'ai', content: greetingFor(BOTS.directorybro, user, isUnlimited) }],
+    clip: [{ id: 1, sender: 'ai', content: greetingFor(BOTS.clip, user, isUnlimited) }],
   }));
   const messages = threads[activeBot];
   const setMessages = (updater) =>
@@ -172,14 +208,103 @@ const MyAIPage = () => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [threads, activeBot, isProcessing]);
 
+  // --- Clip thread: polling for in-flight clip_job cards -------------------
+  // Keyed by chat message id (a thread can hold multiple clip jobs), tracked
+  // outside React state so re-renders don't lose the interval handles.
+  const clipPollTimersRef = useRef({});
+
+  useEffect(() => {
+    // Clear every live poll on unmount (per-message timers are also cleared
+    // individually the moment a job reaches a terminal status).
+    const timers = clipPollTimersRef.current;
+    return () => { Object.values(timers).forEach(clearInterval); };
+  }, []);
+
+  const stopClipPolling = (msgId) => {
+    if (clipPollTimersRef.current[msgId]) {
+      clearInterval(clipPollTimersRef.current[msgId]);
+      delete clipPollTimersRef.current[msgId];
+    }
+  };
+
+  const patchClipJobMessage = (msgId, clipJobPatch) => {
+    setThreads(prev => ({
+      ...prev,
+      clip: prev.clip.map(m =>
+        m.id === msgId ? { ...m, clipJob: { ...m.clipJob, ...clipJobPatch } } : m
+      ),
+    }));
+  };
+
+  const pollClipJob = (msgId, jobId) => {
+    stopClipPolling(msgId);
+    clipPollTimersRef.current[msgId] = setInterval(async () => {
+      try {
+        const data = await getClipJob(jobId);
+        if (data?.status && data.result?.clipJob) {
+          patchClipJobMessage(msgId, data.result.clipJob);
+          if (CLIP_TERMINAL_STATUSES.includes(data.result.clipJob.status)) stopClipPolling(msgId);
+        }
+      } catch {
+        /* transient error -- next tick retries; server poller is source of truth */
+      }
+    }, 7000);
+  };
+
+  const handleClipMessage = async (text) => {
+    if (!isLikelyUrl(text)) {
+      setThreads(prev => ({
+        ...prev,
+        clip: [...prev.clip, {
+          id: Date.now() + 1, sender: 'ai',
+          content: "Paste a video link to get started — drop a YouTube, TikTok, or Instagram URL and I'll clip it for you.",
+        }],
+      }));
+      return;
+    }
+
+    setIsProcessing(true);
+    const msgId = Date.now() + 1;
+    try {
+      const data = await createClipJob({ inputUrl: text, config: {} });
+      if (data?.status && data.result?.clipJob) {
+        setThreads(prev => ({ ...prev, clip: [...prev.clip, { id: msgId, sender: 'ai', type: 'clip_job', clipJob: data.result.clipJob }] }));
+        if (!CLIP_TERMINAL_STATUSES.includes(data.result.clipJob.status)) pollClipJob(msgId, data.result.clipJob._id);
+      } else if (data?.error?.reason === 'insufficient_balance') {
+        setThreads(prev => ({ ...prev, clip: [...prev.clip, { id: msgId, sender: 'system', type: 'wall', walletMessage: data.message }] }));
+      } else {
+        setThreads(prev => ({ ...prev, clip: [...prev.clip, { id: msgId, sender: 'ai', content: "Couldn't start that clip job. Try again in a sec." }] }));
+      }
+    } catch (err) {
+      const payload = err?.response?.data;
+      if (payload?.error?.reason === 'insufficient_balance') {
+        setThreads(prev => ({ ...prev, clip: [...prev.clip, { id: msgId, sender: 'system', type: 'wall', walletMessage: payload.message }] }));
+      } else {
+        setThreads(prev => ({ ...prev, clip: [...prev.clip, { id: msgId, sender: 'ai', content: "Couldn't reach the clip service right now. Try again in a sec." }] }));
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e?.preventDefault();
     const text = inputValue.trim();
-    if (!text || isBlocked || isProcessing) return;
+    // Free-question gating (below) is a subscription wall for the text bots --
+    // the clip bot is pay-per-use against wallet points instead, so it's
+    // never subject to it (that's the whole point of routing clips through
+    // the wallet rather than a Studio-subscriber gate).
+    if (!text || (isBlocked && activeBot !== 'clip') || isProcessing) return;
 
     const thread = threads[activeBot];
     setMessages(prev => [...prev, { id: Date.now(), sender: 'user', content: text }]);
     setInputValue('');
+
+    if (activeBot === 'clip') {
+      await handleClipMessage(text);
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -237,7 +362,7 @@ const MyAIPage = () => {
   };
 
   const handleBubbleClick = (text) => {
-    if (isBlocked) return;
+    if (isBlocked && activeBot !== 'clip') return;
     setInputValue(text);
     if (inputRef.current) inputRef.current.focus();
   };
@@ -271,6 +396,65 @@ const MyAIPage = () => {
     );
   };
 
+  // Structural cousin of renderPlaceResults()'s card grid, adapted for a
+  // single clip_job: thumbnail, status label, progress bar, and (once done)
+  // a "View in My Clips" action styled like emailTripPlan()'s stateful pill
+  // button plus a plain "Save to device" download link.
+  const renderClipJobCard = (msg) => {
+    const job = msg.clipJob || {};
+    const status = job.status || 'queued';
+    const pct = status === 'done' ? 100 : Math.max(0, Math.min(100, job.progressPct || 0));
+    const isTerminal = CLIP_TERMINAL_STATUSES.includes(status);
+
+    return (
+      <div className="mt-3 rounded-xl bg-black/40 border border-white/10 p-3 text-left max-w-xs">
+        <div className="aspect-video w-full rounded-lg overflow-hidden bg-zinc-800 border border-white/10 flex items-center justify-center mb-3">
+          {job.thumbnailUrl ? (
+            <img src={job.thumbnailUrl} alt="Clip thumbnail" className="w-full h-full object-cover" />
+          ) : (
+            <Scissors className="h-8 w-8 text-zinc-600" />
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className={cn(
+            "text-xs font-semibold uppercase tracking-wide",
+            status === 'error' ? 'text-red-400' : status === 'done' ? 'text-emerald-400' : 'text-zinc-300'
+          )}>
+            {CLIP_STATUS_LABEL[status] || status}
+          </span>
+          {!isTerminal && <span className="text-[11px] text-zinc-500">{Math.round(pct)}%</span>}
+        </div>
+        {!isTerminal && <Progress value={pct} className="h-2" />}
+        {status === 'error' && (
+          <p className="text-xs text-red-400/80 mt-1">Something went wrong — your points were refunded.</p>
+        )}
+        {status === 'expired' && (
+          <p className="text-xs text-zinc-500 mt-1">This clip has expired.</p>
+        )}
+        {status === 'done' && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <button
+              onClick={() => navigate(`/clips/${job._id}`)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 border transition-colors disabled:opacity-70"
+              style={{ color: bot.accent, borderColor: `${bot.accent}55`, background: `${bot.accent}14` }}
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> View in My Clips
+            </button>
+            {job.resultUrl && (
+              <a
+                href={job.resultUrl}
+                download
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-300 hover:text-white"
+              >
+                <Download className="h-3.5 w-3.5" /> Save to device
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderMessage = (msg) => {
     if (msg.sender === 'system' && msg.type === 'warning') {
       return (
@@ -286,6 +470,10 @@ const MyAIPage = () => {
     }
 
     if (msg.sender === 'system' && msg.type === 'wall') {
+      // Two flavors of the same wall card: the free-question subscription
+      // wall (other bots) vs. the insufficient-wallet-balance wall (clip
+      // bot) -- distinguished by whether this message carries walletMessage.
+      const isWalletWall = !!msg.walletMessage || typeof msg.walletMessage === 'string';
       return (
         <motion.div key={msg.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex justify-center">
           <div className="max-w-sm w-full bg-zinc-900 border border-amber-500/50 rounded-2xl p-6 flex flex-col items-center gap-4 text-center shadow-[0_0_30px_rgba(240,185,77,0.1)]">
@@ -293,10 +481,38 @@ const MyAIPage = () => {
               <Lock className="h-5 w-5 text-amber-400" />
             </div>
             <div>
-              <p className="text-white font-semibold mb-1">You've used your free questions</p>
-              <p className="text-zinc-400 text-sm">Upgrade to a membership for unlimited AI access, exclusive content, and community perks.</p>
+              <p className="text-white font-semibold mb-1">{isWalletWall ? 'Not enough points' : "You've used your free questions"}</p>
+              <p className="text-zinc-400 text-sm">
+                {isWalletWall
+                  ? (msg.walletMessage || 'Not enough points to clip this.')
+                  : 'Upgrade to a membership for unlimited AI access, exclusive content, and community perks.'}
+              </p>
             </div>
-            <UpgradeButton />
+            {isWalletWall ? (
+              <Link to="/wallet">
+                <Button className="bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black font-bold gap-2 shadow-[0_0_16px_rgba(240,185,77,0.4)]">
+                  <Wallet className="h-4 w-4" />
+                  Add Points
+                </Button>
+              </Link>
+            ) : (
+              <UpgradeButton />
+            )}
+          </div>
+        </motion.div>
+      );
+    }
+
+    if (msg.sender === 'ai' && msg.type === 'clip_job') {
+      return (
+        <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-4">
+          <Avatar className="h-9 w-9 border border-white/10 shrink-0" style={{ background: `${bot.accent}1a` }}>
+            <Scissors className="h-5 w-5" style={{ color: bot.accent }} />
+            <AvatarFallback>AI</AvatarFallback>
+          </Avatar>
+          <div className="p-4 rounded-2xl max-w-[85%] md:max-w-[70%] bg-zinc-900 border border-white/10 text-zinc-100 rounded-tl-none shadow-lg">
+            <p className="text-sm md:text-base">Got it — clipping that now.</p>
+            {renderClipJobCard(msg)}
           </div>
         </motion.div>
       );
@@ -395,7 +611,7 @@ const MyAIPage = () => {
         </ScrollArea>
 
         {/* Predictive bubbles */}
-        {!isBlocked && (
+        {(!isBlocked || activeBot === 'clip') && (
           <div className="relative z-20 px-4 py-2 bg-gradient-to-t from-black via-black/90 to-transparent">
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               {bot.bubbles.map((text, i) => (
@@ -417,7 +633,7 @@ const MyAIPage = () => {
 
         {/* Input */}
         <div className="p-4 bg-black border-t border-white/10">
-          {isBlocked ? (
+          {isBlocked && activeBot !== 'clip' ? (
             <div className="max-w-3xl mx-auto flex items-center justify-center gap-4 py-1">
               <p className="text-zinc-500 text-sm">Free questions used up.</p>
               <UpgradeButton size="sm" />
@@ -440,9 +656,11 @@ const MyAIPage = () => {
                   placeholder={
                     activeBot === 'directorybro'
                       ? 'Where to? Add your budget and dates...'
-                      : (!isUnlimited && freeCount > 0
-                          ? `${FREE_LIMIT - freeCount} free message${FREE_LIMIT - freeCount === 1 ? '' : 's'} remaining...`
-                          : 'Ask something or share what you know...')
+                      : activeBot === 'clip'
+                        ? 'Paste a video link (YouTube, TikTok, Instagram...)'
+                        : (!isUnlimited && freeCount > 0
+                            ? `${FREE_LIMIT - freeCount} free message${FREE_LIMIT - freeCount === 1 ? '' : 's'} remaining...`
+                            : 'Ask something or share what you know...')
                   }
                   className="bg-zinc-900 border-white/10 text-white placeholder:text-zinc-500 h-12 rounded-2xl pl-4 pr-12 transition-all shadow-inner"
                 />

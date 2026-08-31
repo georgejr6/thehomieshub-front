@@ -5,7 +5,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Bell, CheckCheck, Loader2, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Bell, CheckCheck, Loader2, MessageCircle, AlertTriangle, Scissors } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -58,23 +58,61 @@ const mockNotifications = [
     timestamp: '2d ago',
     read: true,
   },
+  {
+    // Placeholder so the clip_job notification kind is wired up end-to-end
+    // (icon, copy, deep link) ahead of a real notifications-list API --
+    // see src/pages/MyAIPage.jsx / src/pages/MyClipsPage.jsx.
+    id: 6,
+    user: { name: 'Homies AI', username: 'homiesai', avatar: 'https://avatar.vercel.sh/homies.png' },
+    type: 'clip_job',
+    clipJobId: 'demo',
+    content: 'Your clip is ready to view.',
+    timestamp: '3d ago',
+    read: true,
+  },
 ];
 
+// Notification kinds whose deep link isn't a profile -- add new
+// backend-driven types here (icon + destination) as they're wired up.
+const NOTIFICATION_LINKS = {
+  clip_job: (n) => `/clips/${n.clipJobId}`,
+};
+const NOTIFICATION_ICONS = {
+  clip_job: Scissors,
+};
+
 const NotificationItem = ({ notification }) => {
+  const href = NOTIFICATION_LINKS[notification.type]
+    ? NOTIFICATION_LINKS[notification.type](notification)
+    : `/profile/${notification.user.username}`;
+  const TypeIcon = NOTIFICATION_ICONS[notification.type];
+
   return (
-    <Link to={`/profile/${notification.user.username}`} className="block w-full">
+    <Link to={href} className="block w-full">
       <div className={cn(
         "flex items-start gap-4 p-3 hover:bg-accent transition-colors",
         !notification.read && "bg-primary/10"
       )}>
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={notification.user.avatar} alt={notification.user.name} />
-          <AvatarFallback>{notification.user.name.charAt(0)}</AvatarFallback>
-        </Avatar>
+        {TypeIcon ? (
+          <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+            <TypeIcon className="h-5 w-5 text-primary" />
+          </div>
+        ) : (
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={notification.user.avatar} alt={notification.user.name} />
+            <AvatarFallback>{notification.user.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+        )}
         <div className="flex-1">
           <p className="text-sm">
-            <span className="font-semibold">{notification.user.name}</span>
-            <span className="text-muted-foreground"> {notification.content}</span>
+            {TypeIcon ? (
+              <span className="text-foreground">{notification.content}</span>
+            ) : (
+              <>
+                <span className="font-semibold">{notification.user.name}</span>
+                <span className="text-muted-foreground"> {notification.content}</span>
+              </>
+            )}
           </p>
           <p className="text-xs text-muted-foreground mt-1">{notification.timestamp}</p>
         </div>

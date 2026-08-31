@@ -23,6 +23,7 @@ import TripsPage from '@/pages/TripsPage';
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
 import InboxPage from '@/pages/InboxPage';
 import MyAIPage from '@/pages/MyAIPage';
+import MyClipsPage from '@/pages/MyClipsPage';
 import MyAppsPage from '@/pages/MyAppsPage';
 import AuthModal from '@/components/AuthModal';
 import PostModal from '@/components/PostModal';
@@ -450,6 +451,8 @@ const AppContent = React.memo(() => {
                 <Route path="/billing" element={user ? <BillingPage /> : <Navigate to="/?openAuth=1&tab=signin" />} />
                 <Route path="/marketplace" element={<MarketplacePage />} />
                 <Route path="/purchases" element={user ? <PurchasesPage /> : <Navigate to="/" />} />
+                <Route path="/clips" element={user ? <MyClipsPage /> : <Navigate to="/" />} />
+                <Route path="/clips/:id" element={user ? <MyClipsPage /> : <Navigate to="/" />} />
                 
                 <Route path="/explore" element={
                     <FeatureGuard feature="explore">
