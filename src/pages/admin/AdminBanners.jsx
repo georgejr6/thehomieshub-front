@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, Plus, Trash2, Loader2, Eye, EyeOff, Radio, Sparkles, Info, CheckCircle2, TriangleAlert } from 'lucide-react';
+import { Megaphone, Plus, Trash2, Loader2, Eye, EyeOff, Radio, Sparkles, Info, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,7 +13,7 @@ import { formatDistanceToNow } from 'date-fns';
 const STYLES = [
   { value: 'info', label: 'Info', icon: Info, color: 'text-blue-400' },
   { value: 'success', label: 'Success', icon: CheckCircle2, color: 'text-emerald-400' },
-  { value: 'warning', label: 'Warning', icon: TriangleAlert, color: 'text-amber-400' },
+  { value: 'warning', label: 'Warning', icon: AlertTriangle, color: 'text-amber-400' },
   { value: 'live', label: 'Live', icon: Radio, color: 'text-red-400' },
   { value: 'promo', label: 'Promo', icon: Sparkles, color: 'text-indigo-400' },
 ];
