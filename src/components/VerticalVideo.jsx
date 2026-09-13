@@ -120,6 +120,11 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     // True once we know this video is longer than 3 min (shows persistent media mode pill)
     const [isLongVideo, setIsLongVideo] = useState(false);
 
+    // Daily Clip Drop: after post.previewSeconds of a clip tied to a full
+    // stream, pause and surface a "watch full stream" CTA.
+    const DEFAULT_CLIP_PREVIEW_SECONDS = 12;
+    const [clipCtaExpired, setClipCtaExpired] = useState(false);
+
     // Blur logic — only NSFW gets immediate blur; subscriber content uses 60s preview gate
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [localIsNSFW, setLocalIsNSFW] = useState(post.isNSFW);
@@ -188,6 +193,7 @@ const commentTargetType =
         if (!isVisible) {
             setPreviewExpired(false);
             setLongVideoExpired(false);
+            setClipCtaExpired(false);
             playbackStartRef.current = null;
             pendingPlayRef.current = false;
             // Reset currentTime so gate elapsed starts from 0 on return.
@@ -261,6 +267,15 @@ useEffect(() => {
                 video.pause?.();
                 setIsPlaying(false);
                 setLongVideoExpired(true);
+                return;
+            }
+            // Daily Clip Drop — surface the "watch full stream" CTA after this
+            // clip's configured preview window.
+            if (post.sourceStream?.videoId && !clipCtaExpired &&
+                elapsed >= (post.previewSeconds || DEFAULT_CLIP_PREVIEW_SECONDS)) {
+                video.pause?.();
+                setIsPlaying(false);
+                setClipCtaExpired(true);
             }
         };
 
@@ -303,7 +318,7 @@ useEffect(() => {
             video.removeEventListener('play', handlePlay);
             video.removeEventListener('pause', handlePause);
         };
-    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly, startFraction, !!user]);
+    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly, startFraction, !!user, clipCtaExpired]);
 
     const handleSeek = (value) => {
         const newTime = (value[0] / 100) * duration;
@@ -438,6 +453,13 @@ const togglePlayPause = () => {
         if (!user) { onLoginRequest?.(); return; }
         if (post.isSubscriberOnly && !isMember) { setShowUpgradeModal(true); return; }
         navigate(`/media/${post.id}`, { state: { post } });
+    };
+
+    // Daily Clip Drop — jump from a clip to the full stream it was cut from.
+    // The destination Video already carries its own subscriber-preview gate.
+    const handleWatchFullStream = () => {
+        if (!post.sourceStream?.videoId) return;
+        navigate(`/watch/${post.sourceStream.videoId}`);
     };
 
     const toggleMute = (e) => {
@@ -619,6 +641,26 @@ const togglePlayPause = () => {
                         </div>
                     )}
 
+                    {/* DAILY CLIP DROP — "watch full stream" CTA */}
+                    {clipCtaExpired && !previewExpired && !longVideoExpired && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/85 backdrop-blur-sm">
+                            <div className="mb-5">
+                                {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-70" />}
+                                <p className="text-[#F0B94D] text-xs font-semibold uppercase tracking-widest mb-1">From The Stream</p>
+                                <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Watch the full stream'}</h3>
+                            </div>
+                            <Button onClick={handleWatchFullStream} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                                <Play className="mr-2 h-4 w-4 fill-black" /> Watch Full Stream
+                            </Button>
+                            <p className="text-white/30 text-xs mt-4">or <button onClick={() => {
+                                playbackStartRef.current = videoRef.current?.currentTime ?? 0;
+                                setClipCtaExpired(false);
+                                videoRef.current?.play?.().catch(() => {});
+                                setIsPlaying(true);
+                            }} className="underline hover:text-white/60">keep watching clip</button></p>
+                        </div>
+                    )}
+
                 </div>{/* end video area */}
 
                 {/* SIDE CONTROLS — absolute on mobile, relative column on desktop */}
@@ -734,15 +776,26 @@ const togglePlayPause = () => {
                     >
                         @{post.user.username}
                     </Link>
-                    {isLongVideo && !longVideoExpired && !previewExpired && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleMediaMode(); }}
-                            className="shrink-0 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition-colors backdrop-blur-sm"
-                        >
-                            <Play className="h-3 w-3 fill-white" />
-                            Full video
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {isLongVideo && !longVideoExpired && !previewExpired && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleMediaMode(); }}
+                                className="shrink-0 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition-colors backdrop-blur-sm"
+                            >
+                                <Play className="h-3 w-3 fill-white" />
+                                Full video
+                            </button>
+                        )}
+                        {post.sourceStream?.videoId && !clipCtaExpired && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleWatchFullStream(); }}
+                                className="shrink-0 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition-colors backdrop-blur-sm"
+                            >
+                                <Play className="h-3 w-3 fill-white" />
+                                Watch full stream
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Description */}

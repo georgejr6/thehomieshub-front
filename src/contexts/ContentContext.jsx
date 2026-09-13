@@ -66,6 +66,18 @@ function mapReelToVerticalPost(r) {
     isNew: false,
     isNSFW: !!r?.isNSFW,
     isSubscriberOnly: r?.visibility === "subscribers" || !!r?.isSubscriberOnly,
+
+    // Daily Clip Drop: pins this clip to the top of the feed for its day,
+    // in order, and links it back to the full stream VOD.
+    isDailyDrop: !!r?.isDailyDrop,
+    dropRank: r?.dropRank ?? null,
+    previewSeconds: r?.previewSeconds ?? null,
+    sourceStream: r?.sourceStream?.videoId
+      ? {
+          videoId: r.sourceStream.videoId?._id || r.sourceStream.videoId,
+          startSeconds: r.sourceStream.startSeconds || 0,
+        }
+      : null,
   };
 }
 
@@ -307,8 +319,13 @@ const loadMyLibrary = async () => {
           ...videos.map(mapVideoToVerticalPost),
         ].filter(p => p?.id && p?.videoUrl);
 
-        // Shuffle instead of chronological sort
-        const mixed = shuffle(mapped);
+        // Today's Daily Clip Drop clips go first, in dropRank order; the
+        // rest of the feed shuffles as before.
+        const dailyDrop = mapped
+          .filter(p => p.isDailyDrop)
+          .sort((a, b) => (a.dropRank ?? 999) - (b.dropRank ?? 999));
+        const rest = shuffle(mapped.filter(p => !p.isDailyDrop));
+        const mixed = [...dailyDrop, ...rest];
 
         if (!cancelled && mixed.length) {
           setVerticalPosts([...mixed]);

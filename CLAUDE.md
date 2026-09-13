@@ -135,6 +135,11 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-09-13 — Daily Clip Drop (post-stream clips pinned to the top of the feed)
+- **`contexts/ContentContext.jsx`**: `mapReelToVerticalPost` carries new backend fields `isDailyDrop`/`dropRank`/`previewSeconds`/`sourceStream`. `loadVerticalFeed` now pulls today's `isDailyDrop` reels out first (sorted by `dropRank`) and prepends them unshuffled; the rest of the feed shuffles as before. Backend: `homieshub-backend`'s `Reel`/`MuxUpload` models gained the same fields; new admin-only `POST /mux/clips/batch` creates one Mux direct-upload slot per clip in a drop; `GET /admin/daily-drop?date=` lists a day's pinned clips.
+- **`components/VerticalVideo.jsx`**: when `post.sourceStream.videoId` is set, a persistent "Watch full stream" pill shows next to the username (same style as the existing "Full video" pill). After `post.previewSeconds` (default 12s) of clip playback, a centered CTA overlay pauses the clip and offers "Watch Full Stream" → `/watch/:sourceStream.videoId` (the full VOD, which already has its own subscriber-preview gate) or "keep watching clip" to dismiss. Mirrors the existing long-video-gate overlay pattern; gate state resets on scroll-away like the others.
+- **`pages/admin/AdminDailyDrop.jsx`** (new), wired at `/admin/daily-drop` (`App.jsx`) + sidebar entry under Content (`AdminLayout.jsx`): pick a date, see that day's pinned clips in order, reorder with up/down (swaps `dropRank` via the existing `PATCH /admin/videos/:id`), edit each clip's `previewSeconds`, or unpin one (`isDailyDrop:false`) without deleting it. Clips are created via the batch-upload endpoint (called from a `video-clipper` script), not from this panel — it's for tweaking after the fact.
+
 ### 2026-08-23 — Admin panel for the announcement banner
 - **`src/pages/admin/AdminBanners.jsx`** (new), wired at `/admin/banners` (`src/App.jsx`) + sidebar entry (`src/pages/admin/AdminLayout.jsx`): create/pause/delete the in-app top-of-feed banner against `homieshub-backend`'s `/api/admin/banners` CRUD — style, audience (all/free/paid), optional CTA + auto-expire. Only one banner is ever live; creating a new one pauses the current one.
 
