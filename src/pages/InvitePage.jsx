@@ -25,6 +25,7 @@ const InvitePage = () => {
       <Helmet>
         <title>You're Invited — The Homies Hub</title>
         <meta name="description" content="A private invite to join The Homies Hub." />
+        <meta name="robots" content="noindex,nofollow" />
       </Helmet>
 
       <div className="min-h-full bg-background flex items-center justify-center relative overflow-hidden px-4 py-20">
