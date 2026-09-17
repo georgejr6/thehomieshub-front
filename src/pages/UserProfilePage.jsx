@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMedia } from '@/contexts/MediaContext';
 
 import api from '@/api/homieshub';
+import { trackEvent } from '@/lib/tracker';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -303,6 +304,7 @@ const RealUserProfilePage = () => {
       const resp = await api.post(`/user/follow/${profileUser._id}`);
       const following = !!resp?.data?.result?.following;
 
+      trackEvent('custom', { meta: { action: following ? 'follow' : 'unfollow' }, target: { kind: 'user', id: String(profileUser._id), title: profileUser.username } });
       setIsFollowing(following);
 
       // optimistic follower count update

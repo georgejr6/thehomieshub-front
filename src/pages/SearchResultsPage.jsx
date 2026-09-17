@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import VideoPost from '@/components/VideoPost';
 import FeedItem from '@/components/FeedItem';
 import api from '@/api/homieshub';
+import { trackEvent } from '@/lib/tracker';
 
 function useDebounce(value, ms = 350) {
   const [debounced, setDebounced] = useState(value);
@@ -68,9 +69,17 @@ const SearchResultsPage = () => {
       api.get('/user/community-posts', { params: { q: debounced, limit: 20 }, signal: ctrl.signal }).catch(() => null),
     ]).then(([vRes, rRes, pRes]) => {
       if (ctrl.signal.aborted) return;
-      setVideos((vRes?.data?.result?.items || []).map(v => normalizeVideo(v, 'video')));
-      setReels((rRes?.data?.result?.items  || []).map(r => normalizeVideo(r, 'reel')));
-      setPosts(pRes?.data?.result?.items || []);
+      const vItems = vRes?.data?.result?.items || [];
+      const rItems = rRes?.data?.result?.items || [];
+      const pItems = pRes?.data?.result?.items || [];
+      setVideos(vItems.map(v => normalizeVideo(v, 'video')));
+      setReels(rItems.map(r => normalizeVideo(r, 'reel')));
+      setPosts(pItems);
+      // What people search for (and whether it found anything) is a direct
+      // signal of content gaps -- not captured anywhere else in analytics.
+      trackEvent('custom', {
+        meta: { action: 'search', query: debounced.slice(0, 200), resultCount: vItems.length + rItems.length + pItems.length },
+      });
     }).finally(() => {
       if (!ctrl.signal.aborted) setLoading(false);
     });

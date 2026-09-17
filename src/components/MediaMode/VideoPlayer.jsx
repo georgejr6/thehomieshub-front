@@ -9,6 +9,7 @@ import MuxPlayer from '@mux/mux-player-react';
 import Watermark from '@/components/Watermark';
 import { useMedia } from '@/contexts/MediaContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { trackEvent } from '@/lib/tracker';
 import { cn } from '@/lib/utils';
 import EditVideoModal from './EditVideoModal';
 import api from '@/api/homieshub';
@@ -75,6 +76,43 @@ const VideoPlayer = () => {
 
   const transcriptCues = React.useMemo(() => parseVtt(transcript?.vtt), [transcript]);
 
+  // ── Watch-time capture (analytics) ──────────────────────────────────────
+  // Same pattern as MusicPlayer.jsx's music_listen: accumulate real playback
+  // ms (ignoring seeks) + furthest % reached, flushed as ONE video_watch/
+  // reel_watch event on video-change/unmount/tab-hide. Replaces the old
+  // fire-at-play-start event in MediaContext.playVideo, which never recorded
+  // duration -- that's why watchMs always showed 0 in admin analytics.
+  const measuredRef = useRef({ id: null, title: null, kind: null, ms: 0 });
+  const lastTRef = useRef(0);
+  const maxPctRef = useRef(0);
+  const flushWatch = () => {
+    const m = measuredRef.current;
+    if (m.id && m.ms >= 1500) {
+      trackEvent(m.kind === 'reel' ? 'reel_watch' : 'video_watch', {
+        target: { kind: m.kind === 'reel' ? 'reel' : 'video', id: m.id, title: m.title },
+        durationMs: Math.round(m.ms),
+        meta: { pctWatched: Math.round(maxPctRef.current) },
+      });
+    }
+    m.ms = 0;
+    maxPctRef.current = 0;
+  };
+  const flushWatchRef = useRef(flushWatch);
+  flushWatchRef.current = flushWatch;
+
+  useEffect(() => () => flushWatchRef.current?.(), []);
+
+  useEffect(() => {
+    const onPageHide = () => flushWatchRef.current?.();
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flushWatchRef.current?.(); };
+    window.addEventListener('pagehide', onPageHide);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', onPageHide);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
   const seekTo = useCallback((t) => {
     const el = muxRef.current;
     if (!el || isNaN(t)) return;
@@ -95,6 +133,14 @@ const VideoPlayer = () => {
     const onTime  = () => {
       if (!isScrubbing) setCurrentTime(el.currentTime ?? 0);
       if (el.buffered?.length) setBuffered(el.buffered.end(el.buffered.length - 1));
+      const t = el.currentTime || 0;
+      const dt = t - lastTRef.current;
+      if (dt > 0 && dt < 2) measuredRef.current.ms += dt * 1000;
+      lastTRef.current = t;
+      if (el.duration > 0) {
+        const pct = (t / el.duration) * 100;
+        if (pct > maxPctRef.current) maxPctRef.current = pct;
+      }
     };
     const onDur = () => { if (!isNaN(el.duration)) setDuration(el.duration); };
     const onVol = () => { setVolume(el.volume ?? 1); setIsMuted(el.muted ?? false); };
@@ -117,8 +163,19 @@ const VideoPlayer = () => {
     };
   }, [currentVideo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset playback state when video changes
+  // Reset playback state when video changes. Flush the PREVIOUS video's watch
+  // time first -- measuredRef still holds its id at this point, decoupled from
+  // the now-updated currentVideo prop, same as MusicPlayer.jsx's track-change flush.
   useEffect(() => {
+    flushWatch();
+    measuredRef.current = {
+      id: currentVideo?.id || null,
+      title: currentVideo?.title || currentVideo?.caption || null,
+      kind: currentVideo?.backendType === 'reel' ? 'reel' : 'video',
+      ms: 0,
+    };
+    lastTRef.current = 0;
+    maxPctRef.current = 0;
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
@@ -126,7 +183,7 @@ const VideoPlayer = () => {
     setMediaError(false);
     setTranscript(null);
     setShowTranscript(false);
-  }, [currentVideo]);
+  }, [currentVideo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lazily load transcript + summary when the info panel is opened.
   useEffect(() => {

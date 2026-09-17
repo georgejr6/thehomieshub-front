@@ -397,6 +397,8 @@ const loadMyLibrary = async () => {
   // --- Liking & Saving Logic ---
 const togglePostLike = async (postId) => {
   const idStr = String(postId);
+  const wasLiked = communityPosts.find(p => String(p.id) === idStr)?.isLikedByMe;
+  trackEvent('custom', { meta: { action: wasLiked ? 'unlike' : 'like' }, target: { kind: 'community_post', id: idStr } });
 
   // optimistic UI update
   setCommunityPosts(prev => prev.map(p => {
@@ -486,6 +488,8 @@ const addComment = async ({ targetType, targetId, text, parentId = null }) => {
     parentCommentId: parentId || undefined,
   });
 
+  trackEvent('custom', { meta: { action: 'comment' }, target: { kind: normalized, id: String(targetId) } });
+
   setCommunityPosts((prev) =>
     prev.map((p) =>
       String(p.id) === String(targetId)
@@ -506,6 +510,7 @@ const addComment = async ({ targetType, targetId, text, parentId = null }) => {
 const toggleContentLike = async ({ targetType, targetId }) => {
   const idStr = String(targetId);
   const alreadyLiked = likedPostIds.includes(idStr);
+  trackEvent('custom', { meta: { action: alreadyLiked ? 'unlike' : 'like' }, target: { kind: targetType, id: idStr } });
 
   // optimistic: update liked ids + engagement count
   setLikedPostIds(prev => alreadyLiked ? prev.filter(x => x !== idStr) : [...prev, idStr]);

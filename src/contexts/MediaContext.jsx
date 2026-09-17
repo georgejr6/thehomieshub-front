@@ -381,7 +381,9 @@ export const MediaProvider = ({ children }) => {
         setIsPlaying(false);
       }
       setCurrentVideo(video);
-      trackEvent('video_watch', { target: { kind: video.backendType === 'reel' ? 'reel' : 'video', id: videoId, title: video.title || video.caption } });
+      // video_watch/reel_watch itself now fires from VideoPlayer.jsx on flush
+      // (video-change/unmount/tab-hide), carrying real accumulated durationMs
+      // instead of firing here with none.
       if (!video.isHH && !video.backendType) videoApi.logView(video.id);
     } else {
       setGatedVideo(video);

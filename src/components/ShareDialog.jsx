@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import api from '@/api/homieshub';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { trackEvent } from '@/lib/tracker';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,15 @@ const ShareDialog = ({ children, postUrl, postTitle, post }) => {
         ? `https://image.mux.com/${post.muxPlaybackId}/thumbnail.jpg?width=1280&height=720&time=3`
         : null);
 
+  const shareTargetId = post?.id || post?._id;
+  const logShare = (surface) => {
+    if (!shareTargetId) return;
+    trackEvent('custom', {
+      meta: { action: 'share', surface },
+      target: { kind: post?.backendType || 'post', id: String(shareTargetId), title: shareTitle },
+    });
+  };
+
   const [open,         setOpen]         = useState(false);
   const [copied,       setCopied]       = useState(false);
   const [downloading,  setDownloading]  = useState(false);
@@ -130,6 +140,7 @@ const ShareDialog = ({ children, postUrl, postTitle, post }) => {
   // ── Native share (opens OS share sheet — handles Stories, WhatsApp, iMessage) ──
   const handleNativeShare = async () => {
     if (!navigator.share) { handleCopyLink(); return; }
+    logShare('native');
 
     const shareData = { title: shareTitle, text: shareTitle, url: shareUrl };
 
@@ -154,6 +165,7 @@ const ShareDialog = ({ children, postUrl, postTitle, post }) => {
 
   // ── Copy link ───────────────────────────────────────────────────────────────
   const handleCopyLink = () => {
+    logShare('copy_link');
     navigator.clipboard.writeText(shareUrl).catch(() => {});
     setCopied(true);
     toast({ title: 'Link copied!' });
@@ -275,6 +287,7 @@ const ShareDialog = ({ children, postUrl, postTitle, post }) => {
                   href={p.url(shareUrl, shareTitle)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => logShare(p.name)}
                   className="flex flex-col items-center gap-1.5 group"
                 >
                   <div className={cn(
