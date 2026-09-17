@@ -10,6 +10,7 @@ import Footer from '@/components/Footer';
 import GetAppBanner from '@/components/GetAppBanner';
 import GetAppSignedOutModal from '@/components/GetAppSignedOutModal';
 import HomePage from '@/pages/HomePage';
+import InvitePage from '@/pages/InvitePage';
 import CommunitiesPage from '@/pages/CommunitiesPage';
 import ExplorePage from '@/pages/ExplorePage';
 import SubscriptionsPage from '@/pages/SubscriptionsPage';
@@ -448,6 +449,7 @@ const AppContent = React.memo(() => {
                 handleOpenPostModal={handleOpenPostModal}
             />}>
                 <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
+                <Route path="/xxx4" element={<InvitePage />} />
                 <Route path="/browse" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
                 <Route path="/memberships" element={<MembershipsPage />} />
                 <Route path="/consultation" element={<ConsultationPage />} />

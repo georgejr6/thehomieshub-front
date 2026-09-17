@@ -529,6 +529,9 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
     }
     setIsSubmitting(true);
     try {
+      let inviteCode = null;
+      try { inviteCode = localStorage.getItem('hh_invite_code') || null; } catch { /* ignore */ }
+
       const resp = await api.post('/auth/register', {
         email: formData.email,
         password: formData.password,
@@ -536,10 +539,13 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
         username: formData.displayName,
         agreedToTerms: true,
         termsAgreedAt: new Date().toISOString(),
+        ...(inviteCode ? { inviteCode } : {}),
       });
 
       const data = resp?.data;
       if (!data?.status) throw new Error(data?.message || 'Registration failed');
+
+      try { localStorage.removeItem('hh_invite_code'); } catch { /* ignore */ }
 
       const token = data?.result?.access_token;
       if (token) {
