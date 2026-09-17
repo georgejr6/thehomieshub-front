@@ -51,6 +51,7 @@ import AdminLayout from '@/pages/admin/AdminLayout';
 import AdminMediaManager from '@/pages/admin/AdminMediaManager';
 import AdminMusicManager from '@/pages/admin/AdminMusicManager';
 import AdminAnalytics from '@/pages/admin/AdminAnalytics';
+import AdminEngagement from '@/pages/admin/AdminEngagement';
 import AdminRevenue from '@/pages/admin/AdminRevenue';
 import AdminPayouts from '@/pages/admin/AdminPayouts';
 import AdminPushNotifications from '@/pages/admin/AdminPushNotifications';
@@ -422,6 +423,7 @@ const AppContent = React.memo(() => {
             <Route path="/admin/users" element={<AdminRouteWrapper><AdminUsers /></AdminRouteWrapper>} />
             <Route path="/admin/visitors" element={<AdminRouteWrapper><AdminVisitors /></AdminRouteWrapper>} />
             <Route path="/admin/analytics" element={user?.isAdmin ? <AdminRouteWrapper><AdminAnalytics /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
+            <Route path="/admin/engagement" element={user?.isAdmin ? <AdminRouteWrapper><AdminEngagement /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/revenue" element={user?.isAdmin ? <AdminRouteWrapper><AdminRevenue /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/monetization" element={user?.isAdmin ? <AdminRouteWrapper><AdminMonetization /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/payouts" element={user?.isAdmin ? <AdminRouteWrapper><AdminPayouts /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />

@@ -371,6 +371,20 @@ const EVENT_LABEL = {
   video_save: 'Saved', playlist_add: 'Added to playlist', pageview: 'Viewed page', session_start: 'Started session', app_active: 'Opened app',
 };
 
+// Custom-action events all share type:"custom" -- meta.action carries the real label.
+const CUSTOM_ACTION_LABEL = {
+  like: 'Liked', unlike: 'Unliked', comment: 'Commented', follow: 'Followed', unfollow: 'Unfollowed', share: 'Shared', search: 'Searched',
+};
+function describeEvent(e) {
+  if (e.type === 'custom' && e.meta?.action) {
+    const label = CUSTOM_ACTION_LABEL[e.meta.action] || e.meta.action;
+    if (e.meta.action === 'search') return { label, detail: `"${e.meta.query || ''}" (${e.meta.resultCount ?? '?'} results)` };
+    if (e.meta.action === 'share') return { label, detail: `${e.target?.title || e.target?.kind || ''} via ${e.meta.surface || 'unknown'}` };
+    return { label, detail: e.target?.title || e.target?.kind || '' };
+  }
+  return { label: EVENT_LABEL[e.type] || e.type, detail: e.target?.title || e.path || '' };
+}
+
 function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -555,13 +569,16 @@ function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                 <p className="text-[11px] uppercase tracking-widest text-white/40 mb-2 flex items-center gap-1"><Activity className="w-3 h-3" /> Recent activity</p>
                 <div className="space-y-1 max-h-64 overflow-y-auto">
-                  {data.timeline.map((e, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs text-white/60">
-                      <span className="text-white/40 w-24 flex-shrink-0">{fmtTime(e.ts)}</span>
-                      <span className="text-white/80 flex-shrink-0">{EVENT_LABEL[e.type] || e.type}</span>
-                      <span className="truncate">{e.target?.title || e.path || ''}</span>
-                    </div>
-                  ))}
+                  {data.timeline.map((e, i) => {
+                    const d = describeEvent(e);
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-xs text-white/60">
+                        <span className="text-white/40 w-24 flex-shrink-0">{fmtTime(e.ts)}</span>
+                        <span className="text-white/80 flex-shrink-0">{d.label}</span>
+                        <span className="truncate">{d.detail}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </>
