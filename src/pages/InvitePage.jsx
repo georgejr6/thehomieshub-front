@@ -1,24 +1,50 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Crown, ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import api from '@/api/homieshub';
+import { flushNow } from '@/lib/tracker';
 
-// Custom invite-only landing page, meant to be sent directly to someone
-// (DM/text/email) rather than found on the site. Visits are logged + pinged
-// to admin via the normal analytics pipeline (see routes/track.js
-// INVITE_PATHS, homieshub-backend) and, if they sign up, the account is
-// tagged `invitedVia` so a second Telegram ping fires on conversion too.
-const INVITE_CODE = 'xxx4';
+// Generic invite-only landing page for any code created on demand via the
+// Telegram /invite command (see homieshub-backend's POST /internal/invite-create
+// + GET /api/invite/:code). Matched only when no other static route claims the
+// path (React Router ranks static segments over this dynamic :inviteCode one),
+// so it never collides with a real app page. Visits are logged + pinged to
+// admin (routes/track.js) and, on signup, the account is tagged `invitedVia`
+// for a second Telegram ping on conversion.
 const INVITE_CODE_KEY = 'hh_invite_code';
 
 const InvitePage = () => {
+  const { inviteCode } = useParams();
   const navigate = useNavigate();
+  const [status, setStatus] = useState('checking'); // checking | valid | invalid
+  const [label, setLabel] = useState('');
 
   useEffect(() => {
-    try { localStorage.setItem(INVITE_CODE_KEY, INVITE_CODE); } catch { /* ignore */ }
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await api.get(`/invite/${encodeURIComponent(inviteCode)}`);
+        if (cancelled) return;
+        if (resp?.data?.valid) {
+          try { localStorage.setItem(INVITE_CODE_KEY, inviteCode); } catch { /* ignore */ }
+          setLabel(resp.data.label || '');
+          setStatus('valid');
+          flushNow(); // don't wait on the normal batch interval to ping admin
+        } else {
+          setStatus('invalid');
+        }
+      } catch {
+        if (!cancelled) setStatus('invalid');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [inviteCode]);
+
+  if (status === 'invalid') return <Navigate to="/" replace />;
+  if (status === 'checking') return <div className="min-h-full bg-background" />;
 
   return (
     <>
@@ -53,7 +79,7 @@ const InvitePage = () => {
             <span className="text-primary">The Homies Hub</span>
           </h1>
           <p className="text-muted-foreground text-base md:text-lg mb-10 max-w-md mx-auto">
-            Someone who's already in wants you in too. Create your account now to
+            {label ? `${label} — s` : 'S'}omeone who's already in wants you in too. Create your account now to
             claim your spot in the community.
           </p>
 

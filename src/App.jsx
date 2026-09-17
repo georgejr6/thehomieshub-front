@@ -446,7 +446,6 @@ const AppContent = React.memo(() => {
                 handleOpenPostModal={handleOpenPostModal}
             />}>
                 <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
-                <Route path="/xxx4" element={<InvitePage />} />
                 <Route path="/browse" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
                 <Route path="/memberships" element={<MembershipsPage />} />
                 <Route path="/consultation" element={<ConsultationPage />} />
@@ -512,7 +511,13 @@ const AppContent = React.memo(() => {
                 <Route path="/trips" element={<TripsPage onLoginRequest={handleLoginRequest} />} />
                 <Route path="/experiences" element={<Navigate to="/trips" replace />} />
 
-                {/* Catch-all: unknown paths (e.g. a stale /membership link) redirect home instead of white-screening. */}
+                {/* Single-segment invite links (thehomies.app/<code>, created via Telegram
+                    /invite) — React Router ranks every static route above this dynamic one,
+                    so it only ever matches a path nothing else claims. InvitePage itself
+                    validates the code against the backend and bounces home if it's fake. */}
+                <Route path="/:inviteCode" element={<InvitePage />} />
+
+                {/* Catch-all: unknown multi-segment paths redirect home instead of white-screening. */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>
