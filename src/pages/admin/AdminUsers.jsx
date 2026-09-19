@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music, Download, Fingerprint, MapPin } from 'lucide-react';
+import { MoreHorizontal, Search, ShieldBan, ShieldCheck, ShieldOff, UserCheck, MessageSquare, MicOff, Mic, Loader2, RefreshCw, CheckCircle2, XCircle, Crown, CalendarDays, Filter, Users2, AlertTriangle, Globe, Copy, Activity, Video, Bookmark, Music, Download, Fingerprint, MapPin, ShieldAlert, Flag } from 'lucide-react';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -617,6 +617,9 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
                 <Fact label="Primary IP" value={p?.primaryIp} />
                 <Fact label="Known IPs" value={p?.knownIps?.length ? String(p.knownIps.length) : '—'} />
                 <Fact label="Last login" value={fmtD(p?.lastLoginAt)} />
+                {p?.vpnFlag?.suspected && (
+                  <Fact label="⚠️ VPN/bad actor" value={`${p.vpnFlag.auto ? 'Auto' : 'Manual'}: ${p.vpnFlag.reason}`} />
+                )}
               </div>
             </div>
 
@@ -782,6 +785,28 @@ const AdminUsers = () => {
       }
     } catch (err) {
       toast({ title: 'Error', description: err.response?.data?.message || 'Failed to update role.', variant: 'destructive' });
+    }
+  };
+
+  const handleToggleVpnFlag = async (user) => {
+    try {
+      if (user.vpnFlag?.suspected) {
+        const { data } = await api.delete(`/admin/users/${user._id}/vpn-flag`);
+        if (data.status) {
+          setUsers((prev) => prev.map((u) => u._id === user._id ? { ...u, vpnFlag: data.result.vpnFlag } : u));
+          toast({ title: 'Flag cleared', description: `@${user.username}` });
+        }
+      } else {
+        const note = window.prompt(`Flag @${user.username} as suspected VPN/bad actor — optional note:`, '') ?? undefined;
+        if (note === undefined) return; // cancelled
+        const { data } = await api.post(`/admin/users/${user._id}/vpn-flag`, { note });
+        if (data.status) {
+          setUsers((prev) => prev.map((u) => u._id === user._id ? { ...u, vpnFlag: data.result.vpnFlag } : u));
+          toast({ title: 'User flagged', description: `@${user.username} — now watched in the flagged Telegram group.` });
+        }
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to update flag.', variant: 'destructive' });
     }
   };
 
@@ -1006,6 +1031,14 @@ const AdminUsers = () => {
 
                     {/* Status badges */}
                     <div className="flex-shrink-0 hidden sm:flex gap-1">
+                      {user.vpnFlag?.suspected && (
+                        <Badge
+                          className="bg-red-600/10 text-red-500 border-red-600/30 text-[10px] cursor-help"
+                          title={`${user.vpnFlag.auto ? 'Auto-detected' : 'Manually flagged'}: ${user.vpnFlag.reason || ''}`}
+                        >
+                          <ShieldAlert className="w-2.5 h-2.5 mr-0.5" /> VPN?
+                        </Badge>
+                      )}
                       {user.isBanned && <Badge variant="destructive" className="text-[10px]">Banned</Badge>}
                       {user.isMuted && <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-[10px]">Muted</Badge>}
                       {user.isAdmin && <Badge className="text-[10px]">Admin</Badge>}
@@ -1046,6 +1079,10 @@ const AdminUsers = () => {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => { setActivityTarget(user); setActivityOpen(true); }}>
                           <Activity className="mr-2 h-4 w-4" /> Activity
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleToggleVpnFlag(user)}>
+                          <Flag className="mr-2 h-4 w-4" />
+                          {user.vpnFlag?.suspected ? 'Clear VPN/bad-actor flag' : 'Flag as VPN/bad actor'}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMute(user)}>
                           {user.isMuted ? <><Mic className="mr-2 h-4 w-4" /> Unmute</> : <><MicOff className="mr-2 h-4 w-4" /> Mute</>}
