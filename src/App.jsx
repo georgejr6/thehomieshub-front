@@ -10,6 +10,7 @@ import Footer from '@/components/Footer';
 import GetAppBanner from '@/components/GetAppBanner';
 import GetAppSignedOutModal from '@/components/GetAppSignedOutModal';
 import HomePage from '@/pages/HomePage';
+import InvitePage from '@/pages/InvitePage';
 import CommunitiesPage from '@/pages/CommunitiesPage';
 import ExplorePage from '@/pages/ExplorePage';
 import SubscriptionsPage from '@/pages/SubscriptionsPage';
@@ -50,6 +51,7 @@ import AdminLayout from '@/pages/admin/AdminLayout';
 import AdminMediaManager from '@/pages/admin/AdminMediaManager';
 import AdminMusicManager from '@/pages/admin/AdminMusicManager';
 import AdminAnalytics from '@/pages/admin/AdminAnalytics';
+import AdminEngagement from '@/pages/admin/AdminEngagement';
 import AdminRevenue from '@/pages/admin/AdminRevenue';
 import AdminPayouts from '@/pages/admin/AdminPayouts';
 import AdminPushNotifications from '@/pages/admin/AdminPushNotifications';
@@ -421,6 +423,7 @@ const AppContent = React.memo(() => {
             <Route path="/admin/users" element={<AdminRouteWrapper><AdminUsers /></AdminRouteWrapper>} />
             <Route path="/admin/visitors" element={<AdminRouteWrapper><AdminVisitors /></AdminRouteWrapper>} />
             <Route path="/admin/analytics" element={user?.isAdmin ? <AdminRouteWrapper><AdminAnalytics /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
+            <Route path="/admin/engagement" element={user?.isAdmin ? <AdminRouteWrapper><AdminEngagement /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/revenue" element={user?.isAdmin ? <AdminRouteWrapper><AdminRevenue /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/monetization" element={user?.isAdmin ? <AdminRouteWrapper><AdminMonetization /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/payouts" element={user?.isAdmin ? <AdminRouteWrapper><AdminPayouts /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
@@ -510,7 +513,13 @@ const AppContent = React.memo(() => {
                 <Route path="/trips" element={<TripsPage onLoginRequest={handleLoginRequest} />} />
                 <Route path="/experiences" element={<Navigate to="/trips" replace />} />
 
-                {/* Catch-all: unknown paths (e.g. a stale /membership link) redirect home instead of white-screening. */}
+                {/* Single-segment invite links (thehomies.app/<code>, created via Telegram
+                    /invite) — React Router ranks every static route above this dynamic one,
+                    so it only ever matches a path nothing else claims. InvitePage itself
+                    validates the code against the backend and bounces home if it's fake. */}
+                <Route path="/:inviteCode" element={<InvitePage />} />
+
+                {/* Catch-all: unknown multi-segment paths redirect home instead of white-screening. */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>

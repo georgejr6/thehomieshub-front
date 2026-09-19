@@ -20,6 +20,7 @@ import { useContent } from '@/contexts/ContentContext';
 import MintedCollectibleModal from '@/components/MintedCollectibleModal';
 import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 import { useMedia } from '@/contexts/MediaContext';
+import { trackEvent } from '@/lib/tracker';
 import MuxPlayer from '@mux/mux-player-react';
 import Watermark from '@/components/Watermark';
 import { useNavigate } from 'react-router-dom';
@@ -98,6 +99,47 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
 
     // Track where playback started so gates are based on elapsed time, not absolute position
     const playbackStartRef = useRef(null);
+
+    // ── Watch-time capture (analytics) ──────────────────────────────────────
+    // The feed had NO tracking at all before this — every video_watch/reel_watch
+    // event fired here is a full watch SESSION (accumulated real playback ms +
+    // furthest % reached), flushed once on scroll-away/unmount/tab-hide, mirroring
+    // MusicPlayer.jsx's music_listen pattern. This is intentionally different from
+    // firing at play-start: a video that flashes by during fast scrolling never
+    // reaches the 1.5s minimum below, so "views" here mean real watches, not passes.
+    const watchMsRef = useRef(0);
+    const lastWatchTRef = useRef(0);
+    const maxPctRef = useRef(0);
+    const flushWatch = () => {
+        const ms = watchMsRef.current;
+        if (ms >= 1500) {
+            trackEvent(post.backendType === 'reel' ? 'reel_watch' : 'video_watch', {
+                target: { kind: post.backendType === 'reel' ? 'reel' : 'video', id: post.id, title: post.title || post.caption },
+                durationMs: Math.round(ms),
+                meta: { pctWatched: Math.round(maxPctRef.current) },
+            });
+        }
+        watchMsRef.current = 0;
+        lastWatchTRef.current = 0;
+        maxPctRef.current = 0;
+    };
+    const flushWatchRef = useRef(flushWatch);
+    flushWatchRef.current = flushWatch;
+
+    // Flush on unmount (e.g. the feed's infinite-loop reshuffle removing old items).
+    useEffect(() => () => flushWatchRef.current?.(), []);
+
+    // Flush on tab hide / page close so an in-progress watch isn't lost.
+    useEffect(() => {
+        const onPageHide = () => flushWatchRef.current?.();
+        const onVisibility = () => { if (document.visibilityState === 'hidden') flushWatchRef.current?.(); };
+        window.addEventListener('pagehide', onPageHide);
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            window.removeEventListener('pagehide', onPageHide);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, []);
     // Deferred play — set true when we're waiting for a seek to land before calling play()
     const pendingPlayRef = useRef(false);
     // Ref-copy of isVisible so event handlers inside the sync effect see the current value
@@ -186,6 +228,7 @@ const commentTargetType =
     // Reset gates when scrolled away
     useEffect(() => {
         if (!isVisible) {
+            flushWatch();
             setPreviewExpired(false);
             setLongVideoExpired(false);
             playbackStartRef.current = null;
@@ -246,6 +289,16 @@ useEffect(() => {
                 setCurrentTime(video.currentTime);
                 setDuration(video.duration);
             }
+            // Accumulate real watched time (ignoring seeks/jumps) + furthest % reached,
+            // flushed as one video_watch/reel_watch event on scroll-away/unmount/hide.
+            const dt = video.currentTime - lastWatchTRef.current;
+            if (dt > 0 && dt < 2) watchMsRef.current += dt * 1000;
+            lastWatchTRef.current = video.currentTime;
+            if (video.duration > 0) {
+                const pct = (video.currentTime / video.duration) * 100;
+                if (pct > maxPctRef.current) maxPctRef.current = pct;
+            }
+
             // Gate checks use elapsed time from where playback started, not absolute position
             const start = playbackStartRef.current ?? 0;
             const elapsed = video.currentTime - start;

@@ -66,6 +66,13 @@ export function trackEvent(type, opts = {}) {
   enqueue({ type, ...opts });
 }
 
+// Public: send whatever's queued right now instead of waiting for the 15s
+// interval/12-event batch — used by pages that need a near-instant admin
+// ping (e.g. the invite landing page).
+export function flushNow() {
+  flush();
+}
+
 // Public: call on every route change. Closes out the previous page's dwell time.
 export function trackPageview(path) {
   const now = Date.now();
