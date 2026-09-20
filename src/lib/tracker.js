@@ -91,10 +91,13 @@ function closeCurrentPage() {
 }
 
 const GEO_CACHE_KEY = 'hh_geo';
-// A successful capture is cached indefinitely — never re-prompted again on
-// this browser once granted. If a user travels to a new country, they won't
-// be re-detected until they clear site data; that trade-off (fewer prompts)
-// was chosen deliberately over periodic re-verification.
+// No success-throttle: re-checked every app open/session_start. For anyone
+// who granted the browser's persistent "Allow" (as opposed to "Allow this
+// time"), this is invisible — the browser just returns a fresh position with
+// no repeat prompt, which is what makes "always know where they are" work
+// without re-annoying them. A user who picked "Allow this time" WILL still
+// see the browser's own prompt every session — that's enforced by the
+// browser itself and cannot be converted into a permanent grant from here.
 const GEO_BACKOFF_KEY = 'hh_geo_backoff';
 const GEO_BACKOFF_MS = 7 * 24 * 60 * 60 * 1000; // 7d — a decline/error also isn't re-asked immediately
 
@@ -126,16 +129,17 @@ export function getCachedGeo() {
   }
 }
 
-// High-accuracy geolocation, opt-in via the browser's native permission
-// prompt, reverse-geocoded client-side (no backend key needed), cached 24h.
-// Silent no-op if unsupported, denied, or still within the cache window.
+// High-accuracy geolocation, gated by the browser's own permission model
+// (see note above captureGeo below), reverse-geocoded client-side. Runs once
+// per app open/session_start. Silent no-op if unsupported or denied.
 // Stored as a 'custom' event (meta.action='geo_update') — the same pattern
 // already used for share/search/engagement events — so no backend schema
-// change is needed to record it.
+// change is needed to record it. Each successful call is a new TrackEvent
+// row (never overwritten), which is what builds the per-user location
+// history over time.
 function captureGeo() {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return;
   try {
-    if (localStorage.getItem(GEO_CACHE_KEY)) return; // ever captured on this browser → never re-ask
     const backoffRaw = localStorage.getItem(GEO_BACKOFF_KEY);
     if (backoffRaw && Date.now() - Number(backoffRaw) < GEO_BACKOFF_MS) return;
   } catch { /* ignore */ }
