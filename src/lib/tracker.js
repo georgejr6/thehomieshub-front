@@ -91,7 +91,10 @@ function closeCurrentPage() {
 }
 
 const GEO_CACHE_KEY = 'hh_geo';
-const GEO_CACHE_MS = 30 * 24 * 60 * 60 * 1000; // 30d — country/city rarely changes, no need to re-ask daily
+// A successful capture is cached indefinitely — never re-prompted again on
+// this browser once granted. If a user travels to a new country, they won't
+// be re-detected until they clear site data; that trade-off (fewer prompts)
+// was chosen deliberately over periodic re-verification.
 const GEO_BACKOFF_KEY = 'hh_geo_backoff';
 const GEO_BACKOFF_MS = 7 * 24 * 60 * 60 * 1000; // 7d — a decline/error also isn't re-asked immediately
 
@@ -132,8 +135,7 @@ export function getCachedGeo() {
 function captureGeo() {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return;
   try {
-    const cachedRaw = localStorage.getItem(GEO_CACHE_KEY);
-    if (cachedRaw && Date.now() - JSON.parse(cachedRaw).ts < GEO_CACHE_MS) return;
+    if (localStorage.getItem(GEO_CACHE_KEY)) return; // ever captured on this browser → never re-ask
     const backoffRaw = localStorage.getItem(GEO_BACKOFF_KEY);
     if (backoffRaw && Date.now() - Number(backoffRaw) < GEO_BACKOFF_MS) return;
   } catch { /* ignore */ }
