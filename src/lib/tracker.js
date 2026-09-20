@@ -91,7 +91,24 @@ function closeCurrentPage() {
 }
 
 const GEO_CACHE_KEY = 'hh_geo';
-const GEO_CACHE_MS = 24 * 60 * 60 * 1000; // 24h
+const GEO_CACHE_MS = 30 * 24 * 60 * 60 * 1000; // 30d — country/city rarely changes, no need to re-ask daily
+const GEO_BACKOFF_KEY = 'hh_geo_backoff';
+const GEO_BACKOFF_MS = 7 * 24 * 60 * 60 * 1000; // 7d — a decline/error also isn't re-asked immediately
+
+// Everything standard browser APIs expose without invasive fingerprinting
+// (no canvas/audio fingerprint) — attached to session_start and geo_update.
+function clientMeta() {
+  const m = {};
+  try { m.tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* ignore */ }
+  try { m.lang = navigator.language; } catch { /* ignore */ }
+  try { m.platform = navigator.platform; } catch { /* ignore */ }
+  try { m.screen = `${screen.width}x${screen.height}@${window.devicePixelRatio || 1}`; } catch { /* ignore */ }
+  try { m.cores = navigator.hardwareConcurrency || null; } catch { /* ignore */ }
+  try { m.mem = navigator.deviceMemory || null; } catch { /* ignore */ }
+  try { m.conn = navigator.connection?.effectiveType || null; } catch { /* ignore */ }
+  try { m.touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0; } catch { /* ignore */ }
+  return m;
+}
 
 // Public: last-known reverse-geocoded location, read synchronously from the
 // client cache (undefined until captureGeo() has resolved at least once).
@@ -116,10 +133,9 @@ function captureGeo() {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return;
   try {
     const cachedRaw = localStorage.getItem(GEO_CACHE_KEY);
-    if (cachedRaw) {
-      const cached = JSON.parse(cachedRaw);
-      if (Date.now() - cached.ts < GEO_CACHE_MS) return;
-    }
+    if (cachedRaw && Date.now() - JSON.parse(cachedRaw).ts < GEO_CACHE_MS) return;
+    const backoffRaw = localStorage.getItem(GEO_BACKOFF_KEY);
+    if (backoffRaw && Date.now() - Number(backoffRaw) < GEO_BACKOFF_MS) return;
   } catch { /* ignore */ }
 
   navigator.geolocation.getCurrentPosition(
@@ -137,17 +153,21 @@ function captureGeo() {
             city: geo.city || geo.locality || '',
           };
           try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify({ ts: Date.now(), payload })); } catch { /* ignore */ }
-          enqueue({ type: 'custom', path: window.location.pathname, meta: { action: 'geo_update', ...payload } });
+          enqueue({ type: 'custom', path: window.location.pathname, meta: { action: 'geo_update', ...payload, ...clientMeta() } });
           flushNow();
         })
         .catch(() => {
           const payload = { lat, lon, accuracy };
           try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify({ ts: Date.now(), payload })); } catch { /* ignore */ }
-          enqueue({ type: 'custom', path: window.location.pathname, meta: { action: 'geo_update', ...payload } });
+          enqueue({ type: 'custom', path: window.location.pathname, meta: { action: 'geo_update', ...payload, ...clientMeta() } });
           flushNow();
         });
     },
-    () => { /* denied or unavailable — silent, no personalization */ },
+    () => {
+      // denied or unavailable — silent, no personalization, and don't nag
+      // again for a week so a "no" doesn't get re-asked on every visit.
+      try { localStorage.setItem(GEO_BACKOFF_KEY, String(Date.now())); } catch { /* ignore */ }
+    },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
 }
