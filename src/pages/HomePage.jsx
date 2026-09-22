@@ -3,16 +3,31 @@ import { Helmet } from 'react-helmet';
 import { motion, AnimatePresence } from 'framer-motion';
 import VerticalVideoFeed from '@/components/VerticalVideoFeed';
 import { useContent } from '@/contexts/ContentContext';
+import { useAuth } from '@/contexts/AuthContext';
 import StoryFeed from '@/components/StoryFeed';
 import { Button } from '@/components/ui/button';
 import { ChevronRight } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
+import LocationGateOverlay, { hasHomeLocation } from '@/components/LocationGateOverlay';
+
+// Decorative stand-in for the feed while it's gated — never mounts real
+// video content, so nothing loads/plays until location is granted.
+const BlurredFeedPlaceholder = () => (
+  <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-neutral-900 to-black">
+    {[0.9, 0.6, 0.35].map((o, i) => (
+      <div key={i} className="w-[85%] max-w-sm h-24 rounded-2xl bg-white/10 blur-xl" style={{ opacity: o }} />
+    ))}
+  </div>
+);
 
 const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
   const { verticalPosts } = useContent();
+  const { user } = useAuth();
+  const [locationGranted, setLocationGranted] = useState(hasHomeLocation);
   const isMobile = useMediaQuery('(max-width: 768px)');
-  
+  const showLocationGate = !user && !locationGranted;
+
   // Visibility State
   const [showStories, setShowStories] = useState(true);
   const [isAtTop, setIsAtTop] = useState(true);
@@ -138,12 +153,19 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
         >
-            <VerticalVideoFeed
-                posts={verticalPosts}
-                onLoginRequest={onLoginRequest}
-                aspectRatio="vertical"
-                onTopChange={(atTop) => { setIsAtTop(atTop); if (!atTop) setShowStories(false); }}
-            />
+            {showLocationGate ? (
+                <>
+                    <BlurredFeedPlaceholder />
+                    <LocationGateOverlay onGranted={() => setLocationGranted(true)} />
+                </>
+            ) : (
+                <VerticalVideoFeed
+                    posts={verticalPosts}
+                    onLoginRequest={onLoginRequest}
+                    aspectRatio="vertical"
+                    onTopChange={(atTop) => { setIsAtTop(atTop); if (!atTop) setShowStories(false); }}
+                />
+            )}
         </div>
       </div>
     </>

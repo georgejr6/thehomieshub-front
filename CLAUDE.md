@@ -135,6 +135,10 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-09-22 — Join-gate location step + home-feed location blur
+- **[FEAT] `/join` now has a 4th hard-gate step**: connect Discord → confirm email → **enable location** → admitted. `JoinGatePage.jsx`: `StepDots` order is now `{connect:0, email:1, location:2, done:3}`; `confirmCode()` routes to the new `location` step instead of admitting directly; new `enableLocation()` calls `navigator.geolocation`, POSTs to `homieshub-backend`'s new `POST /api/gate/location`, then admits. `load()`/the boot effect gate auto-admit on `status.locationEnabled` too. **Existing already-admitted users are unaffected** — they short-circuit to `step:'done'` before ever reaching the location step.
+- **[FEAT] Home feed (`/browse`, `HomePage.jsx`) blurs for logged-out visitors without location.** New `components/LocationGateOverlay.jsx` (+ `hasHomeLocation()`/`HOME_LOCATION_KEY` — per-browser `localStorage`, not account-tied) renders a full overlay + `BlurredFeedPlaceholder` in place of `VerticalVideoFeed` when `!user && !locationGranted`, so no real video mounts/loads until they grant location. Granting also fires `trackEvent('location_enabled', {lat,lng})` via the existing `lib/tracker.js` pipeline. Logged-in users are never gated.
+
 ### 2026-08-23 — Admin panel for the announcement banner
 - **`src/pages/admin/AdminBanners.jsx`** (new), wired at `/admin/banners` (`src/App.jsx`) + sidebar entry (`src/pages/admin/AdminLayout.jsx`): create/pause/delete the in-app top-of-feed banner against `homieshub-backend`'s `/api/admin/banners` CRUD — style, audience (all/free/paid), optional CTA + auto-expire. Only one banner is ever live; creating a new one pauses the current one.
 
