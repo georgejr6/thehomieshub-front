@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Check, Mail, Crown, MessagesSquare, Globe, MapPin } from 'lucide-react';
+import { captureGeo, getCachedGeo, isLocationVerified } from '@/lib/tracker';
 
 const API_BASE = 'https://backend.thehomies.app/api';
 const GUILD_ID = '1293582001840062525';
@@ -155,36 +156,40 @@ export default function JoinGatePage() {
     } finally { setBusy(false); }
   };
 
-  const enableLocation = () => {
-    if (!('geolocation' in navigator)) {
-      setLocationDenied(true);
-      toast({ title: 'Location not supported', description: 'Your browser does not support location services.', variant: 'destructive' });
-      return;
-    }
+  // Shares lib/tracker.js's capture pipeline with the site-wide LocationGate
+  // — if this browser already verified location (e.g. while browsing
+  // logged-out before signing up), reuses the cached coords instead of
+  // prompting again. force:true on a fresh capture skips the deny-backoff
+  // since this is a deliberate, user-initiated step, not a background check.
+  const enableLocation = async () => {
     setBusy(true);
     setLocationDenied(false);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          await api.post('/gate/location', {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          });
-          await admit(); // location enabled + email confirmed = in
-        } catch (err) {
-          toast({ title: 'Could not save location', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
+    try {
+      let cached = getCachedGeo();
+      if (!cached) {
+        const ok = await captureGeo({ force: true });
+        if (!ok) {
+          setLocationDenied(true);
           setBusy(false);
+          toast({ title: 'Location access needed', description: 'Enable location access in your browser to finish joining.', variant: 'destructive' });
+          return;
         }
-      },
-      () => {
-        setLocationDenied(true);
-        setBusy(false);
-        toast({ title: 'Location access needed', description: 'Enable location access in your browser to finish joining.', variant: 'destructive' });
-      },
-      { enableHighAccuracy: false, timeout: 10000 }
-    );
+        cached = getCachedGeo();
+      }
+      await api.post('/gate/location', { lat: cached.lat, lng: cached.lon, accuracy: cached.accuracy });
+      await admit(); // location enabled + email confirmed = in
+    } catch (err) {
+      toast({ title: 'Could not save location', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
+      setBusy(false);
+    }
   };
+
+  // Already verified on this browser (e.g. from browsing logged-out before
+  // signing up) — skip the button entirely, finish the step automatically.
+  useEffect(() => {
+    if (step === 'location' && isLocationVerified() && !busy) enableLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const startCheckout = async (plan) => {
     setBusy(true);

@@ -118,7 +118,11 @@ function clientMeta() {
 
 // Public: last-known reverse-geocoded location, read synchronously from the
 // client cache (undefined until captureGeo() has resolved at least once).
-// Meant for content personalization (e.g. "show Thailand meetups first").
+// Meant for content personalization (e.g. "show Thailand meetups first")
+// AND as the single "has this browser verified location?" check — see
+// isLocationVerified() — shared by the site-wide LocationGate and the /join
+// flow's location step, so neither re-prompts a browser the other already
+// captured.
 export function getCachedGeo() {
   try {
     const raw = localStorage.getItem(GEO_CACHE_KEY);
@@ -129,60 +133,78 @@ export function getCachedGeo() {
   }
 }
 
-// High-accuracy geolocation, gated by the browser's own permission model
-// (see note above captureGeo below), reverse-geocoded client-side. Runs once
-// per app open/session_start. Silent no-op if unsupported or denied.
-// Stored as a 'custom' event (meta.action='geo_update') — the same pattern
-// already used for share/search/engagement events — so no backend schema
-// change is needed to record it. Each successful call is a new TrackEvent
-// row (never overwritten), which is what builds the per-user location
-// history over time.
-function captureGeo() {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return;
-  try {
-    const backoffRaw = localStorage.getItem(GEO_BACKOFF_KEY);
-    if (backoffRaw && Date.now() - Number(backoffRaw) < GEO_BACKOFF_MS) return;
-  } catch { /* ignore */ }
+// Public: true once this browser has ever successfully captured location.
+export function isLocationVerified() {
+  return !!getCachedGeo();
+}
 
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const accuracy = pos.coords.accuracy;
-      fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`)
-        .then((r) => r.json())
-        .then((geo) => {
-          const payload = {
+// High-accuracy geolocation, reverse-geocoded client-side, recorded as a
+// 'custom' event (meta.action='geo_update') — the same pattern already used
+// for share/search/engagement events, so no backend schema change is needed.
+// Each successful call is a new TrackEvent row (never overwritten), which is
+// what builds the per-user location history over time.
+//
+// Returns a Promise<boolean> (true = captured). Two call sites:
+//  - initTracker(): silent, automatic, but ONLY for a browser that already
+//    verified once (isLocationVerified()) — a fresh per-session re-check with
+//    no prompt, since the browser just re-serves the already-granted
+//    permission. This is the "don't ask again" behavior for known visitors.
+//  - LocationGateOverlay (explicit, user-clicked "Enable Location"): passes
+//    { force: true } to skip the deny-backoff, since it's a deliberate retry,
+//    not an automatic background check. This is the ONLY path that ever
+//    triggers the browser's permission prompt for a brand-new visitor —
+//    first capture always happens through visible, explained gate UI now,
+//    never silently on page load.
+export function captureGeo({ force = false } = {}) {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) { resolve(false); return; }
+    if (!force) {
+      try {
+        const backoffRaw = localStorage.getItem(GEO_BACKOFF_KEY);
+        if (backoffRaw && Date.now() - Number(backoffRaw) < GEO_BACKOFF_MS) { resolve(false); return; }
+      } catch { /* ignore */ }
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const accuracy = pos.coords.accuracy;
+        const save = (payload) => {
+          try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify({ ts: Date.now(), payload })); } catch { /* ignore */ }
+          enqueue({ type: 'custom', path: window.location.pathname, meta: { action: 'geo_update', ...payload, ...clientMeta() } });
+          flushNow();
+          resolve(true);
+        };
+        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`)
+          .then((r) => r.json())
+          .then((geo) => save({
             lat, lon, accuracy,
             country: geo.countryName || '',
             countryCode: geo.countryCode || '',
             city: geo.city || geo.locality || '',
-          };
-          try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify({ ts: Date.now(), payload })); } catch { /* ignore */ }
-          enqueue({ type: 'custom', path: window.location.pathname, meta: { action: 'geo_update', ...payload, ...clientMeta() } });
-          flushNow();
-        })
-        .catch(() => {
-          const payload = { lat, lon, accuracy };
-          try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify({ ts: Date.now(), payload })); } catch { /* ignore */ }
-          enqueue({ type: 'custom', path: window.location.pathname, meta: { action: 'geo_update', ...payload, ...clientMeta() } });
-          flushNow();
-        });
-    },
-    () => {
-      // denied or unavailable — silent, no personalization, and don't nag
-      // again for a week so a "no" doesn't get re-asked on every visit.
-      try { localStorage.setItem(GEO_BACKOFF_KEY, String(Date.now())); } catch { /* ignore */ }
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-  );
+          }))
+          .catch(() => save({ lat, lon, accuracy }));
+      },
+      () => {
+        // denied or unavailable — don't nag again for a week so a "no"
+        // isn't re-asked on every automatic (non-forced) check.
+        try { localStorage.setItem(GEO_BACKOFF_KEY, String(Date.now())); } catch { /* ignore */ }
+        resolve(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
 }
 
 let inited = false;
 export function initTracker() {
   if (inited || typeof window === 'undefined') return;
   inited = true;
-  captureGeo();
+  // Silent per-session re-verify — only for browsers that already granted
+  // once. A never-verified visitor is left alone here; they're prompted
+  // through the explicit LocationGate UI instead (see App.jsx).
+  if (isLocationVerified()) captureGeo();
 
   // session_start once per browsing session
   const sid = sessionId();

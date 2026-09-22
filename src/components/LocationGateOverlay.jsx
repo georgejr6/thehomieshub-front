@@ -1,35 +1,25 @@
 import React, { useState } from 'react';
 import { MapPin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { trackEvent, flushNow } from '@/lib/tracker';
+import { captureGeo } from '@/lib/tracker';
 
-export const HOME_LOCATION_KEY = 'hh_home_location';
-
-export function hasHomeLocation() {
-  try { return localStorage.getItem(HOME_LOCATION_KEY) === '1'; } catch { return false; }
-}
-
-// Shown over the home feed for logged-out visitors who haven't granted
-// location yet — content underneath stays blurred until they enable it.
+// Shown over gated content for logged-out visitors who haven't verified
+// location yet. Uses the SAME capture pipeline as the passive per-session
+// re-check in lib/tracker.js (captureGeo) — one source of truth for "has
+// this browser verified location," shared with the /join flow's location
+// step. force:true skips the deny-backoff since this is a deliberate,
+// user-initiated retry, not an automatic background check.
 export default function LocationGateOverlay({ onGranted }) {
   const [busy, setBusy] = useState(false);
   const [denied, setDenied] = useState(false);
 
-  const enable = () => {
-    if (!('geolocation' in navigator)) { setDenied(true); return; }
+  const enable = async () => {
     setBusy(true);
     setDenied(false);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        try { localStorage.setItem(HOME_LOCATION_KEY, '1'); } catch { /* ignore */ }
-        trackEvent('location_enabled', { lat: pos.coords.latitude, lng: pos.coords.longitude });
-        flushNow();
-        setBusy(false);
-        onGranted?.();
-      },
-      () => { setBusy(false); setDenied(true); },
-      { enableHighAccuracy: false, timeout: 10000 }
-    );
+    const ok = await captureGeo({ force: true });
+    setBusy(false);
+    if (ok) onGranted?.();
+    else setDenied(true);
   };
 
   return (
