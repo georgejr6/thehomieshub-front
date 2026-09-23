@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Settings, Trash2 } from 'lucide-react';
+import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Settings, Trash2, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
@@ -22,6 +22,7 @@ function ChannelRow({ c, active, onOpen, muted, depth = 0 }) {
       {unread && <span className="chat-pop absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r bg-white" />}
       <Icon className="h-[18px] w-[18px] shrink-0 opacity-70" />
       <span className={cn('truncate', (unread || active) && 'font-semibold')}>{c.name}</span>
+      {c.discoverable && <Globe className="h-3 w-3 shrink-0 opacity-50" title="Posts here can become discoverable Homies posts" />}
       {c.mentions > 0 && !active && (
         <span key={c.mentions} className="chat-pop ml-auto rounded-full bg-[#F23F43] px-1.5 text-[11px] font-bold leading-4 text-white">{c.mentions > 99 ? '99+' : c.mentions}</span>
       )}
@@ -29,7 +30,7 @@ function ChannelRow({ c, active, onOpen, muted, depth = 0 }) {
   );
 }
 
-export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose, onDeleteHistory }) {
+export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose, onDeleteHistory, onToggleDiscoverable }) {
   const [menu, setMenu] = useState(false);
   const activeName = state.channels.find((c) => c.id === activeChannelId)?.name;
   const [collapsed, setCollapsed] = useState(() => {
@@ -106,6 +107,18 @@ export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose
             </button>
             {menu && (
               <div className="chat-fade-up absolute bottom-full right-0 z-40 mb-2 w-64 rounded-lg border border-[#1E1F22] bg-[#111214] p-1.5 shadow-2xl" onMouseLeave={() => setMenu(false)}>
+                <div className="px-2.5 pb-1 pt-1.5 text-xs font-semibold uppercase text-[#949BA4]">Privacy</div>
+                <button onClick={() => onToggleDiscoverable?.(!(state.me?.chatDiscoverable !== false))} className="flex w-full items-start gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#35373C]">
+                  <Globe className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span className="flex-1">
+                    Discoverable posts
+                    <span className="block text-xs text-[#949BA4]">Good posts in public channels can become Homies posts anyone can find. You can still choose per message.</span>
+                  </span>
+                  <span className={cn('mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors', state.me?.chatDiscoverable !== false ? 'bg-[#23A55A]' : 'bg-[#80848E]')}>
+                    <span className={cn('h-4 w-4 rounded-full bg-white shadow transition-transform duration-200', state.me?.chatDiscoverable !== false && 'translate-x-4')} />
+                  </span>
+                </button>
+                <div className="my-1 h-px bg-[#2B2D31]" />
                 <div className="px-2.5 pb-1 pt-1.5 text-xs font-semibold uppercase text-[#949BA4]">Your messages</div>
                 {activeName && (
                   <button onClick={() => { setMenu(false); onDeleteHistory?.(activeChannelId, activeName); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">

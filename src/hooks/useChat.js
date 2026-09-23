@@ -372,6 +372,16 @@ export function useChat({ enabled, activeChannelId }) {
       }
     },
     deleteMyHistory: async (channelId) => (await api.post('/chat/me/delete-history', channelId ? { channelId } : {})).data.result,
+    // Discoverable posts: per-message public/private, and the global switch.
+    setDiscover: async (id, mode) => {
+      const { data } = await api.patch(`/chat/messages/${id}/discover`, { mode });
+      dispatch({ type: 'message', message: data.result });
+      return data.result;
+    },
+    setChatDiscoverable: async (value) => {
+      await api.patch('/chat/me/settings', { chatDiscoverable: value });
+      dispatch({ type: 'me', patch: { chatDiscoverable: value } });
+    },
     markRead,
     clearError: () => dispatch({ type: 'status', status: stateRef.current.status, error: null }),
   }), [sendMessage, loadHistory, markRead]);

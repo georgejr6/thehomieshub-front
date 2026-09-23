@@ -9,6 +9,7 @@
     { "source": "/post/:id",  "destination": "https://backend.thehomies.app/og/post/:id"  },
     { "source": "/media/:id", "destination": "https://backend.thehomies.app/og/media/:id" },
     { "source": "/track/:id", "destination": "https://backend.thehomies.app/og/track/:id" },
+    { "source": "/sitemap.xml", "destination": "https://backend.thehomies.app/og/sitemap.xml" },
     { "source": "/:path*",    "destination": "/index.html" }
   ]
 }

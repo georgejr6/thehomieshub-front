@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { SmilePlus, Reply, Pencil, Trash2, Pin, Flag, FileText, Download, CornerUpLeft, Loader2, AlertCircle, ArrowDown } from 'lucide-react';
+import { SmilePlus, Reply, Pencil, Trash2, Pin, Flag, FileText, Download, CornerUpLeft, Loader2, AlertCircle, ArrowDown, MoreHorizontal, Globe, Lock, Copy, ExternalLink } from 'lucide-react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import ChatMarkdown, { roleColor } from './ChatMarkdown';
@@ -95,6 +95,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.content);
   const [picker, setPicker] = useState(false);
+  const [more, setMore] = useState(false);
   const mine = m.author?.id === me?.id;
   // Animate only messages that arrive while you're watching, not history pages.
   const fresh = useRef(m.pending || Date.now() - new Date(m.createdAt).getTime() < 8000).current;
@@ -116,6 +117,24 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
     if (!window.confirm('Delete this message?')) return;
     try { await actions.deleteMessage(m.id); } catch (err) { onError(err.response?.data?.message || 'Couldn\'t delete.'); }
   };
+  useEffect(() => {
+    if (!more) return undefined;
+    const close = () => setMore(false);
+    setTimeout(() => window.addEventListener('click', close), 0);
+    return () => window.removeEventListener('click', close);
+  }, [more]);
+
+  // Public = this message is also a Homies post people can discover.
+  const setDiscover = async (mode) => {
+    setMore(false);
+    try {
+      await actions.setDiscover(m.id, mode);
+      onError(mode === 'private' ? 'Kept private — it won\'t be shown as a public post.' : 'Made public — it\'s now a discoverable Homies post.');
+    } catch (err) {
+      onError(err.response?.data?.message || 'Couldn\'t change that.');
+    }
+  };
+
   const report = async () => {
     const note = window.prompt('Report this message to the mods. What\'s wrong? (optional)');
     if (note === null) return;
@@ -155,6 +174,11 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
             <span className="cursor-pointer font-medium hover:underline" style={{ color: nameColor(m.author) }}>{m.author?.displayName || m.author?.username}</span>
             {m.source?.platform === 'discord' && <span className="rounded bg-[#5865F2]/30 px-1 text-[10px] font-semibold uppercase text-[#C9CDFB]">via Discord</span>}
             <span className="text-xs text-[#949BA4]">{fmtStamp(m.createdAt)}</span>
+            {m.discover?.public && (
+              <a href={m.discover.postId ? `/post/${m.discover.postId}` : undefined} target="_blank" rel="noopener noreferrer" title="Public — also shared as a discoverable Homies post" className="text-[#949BA4] transition-colors hover:text-[#00A8FC]">
+                <Globe className="h-3.5 w-3.5" />
+              </a>
+            )}
           </div>
         </>
       )}
@@ -218,7 +242,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
       {!m.pending && !m.failed && !editing && (
         <div className={cn(
           'absolute -top-4 right-4 z-20 flex rounded-md border border-[#1E1F22] bg-[#313338] shadow-md transition-all duration-150',
-          picker ? 'opacity-100' : 'pointer-events-none translate-y-1 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100'
+          picker || more ? 'opacity-100' : 'pointer-events-none translate-y-1 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100'
         )}>
           {can.react && QUICK_EMOJI.slice(0, 3).map((e) => (
             <button key={e} onClick={() => react(e)} className="px-1.5 py-1 transition-transform duration-100 hover:scale-125 hover:bg-[#404249]" title={`React ${e}`}>{e}</button>
@@ -233,6 +257,47 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
           {mine && !m.source && <button onClick={() => { setDraft(m.content); setEditing(true); }} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Edit"><Pencil className="h-5 w-5" /></button>}
           {can.manageMessages && <button onClick={() => actions.pin(m.id, !m.pinned)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title={m.pinned ? 'Unpin' : 'Pin'}><Pin className="h-5 w-5" /></button>}
           {!mine && <button onClick={report} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Report"><Flag className="h-5 w-5" /></button>}
+          <div className="relative">
+            <button onClick={() => setMore((v) => !v)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="More"><MoreHorizontal className="h-5 w-5" /></button>
+            {more && (
+              <div onClick={(e) => e.stopPropagation()} className="chat-fade-up absolute right-0 top-9 z-40 w-60 rounded-lg border border-[#1E1F22] bg-[#111214] p-1.5 shadow-2xl">
+                {mine && m.discover?.eligible && (
+                  <>
+                    <div className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase text-[#949BA4]">Discoverability</div>
+                    {m.discover.public ? (
+                      <button onClick={() => setDiscover('private')} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
+                        <Lock className="h-4 w-4" /> Make private
+                      </button>
+                    ) : (
+                      <button onClick={() => setDiscover('public')} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
+                        <Globe className="h-4 w-4" /> Make public
+                      </button>
+                    )}
+                    {m.discover.public && m.discover.postId && (
+                      <a href={`/post/${m.discover.postId}`} target="_blank" rel="noopener noreferrer" className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
+                        <ExternalLink className="h-4 w-4" /> View public post
+                      </a>
+                    )}
+                    <div className="px-2.5 pb-1 text-[11px] text-[#949BA4]">{m.discover.public ? 'Anyone can find this as a Homies post.' : 'Only people in this channel can see it.'}</div>
+                    <div className="my-1 h-px bg-[#2B2D31]" />
+                  </>
+                )}
+                <button onClick={() => { navigator.clipboard?.writeText(m.content || ''); setMore(false); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
+                  <Copy className="h-4 w-4" /> Copy Text
+                </button>
+                {mine && !m.source && (
+                  <button onClick={() => { setMore(false); setDraft(m.content); setEditing(true); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
+                    <Pencil className="h-4 w-4" /> Edit Message
+                  </button>
+                )}
+                {(mine || can.manageMessages) && (
+                  <button onClick={() => { setMore(false); remove(); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">
+                    <Trash2 className="h-4 w-4" /> Delete Message
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           {(mine || can.manageMessages) && <button onClick={remove} className="p-1.5 text-[#F23F43] hover:bg-[#404249]" title="Delete"><Trash2 className="h-5 w-5" /></button>}
         </div>
       )}

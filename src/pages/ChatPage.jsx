@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
-import { Hash, Megaphone, Menu, Users, X, Loader2, CornerDownRight } from 'lucide-react';
+import { Hash, Megaphone, Menu, Users, X, Loader2, CornerDownRight, Globe } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/hooks/useChat';
 import ChannelSidebar from '@/components/chat/ChannelSidebar';
@@ -56,6 +56,14 @@ export default function ChatPage({ onLoginRequest }) {
   const open = useCallback((id) => navigate(`/chat/${id}`), [navigate]);
   // Polls/events use the app's post endpoints, which need a paid membership (or admin).
   const canCreatePosts = !!(user?.isAdmin || ['homie', 'nomad'].includes(state.me?.tier));
+  const toggleDiscoverable = async (value) => {
+    try {
+      await actions.setChatDiscoverable(value);
+      setToast(value ? 'Discoverable posts on — good posts in public channels can be found in The Homies.' : 'Discoverable posts off — your chat posts stay in chat unless you make one public.');
+    } catch (err) {
+      setToast(err.response?.data?.message || "Couldn't change that setting.");
+    }
+  };
   const deleteHistory = async (channelId, name) => {
     const where = channelId ? `in #${name}` : 'across the whole chat';
     if (!window.confirm(`Delete ALL of your messages ${where}? This can't be undone.`)) return;
@@ -122,12 +130,12 @@ export default function ChatPage({ onLoginRequest }) {
       </div>
 
       {/* Channel sidebar: static on desktop, drawer on mobile */}
-      <div className="hidden md:flex"><ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onDeleteHistory={deleteHistory} /></div>
+      <div className="hidden md:flex"><ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} /></div>
       {drawer && (
         <div className="chat-fade-in fixed inset-0 z-40 flex md:hidden">
           <div className="chat-slide-right flex h-full">
             <div className="w-[72px] bg-[#1E1F22]" />
-            <ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} />
+            <ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} />
           </div>
           <div className="flex-1 bg-black/50" onClick={() => setDrawer(false)} />
         </div>
@@ -139,6 +147,11 @@ export default function ChatPage({ onLoginRequest }) {
           <button onClick={() => setDrawer(true)} className="mr-1 text-[#B5BAC1] md:hidden"><Menu className="h-6 w-6" /></button>
           {channel && <ChannelIcon className="h-6 w-6 shrink-0 text-[#80848E]" />}
           <span key={channel?.id} className="chat-fade-in truncate font-semibold text-white">{channel?.name}</span>
+          {channel?.discoverable && (
+            <span title="Good posts here can become discoverable Homies posts (you control yours from the ⋯ menu)" className="chat-fade-in ml-1 hidden items-center gap-1 rounded-full bg-[#23A55A]/15 px-2 py-0.5 text-[11px] font-semibold text-[#23A55A] sm:flex">
+              <Globe className="h-3 w-3" /> Discoverable
+            </span>
+          )}
           {channel?.topic && <><div className="mx-2 hidden h-6 w-px bg-[#3F4147] sm:block" /><span className="hidden truncate text-sm text-[#B5BAC1] sm:block">{channel.topic}</span></>}
           <div className="ml-auto flex items-center gap-3">
             {state.status !== 'connected' && state.status !== 'idle' && (
