@@ -10,7 +10,7 @@ const safeArray = (v) => (Array.isArray(v) ? v : []);
 
 const mapCreator = (creator) => ({
   id: creator?._id || creator?.id,
-  name: creator?.name || creator?.fullName || creator?.username || "User",
+  name: creator?.displayName || creator?.name || creator?.fullName || creator?.username || "User",
   username: creator?.username || "user",
   avatar: creator?.avatarUrl || creator?.avatar || "",
   verified: !!creator?.verified,

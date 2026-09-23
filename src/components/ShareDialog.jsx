@@ -346,11 +346,11 @@ const ShareDialog = ({ children, postUrl, postTitle, post }) => {
                             <Avatar className="w-8 h-8 flex-shrink-0">
                               <AvatarImage src={contact.avatarUrl} />
                               <AvatarFallback className="text-xs">
-                                {(contact.name || contact.username || '?')[0].toUpperCase()}
+                                {(contact.displayName || contact.name || contact.username || '?')[0].toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{contact.name || contact.username}</p>
+                              <p className="text-sm font-medium truncate">{contact.displayName || contact.name || contact.username}</p>
                               <p className="text-xs text-muted-foreground">@{contact.username}</p>
                             </div>
                           </div>

@@ -23,7 +23,7 @@ function safeArray(v) {
 // Map backend Reel/Video into UI feed item format (verticalMockPosts-like)
 function mapBackendCreator(creator) {
   return {
-    name: creator?.name || creator?.fullName || creator?.username || 'User',
+    name: creator?.displayName || creator?.name || creator?.fullName || creator?.username || 'User',
     username: creator?.username || creator?.handle || 'user',
     avatar: creator?.avatarUrl || creator?.avatar || '',
     verified: creator?.verified || false
@@ -137,7 +137,7 @@ function mapCommunityPostToFeedItem(p) {
 
     user: {
       id: author?._id || author?.id,
-      name: author?.name || author?.fullName || author?.username || "User",
+      name: author?.displayName || author?.name || author?.fullName || author?.username || "User",
       username: author?.username || "user",
       avatar: author?.avatarUrl || author?.avatar || "",
       verified: !!author?.verified,

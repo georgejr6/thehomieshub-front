@@ -359,7 +359,7 @@ const InboxPage = () => {
     return {
       username: other,
       avatar: otherObj?.avatarUrl || `https://avatar.vercel.sh/${other}.png`,
-      name: otherObj?.name || other,
+      name: otherObj?.displayName || otherObj?.name || other,
     };
   };
 

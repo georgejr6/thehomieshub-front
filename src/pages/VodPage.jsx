@@ -65,7 +65,7 @@ const VodPage = () => {
   return (
     <>
       <Helmet>
-        <title>{vod.title} — {vod.creator?.name || vod.creator?.username} on The Homies Hub</title>
+        <title>{vod.title} — {vod.creator?.displayName || vod.creator?.name || vod.creator?.username} on The Homies Hub</title>
       </Helmet>
 
       <div className="min-h-screen bg-black text-white">
@@ -109,7 +109,7 @@ const VodPage = () => {
                 <AvatarFallback>{vod.creator.username?.[0]?.toUpperCase()}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-semibold text-sm">{vod.creator.name || vod.creator.username}</p>
+                <p className="font-semibold text-sm">{vod.creator.displayName || vod.creator.name || vod.creator.username}</p>
                 <p className="text-white/40 text-xs">@{vod.creator.username}</p>
               </div>
             </Link>

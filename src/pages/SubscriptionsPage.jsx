@@ -47,7 +47,7 @@ const SubscriptionsPage = () => {
     thumbnail: item.thumbnailUrl || item.coverImageUrl || '',
     videoUrl: item.videoUrl || '',
     user: {
-      name: item.creator?.name || item.creator?.username || 'Creator',
+      name: item.creator?.displayName || item.creator?.name || item.creator?.username || 'Creator',
       username: item.creator?.username || '',
       avatar: item.creator?.avatarUrl || '',
     },

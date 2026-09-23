@@ -95,7 +95,7 @@ const RealUserProfilePage = () => {
       user: {
         id: author?._id || author?.id,
         username: author?.username || "user",
-        name: author?.name || author?.username || "User",
+        name: author?.displayName || author?.name || author?.username || "User",
         avatar: author?.avatarUrl || "",
         verified: false,
       },

@@ -276,7 +276,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   return (
     <>
       <Helmet>
-        <title>{stream.title} — {stream.creator?.name || username} Live on The Homies Hub</title>
+        <title>{stream.title} — {stream.creator?.displayName || stream.creator?.name || username} Live on The Homies Hub</title>
       </Helmet>
 
       <div className="flex flex-col lg:flex-row h-screen bg-black text-white overflow-hidden">
@@ -429,7 +429,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                 <div className="min-w-0">
                   <h1 className="font-bold text-base leading-tight truncate">{stream.title}</h1>
                   <p className="text-white/50 text-sm truncate">
-                    {stream.creator?.name || stream.creator?.username}
+                    {stream.creator?.displayName || stream.creator?.name || stream.creator?.username}
                     {stream.creator?.username && ` · @${stream.creator.username}`}
                   </p>
                 </div>
@@ -513,7 +513,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
         isOpen={isGiftOpen}
         onOpenChange={setIsGiftOpen}
         recipientId={stream.creator?._id}
-        recipientName={stream.creator?.name || username}
+        recipientName={stream.creator?.displayName || stream.creator?.name || username}
         recipientUsername={stream.creator?.username || username}
         targetType="live_stream"
         targetId={stream._id || stream.id}

@@ -58,14 +58,14 @@ const { user: currentUser } = useAuth();
         <div className="flex items-start gap-3 py-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <Link to={`/profile/${comment.user?.username}`}>
                 <Avatar className="h-9 w-9 cursor-pointer">
-                    <AvatarImage src={comment.user?.avatarUrl} alt={comment.user?.name} />
-                    <AvatarFallback>{comment.user?.name?.charAt(0) || '?'}</AvatarFallback>
+                    <AvatarImage src={comment.user?.avatarUrl} alt={comment.user?.displayName || comment.user?.username} />
+                    <AvatarFallback>{(comment.user?.displayName || comment.user?.username || '?').charAt(0)}</AvatarFallback>
                 </Avatar>
             </Link>
             <div className="flex-1">
                 <p className="text-sm">
                     <Link to={`/profile/${comment.user?.username}`} className="font-semibold hover:underline mr-2">
-                        {comment.user?.name || 'Unknown User'}
+                        {comment.user?.displayName || comment.user?.name || comment.user?.username || 'Unknown User'}
                     </Link>
                     <span className="text-foreground/90">{comment.text}</span>
                 </p>

@@ -47,7 +47,7 @@ const StreamCard = ({ stream }) => (
               <AvatarImage src={stream.creator?.avatarUrl} />
               <AvatarFallback className="text-[10px]">{stream.creator?.username?.[0]?.toUpperCase()}</AvatarFallback>
             </Avatar>
-            <span>{stream.creator?.name || stream.creator?.username}</span>
+            <span>{stream.creator?.displayName || stream.creator?.name || stream.creator?.username}</span>
             {stream.creator?.username && <span className="text-muted-foreground/50">@{stream.creator.username}</span>}
           </div>
           {stream.description && (
