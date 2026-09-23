@@ -3,20 +3,23 @@ import { MapPin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { captureGeo } from '@/lib/tracker';
 
-// Shown over gated content for logged-out visitors who haven't verified
-// location yet. Uses the SAME capture pipeline as the passive per-session
-// re-check in lib/tracker.js (captureGeo) — one source of truth for "has
-// this browser verified location," shared with the /join flow's location
-// step. force:true skips the deny-backoff since this is a deliberate,
-// user-initiated retry, not an automatic background check.
-export default function LocationGateOverlay({ onGranted }) {
+// Shown over gated content for anyone (logged in or not) who hasn't
+// verified location yet. By default uses the same capture pipeline as the
+// passive per-session re-check in lib/tracker.js (captureGeo) — one source
+// of truth for "has this browser verified location," shared with the /join
+// flow's location step. force:true skips the deny-backoff since this is a
+// deliberate, user-initiated retry, not an automatic background check.
+// Pass `onEnable` to override the capture step itself (e.g. LocationGate
+// uses this for logged-in users, to also persist the verification on their
+// account via POST /gate/location instead of just the browser-local cache).
+export default function LocationGateOverlay({ onGranted, onEnable }) {
   const [busy, setBusy] = useState(false);
   const [denied, setDenied] = useState(false);
 
   const enable = async () => {
     setBusy(true);
     setDenied(false);
-    const ok = await captureGeo({ force: true });
+    const ok = onEnable ? await onEnable() : await captureGeo({ force: true });
     setBusy(false);
     if (ok) onGranted?.();
     else setDenied(true);

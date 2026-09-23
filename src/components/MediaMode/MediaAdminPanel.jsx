@@ -28,6 +28,25 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
   const [sort, setSort] = useState('newest'); // newest | views | az
   const [selected, setSelected] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [lockdown, setLockdown] = useState(null); // { active, setAt, setBy } | null while loading
+  const [lockdownBusy, setLockdownBusy] = useState(false);
+
+  useEffect(() => {
+    api.get('/admin/lockdown').then(({ data }) => setLockdown(data?.result)).catch(() => {});
+  }, []);
+
+  const toggleLockdown = async () => {
+    setLockdownBusy(true);
+    try {
+      const { data } = await api.post('/admin/lockdown', { active: !lockdown?.active });
+      setLockdown(prev => ({ ...prev, active: data?.result?.active }));
+      toast({ title: data?.result?.active ? 'Content lockdown enabled — only approved items are visible' : 'Content lockdown disabled — everything is visible again' });
+    } catch {
+      toast({ title: 'Failed to update lockdown', variant: 'destructive' });
+    } finally {
+      setLockdownBusy(false);
+    }
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -87,6 +106,18 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     } catch {
       setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, visibility: item.visibility } : i));
       toast({ title: 'Failed to update visibility', variant: 'destructive' });
+    }
+  };
+
+  const handleToggleApproved = async (item) => {
+    const next = !item.lockdownApproved;
+    setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, lockdownApproved: next } : i));
+    try {
+      await api.patch(`/admin/videos/${item._id || item.id}`, { lockdownApproved: next, _collectionType: item._collectionType });
+      toast({ title: next ? 'Approved for viewing' : 'Approval revoked' });
+    } catch {
+      setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, lockdownApproved: item.lockdownApproved } : i));
+      toast({ title: 'Failed to update approval', variant: 'destructive' });
     }
   };
 
@@ -154,6 +185,19 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     finally { setBulkBusy(false); }
   };
 
+  const bulkApprove = async () => {
+    const list = selectedItems();
+    if (!list.length) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(list.map(i => api.patch(`/admin/videos/${idOf(i)}`, { lockdownApproved: true, _collectionType: i._collectionType })));
+      setItems(prev => prev.map(i => selected.has(idOf(i)) ? { ...i, lockdownApproved: true } : i));
+      toast({ title: `${list.length} approved for viewing` });
+      clearSelection();
+    } catch { toast({ title: 'Bulk approve failed', variant: 'destructive' }); }
+    finally { setBulkBusy(false); }
+  };
+
   const bulkDelete = async () => {
     const list = selectedItems();
     if (!list.length) return;
@@ -193,6 +237,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     const arr = [...filtered];
     if (sort === 'views') arr.sort((a, b) => viewsOf(b) - viewsOf(a));
     else if (sort === 'az') arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    else if (sort === 'pending') arr.sort((a, b) => (a.lockdownApproved === b.lockdownApproved) ? 0 : a.lockdownApproved ? 1 : -1);
     return arr; // 'newest' keeps backend order (already newest-first)
   }, [filtered, sort, viewsById]); // eslint-disable-line
 
@@ -217,6 +262,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
           <option value="newest">Newest</option>
           <option value="views">Most viewed</option>
           <option value="az">A–Z</option>
+          <option value="pending">Pending review first</option>
         </select>
         <Button onClick={handleBulkSync} disabled={bulkSyncing}
           className="bg-[#1a1a1a] hover:bg-[#272727] text-white border border-[#333] h-9 px-3 text-xs gap-1.5 flex-shrink-0">
@@ -238,6 +284,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
       {selected.size > 0 && (
         <div className="sticky top-0 z-10 flex items-center gap-2 flex-wrap mb-3 p-2.5 rounded-xl border border-primary/30 bg-primary/10 backdrop-blur-md">
           <span className="text-sm font-semibold text-white px-1">{selected.size} selected</span>
+          <Button size="sm" onClick={bulkApprove} disabled={bulkBusy} className="h-8 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30"><Check className="w-3.5 h-3.5 mr-1" />Approve (lockdown)</Button>
           <Button size="sm" onClick={() => bulkVisibility('public')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><Eye className="w-3.5 h-3.5 mr-1" />Public</Button>
           <Button size="sm" onClick={() => bulkVisibility('subscribers')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><EyeOff className="w-3.5 h-3.5 mr-1" />Subscribers</Button>
           <select defaultValue="" disabled={bulkBusy}
@@ -282,6 +329,9 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                         : null}
                     {item.isFeatured && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">Featured</span>}
                     {item.visibility !== 'public' && <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10">{item.visibility}</span>}
+                    {item.lockdownApproved
+                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">Approved</span>
+                      : <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">Pending review</span>}
                     {categories
                       .filter(c => (c.items || []).some(ci => ci.itemId === id))
                       .map(c => (
@@ -303,6 +353,10 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                   <button onClick={() => handleToggleVisibility(item)} title={item.visibility === 'public' ? 'Make subscribers only' : 'Make public'}
                     className={`p-2 rounded-lg transition-colors ${item.visibility === 'public' ? 'text-blue-400 hover:bg-blue-500/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
                     {item.visibility === 'public' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => handleToggleApproved(item)} title={item.lockdownApproved ? 'Revoke approval' : 'Approve for viewing'}
+                    className={`p-2 rounded-lg transition-colors ${item.lockdownApproved ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-red-400 hover:bg-red-500/10'}`}>
+                    <Check className="w-4 h-4" />
                   </button>
                   <button onClick={() => handleToggleFeature(item)} title={item.isFeatured ? 'Unfeature' : 'Set as featured'}
                     className={`p-2 rounded-lg transition-colors ${item.isFeatured ? 'text-yellow-400 hover:bg-yellow-500/10' : 'text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10'}`}>

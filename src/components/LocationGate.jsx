@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { isLocationVerified } from '@/lib/tracker';
+import { captureGeo, getCachedGeo, isLocationVerified } from '@/lib/tracker';
+import api from '@/api/homieshub';
 import LocationGateOverlay from './LocationGateOverlay';
 
 // Decorative stand-in for gated content — never mounts the real page, so
@@ -13,23 +14,56 @@ const BlurredPlaceholder = () => (
   </div>
 );
 
-// Site-wide content gate: logged-out visitors must verify location (browser
-// geolocation) before they can browse real content — App.jsx wraps the
-// MainLayout Outlet with this for every route except landing/legal pages.
-// Logged-in users are never gated. A visitor who already verified once (this
-// browser has `hh_geo` cached — see lib/tracker.js) is never re-prompted;
-// initTracker() silently re-checks per session from then on, so this only
-// ever shows once per browser.
+// Site-wide content gate — App.jsx wraps the MainLayout Outlet with this for
+// every route except landing/legal pages. Applies to EVERYONE, logged in or
+// not (tightened 2026-09-22 in response to suspected info-gathering by
+// non-paying accounts): anonymous visitors need this browser's `hh_geo`
+// cache (lib/tracker.js); logged-in users need their OWN account's
+// `gate.locationEnabledAt` — an existing member who never went through the
+// /join location step (added the same day) is gated exactly like anyone
+// else until they verify once here.
+//
+// Once satisfied, never asked again: anonymous verification persists in
+// this browser's localStorage; account verification persists on the user
+// document. initTracker() silently re-checks per session from then on.
 export default function LocationGate({ children }) {
-  const { user } = useAuth();
-  const [verified, setVerified] = useState(isLocationVerified);
+  const { user, refreshMe } = useAuth();
+  const [verified, setVerified] = useState(() =>
+    user ? !!user?.gate?.locationEnabledAt : isLocationVerified()
+  );
 
-  if (user || verified) return children;
+  // Recompute on login/logout — a login mid-session doesn't remount this
+  // component, so the initial computed value would otherwise go stale.
+  useEffect(() => {
+    setVerified(user ? !!user?.gate?.locationEnabledAt : isLocationVerified());
+  }, [user?._id, user?.gate?.locationEnabledAt]);
+
+  if (verified) return children;
+
+  const enableForAccount = async () => {
+    let cached = getCachedGeo();
+    if (!cached) {
+      const ok = await captureGeo({ force: true });
+      if (!ok) return false;
+      cached = getCachedGeo();
+    }
+    if (!cached) return false;
+    try {
+      await api.post('/gate/location', { lat: cached.lat, lng: cached.lon, accuracy: cached.accuracy });
+      await refreshMe();
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   return (
     <div className="relative">
       <BlurredPlaceholder />
-      <LocationGateOverlay onGranted={() => setVerified(true)} />
+      <LocationGateOverlay
+        onGranted={() => setVerified(true)}
+        onEnable={user ? enableForAccount : undefined}
+      />
     </div>
   );
 }
