@@ -415,9 +415,10 @@ export function useChat({ enabled, activeChannelId }) {
       await api.patch('/chat/me/settings', { chatDiscoverable: value });
       dispatch({ type: 'me', patch: { chatDiscoverable: value } });
     },
+    reload: () => loadBootstrap(),
     markRead,
     clearError: () => dispatch({ type: 'status', status: stateRef.current.status, error: null }),
-  }), [sendMessage, loadHistory, markRead]);
+  }), [sendMessage, loadHistory, markRead, loadBootstrap]);
 
   return { state, actions };
 }

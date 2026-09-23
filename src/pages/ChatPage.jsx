@@ -8,6 +8,7 @@ import ChannelSidebar from '@/components/chat/ChannelSidebar';
 import MessageList from '@/components/chat/MessageList';
 import Composer from '@/components/chat/Composer';
 import MemberList from '@/components/chat/MemberList';
+import ClaimNameBar from '@/components/chat/ClaimNameBar';
 import { cn } from '@/lib/utils';
 
 // Homies Chat — the Discord-style community chat, built into the app.
@@ -161,6 +162,7 @@ export default function ChatPage({ onLoginRequest }) {
           </div>
         </div>
 
+        <ClaimNameBar me={state.me} onSaved={(name) => { setToast(`You're now @${name} — everyone sees your new name.`); actions.reload(); }} />
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             {channel ? (
