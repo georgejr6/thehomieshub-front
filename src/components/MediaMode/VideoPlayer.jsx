@@ -13,6 +13,7 @@ import { trackEvent } from '@/lib/tracker';
 import { cn } from '@/lib/utils';
 import EditVideoModal from './EditVideoModal';
 import api from '@/api/homieshub';
+import { useVideoPlaybackDisabled } from '@/lib/videoPlaybackStatus';
 
 function fmt(s) {
   if (!s || isNaN(s) || s === 0) return '0:00';
@@ -46,6 +47,7 @@ function parseVtt(vtt) {
 const VideoPlayer = () => {
   const { currentVideo, closeVideo, isLiked, toggleLike } = useMedia();
   const { user } = useAuth();
+  const playbackDisabled = useVideoPlaybackDisabled();
 
   const muxRef       = useRef(null);
   const containerRef = useRef(null);
@@ -296,7 +298,12 @@ const VideoPlayer = () => {
     >
       <Watermark />
       {/* ── MuxPlayer — pointer-events disabled so our overlay owns all clicks ── */}
-      {currentVideo.muxPlaybackId && !mediaError ? (
+      {playbackDisabled ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 gap-3">
+          <X className="w-12 h-12 text-zinc-700" />
+          <p className="text-lg">Video playback is temporarily unavailable.</p>
+        </div>
+      ) : currentVideo.muxPlaybackId && !mediaError ? (
         <MuxPlayer
           key={currentVideo.id}
           ref={muxRef}

@@ -86,6 +86,29 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     }
   };
 
+  // Simple site-wide circuit breaker — separate from the Mux-level switch
+  // above: this one is pure frontend, doesn't touch Mux at all, and applies
+  // instantly everywhere the video player components are used.
+  const [videoOff, setVideoOff] = useState(null); // boolean | null while loading
+  const [videoOffBusy, setVideoOffBusy] = useState(false);
+
+  useEffect(() => {
+    api.get('/settings/video-playback').then(({ data }) => setVideoOff(!!data?.result?.disabled)).catch(() => {});
+  }, []);
+
+  const toggleVideoPlayback = async () => {
+    setVideoOffBusy(true);
+    try {
+      const { data } = await api.post('/admin/settings/video-playback', { disabled: !videoOff });
+      setVideoOff(data?.result?.disabled);
+      toast({ title: data?.result?.disabled ? 'Video playback disabled site-wide — no player renders anywhere' : 'Video playback re-enabled site-wide' });
+    } catch {
+      toast({ title: 'Failed to update video playback setting', variant: 'destructive' });
+    } finally {
+      setVideoOffBusy(false);
+    }
+  };
+
   const load = useCallback(() => {
     setLoading(true);
     api.get('/admin/media-library')
@@ -291,6 +314,25 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
   return (
     <>
       {editing && <EditVideoModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} />}
+
+      {/* VIDEO PLAYBACK CIRCUIT BREAKER — pure frontend, doesn't touch Mux
+          or the database. When on, no video player component renders
+          anywhere on the site, for anyone, instantly. */}
+      {videoOff !== null && (
+        <div className={`flex items-center gap-3 flex-wrap mb-3 p-3 rounded-xl border ${videoOff ? 'border-red-500/40 bg-red-500/15' : 'border-white/10 bg-[#0f0f0f]'}`}>
+          <div className="flex-1 min-w-[200px]">
+            <p className="text-sm font-semibold text-white">Site-wide video playback: {videoOff ? 'OFF' : 'ON'}</p>
+            <p className="text-xs text-gray-400">No Mux/DB changes — just stops the player from rendering anywhere, for everyone, instantly.</p>
+          </div>
+          <Button size="sm" onClick={toggleVideoPlayback} disabled={videoOffBusy}
+            className={videoOff
+              ? 'h-9 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30'
+              : 'h-9 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30'}>
+            {videoOffBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+            {videoOff ? 'Re-enable video playback' : 'Disable ALL video playback'}
+          </Button>
+        </div>
+      )}
 
       {/* MUX PLAYBACK KILL SWITCH — revokes/restores playback IDs at Mux
           itself, platform-wide. Not app-level hiding: this actually breaks

@@ -15,10 +15,12 @@ import { cn } from '@/lib/utils';
 import MuxPlayer from '@mux/mux-player-react';
 import { useMedia } from '@/contexts/MediaContext';
 import api from '@/api/homieshub';
+import { useVideoPlaybackDisabled } from '@/lib/videoPlaybackStatus';
 
 const VideoPost = ({ post, isOwnPost = false, onRemove, onUpdate }) => {
   const { username } = useParams();
   const navigate = useNavigate();
+  const playbackDisabled = useVideoPlaybackDisabled();
 
   const { isPremium, triggerLockedFeature } = useAuth();
   const { isPlaying: musicIsPlaying } = useMedia();
@@ -324,7 +326,11 @@ const VideoPost = ({ post, isOwnPost = false, onRemove, onUpdate }) => {
       >
         <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg bg-black shadow-md">
           <div className={`w-full h-full ${isBlurred ? 'filter blur-[20px] opacity-50 transition-all duration-300' : ''}`}>
-            {isMux ? (
+            {playbackDisabled !== false ? (
+              <div className="w-full h-full bg-black flex items-center justify-center">
+                {playbackDisabled && <p className="text-white/30 text-xs px-4 text-center">Video playback is temporarily unavailable.</p>}
+              </div>
+            ) : isMux ? (
               <MuxPlayer
                 ref={playerRef}
                 playbackId={playbackId}

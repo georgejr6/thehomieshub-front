@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import VerticalVideo from '@/components/VerticalVideo';
+import { useVideoPlaybackDisabled } from '@/lib/videoPlaybackStatus';
 
 // How many posts from the end before we append more
 const REFILL_THRESHOLD = 3;
@@ -24,6 +25,7 @@ function wrapPosts(posts, loopIndex) {
 }
 
 const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, initialIndex = 0 }) => {
+  const playbackDisabled = useVideoPlaybackDisabled();
   const containerRef = useRef(null);
   const [visibleIndex, setVisibleIndex] = useState(initialIndex);
   const loopCountRef = useRef(0);
@@ -74,6 +76,21 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
     Array.from(container.children).forEach(child => observer.observe(child));
     return () => Array.from(container.children).forEach(child => observer.unobserve(child));
   }, [items, onTopChange, maybeRefill]);
+
+  // Blunt site-wide circuit breaker (2026-09-23) — when on, no VerticalVideo
+  // (and therefore no <video>/<MuxPlayer>) ever mounts, for anyone, full
+  // stop. Independent of Mux-level state, visibility, membership, or the
+  // content-lockdown system. `playbackDisabled === null` means the check
+  // hasn't resolved yet — render nothing rather than flash content first.
+  if (playbackDisabled !== false) {
+    return (
+      <div className="h-[100svh] w-full flex items-center justify-center bg-black text-center px-6">
+        {playbackDisabled && (
+          <p className="text-white/40 text-sm">Video playback is temporarily unavailable.</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
