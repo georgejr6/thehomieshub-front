@@ -48,6 +48,44 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     }
   };
 
+  const [muxStatus, setMuxStatus] = useState(null); // { disabled, total, active } | null while loading
+  const [muxBusy, setMuxBusy] = useState(false);
+
+  const loadMuxStatus = useCallback(() => {
+    api.get('/admin/mux/kill-switch').then(({ data }) => setMuxStatus(data?.result)).catch(() => {});
+  }, []);
+  useEffect(() => { loadMuxStatus(); }, [loadMuxStatus]);
+
+  const disableAllMux = async () => {
+    if (!window.confirm(`Revoke Mux playback for ALL ${muxStatus?.active ?? 'live'} active videos/reels platform-wide? This actually breaks streaming at Mux itself (not just hiding it here) — even a link someone already saved stops working. Reversible from here.`)) return;
+    setMuxBusy(true);
+    try {
+      const { data } = await api.post('/admin/mux/kill-switch/disable');
+      toast({ title: `Mux playback disabled for ${data?.result?.disabled}/${data?.result?.total} items`, description: data?.result?.failed ? `${data.result.failed} failed — see console` : undefined });
+      if (data?.result?.failed) console.error('Mux disable failures:', data.result.errors);
+      loadMuxStatus();
+    } catch {
+      toast({ title: 'Failed to disable Mux playback', variant: 'destructive' });
+    } finally {
+      setMuxBusy(false);
+    }
+  };
+
+  const enableAllMux = async () => {
+    if (!window.confirm(`Re-enable Mux playback for all ${muxStatus?.disabled ?? 'disabled'} currently-disabled videos/reels?`)) return;
+    setMuxBusy(true);
+    try {
+      const { data } = await api.post('/admin/mux/kill-switch/enable');
+      toast({ title: `Mux playback re-enabled for ${data?.result?.enabled}/${data?.result?.total} items`, description: data?.result?.failed ? `${data.result.failed} failed — see console` : undefined });
+      if (data?.result?.failed) console.error('Mux enable failures:', data.result.errors);
+      loadMuxStatus();
+    } catch {
+      toast({ title: 'Failed to re-enable Mux playback', variant: 'destructive' });
+    } finally {
+      setMuxBusy(false);
+    }
+  };
+
   const load = useCallback(() => {
     setLoading(true);
     api.get('/admin/media-library')
@@ -253,6 +291,32 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
   return (
     <>
       {editing && <EditVideoModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} />}
+
+      {/* MUX PLAYBACK KILL SWITCH — revokes/restores playback IDs at Mux
+          itself, platform-wide. Not app-level hiding: this actually breaks
+          streaming, so an already-captured direct link stops working too. */}
+      {muxStatus && (
+        <div className={`flex items-center gap-3 flex-wrap mb-4 p-3 rounded-xl border ${muxStatus.disabled > 0 ? 'border-red-500/30 bg-red-500/10' : 'border-white/10 bg-[#0f0f0f]'}`}>
+          <div className="flex-1 min-w-[200px]">
+            <p className="text-sm font-semibold text-white">Mux playback: {muxStatus.active} active, {muxStatus.disabled} disabled</p>
+            <p className="text-xs text-gray-400">Disabling revokes playback at Mux for every video/reel platform-wide — not just hiding it here.</p>
+          </div>
+          {muxStatus.active > 0 && (
+            <Button size="sm" onClick={disableAllMux} disabled={muxBusy}
+              className="h-9 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30">
+              {muxBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+              Disable ALL Mux playback
+            </Button>
+          )}
+          {muxStatus.disabled > 0 && (
+            <Button size="sm" onClick={enableAllMux} disabled={muxBusy}
+              className="h-9 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30">
+              {muxBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+              Re-enable Mux playback ({muxStatus.disabled})
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search videos…"
