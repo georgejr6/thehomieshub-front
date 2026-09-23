@@ -353,12 +353,35 @@ export function useChat({ enabled, activeChannelId }) {
     editMessage: async (id, content) => (await api.patch(`/chat/messages/${id}`, { content })).data.result,
     deleteMessage: async (id) => api.delete(`/chat/messages/${id}`),
     discardFailed: (channelId, nonce) => dispatch({ type: 'removeMessages', channelId, ids: [nonce] }),
-    // Apply the server's answer right away; the live event (if connected)
-    // lands on the same state and is idempotent.
+    // Instant: show the reaction immediately, confirm over the open socket
+    // (REST if it's down), undo if the server says no.
     react: async (id, emoji, add) => {
-      const { data } = await api[add ? 'put' : 'delete'](`/chat/messages/${id}/reactions/${encodeURIComponent(emoji)}`);
-      if (data?.result) dispatch({ type: 'reaction', d: data.result });
-      return data?.result;
+      const me = stateRef.current.me?.id;
+      let channelId = null;
+      let before = 0;
+      for (const [cid, cur] of Object.entries(stateRef.current.messages)) {
+        const msg = cur.list.find((x) => x.id === id);
+        if (msg) { channelId = cid; before = msg.reactions?.find((r) => r.emoji === emoji)?.count || 0; break; }
+      }
+      const optimistic = { messageId: id, channelId, emoji, userId: me, added: add, count: Math.max(0, before + (add ? 1 : -1)) };
+      if (channelId) dispatch({ type: 'reaction', d: optimistic });
+      const undo = () => channelId && dispatch({ type: 'reaction', d: { ...optimistic, added: !add, count: before } });
+      let result;
+      try {
+        const sock = sockRef.current;
+        const nonce = sock.nextNonce();
+        const ack = await sock.request('reaction', { messageId: id, emoji, add, nonce });
+        if (ack.error) { undo(); throw Object.assign(new Error(ack.error.message), { response: { data: { message: ack.error.message } } }); }
+        result = ack.reaction;
+      } catch (err) {
+        if (err.response) throw err; // server refused: already undone
+        try {
+          const { data } = await api[add ? 'put' : 'delete'](`/chat/messages/${id}/reactions/${encodeURIComponent(emoji)}`);
+          result = data?.result;
+        } catch (e2) { undo(); throw e2; }
+      }
+      if (result) dispatch({ type: 'reaction', d: result });
+      return result;
     },
     pin: async (id, pinned) => api[pinned ? 'put' : 'delete'](`/chat/messages/${id}/pin`),
     report: async (id, reason, note) => api.post(`/chat/messages/${id}/report`, { reason, note }),
