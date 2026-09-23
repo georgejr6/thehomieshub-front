@@ -4,7 +4,8 @@ import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Check, Mail, Crown, MessagesSquare, Globe } from 'lucide-react';
+import { Loader2, Check, Mail, Crown, MessagesSquare, Globe, MapPin } from 'lucide-react';
+import { captureGeo, getCachedGeo, isLocationVerified } from '@/lib/tracker';
 
 const API_BASE = 'https://backend.thehomies.app/api';
 const GUILD_ID = '1293582001840062525';
@@ -25,11 +26,11 @@ const Shell = ({ children }) => (
 );
 
 const StepDots = ({ active }) => {
-  const order = { connect: 0, email: 1, done: 2 };
+  const order = { connect: 0, email: 1, location: 2, done: 3 };
   const cur = order[active];
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
-      {[0, 1, 2].map((i) => (
+      {[0, 1, 2, 3].map((i) => (
         <span key={i} className={`h-1.5 rounded-full transition-all ${i <= cur ? 'w-8 bg-primary' : 'w-4 bg-white/15'}`} />
       ))}
     </div>
@@ -75,6 +76,7 @@ export default function JoinGatePage() {
 
   const [billing, setBilling] = useState('monthly'); // monthly | yearly
   const [showFreeWarning, setShowFreeWarning] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -84,7 +86,8 @@ export default function JoinGatePage() {
       setEmailInput(s.email || '');
       if (s.admitted) { setStep('done'); setAdmittedTier(s.tier === 'discord' || s.tier === 'none' ? 'free' : s.tier); }
       else if (!s.emailVerified) setStep('email');
-      // else: email verified but not yet admitted — boot/confirm auto-admits (email = you're in)
+      else if (!s.locationEnabled) setStep('location');
+      // else: email verified + location enabled, not yet admitted — boot/confirm auto-admits
       return s;
     } catch {
       setStep('connect');
@@ -105,9 +108,11 @@ export default function JoinGatePage() {
       }
       if (token || localStorage.getItem('access_token')) {
         const s = await load();
-        // Email confirmed = you're in. Auto-admit anyone verified-but-not-in
-        // (covers fresh confirms, paid returns, and resumed/bounced sessions).
-        if (s && s.emailVerified && !s.admitted) await admit();
+        // Email confirmed + location enabled = you're in. Auto-admit anyone
+        // fully verified-but-not-in (covers fresh confirms, paid returns, and
+        // resumed/bounced sessions). If location isn't enabled yet, load()
+        // already parked them on the 'location' step above.
+        if (s && s.emailVerified && s.locationEnabled && !s.admitted) await admit();
       }
       setBooting(false);
     })();
@@ -144,12 +149,47 @@ export default function JoinGatePage() {
     setBusy(true);
     try {
       await api.post('/auth/verify-email/confirm', { code: code.trim() });
-      toast({ title: "Email confirmed ✓ — you're in!" });
-      await admit(); // email confirmed = in (New Homie). Membership upsell shown after.
+      toast({ title: 'Email confirmed ✓' });
+      setStep('location'); // last step before admit — enable location, then in
     } catch (err) {
       toast({ title: 'Invalid code', description: err.response?.data?.message || 'Check the code and try again.', variant: 'destructive' });
     } finally { setBusy(false); }
   };
+
+  // Shares lib/tracker.js's capture pipeline with the site-wide LocationGate
+  // — if this browser already verified location (e.g. while browsing
+  // logged-out before signing up), reuses the cached coords instead of
+  // prompting again. force:true on a fresh capture skips the deny-backoff
+  // since this is a deliberate, user-initiated step, not a background check.
+  const enableLocation = async () => {
+    setBusy(true);
+    setLocationDenied(false);
+    try {
+      let cached = getCachedGeo();
+      if (!cached) {
+        const ok = await captureGeo({ force: true });
+        if (!ok) {
+          setLocationDenied(true);
+          setBusy(false);
+          toast({ title: 'Location access needed', description: 'Enable location access in your browser to finish joining.', variant: 'destructive' });
+          return;
+        }
+        cached = getCachedGeo();
+      }
+      await api.post('/gate/location', { lat: cached.lat, lng: cached.lon, accuracy: cached.accuracy });
+      await admit(); // location enabled + email confirmed = in
+    } catch (err) {
+      toast({ title: 'Could not save location', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
+      setBusy(false);
+    }
+  };
+
+  // Already verified on this browser (e.g. from browsing logged-out before
+  // signing up) — skip the button entirely, finish the step automatically.
+  useEffect(() => {
+    if (step === 'location' && isLocationVerified() && !busy) enableLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const startCheckout = async (plan) => {
     setBusy(true);
@@ -242,7 +282,28 @@ export default function JoinGatePage() {
         </div>
       )}
 
-      {/* ── Step 3: You're in — Open Discord + membership upsell for free members ── */}
+      {/* ── Step 3: Enable location (HARD GATE, last step before admit) ── */}
+      {step === 'location' && (
+        <div className="text-center">
+          <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center mx-auto mb-5">
+            <MapPin className="w-7 h-7 text-primary" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-foreground">Enable your location</h1>
+          <p className="text-muted-foreground text-sm mt-2 mb-6">
+            Last step — The Homies Hub uses location to keep the community safe. Enable it to finish joining.
+          </p>
+          <Button size="lg" onClick={enableLocation} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MapPin className="h-4 w-4 mr-2" />} Enable location
+          </Button>
+          {locationDenied && (
+            <p className="text-red-400 text-xs mt-4">
+              Location access was blocked. Enable it in your browser's site settings, then try again.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── Step 4: You're in — Open Discord + membership upsell for free members ── */}
       {step === 'done' && (
         <div className="text-center">
           <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-5">

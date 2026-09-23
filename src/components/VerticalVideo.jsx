@@ -162,10 +162,17 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     // True once we know this video is longer than 3 min (shows persistent media mode pill)
     const [isLongVideo, setIsLongVideo] = useState(false);
 
-    // Blur logic — only NSFW gets immediate blur; subscriber content uses 60s preview gate
+    // Blur logic — NSFW gets immediate blur; subscriber content uses the 60s
+    // preview gate below; a non-paying viewer (added 2026-09-22, in response
+    // to suspected info-gathering by non-paying accounts) gets an immediate,
+    // permanent blur on EVERYTHING — no free preview at all, unlike the
+    // subscriber-only preview gate. "isMember" already excludes plain free
+    // (Discord-only) accounts — see its definition above — so this matches
+    // "you need a paid membership to even see the content."
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [localIsNSFW, setLocalIsNSFW] = useState(post.isNSFW);
-    const isBlurred = localIsNSFW && !isUnlocked;
+    const isPaywalled = !isMember;
+    const isBlurred = (localIsNSFW && !isUnlocked) || isPaywalled;
 
     // likes/saves
     const liked = isPostLiked(post.id);
@@ -619,6 +626,32 @@ const togglePlayPause = () => {
                             <Button variant="outline" className="mt-4 border-red-500 text-red-500 hover:bg-red-500/10">
                                 <Eye className="mr-2 h-4 w-4" /> Reveal
                             </Button>
+                        </div>
+                    )}
+
+                    {/* MEMBERSHIP PAYWALL OVERLAY — blurs everything for non-members,
+                        no free preview. Takes priority display-wise only when the NSFW
+                        warning isn't also showing (isBlurred already covers both). */}
+                    {isPaywalled && !(localIsNSFW && !isUnlocked) && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/90 backdrop-blur-md">
+                            <div className="mb-5">
+                                {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-60" />}
+                                <p className="text-[#F0B94D] text-xs font-semibold uppercase tracking-widest mb-1">Members Only</p>
+                                <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Exclusive Content'}</h3>
+                            </div>
+                            <p className="text-white/70 text-sm mb-5 leading-relaxed">
+                                A paid membership is required to view content on The Homies Hub.
+                            </p>
+                            <div className="w-full max-w-[260px] space-y-2">
+                                <Button onClick={() => { if (!user) { onLoginRequest?.(); return; } setShowUpgradeModal(true); }}
+                                    className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full h-12 text-base rounded-xl">
+                                    {user ? 'Get a Membership' : 'Log In / Sign Up'}
+                                </Button>
+                                <Button onClick={() => navigate('/join')} variant="outline"
+                                    className="border-[#5865F2]/50 text-[#5865F2] bg-[#5865F2]/10 hover:bg-[#5865F2]/20 w-full h-11 text-sm rounded-xl">
+                                    Join the Discord
+                                </Button>
+                            </div>
                         </div>
                     )}
 

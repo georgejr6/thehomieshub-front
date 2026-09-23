@@ -28,6 +28,86 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
   const [sort, setSort] = useState('newest'); // newest | views | az
   const [selected, setSelected] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [lockdown, setLockdown] = useState(null); // { active, setAt, setBy } | null while loading
+  const [lockdownBusy, setLockdownBusy] = useState(false);
+
+  useEffect(() => {
+    api.get('/admin/lockdown').then(({ data }) => setLockdown(data?.result)).catch(() => {});
+  }, []);
+
+  const toggleLockdown = async () => {
+    setLockdownBusy(true);
+    try {
+      const { data } = await api.post('/admin/lockdown', { active: !lockdown?.active });
+      setLockdown(prev => ({ ...prev, active: data?.result?.active }));
+      toast({ title: data?.result?.active ? 'Content lockdown enabled — only approved items are visible' : 'Content lockdown disabled — everything is visible again' });
+    } catch {
+      toast({ title: 'Failed to update lockdown', variant: 'destructive' });
+    } finally {
+      setLockdownBusy(false);
+    }
+  };
+
+  const [muxStatus, setMuxStatus] = useState(null); // { disabled, total, active } | null while loading
+  const [muxBusy, setMuxBusy] = useState(false);
+
+  const loadMuxStatus = useCallback(() => {
+    api.get('/admin/mux/kill-switch').then(({ data }) => setMuxStatus(data?.result)).catch(() => {});
+  }, []);
+  useEffect(() => { loadMuxStatus(); }, [loadMuxStatus]);
+
+  const disableAllMux = async () => {
+    if (!window.confirm(`Revoke Mux playback for ALL ${muxStatus?.active ?? 'live'} active videos/reels platform-wide? This actually breaks streaming at Mux itself (not just hiding it here) — even a link someone already saved stops working. Reversible from here.`)) return;
+    setMuxBusy(true);
+    try {
+      const { data } = await api.post('/admin/mux/kill-switch/disable');
+      toast({ title: `Mux playback disabled for ${data?.result?.disabled}/${data?.result?.total} items`, description: data?.result?.failed ? `${data.result.failed} failed — see console` : undefined });
+      if (data?.result?.failed) console.error('Mux disable failures:', data.result.errors);
+      loadMuxStatus();
+    } catch {
+      toast({ title: 'Failed to disable Mux playback', variant: 'destructive' });
+    } finally {
+      setMuxBusy(false);
+    }
+  };
+
+  const enableAllMux = async () => {
+    if (!window.confirm(`Re-enable Mux playback for all ${muxStatus?.disabled ?? 'disabled'} currently-disabled videos/reels?`)) return;
+    setMuxBusy(true);
+    try {
+      const { data } = await api.post('/admin/mux/kill-switch/enable');
+      toast({ title: `Mux playback re-enabled for ${data?.result?.enabled}/${data?.result?.total} items`, description: data?.result?.failed ? `${data.result.failed} failed — see console` : undefined });
+      if (data?.result?.failed) console.error('Mux enable failures:', data.result.errors);
+      loadMuxStatus();
+    } catch {
+      toast({ title: 'Failed to re-enable Mux playback', variant: 'destructive' });
+    } finally {
+      setMuxBusy(false);
+    }
+  };
+
+  // Simple site-wide circuit breaker — separate from the Mux-level switch
+  // above: this one is pure frontend, doesn't touch Mux at all, and applies
+  // instantly everywhere the video player components are used.
+  const [videoOff, setVideoOff] = useState(null); // boolean | null while loading
+  const [videoOffBusy, setVideoOffBusy] = useState(false);
+
+  useEffect(() => {
+    api.get('/settings/video-playback').then(({ data }) => setVideoOff(!!data?.result?.disabled)).catch(() => {});
+  }, []);
+
+  const toggleVideoPlayback = async () => {
+    setVideoOffBusy(true);
+    try {
+      const { data } = await api.post('/admin/settings/video-playback', { disabled: !videoOff });
+      setVideoOff(data?.result?.disabled);
+      toast({ title: data?.result?.disabled ? 'Video playback disabled site-wide — no player renders anywhere' : 'Video playback re-enabled site-wide' });
+    } catch {
+      toast({ title: 'Failed to update video playback setting', variant: 'destructive' });
+    } finally {
+      setVideoOffBusy(false);
+    }
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -87,6 +167,18 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     } catch {
       setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, visibility: item.visibility } : i));
       toast({ title: 'Failed to update visibility', variant: 'destructive' });
+    }
+  };
+
+  const handleToggleApproved = async (item) => {
+    const next = !item.lockdownApproved;
+    setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, lockdownApproved: next } : i));
+    try {
+      await api.patch(`/admin/videos/${item._id || item.id}`, { lockdownApproved: next, _collectionType: item._collectionType });
+      toast({ title: next ? 'Approved for viewing' : 'Approval revoked' });
+    } catch {
+      setItems(prev => prev.map(i => String(i._id || i.id) === String(item._id || item.id) ? { ...i, lockdownApproved: item.lockdownApproved } : i));
+      toast({ title: 'Failed to update approval', variant: 'destructive' });
     }
   };
 
@@ -154,6 +246,19 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     finally { setBulkBusy(false); }
   };
 
+  const bulkApprove = async () => {
+    const list = selectedItems();
+    if (!list.length) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(list.map(i => api.patch(`/admin/videos/${idOf(i)}`, { lockdownApproved: true, _collectionType: i._collectionType })));
+      setItems(prev => prev.map(i => selected.has(idOf(i)) ? { ...i, lockdownApproved: true } : i));
+      toast({ title: `${list.length} approved for viewing` });
+      clearSelection();
+    } catch { toast({ title: 'Bulk approve failed', variant: 'destructive' }); }
+    finally { setBulkBusy(false); }
+  };
+
   const bulkDelete = async () => {
     const list = selectedItems();
     if (!list.length) return;
@@ -193,6 +298,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     const arr = [...filtered];
     if (sort === 'views') arr.sort((a, b) => viewsOf(b) - viewsOf(a));
     else if (sort === 'az') arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    else if (sort === 'pending') arr.sort((a, b) => (a.lockdownApproved === b.lockdownApproved) ? 0 : a.lockdownApproved ? 1 : -1);
     return arr; // 'newest' keeps backend order (already newest-first)
   }, [filtered, sort, viewsById]); // eslint-disable-line
 
@@ -209,6 +315,51 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
     <>
       {editing && <EditVideoModal item={editing} categories={categories} onClose={() => setEditing(null)} onSaved={handleSaved} />}
 
+      {/* VIDEO PLAYBACK CIRCUIT BREAKER — pure frontend, doesn't touch Mux
+          or the database. When on, no video player component renders
+          anywhere on the site, for anyone, instantly. */}
+      {videoOff !== null && (
+        <div className={`flex items-center gap-3 flex-wrap mb-3 p-3 rounded-xl border ${videoOff ? 'border-red-500/40 bg-red-500/15' : 'border-white/10 bg-[#0f0f0f]'}`}>
+          <div className="flex-1 min-w-[200px]">
+            <p className="text-sm font-semibold text-white">Site-wide video playback: {videoOff ? 'OFF' : 'ON'}</p>
+            <p className="text-xs text-gray-400">No Mux/DB changes — just stops the player from rendering anywhere, for everyone, instantly.</p>
+          </div>
+          <Button size="sm" onClick={toggleVideoPlayback} disabled={videoOffBusy}
+            className={videoOff
+              ? 'h-9 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30'
+              : 'h-9 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30'}>
+            {videoOffBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+            {videoOff ? 'Re-enable video playback' : 'Disable ALL video playback'}
+          </Button>
+        </div>
+      )}
+
+      {/* MUX PLAYBACK KILL SWITCH — revokes/restores playback IDs at Mux
+          itself, platform-wide. Not app-level hiding: this actually breaks
+          streaming, so an already-captured direct link stops working too. */}
+      {muxStatus && (
+        <div className={`flex items-center gap-3 flex-wrap mb-4 p-3 rounded-xl border ${muxStatus.disabled > 0 ? 'border-red-500/30 bg-red-500/10' : 'border-white/10 bg-[#0f0f0f]'}`}>
+          <div className="flex-1 min-w-[200px]">
+            <p className="text-sm font-semibold text-white">Mux playback: {muxStatus.active} active, {muxStatus.disabled} disabled</p>
+            <p className="text-xs text-gray-400">Disabling revokes playback at Mux for every video/reel platform-wide — not just hiding it here.</p>
+          </div>
+          {muxStatus.active > 0 && (
+            <Button size="sm" onClick={disableAllMux} disabled={muxBusy}
+              className="h-9 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30">
+              {muxBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+              Disable ALL Mux playback
+            </Button>
+          )}
+          {muxStatus.disabled > 0 && (
+            <Button size="sm" onClick={enableAllMux} disabled={muxBusy}
+              className="h-9 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30">
+              {muxBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+              Re-enable Mux playback ({muxStatus.disabled})
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search videos…"
           className="bg-[#1a1a1a] border-[#333] text-white h-9 text-sm focus:border-blue-500 flex-1 max-w-xs" />
@@ -217,6 +368,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
           <option value="newest">Newest</option>
           <option value="views">Most viewed</option>
           <option value="az">A–Z</option>
+          <option value="pending">Pending review first</option>
         </select>
         <Button onClick={handleBulkSync} disabled={bulkSyncing}
           className="bg-[#1a1a1a] hover:bg-[#272727] text-white border border-[#333] h-9 px-3 text-xs gap-1.5 flex-shrink-0">
@@ -238,6 +390,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
       {selected.size > 0 && (
         <div className="sticky top-0 z-10 flex items-center gap-2 flex-wrap mb-3 p-2.5 rounded-xl border border-primary/30 bg-primary/10 backdrop-blur-md">
           <span className="text-sm font-semibold text-white px-1">{selected.size} selected</span>
+          <Button size="sm" onClick={bulkApprove} disabled={bulkBusy} className="h-8 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30"><Check className="w-3.5 h-3.5 mr-1" />Approve (lockdown)</Button>
           <Button size="sm" onClick={() => bulkVisibility('public')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><Eye className="w-3.5 h-3.5 mr-1" />Public</Button>
           <Button size="sm" onClick={() => bulkVisibility('subscribers')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><EyeOff className="w-3.5 h-3.5 mr-1" />Subscribers</Button>
           <select defaultValue="" disabled={bulkBusy}
@@ -282,6 +435,9 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                         : null}
                     {item.isFeatured && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">Featured</span>}
                     {item.visibility !== 'public' && <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10">{item.visibility}</span>}
+                    {item.lockdownApproved
+                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">Approved</span>
+                      : <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">Pending review</span>}
                     {categories
                       .filter(c => (c.items || []).some(ci => ci.itemId === id))
                       .map(c => (
@@ -303,6 +459,10 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                   <button onClick={() => handleToggleVisibility(item)} title={item.visibility === 'public' ? 'Make subscribers only' : 'Make public'}
                     className={`p-2 rounded-lg transition-colors ${item.visibility === 'public' ? 'text-blue-400 hover:bg-blue-500/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
                     {item.visibility === 'public' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => handleToggleApproved(item)} title={item.lockdownApproved ? 'Revoke approval' : 'Approve for viewing'}
+                    className={`p-2 rounded-lg transition-colors ${item.lockdownApproved ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-red-400 hover:bg-red-500/10'}`}>
+                    <Check className="w-4 h-4" />
                   </button>
                   <button onClick={() => handleToggleFeature(item)} title={item.isFeatured ? 'Unfeature' : 'Set as featured'}
                     className={`p-2 rounded-lg transition-colors ${item.isFeatured ? 'text-yellow-400 hover:bg-yellow-500/10' : 'text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10'}`}>

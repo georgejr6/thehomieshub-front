@@ -88,6 +88,17 @@ import FundyPage from '@/pages/FundyPage';
 import EmailVerifyGate from '@/components/EmailVerifyGate';
 import RouteTracker from '@/components/RouteTracker';
 import HelpAssistant from '@/components/HelpAssistant';
+import LocationGate from '@/components/LocationGate';
+import JoinInviteModal from '@/components/JoinInviteModal';
+import { isLocationVerified } from '@/lib/tracker';
+
+// Routes reachable without a verified location — everything else in
+// MainLayout requires it for logged-out visitors (see LocationGate). Kept to
+// the entry point + legally-required pages so people can still learn what
+// the site is and reach required disclosures before being asked for it.
+const LOCATION_GATE_EXEMPT_PATHS = new Set([
+  '/', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support',
+]);
 
 // chat.thehomies.app / community.thehomies.app / discord.thehomies.app all
 // serve this same app; on those hosts the home page is the chat.
@@ -175,7 +186,11 @@ const MainLayout = ({
           {!isImmersiveMode && <GetAppBanner />}
           {!isImmersiveMode && <GetAppSignedOutModal />}
           <div className="flex-1">
-             <Outlet />
+             {LOCATION_GATE_EXEMPT_PATHS.has(location.pathname) ? (
+               <Outlet />
+             ) : (
+               <LocationGate><Outlet /></LocationGate>
+             )}
           </div>
           {!isImmersiveMode && !location.pathname.startsWith('/live-stream') && location.pathname !== '/browse' && location.pathname !== '/' && <Footer />}
         </main>
@@ -252,6 +267,10 @@ const StudioLayout = ({ handleLoginRequest }) => {
   );
 };
 
+const JOIN_INVITE_KEY = 'hh_join_invite_last_shown';
+const JOIN_INVITE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't nag more than once/day
+const JOIN_INVITE_DELAY_MS = 45 * 1000; // "eventually" — after a bit of browsing, not on arrival
+
 const AppContent = React.memo(() => {
   const [authModalState, setAuthModalState] = useState({ isOpen: false, view: 'main', tab: 'signin' });
   const [isPostModalOpen, setPostModalOpen] = useState(false);
@@ -259,6 +278,7 @@ const AppContent = React.memo(() => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isImmersiveMode, setIsImmersiveMode] = useState(false);
+  const [showJoinInvite, setShowJoinInvite] = useState(false);
 
   const { user, loading, isLockedModalOpen, setIsLockedModalOpen, isPremium, showOnboarding, stopTutorial, showDiscordPrompt, dismissDiscordPrompt } = useAuth();
   const { orderedStories, viewingIndex, closeStory } = useStory();
@@ -274,6 +294,25 @@ const AppContent = React.memo(() => {
   useEffect(() => {
     setIsImmersiveMode(false);
   }, [location.pathname]);
+
+  // Soft, dismissible join nudge for logged-out visitors who are already
+  // browsing freely (location already verified, so this never stacks on top
+  // of LocationGate) — throttled to once/day, never shown on /join itself.
+  useEffect(() => {
+    if (user) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled || location.pathname === '/join') return;
+      if (!isLocationVerified()) return;
+      try {
+        const last = Number(localStorage.getItem(JOIN_INVITE_KEY) || 0);
+        if (Date.now() - last < JOIN_INVITE_COOLDOWN_MS) return;
+        localStorage.setItem(JOIN_INVITE_KEY, String(Date.now()));
+      } catch { /* ignore */ }
+      setShowJoinInvite(true);
+    }, JOIN_INVITE_DELAY_MS);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [user]);
 
   // Open auth modal when gate redirects with ?openAuth=1&tab=signin|signup
   // Also silently strip the ?_direct=1 OG-bypass marker added by Vercel rewrites
@@ -396,7 +435,7 @@ const AppContent = React.memo(() => {
 
             {/* --- Homies Chat (Discord-style community chat, full-screen) ---
                  /discord and /community are friendly aliases. */}
-            <Route path="/chat/:channelId?" element={<ChatPage onLoginRequest={() => setAuthModalState({ isOpen: true, view: 'main' })} />} />
+            <Route path="/chat/:channelId?" element={<LocationGate><ChatPage onLoginRequest={() => setAuthModalState({ isOpen: true, view: 'main' })} /></LocationGate>} />
             <Route path="/discord/*" element={<Navigate to="/chat" replace />} />
             <Route path="/community/*" element={<Navigate to="/chat" replace />} />
 
@@ -562,6 +601,7 @@ const AppContent = React.memo(() => {
         />
         <OnboardingFlow isOpen={showOnboarding} onClose={stopTutorial} />
         <DiscordConnectPrompt open={showDiscordPrompt && !showOnboarding && !location.pathname.startsWith('/chat')} onDismiss={dismissDiscordPrompt} />
+        {showJoinInvite && <JoinInviteModal onClose={() => setShowJoinInvite(false)} />}
         <PlaceView />
         {/* The chat composer owns the bottom-right corner on /chat. */}
         {!location.pathname.startsWith('/chat') && <HelpAssistant />}
