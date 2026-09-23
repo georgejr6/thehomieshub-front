@@ -23,6 +23,7 @@ import CreatorStudioPage from '@/pages/CreatorStudioPage';
 import TripsPage from '@/pages/TripsPage';
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
 import InboxPage from '@/pages/InboxPage';
+import ChatPage from '@/pages/ChatPage';
 import MyAIPage from '@/pages/MyAIPage';
 import MyClipsPage from '@/pages/MyClipsPage';
 import MyAppsPage from '@/pages/MyAppsPage';
@@ -87,6 +88,18 @@ import FundyPage from '@/pages/FundyPage';
 import EmailVerifyGate from '@/components/EmailVerifyGate';
 import RouteTracker from '@/components/RouteTracker';
 import HelpAssistant from '@/components/HelpAssistant';
+
+// chat.thehomies.app / community.thehomies.app / discord.thehomies.app all
+// serve this same app; on those hosts the home page is the chat.
+const CHAT_HOSTS = /^(chat|community|discord)\./i;
+const ChatHostRedirect = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (CHAT_HOSTS.test(window.location.hostname) && location.pathname === '/') navigate('/chat', { replace: true });
+  }, [location.pathname, navigate]);
+  return null;
+};
 
 // --- Layout Components ---
 
@@ -345,6 +358,7 @@ const AppContent = React.memo(() => {
         </Helmet>
 
         <RouteTracker />
+        <ChatHostRedirect />
         <EmailVerifyGate />
 
         <Routes>
@@ -379,6 +393,12 @@ const AppContent = React.memo(() => {
 
             {/* --- Fundraiser (public, standalone full-bleed) --- */}
             <Route path="/fundy" element={<FundyPage />} />
+
+            {/* --- Homies Chat (Discord-style community chat, full-screen) ---
+                 /discord and /community are friendly aliases. */}
+            <Route path="/chat/:channelId?" element={<ChatPage onLoginRequest={() => setAuthModalState({ isOpen: true, view: 'main' })} />} />
+            <Route path="/discord/*" element={<Navigate to="/chat" replace />} />
+            <Route path="/community/*" element={<Navigate to="/chat" replace />} />
 
             {/* --- Wallet Mode Routes (Guarded) --- */}
             <Route path="/wallet" element={
@@ -541,9 +561,10 @@ const AppContent = React.memo(() => {
             onOpenChange={setIsLockedModalOpen}
         />
         <OnboardingFlow isOpen={showOnboarding} onClose={stopTutorial} />
-        <DiscordConnectPrompt open={showDiscordPrompt && !showOnboarding} onDismiss={dismissDiscordPrompt} />
+        <DiscordConnectPrompt open={showDiscordPrompt && !showOnboarding && !location.pathname.startsWith('/chat')} onDismiss={dismissDiscordPrompt} />
         <PlaceView />
-        <HelpAssistant />
+        {/* The chat composer owns the bottom-right corner on /chat. */}
+        {!location.pathname.startsWith('/chat') && <HelpAssistant />}
         <Toaster />
 
         {/* Story viewer — fixed fullscreen, independent of all layout/feed lifecycle */}
