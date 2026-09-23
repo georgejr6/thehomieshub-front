@@ -353,7 +353,13 @@ export function useChat({ enabled, activeChannelId }) {
     editMessage: async (id, content) => (await api.patch(`/chat/messages/${id}`, { content })).data.result,
     deleteMessage: async (id) => api.delete(`/chat/messages/${id}`),
     discardFailed: (channelId, nonce) => dispatch({ type: 'removeMessages', channelId, ids: [nonce] }),
-    react: async (id, emoji, add) => api[add ? 'put' : 'delete'](`/chat/messages/${id}/reactions/${encodeURIComponent(emoji)}`),
+    // Apply the server's answer right away; the live event (if connected)
+    // lands on the same state and is idempotent.
+    react: async (id, emoji, add) => {
+      const { data } = await api[add ? 'put' : 'delete'](`/chat/messages/${id}/reactions/${encodeURIComponent(emoji)}`);
+      if (data?.result) dispatch({ type: 'reaction', d: data.result });
+      return data?.result;
+    },
     pin: async (id, pinned) => api[pinned ? 'put' : 'delete'](`/chat/messages/${id}/pin`),
     report: async (id, reason, note) => api.post(`/chat/messages/${id}/report`, { reason, note }),
     timeout: async (userId, minutes, reason) => api.post('/chat/mod/timeout', { userId, minutes, reason }),
