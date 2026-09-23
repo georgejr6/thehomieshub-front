@@ -172,6 +172,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
           <div className="absolute left-4 mt-0.5"><Avatar author={m.author} /></div>
           <div className="flex items-baseline gap-2 leading-[22px]">
             <span className="cursor-pointer font-medium hover:underline" style={{ color: nameColor(m.author) }}>{m.author?.displayName || m.author?.username}</span>
+            {m.author?.bot && <span className="rounded bg-[#5865F2] px-1 text-[10px] font-semibold uppercase leading-4 text-white">Bot</span>}
             {m.source?.platform === 'discord' && <span className="rounded bg-[#5865F2]/30 px-1 text-[10px] font-semibold uppercase text-[#C9CDFB]">via Discord</span>}
             <span className="text-xs text-[#949BA4]">{fmtStamp(m.createdAt)}</span>
             {m.discover?.public && (
