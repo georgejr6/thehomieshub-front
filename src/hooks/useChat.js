@@ -362,7 +362,11 @@ export function useChat({ enabled, activeChannelId }) {
     },
     pin: async (id, pinned) => api[pinned ? 'put' : 'delete'](`/chat/messages/${id}/pin`),
     report: async (id, reason, note) => api.post(`/chat/messages/${id}/report`, { reason, note }),
-    timeout: async (userId, minutes, reason) => api.post('/chat/mod/timeout', { userId, minutes, reason }),
+    // Moderation — the server applies it in Homies Chat and on Discord, and
+    // reports the Discord outcome in `discord`.
+    timeout: async (userId, minutes, reason) => (await api.post('/chat/mod/timeout', { userId, minutes, reason })).data.result,
+    kick: async (userId, reason) => (await api.post('/chat/mod/kick', { userId, reason })).data.result,
+    ban: async (userId, reason, deleteMessageHours) => (await api.post('/chat/mod/ban', { userId, reason, deleteMessageHours })).data.result,
     searchMembers: async (query) => (await api.get('/chat/members', { params: { query, limit: 8 } })).data.result || [],
     // Polls/events are real Homies posts (same endpoints as the app feed),
     // then shared into the channel as a live card.

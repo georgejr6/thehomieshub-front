@@ -1,5 +1,14 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { SmilePlus, Reply, Pencil, Trash2, Pin, Flag, FileText, Download, CornerUpLeft, Loader2, AlertCircle, ArrowDown, MoreHorizontal, Globe, Lock, Copy, ExternalLink } from 'lucide-react';
+import { SmilePlus, Reply, Pencil, Trash2, Pin, Flag, FileText, Download, CornerUpLeft, Loader2, AlertCircle, ArrowDown, MoreHorizontal, Globe, Lock, Copy, ExternalLink, Clock, UserX, Ban } from 'lucide-react';
+
+// What happened on the real Discord, for the mod toast.
+const discordNote = (r) => {
+  if (!r?.discord || r.discord === 'bridge off') return '';
+  if (r.discord === 'applied') return ' — also applied on Discord.';
+  if (r.discord === 'not on Discord' || r.discord === 'no Discord account linked') return ' (not on Discord).';
+  return ` — Discord: ${r.reason || r.discord}.`;
+};
+const TIMEOUTS = [['10 minutes', 10], ['1 hour', 60], ['1 day', 1440], ['1 week', 10080]];
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import ChatMarkdown, { roleColor } from './ChatMarkdown';
@@ -135,6 +144,30 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
     }
   };
 
+  // Staff tools on someone else's message. The server enforces rank.
+  const moderate = async (kind, minutes) => {
+    setMore(false);
+    const who = m.author?.displayName || m.author?.username || 'this member';
+    try {
+      if (kind === 'timeout') {
+        const reason = window.prompt(`Time out ${who} for ${TIMEOUTS.find((t) => t[1] === minutes)[0]}? Reason (optional):`);
+        if (reason === null) return;
+        onError(`${who} timed out${discordNote(await actions.timeout(m.author.id, minutes, reason))}`);
+      } else if (kind === 'kick') {
+        const reason = window.prompt(`Kick ${who}? They can rejoin. Reason (optional):`);
+        if (reason === null) return;
+        onError(`${who} kicked${discordNote(await actions.kick(m.author.id, reason))}`);
+      } else if (kind === 'ban') {
+        const reason = window.prompt(`BAN ${who}? They can't come back until unbanned. Reason:`);
+        if (reason === null) return;
+        const wipe = window.confirm('Also delete their messages from the last 24 hours?');
+        onError(`${who} banned${discordNote(await actions.ban(m.author.id, reason, wipe ? 24 : 0))}`);
+      }
+    } catch (err) {
+      onError(err.response?.data?.message || "Couldn't do that.");
+    }
+  };
+
   const report = async () => {
     const note = window.prompt('Report this message to the mods. What\'s wrong? (optional)');
     if (note === null) return;
@@ -256,7 +289,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
           )}
           {can.send && <button onClick={() => onReply(m)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Reply"><Reply className="h-5 w-5" /></button>}
           {mine && !m.source && <button onClick={() => { setDraft(m.content); setEditing(true); }} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Edit"><Pencil className="h-5 w-5" /></button>}
-          {can.manageMessages && <button onClick={() => actions.pin(m.id, !m.pinned)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title={m.pinned ? 'Unpin' : 'Pin'}><Pin className="h-5 w-5" /></button>}
+          {can.manageMessages && <button onClick={async () => { try { const r = await actions.pin(m.id, !m.pinned); onError(`${m.pinned ? 'Unpinned' : 'Pinned'}${discordNote(r?.data?.result)}`); } catch (err) { onError(err.response?.data?.message || "Couldn't pin."); } }} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title={m.pinned ? 'Unpin' : 'Pin'}><Pin className="h-5 w-5" /></button>}
           {!mine && <button onClick={report} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Report"><Flag className="h-5 w-5" /></button>}
           <div className="relative">
             <button onClick={() => setMore((v) => !v)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="More"><MoreHorizontal className="h-5 w-5" /></button>
@@ -280,6 +313,24 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
                       </a>
                     )}
                     <div className="px-2.5 pb-1 text-[11px] text-[#949BA4]">{m.discover.public ? 'Anyone can find this as a Homies post.' : 'Only people in this channel can see it.'}</div>
+                    <div className="my-1 h-px bg-[#2B2D31]" />
+                  </>
+                )}
+                {!mine && isStaff && m.author?.id && (
+                  <>
+                    <div className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase text-[#949BA4]">Moderate {m.author.displayName || m.author.username}</div>
+                    {TIMEOUTS.map(([label, mins]) => (
+                      <button key={mins} onClick={() => moderate('timeout', mins)} className="flex w-full items-center gap-3 rounded px-2.5 py-1.5 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
+                        <Clock className="h-4 w-4" /> Timeout {label}
+                      </button>
+                    ))}
+                    <button onClick={() => moderate('kick')} className="flex w-full items-center gap-3 rounded px-2.5 py-1.5 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">
+                      <UserX className="h-4 w-4" /> Kick
+                    </button>
+                    <button onClick={() => moderate('ban')} className="flex w-full items-center gap-3 rounded px-2.5 py-1.5 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">
+                      <Ban className="h-4 w-4" /> Ban
+                    </button>
+                    <div className="px-2.5 pb-1 text-[11px] text-[#949BA4]">Applies here and on the real Discord.</div>
                     <div className="my-1 h-px bg-[#2B2D31]" />
                   </>
                 )}
