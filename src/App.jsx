@@ -90,6 +90,7 @@ import EmailVerifyGate from '@/components/EmailVerifyGate';
 import RouteTracker from '@/components/RouteTracker';
 import HelpAssistant from '@/components/HelpAssistant';
 import LocationGate from '@/components/LocationGate';
+import { MembershipGate, BannedScreen } from '@/components/MembershipWall';
 import JoinInviteModal from '@/components/JoinInviteModal';
 import { isLocationVerified } from '@/lib/tracker';
 
@@ -423,6 +424,8 @@ const AppContent = React.memo(() => {
 
         {/* Outer boundary for the standalone (non-layout) routes; layouts have their own so their chrome stays up while a page loads. */}
         <Suspense fallback={<RouteFallback full dark={location.pathname.startsWith('/chat')} />}>
+        <BannedScreen />
+        <MembershipGate full>
         <Routes>
             {/* --- Media Mode Routes --- */}
             <Route path="/media" element={<MediaLayout />}>
@@ -605,6 +608,7 @@ const AppContent = React.memo(() => {
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>
+        </MembershipGate>
         </Suspense>
 
         <AuthModal

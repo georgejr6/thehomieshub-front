@@ -156,6 +156,24 @@ export default function ChatPage({ onLoginRequest }) {
     );
   }
 
+  // CHAT_REQUIRE_GATE: non-members must finish the /join gate (same as the Discord).
+  if (state.status === 'gate_required') {
+    const needsJoin = !user?.gate?.admittedAt;
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[#313338] px-6 text-center text-[#DBDEE1]">
+        <Helmet><title>Chat · The Homies</title></Helmet>
+        <h1 className="text-2xl font-bold text-white">{needsJoin ? 'Finish joining The Homies' : 'Verify your location'}</h1>
+        <p className="max-w-md text-[#B5BAC1]">{needsJoin
+          ? "The chat opens once you've gone through the join steps — same as getting into the Discord. Or become a member and skip straight in."
+          : 'One last step: verify your location to open the chat. Members skip this.'}</p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <button onClick={() => navigate('/join')} className="rounded bg-[#5865F2] px-6 py-2.5 font-medium text-white hover:bg-[#4752C4]">{needsJoin ? 'Continue joining' : 'Verify location'}</button>
+          <button onClick={() => navigate('/memberships')} className="rounded bg-[#F0B94D] px-6 py-2.5 font-bold text-black hover:bg-[#E5A93A]">Become a member</button>
+        </div>
+      </div>
+    );
+  }
+
   if (state.status === 'banned' || state.status === 'chat_banned' || state.status === 'account_banned') {
     return <div className="flex h-screen items-center justify-center bg-[#313338] text-[#DBDEE1]">You've been banned from this chat.</div>;
   }
