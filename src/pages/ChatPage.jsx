@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
-import { Hash, Megaphone, Menu, Users, X, Loader2, CornerDownRight, Globe } from 'lucide-react';
+import { Hash, Megaphone, Menu, Users, X, Loader2, CornerDownRight, Globe, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/hooks/useChat';
 import ChannelSidebar from '@/components/chat/ChannelSidebar';
@@ -13,6 +13,7 @@ import PointsPill from '@/components/chat/perks/PointsPill';
 import PerksSheet, { takePendingPerk } from '@/components/chat/perks/PerksSheet';
 import ShoutoutTicker from '@/components/chat/perks/ShoutoutTicker';
 import Celebration from '@/components/chat/perks/Celebration';
+import Leaderboard from '@/components/chat/perks/Leaderboard';
 import { cn } from '@/lib/utils';
 
 // Homies Chat — the Discord-style community chat, built into the app.
@@ -32,6 +33,10 @@ export default function ChatPage({ onLoginRequest }) {
   const [perks, setPerks] = useState({ open: false, initial: null });
   const openPerks = useCallback((initial) => setPerks({ open: true, initial: initial || null }), []);
   const closePerks = useCallback(() => setPerks((p) => ({ ...p, open: false })), []);
+  // Leaderboard: probed once on sign-in; the trophy only shows if the API
+  // answers (older backends 404 → stays hidden).
+  const [board, setBoard] = useState({ available: false, initial: null, open: false });
+  const closeBoard = useCallback(() => setBoard((b) => ({ ...b, open: false })), []);
 
   const channel = state.channels.find((c) => c.id === channelId);
 
@@ -52,6 +57,14 @@ export default function ChatPage({ onLoginRequest }) {
   // Homies Points: balance once signed in, pinned shoutouts per channel.
   useEffect(() => { if (user) actions.loadWallet().catch(() => {}); }, [user]); // eslint-disable-line
   useEffect(() => { if (user && channelId) actions.loadShoutouts(channelId).catch(() => {}); }, [user, channelId]); // eslint-disable-line
+  useEffect(() => {
+    if (!user) return undefined;
+    let live = true;
+    actions.leaderboard('week')
+      .then((r) => { if (live && r) setBoard((b) => ({ ...b, available: true, initial: r })); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [user]); // eslint-disable-line
 
   // Back from Stripe Checkout (?points=success|cancel): refresh the balance
   // (the webhook can land a moment later) and reopen whatever they were doing.
@@ -195,6 +208,12 @@ export default function ChatPage({ onLoginRequest }) {
             {state.status !== 'connected' && state.status !== 'idle' && (
               <span className="chat-fade-in flex items-center gap-1 text-xs text-[#F0B232]"><Loader2 className="h-3 w-3 animate-spin" /> {state.status === 'connecting' ? 'Connecting' : 'Reconnecting'}</span>
             )}
+            {board.available && (
+              <button type="button" onClick={() => setBoard((b) => ({ ...b, open: true }))} title="Leaderboard" aria-label="Leaderboard"
+                className="chat-pop rounded-full p-1 text-[#F0B94D] transition-colors hover:bg-[#F0B94D]/15 active:scale-95">
+                <Trophy className="h-5 w-5" />
+              </button>
+            )}
             <PointsPill wallet={state.wallet} onClick={() => openPerks({ tab: 'points' })} />
             <button onClick={() => setShowMembers((s) => !s)} title="Member list" className={cn('hidden lg:block', showMembers ? 'text-white' : 'text-[#B5BAC1] hover:text-[#DBDEE1]')}><Users className="h-6 w-6" /></button>
           </div>
@@ -243,6 +262,7 @@ export default function ChatPage({ onLoginRequest }) {
         </div>
       </div>
 
+      {board.available && <Leaderboard open={board.open} onClose={closeBoard} actions={actions} meId={state.me?.id} initial={board.initial} />}
       <PerksSheet open={perks.open} initial={perks.initial} onClose={closePerks} state={state} actions={actions} channel={channel} onToast={setToast} />
 
       {state.notice?.kind === 'gifted' && (

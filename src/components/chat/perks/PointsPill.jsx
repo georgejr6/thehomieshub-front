@@ -20,9 +20,12 @@ export default function PointsPill({ wallet, onClick }) {
     const step = (t) => {
       const k = Math.min(1, (t - t0) / dur);
       const eased = 1 - (1 - k) ** 3;
-      setShown(Math.round(from + (target - from) * eased));
+      const v = Math.round(from + (target - from) * eased);
+      setShown(v);
+      // Track the on-screen value every frame: if the balance changes again
+      // mid-count, the next count starts from here instead of jumping back.
+      fromRef.current = k < 1 ? v : target;
       if (k < 1) raf.current = requestAnimationFrame(step);
-      else fromRef.current = target;
     };
     raf.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf.current);
