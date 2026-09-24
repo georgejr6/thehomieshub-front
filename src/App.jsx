@@ -426,7 +426,7 @@ const AppContent = React.memo(() => {
         {/* Outer boundary for the standalone (non-layout) routes; layouts have their own so their chrome stays up while a page loads. */}
         <Suspense fallback={<RouteFallback full dark={location.pathname.startsWith('/chat')} />}>
         <BannedScreen />
-        <MembershipGate full>
+        <MembershipGate full onLoginRequest={handleLoginRequest}>
         <Routes>
             {/* --- Media Mode Routes --- */}
             <Route path="/media" element={<MediaLayout />}>
