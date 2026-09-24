@@ -9,6 +9,10 @@ import MessageList from '@/components/chat/MessageList';
 import Composer from '@/components/chat/Composer';
 import MemberList from '@/components/chat/MemberList';
 import ClaimNameBar from '@/components/chat/ClaimNameBar';
+import PointsPill from '@/components/chat/perks/PointsPill';
+import PerksSheet, { takePendingPerk } from '@/components/chat/perks/PerksSheet';
+import ShoutoutTicker from '@/components/chat/perks/ShoutoutTicker';
+import Celebration from '@/components/chat/perks/Celebration';
 import { cn } from '@/lib/utils';
 
 // Homies Chat — the Discord-style community chat, built into the app.
@@ -25,6 +29,9 @@ export default function ChatPage({ onLoginRequest }) {
   const [toast, setToast] = useState(null);
   const [editRequest, setEditRequest] = useState(null);
   const [newSince, setNewSince] = useState({}); // channelId -> lastReadId when opened
+  const [perks, setPerks] = useState({ open: false, initial: null });
+  const openPerks = useCallback((initial) => setPerks({ open: true, initial: initial || null }), []);
+  const closePerks = useCallback(() => setPerks((p) => ({ ...p, open: false })), []);
 
   const channel = state.channels.find((c) => c.id === channelId);
 
@@ -42,6 +49,36 @@ export default function ChatPage({ onLoginRequest }) {
   }, [channel?.id]); // eslint-disable-line
 
   useEffect(() => { setReplyTo(null); }, [channelId]);
+  // Homies Points: balance once signed in, pinned shoutouts per channel.
+  useEffect(() => { if (user) actions.loadWallet().catch(() => {}); }, [user]); // eslint-disable-line
+  useEffect(() => { if (user && channelId) actions.loadShoutouts(channelId).catch(() => {}); }, [user, channelId]); // eslint-disable-line
+
+  // Back from Stripe Checkout (?points=success|cancel): refresh the balance
+  // (the webhook can land a moment later) and reopen whatever they were doing.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('points');
+    if (!user || !result) return;
+    window.history.replaceState(window.history.state, '', window.location.pathname);
+    const pending = takePendingPerk();
+    if (result === 'success') {
+      setToast('Payment received — adding your points…');
+      let n = 0;
+      const tick = setInterval(() => { actions.loadWallet().catch(() => {}); if (++n >= 6) clearInterval(tick); }, 1500);
+      if (pending) setTimeout(() => openPerks({ tab: pending.resume || pending.tab, gift: pending.gift, shoutout: pending.shoutout, resume: pending.resume }), 1800);
+    } else {
+      setToast('Checkout canceled — nothing was charged.');
+      if (pending) openPerks({ tab: pending.tab, gift: pending.gift, shoutout: pending.shoutout, need: pending.need, resume: pending.resume });
+    }
+  }, [user]); // eslint-disable-line
+
+  // Someone gifted you membership: banner + confetti.
+  const noticeBurst = useMemo(() => (state.notice ? { id: `notice-${state.notice.at}`, kind: 'gift' } : null), [state.notice]);
+  useEffect(() => {
+    if (!state.notice) return undefined;
+    const t = setTimeout(() => actions.clearNotice(), 9000);
+    return () => clearTimeout(t);
+  }, [state.notice]); // eslint-disable-line
   useEffect(() => {
     if (!state.error) return undefined;
     setToast(state.error);
@@ -89,7 +126,7 @@ export default function ChatPage({ onLoginRequest }) {
 
   const editLast = () => {
     const list = state.messages[channelId]?.list || [];
-    const mine = [...list].reverse().find((m) => m.author?.id === state.me?.id && !m.pending && !m.source);
+    const mine = [...list].reverse().find((m) => m.author?.id === state.me?.id && !m.pending && !m.source && !m.special);
     if (mine) setEditRequest(mine.id);
   };
 
@@ -158,6 +195,7 @@ export default function ChatPage({ onLoginRequest }) {
             {state.status !== 'connected' && state.status !== 'idle' && (
               <span className="chat-fade-in flex items-center gap-1 text-xs text-[#F0B232]"><Loader2 className="h-3 w-3 animate-spin" /> {state.status === 'connecting' ? 'Connecting' : 'Reconnecting'}</span>
             )}
+            <PointsPill wallet={state.wallet} onClick={() => openPerks({ tab: 'points' })} />
             <button onClick={() => setShowMembers((s) => !s)} title="Member list" className={cn('hidden lg:block', showMembers ? 'text-white' : 'text-[#B5BAC1] hover:text-[#DBDEE1]')}><Users className="h-6 w-6" /></button>
           </div>
         </div>
@@ -167,6 +205,13 @@ export default function ChatPage({ onLoginRequest }) {
           <div className="flex min-w-0 flex-1 flex-col">
             {channel ? (
               <>
+                <ShoutoutTicker
+                  shoutouts={state.shoutouts[channel.id]}
+                  onExpire={() => actions.expireShoutouts(channel.id)}
+                  onJump={(id) => document.getElementById(`msg-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                />
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                <Celebration celebration={state.celebration} onDone={actions.clearCelebration} />
                 <MessageList
                   channel={channel}
                   data={state.messages[channel.id]}
@@ -177,6 +222,7 @@ export default function ChatPage({ onLoginRequest }) {
                   onError={setToast}
                   newSinceId={newSince[channel.id]}
                 />
+                </div>
                 <Composer
                   channel={channel}
                   state={state}
@@ -186,6 +232,7 @@ export default function ChatPage({ onLoginRequest }) {
                   onError={setToast}
                   onEditLast={editLast}
                   canCreatePosts={canCreatePosts}
+                  onOpenPerks={openPerks}
                 />
               </>
             ) : (
@@ -195,6 +242,21 @@ export default function ChatPage({ onLoginRequest }) {
           {showMembers && <MemberList state={state} />}
         </div>
       </div>
+
+      <PerksSheet open={perks.open} initial={perks.initial} onClose={closePerks} state={state} actions={actions} channel={channel} onToast={setToast} />
+
+      {state.notice?.kind === 'gifted' && (
+        <div className="fixed inset-x-0 top-0 z-50 flex justify-center px-3 pt-3" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+          <Celebration fall celebration={noticeBurst} onDone={() => {}} />
+          <button type="button" onClick={actions.clearNotice} className="chat-pop chat-glow flex max-w-md items-center gap-3 rounded-2xl border border-[#F0B94D]/50 bg-gradient-to-br from-[#3a2e12] to-[#1f1b12] px-4 py-3 text-left shadow-2xl" style={{ '--glow': 'rgba(240, 185, 77, 0.5)' }}>
+            <span className="chat-gift-bounce text-3xl">🎁</span>
+            <span>
+              <span className="block font-bold text-white">@{state.notice.from} gifted you {state.notice.planLabel}!</span>
+              <span className="block text-sm text-[#C9B27A]">Full access until {new Date(state.notice.endsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. Say thanks 👇</span>
+            </span>
+          </button>
+        </div>
+      )}
 
       {toast && (
         <div key={toast} className="chat-fade-up fixed bottom-24 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-lg bg-[#111214] px-4 py-3 text-sm text-white shadow-2xl">

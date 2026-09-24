@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { PlusCircle, X, FileText, Loader2, Upload, BarChart3, CalendarDays } from 'lucide-react';
+import { PlusCircle, X, FileText, Loader2, Upload, BarChart3, CalendarDays, Gift, Megaphone, Coins, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import { PollDialog, EventDialog } from './CreateDialogs';
@@ -11,6 +11,14 @@ const SHORTCODES = {
   sob: '😭', smile: '😄', wave: '👋', clap: '👏', rofl: '🤣', thinking: '🤔', muscle: '💪', crown: '👑', money: '💰', cap: '🧢',
 };
 
+// Slash commands for Homies Points (they open the points sheet prefilled).
+const COMMANDS = [
+  { name: 'gift', icon: Gift, hint: '@member', desc: 'Gift someone a Homies membership' },
+  { name: 'shoutout', icon: Megaphone, hint: 'points message', desc: 'Pin a highlighted message to the channel' },
+  { name: 'redeem', icon: Sparkles, hint: '', desc: 'Get membership for yourself with points' },
+  { name: 'points', icon: Coins, hint: '', desc: 'Your balance · buy points' },
+];
+
 function typingText(names) {
   if (!names.length) return '';
   if (names.length === 1) return <><b>{names[0]}</b> is typing…</>;
@@ -19,7 +27,7 @@ function typingText(names) {
   return 'Several people are typing…';
 }
 
-export default function Composer({ channel, state, actions, replyTo, clearReply, onError, onEditLast, canCreatePosts }) {
+export default function Composer({ channel, state, actions, replyTo, clearReply, onError, onEditLast, canCreatePosts, onOpenPerks }) {
   const [text, setText] = useState('');
   const [files, setFiles] = useState([]);
   const [progress, setProgress] = useState(null);
@@ -27,6 +35,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
   const [dragging, setDragging] = useState(false);
   const [plusMenu, setPlusMenu] = useState(false);
   const [dialog, setDialog] = useState(null); // 'poll' | 'event'
+  const [cmdIndex, setCmdIndex] = useState(0);
   const mentionMap = useRef({}); // "@username" -> userId
   const lastTyping = useRef(0);
   const input = useRef(null);
@@ -90,7 +99,34 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     input.current?.focus();
   };
 
+  // "/gift @name", "/shoutout 500 message", "/redeem", "/points"
+  const cmdMatch = text.match(/^\/(\w*)$/);
+  const cmdOptions = cmdMatch && onOpenPerks ? COMMANDS.filter((c) => c.name.startsWith(cmdMatch[1].toLowerCase())) : [];
+  const runCommand = (raw) => {
+    const m = raw.trim().match(/^\/(gift|shoutout|redeem|points)(?:\s+(.*))?$/is);
+    if (!m || !onOpenPerks) return false;
+    const [, cmd, rest = ''] = m;
+    const name = cmd.toLowerCase();
+    setText('');
+    if (name === 'gift') {
+      const token = rest.trim().split(/\s+/)[0] || '';
+      const id = mentionMap.current[token];
+      const known = id && Object.values(state.users || {}).find((u) => u.id === id);
+      onOpenPerks({ tab: 'gift', gift: { self: false, to: known || null, query: known ? '' : token.replace(/^@/, '') } });
+    } else if (name === 'shoutout') {
+      const sm = rest.match(/^(\d[\d,]*)\s*(.*)$/s);
+      onOpenPerks({ tab: 'shoutout', shoutout: sm ? { points: Number(sm[1].replace(/,/g, '')), message: sm[2].slice(0, 300) } : { message: rest.slice(0, 300) } });
+    } else if (name === 'redeem') onOpenPerks({ tab: 'gift', gift: { self: true } });
+    else onOpenPerks({ tab: 'points' });
+    mentionMap.current = {};
+    return true;
+  };
+  const pickCommand = (c) => {
+    if (c.hint) { setText(`/${c.name} `); input.current?.focus(); } else runCommand(`/${c.name}`);
+  };
+
   const send = async () => {
+    if (runCommand(text)) return;
     let content = text.trim();
     if ((!content && !files.length) || disabled || progress !== null) return;
     // Visible "@username" → wire format "<@id>"; :shortcodes: → emoji.
@@ -142,6 +178,11 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
   };
 
   const onKeyDown = (e) => {
+    if (cmdOptions.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setCmdIndex((i) => (i + 1) % cmdOptions.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setCmdIndex((i) => (i - 1 + cmdOptions.length) % cmdOptions.length); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickCommand(cmdOptions[cmdIndex % cmdOptions.length]); return; }
+    }
     if (mention?.results?.length) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setMention({ ...mention, index: (mention.index + 1) % mention.results.length }); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setMention({ ...mention, index: (mention.index - 1 + mention.results.length) % mention.results.length }); return; }
@@ -174,6 +215,21 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
       {dragging && (
         <div className="chat-fade-in pointer-events-none absolute inset-x-4 bottom-6 top-0 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-[#5865F2] bg-[#5865F2]/20 text-white">
           Drop to upload to #{channel.name}
+        </div>
+      )}
+
+      {cmdOptions.length > 0 && (
+        <div className="chat-fade-up absolute bottom-full left-4 right-4 z-30 mb-1 overflow-hidden rounded-lg border border-[#1E1F22] bg-[#2B2D31] py-1 shadow-xl">
+          <div className="px-3 pb-1 pt-1 text-xs font-semibold uppercase text-[#949BA4]">Homies Points</div>
+          {cmdOptions.map((c, i) => (
+            <button key={c.name} onMouseDown={(e) => { e.preventDefault(); pickCommand(c); }}
+              className={cn('flex w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-100', i === cmdIndex % cmdOptions.length ? 'bg-[#404249]' : 'hover:bg-[#35373C]')}>
+              <c.icon className="h-5 w-5 shrink-0 text-[#F0B94D]" />
+              <span className="font-semibold text-white">/{c.name}</span>
+              {c.hint && <span className="text-sm text-[#949BA4]">{c.hint}</span>}
+              <span className="ml-auto hidden truncate text-sm text-[#949BA4] sm:block">{c.desc}</span>
+            </button>
+          ))}
         </div>
       )}
 
@@ -255,8 +311,19 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
             placeholder={placeholder}
             rows={1}
             maxLength={4000}
-            className="max-h-[50vh] flex-1 resize-none bg-transparent py-[11px] pr-4 text-[15px] leading-[1.375rem] text-[#DBDEE1] placeholder-[#6D6F78] outline-none disabled:cursor-not-allowed"
+            className="max-h-[50vh] flex-1 resize-none bg-transparent py-[11px] pr-2 text-[15px] leading-[1.375rem] text-[#DBDEE1] placeholder-[#6D6F78] outline-none disabled:cursor-not-allowed"
           />
+          {onOpenPerks && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onOpenPerks({ tab: 'gift' })}
+              title="Gift a membership or send a shoutout"
+              className="group px-3 py-[11px] text-[#B5BAC1] transition-colors hover:text-[#F0B94D] disabled:opacity-30"
+            >
+              <Gift className="h-6 w-6 transition-transform duration-200 group-hover:-rotate-12 group-hover:scale-110" />
+            </button>
+          )}
         </div>
         {progress !== null && (
           <div className="h-1 overflow-hidden rounded-b-lg bg-[#2B2D31]"><div className="h-full bg-[#5865F2] transition-[width] duration-200 ease-out" style={{ width: `${Math.round(progress * 100)}%` }} /></div>

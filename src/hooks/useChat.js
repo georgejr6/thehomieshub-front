@@ -19,7 +19,15 @@ const initial = {
   presence: {},
   members: [],
   users: {},    // userId -> author card (from messages + member list)
+  // Homies Points (utils/points.js on the backend)
+  wallet: { balance: null, pulse: null }, // pulse: last change { change, label, earned, at }
+  shoutouts: {}, // channelId -> active (still pinned) shoutout messages
+  celebration: null, // { id, kind, channelId, at } — a gift/shoutout just landed
+  notice: null, // { kind: 'gifted', from, planLabel, endsAt, at } — shown to the recipient
 };
+
+const liveShoutouts = (list) => list.filter((m) => m.special?.pinnedUntil && new Date(m.special.pinnedUntil) > new Date())
+  .sort((a, b) => (b.special.points - a.special.points) || (a.id < b.id ? 1 : -1));
 
 const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
 const cmpId = (a, b) => (a < b ? -1 : a > b ? 1 : 0); // ObjectId hex sorts by time
@@ -71,7 +79,7 @@ function reducer(state, a) {
     case 'loading':
       return { ...state, messages: { ...state.messages, [a.channelId]: { ...(state.messages[a.channelId] || { list: [] }), loading: true } } };
     case 'message': {
-      const m = a.message;
+      const m = a.live && a.message.special ? { ...a.message, live: true } : a.message;
       const cur = state.messages[m.channelId];
       const messages = cur ? { ...state.messages, [m.channelId]: { ...cur, list: upsertMessage(cur.list, m) } } : state.messages;
       let channels = state.channels;
@@ -163,6 +171,14 @@ function reducer(state, a) {
       return { ...state, channels: state.channels.map((c) => (c.id === a.channel.id ? { ...c, ...a.channel } : c)) };
     case 'me':
       return { ...state, me: { ...state.me, ...a.patch } };
+    case 'wallet':
+      return { ...state, wallet: { balance: a.balance ?? state.wallet.balance, pulse: a.change ? { change: a.change, label: a.label, earned: !!a.earned, at: Date.now() } : state.wallet.pulse } };
+    case 'shoutouts':
+      return { ...state, shoutouts: { ...state.shoutouts, [a.channelId]: liveShoutouts(a.list) } };
+    case 'celebrate':
+      return { ...state, celebration: a.celebration };
+    case 'notice':
+      return { ...state, notice: a.notice };
     default:
       return state;
   }
@@ -220,6 +236,10 @@ export function useChat({ enabled, activeChannelId }) {
         case 'message.created': {
           const focused = d.channelId === activeRef.current && document.visibilityState === 'visible';
           dispatch({ type: 'message', message: d, live: true, focused });
+          if (d.special) {
+            if (d.special.kind === 'shoutout') dispatch({ type: 'shoutouts', channelId: d.channelId, list: [...(stateRef.current.shoutouts[d.channelId] || []), d] });
+            if (d.channelId === activeRef.current) dispatch({ type: 'celebrate', celebration: { id: d.id, kind: d.special.kind, color: d.special.color, channelId: d.channelId, at: Date.now() } });
+          }
           if (focused) setTimeout(() => markRead(d.channelId), 300);
           break;
         }
@@ -257,6 +277,12 @@ export function useChat({ enabled, activeChannelId }) {
         case 'roles.updated':
         case 'channel.created':
           loadBootstrap().catch(() => {});
+          break;
+        case 'wallet.updated':
+          dispatch({ type: 'wallet', balance: d.balance, change: d.change, label: d.label, earned: d.earned });
+          break;
+        case 'membership.updated':
+          if (d.from) dispatch({ type: 'notice', notice: { kind: 'gifted', from: d.from, planLabel: d.planLabel, endsAt: d.endsAt, at: Date.now() } });
           break;
         case 'mod.action':
           if (d.type === 'timeout') dispatch({ type: 'me', patch: { mutedUntil: d.until } });
@@ -416,6 +442,46 @@ export function useChat({ enabled, activeChannelId }) {
       dispatch({ type: 'me', patch: { chatDiscoverable: value } });
     },
     reload: () => loadBootstrap(),
+    // ── Homies Points ──
+    loadWallet: async () => {
+      const { data } = await api.get('/wallet/me');
+      dispatch({ type: 'wallet', balance: data.result?.walletPoints || 0 });
+      return data.result;
+    },
+    loadShoutouts: async (channelId) => {
+      const { data } = await api.get(`/chat/channels/${channelId}/shoutouts`);
+      dispatch({ type: 'shoutouts', channelId, list: data.result?.shoutouts || [] });
+    },
+    expireShoutouts: (channelId) => dispatch({ type: 'shoutouts', channelId, list: stateRef.current.shoutouts[channelId] || [] }),
+    perksCatalog: async () => (await api.get('/chat/perks')).data.result,
+    // Gift membership (toUserId omitted = redeem for yourself). Throws the API
+    // error so the sheet can offer "buy points" on insufficient_points.
+    gift: async (channelId, { toUserId, plan }) => {
+      const { data } = await api.post(`/chat/channels/${channelId}/gift`, { toUserId, plan });
+      dispatch({ type: 'message', message: data.result.message, live: true, focused: true });
+      dispatch({ type: 'wallet', balance: data.result.balance });
+      return data.result;
+    },
+    shoutout: async (channelId, { points, message }) => {
+      const { data } = await api.post(`/chat/channels/${channelId}/shoutout`, { points, message });
+      const m = data.result.message;
+      dispatch({ type: 'message', message: m, live: true, focused: true });
+      dispatch({ type: 'shoutouts', channelId, list: [...(stateRef.current.shoutouts[channelId] || []).filter((x) => x.id !== m.id), m] });
+      dispatch({ type: 'wallet', balance: data.result.balance });
+      return data.result;
+    },
+    points: {
+      packs: async () => (await api.get('/wallet/packs')).data.result.packs,
+      card: async () => (await api.get('/wallet/card')).data.result.card,
+      removeCard: async () => (await api.delete('/wallet/card')).data.result,
+      buy: async (body) => {
+        const { data } = await api.post('/wallet/points/buy', body);
+        if (data.result?.status === 'succeeded') dispatch({ type: 'wallet', balance: data.result.balance, change: data.result.credits, label: `Bought ${data.result.credits.toLocaleString()} points` });
+        return data.result;
+      },
+    },
+    clearCelebration: () => dispatch({ type: 'celebrate', celebration: null }),
+    clearNotice: () => dispatch({ type: 'notice', notice: null }),
     markRead,
     clearError: () => dispatch({ type: 'status', status: stateRef.current.status, error: null }),
   }), [sendMessage, loadHistory, markRead, loadBootstrap]);
