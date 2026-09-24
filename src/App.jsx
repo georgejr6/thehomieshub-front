@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import lazyWithReload from '@/lib/lazyWithReload';
 import { Routes, Route, useLocation, Navigate, useNavigate, Outlet, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { ThemeProvider } from '@/components/ThemeProvider';
@@ -9,82 +10,82 @@ import MobileNav from '@/components/MobileNav';
 import Footer from '@/components/Footer';
 import GetAppBanner from '@/components/GetAppBanner';
 import GetAppSignedOutModal from '@/components/GetAppSignedOutModal';
-import HomePage from '@/pages/HomePage';
-import InvitePage from '@/pages/InvitePage';
-import CommunitiesPage from '@/pages/CommunitiesPage';
-import ExplorePage from '@/pages/ExplorePage';
-import SubscriptionsPage from '@/pages/SubscriptionsPage';
-import SearchResultsPage from '@/pages/SearchResultsPage';
-import UserProfilePage from '@/pages/UserProfilePage';
+const HomePage = lazyWithReload(() => import('@/pages/HomePage'));
+const InvitePage = lazyWithReload(() => import('@/pages/InvitePage'));
+const CommunitiesPage = lazyWithReload(() => import('@/pages/CommunitiesPage'));
+const ExplorePage = lazyWithReload(() => import('@/pages/ExplorePage'));
+const SubscriptionsPage = lazyWithReload(() => import('@/pages/SubscriptionsPage'));
+const SearchResultsPage = lazyWithReload(() => import('@/pages/SearchResultsPage'));
+const UserProfilePage = lazyWithReload(() => import('@/pages/UserProfilePage'));
 import LiveComingSoon from '@/components/LiveComingSoon';
-import LibraryPage from '@/pages/LibraryPage';
+const LibraryPage = lazyWithReload(() => import('@/pages/LibraryPage'));
 // Re-enabled 2026-08-10 -- Creator Studio (content mgmt + analytics + ecommerce) is live again.
-import CreatorStudioPage from '@/pages/CreatorStudioPage';
-import TripsPage from '@/pages/TripsPage';
-import AccountSettingsPage from '@/pages/AccountSettingsPage';
-import InboxPage from '@/pages/InboxPage';
-import ChatPage from '@/pages/ChatPage';
-import MyAIPage from '@/pages/MyAIPage';
-import MyClipsPage from '@/pages/MyClipsPage';
-import MyAppsPage from '@/pages/MyAppsPage';
+const CreatorStudioPage = lazyWithReload(() => import('@/pages/CreatorStudioPage'));
+const TripsPage = lazyWithReload(() => import('@/pages/TripsPage'));
+const AccountSettingsPage = lazyWithReload(() => import('@/pages/AccountSettingsPage'));
+const InboxPage = lazyWithReload(() => import('@/pages/InboxPage'));
+const ChatPage = lazyWithReload(() => import('@/pages/ChatPage'));
+const MyAIPage = lazyWithReload(() => import('@/pages/MyAIPage'));
+const MyClipsPage = lazyWithReload(() => import('@/pages/MyClipsPage'));
+const MyAppsPage = lazyWithReload(() => import('@/pages/MyAppsPage'));
 import AuthModal from '@/components/AuthModal';
 import PostModal from '@/components/PostModal';
 import FeatureLockedModal from '@/components/FeatureLockedModal';
 import PlaceView from '@/components/PlaceView';
-import MediaApp from '@/components/MediaMode/MediaApp';
+const MediaApp = lazyWithReload(() => import('@/components/MediaMode/MediaApp'));
 import MusicPlayer from '@/components/MediaMode/MusicPlayer';
-import SongPage from '@/components/MediaMode/SongPage';
-import WalletIsolationMode from '@/components/WalletIsolationMode';
-import WagersPage from '@/pages/WagersPage';
-import WagerDetailPage from '@/pages/WagerDetailPage';
+const SongPage = lazyWithReload(() => import('@/components/MediaMode/SongPage'));
+const WalletIsolationMode = lazyWithReload(() => import('@/components/WalletIsolationMode'));
+const WagersPage = lazyWithReload(() => import('@/pages/WagersPage'));
+const WagerDetailPage = lazyWithReload(() => import('@/pages/WagerDetailPage'));
 import { WagerProvider } from '@/contexts/WagerContext';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
-import AdminDashboard from '@/pages/admin/AdminDashboard';
-import AdminContent from '@/pages/admin/AdminContent';
-import AdminUsers from '@/pages/admin/AdminUsers';
-import AdminVisitors from '@/pages/admin/AdminVisitors';
-import AdminMonetization from '@/pages/admin/AdminMonetization';
-import AdminFeatures from '@/pages/admin/AdminFeatures';
-import AdminInvite from '@/pages/admin/AdminInvite';
-import AdminLogin from '@/pages/admin/AdminLogin';
-import AdminLayout from '@/pages/admin/AdminLayout';
-import AdminMediaManager from '@/pages/admin/AdminMediaManager';
-import AdminMusicManager from '@/pages/admin/AdminMusicManager';
-import AdminAnalytics from '@/pages/admin/AdminAnalytics';
-import AdminEngagement from '@/pages/admin/AdminEngagement';
-import AdminRevenue from '@/pages/admin/AdminRevenue';
-import AdminPayouts from '@/pages/admin/AdminPayouts';
-import AdminPushNotifications from '@/pages/admin/AdminPushNotifications';
-import AdminBanners from '@/pages/admin/AdminBanners';
-import TermsPage from '@/pages/TermsPage';
-import ResetPasswordPage from '@/pages/ResetPasswordPage';
-import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
-import CommunityGuidelinesPage from '@/pages/CommunityGuidelinesPage';
-import ChildSafetyPage from '@/pages/ChildSafetyPage';
-import SupportPage from '@/pages/SupportPage';
+const AdminDashboard = lazyWithReload(() => import('@/pages/admin/AdminDashboard'));
+const AdminContent = lazyWithReload(() => import('@/pages/admin/AdminContent'));
+const AdminUsers = lazyWithReload(() => import('@/pages/admin/AdminUsers'));
+const AdminVisitors = lazyWithReload(() => import('@/pages/admin/AdminVisitors'));
+const AdminMonetization = lazyWithReload(() => import('@/pages/admin/AdminMonetization'));
+const AdminFeatures = lazyWithReload(() => import('@/pages/admin/AdminFeatures'));
+const AdminInvite = lazyWithReload(() => import('@/pages/admin/AdminInvite'));
+const AdminLogin = lazyWithReload(() => import('@/pages/admin/AdminLogin'));
+const AdminLayout = lazyWithReload(() => import('@/pages/admin/AdminLayout'));
+const AdminMediaManager = lazyWithReload(() => import('@/pages/admin/AdminMediaManager'));
+const AdminMusicManager = lazyWithReload(() => import('@/pages/admin/AdminMusicManager'));
+const AdminAnalytics = lazyWithReload(() => import('@/pages/admin/AdminAnalytics'));
+const AdminEngagement = lazyWithReload(() => import('@/pages/admin/AdminEngagement'));
+const AdminRevenue = lazyWithReload(() => import('@/pages/admin/AdminRevenue'));
+const AdminPayouts = lazyWithReload(() => import('@/pages/admin/AdminPayouts'));
+const AdminPushNotifications = lazyWithReload(() => import('@/pages/admin/AdminPushNotifications'));
+const AdminBanners = lazyWithReload(() => import('@/pages/admin/AdminBanners'));
+const TermsPage = lazyWithReload(() => import('@/pages/TermsPage'));
+const ResetPasswordPage = lazyWithReload(() => import('@/pages/ResetPasswordPage'));
+const PrivacyPolicyPage = lazyWithReload(() => import('@/pages/PrivacyPolicyPage'));
+const CommunityGuidelinesPage = lazyWithReload(() => import('@/pages/CommunityGuidelinesPage'));
+const ChildSafetyPage = lazyWithReload(() => import('@/pages/ChildSafetyPage'));
+const SupportPage = lazyWithReload(() => import('@/pages/SupportPage'));
 import LandingPage from '@/pages/LandingPage';
-import MembershipsPage from '@/pages/MembershipsPage';
-import BillingPage from '@/pages/BillingPage';
-import ConsultationPage from '@/pages/ConsultationPage';
+const MembershipsPage = lazyWithReload(() => import('@/pages/MembershipsPage'));
+const BillingPage = lazyWithReload(() => import('@/pages/BillingPage'));
+const ConsultationPage = lazyWithReload(() => import('@/pages/ConsultationPage'));
 import ConnectMembershipBanner from '@/components/ConnectMembershipBanner';
-import MarketplacePage from '@/pages/MarketplacePage';
-import PurchasesPage from '@/pages/PurchasesPage';
+const MarketplacePage = lazyWithReload(() => import('@/pages/MarketplacePage'));
+const PurchasesPage = lazyWithReload(() => import('@/pages/PurchasesPage'));
 import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
-import PayPage from '@/pages/PayPage';
+const PayPage = lazyWithReload(() => import('@/pages/PayPage'));
 import api from '@/api/homieshub';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import FeatureGuard from '@/components/FeatureGuard';
 import { useStory } from '@/contexts/StoryContext';
-import StoryViewer from '@/components/StoryViewer';
-import WatchPage from './pages/WatchPage';
-import OAuthCallbackPage from '@/pages/OAuthCallbackPage';
-import JoinGatePage from '@/pages/JoinGatePage';
-import FundyPage from '@/pages/FundyPage';
+const StoryViewer = lazyWithReload(() => import('@/components/StoryViewer'));
+const WatchPage = lazyWithReload(() => import('./pages/WatchPage'));
+const OAuthCallbackPage = lazyWithReload(() => import('@/pages/OAuthCallbackPage'));
+const JoinGatePage = lazyWithReload(() => import('@/pages/JoinGatePage'));
+const FundyPage = lazyWithReload(() => import('@/pages/FundyPage'));
 import EmailVerifyGate from '@/components/EmailVerifyGate';
 import RouteTracker from '@/components/RouteTracker';
 import HelpAssistant from '@/components/HelpAssistant';
@@ -111,6 +112,20 @@ const ChatHostRedirect = () => {
   }, [location.pathname, navigate]);
   return null;
 };
+
+// --- Route loading fallback ---
+// Pages are code-split (React.lazy) so the first paint only downloads the
+// shell; this is what shows for the split second a page chunk is loading.
+// `dark` matches the chat's own background so /chat doesn't flash.
+const RouteFallback = ({ dark = false, full = false }) => (
+  <div
+    className={cn('flex w-full items-center justify-center', full ? 'min-h-screen' : 'min-h-[50vh]', dark ? 'bg-[#313338]' : 'bg-transparent')}
+    role="status"
+    aria-label="Loading"
+  >
+    <span className={cn('h-7 w-7 animate-spin rounded-full border-2 border-t-transparent', dark ? 'border-[#949BA4]' : 'border-muted-foreground/60')} />
+  </div>
+);
 
 // --- Layout Components ---
 
@@ -186,11 +201,13 @@ const MainLayout = ({
           {!isImmersiveMode && <GetAppBanner />}
           {!isImmersiveMode && <GetAppSignedOutModal />}
           <div className="flex-1">
-             {LOCATION_GATE_EXEMPT_PATHS.has(location.pathname) ? (
-               <Outlet />
-             ) : (
-               <LocationGate><Outlet /></LocationGate>
-             )}
+             <Suspense fallback={<RouteFallback />}>
+               {LOCATION_GATE_EXEMPT_PATHS.has(location.pathname) ? (
+                 <Outlet />
+               ) : (
+                 <LocationGate><Outlet /></LocationGate>
+               )}
+             </Suspense>
           </div>
           {!isImmersiveMode && !location.pathname.startsWith('/live-stream') && location.pathname !== '/browse' && location.pathname !== '/' && <Footer />}
         </main>
@@ -213,7 +230,9 @@ const MainLayout = ({
 const MediaLayout = () => {
   return (
     <div className="min-h-screen bg-black text-white">
-      <Outlet />
+      <Suspense fallback={<RouteFallback full />}>
+        <Outlet />
+      </Suspense>
       <MusicPlayer />
     </div>
   );
@@ -254,7 +273,9 @@ const WalletLayout = () => {
        <div className="absolute top-4 left-4 z-50">
           <BackButton className="text-white hover:bg-white/20" />
       </div>
-      <Outlet />
+      <Suspense fallback={<RouteFallback full />}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 };
@@ -384,7 +405,7 @@ const AppContent = React.memo(() => {
   
   const AdminRouteWrapper = ({ children }) => {
       if (!isAdminOrMod) return <Navigate to="/" />;
-      return <AdminLayout>{children}</AdminLayout>;
+      return <AdminLayout><Suspense fallback={<RouteFallback />}>{children}</Suspense></AdminLayout>;
   };
 
   return (
@@ -400,6 +421,8 @@ const AppContent = React.memo(() => {
         <ChatHostRedirect />
         <EmailVerifyGate />
 
+        {/* Outer boundary for the standalone (non-layout) routes; layouts have their own so their chrome stays up while a page loads. */}
+        <Suspense fallback={<RouteFallback full dark={location.pathname.startsWith('/chat')} />}>
         <Routes>
             {/* --- Media Mode Routes --- */}
             <Route path="/media" element={<MediaLayout />}>
@@ -435,7 +458,7 @@ const AppContent = React.memo(() => {
 
             {/* --- Homies Chat (Discord-style community chat, full-screen) ---
                  /discord and /community are friendly aliases. */}
-            <Route path="/chat/:channelId?" element={<LocationGate><ChatPage onLoginRequest={() => setAuthModalState({ isOpen: true, view: 'main' })} /></LocationGate>} />
+            <Route path="/chat/:channelId?" element={<LocationGate><Suspense fallback={<RouteFallback full dark />}><ChatPage onLoginRequest={() => setAuthModalState({ isOpen: true, view: 'main' })} /></Suspense></LocationGate>} />
             <Route path="/discord/*" element={<Navigate to="/chat" replace />} />
             <Route path="/community/*" element={<Navigate to="/chat" replace />} />
 
@@ -582,6 +605,7 @@ const AppContent = React.memo(() => {
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>
+        </Suspense>
 
         <AuthModal
             isOpen={authModalState.isOpen}
@@ -609,11 +633,13 @@ const AppContent = React.memo(() => {
 
         {/* Story viewer — fixed fullscreen, independent of all layout/feed lifecycle */}
         {viewingIndex !== null && (
-          <StoryViewer
-            stories={orderedStories}
-            initialStoryIndex={viewingIndex}
-            onClose={closeStory}
-          />
+          <Suspense fallback={null}>
+            <StoryViewer
+              stories={orderedStories}
+              initialStoryIndex={viewingIndex}
+              onClose={closeStory}
+            />
+          </Suspense>
         )}
     </ThemeProvider>
     </WagerProvider>

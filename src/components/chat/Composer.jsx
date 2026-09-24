@@ -19,6 +19,19 @@ const COMMANDS = [
   { name: 'points', icon: Coins, hint: '', desc: 'Your balance · buy points' },
 ];
 
+// Attachment thumbnail. One object URL per file, revoked on removal — making
+// it inline in render leaked a new blob URL (and reloaded the <img>) on every
+// keystroke while a file was attached.
+function FileThumb({ file }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return url ? <img src={url} alt="" className="max-h-[80px] max-w-full rounded object-contain" /> : null;
+}
+
 function typingText(names) {
   if (!names.length) return '';
   if (names.length === 1) return <><b>{names[0]}</b> is typing…</>;
@@ -38,6 +51,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
   const [cmdIndex, setCmdIndex] = useState(0);
   const mentionMap = useRef({}); // "@username" -> userId
   const lastTyping = useRef(0);
+  const mentionReq = useRef(0);
   const input = useRef(null);
   const fileInput = useRef(null);
   const can = channel?.can || {};
@@ -81,11 +95,14 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     }
     const caret = e.target.selectionStart;
     const m = v.slice(0, caret).match(/(^|\s)@([\w.]{0,32})$/);
+    const req = ++mentionReq.current;
     if (m) {
       const query = m[2];
       const start = caret - query.length - 1;
       const results = await actions.searchMembers(query).catch(() => []);
-      setMention({ query, start, results: results.slice(0, 8), index: 0 });
+      // Only the latest keystroke's search may open the picker — an older,
+      // slower response would otherwise reopen it after you moved on/sent.
+      if (req === mentionReq.current) setMention({ query, start, results: results.slice(0, 8), index: 0 });
     } else setMention(null);
   };
 
@@ -136,6 +153,8 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     content = content.replace(/:([\w+]+):/g, (all, code) => SHORTCODES[code] || all);
     const toUpload = files;
     const reply = replyTo;
+    mentionReq.current += 1;
+    setMention(null);
     setText('');
     setFiles([]);
     clearReply();
@@ -262,7 +281,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
             {files.map((f, i) => (
               <div key={`${f.name}-${f.size}-${f.lastModified}`} className="chat-pop relative flex h-[120px] w-[120px] shrink-0 flex-col items-center justify-center rounded bg-[#2B2D31] p-2">
                 {f.type.startsWith('image/') ? (
-                  <img src={URL.createObjectURL(f)} alt="" className="max-h-[80px] max-w-full rounded object-contain" />
+                  <FileThumb file={f} />
                 ) : (
                   <FileText className="h-10 w-10 text-[#B5BAC1]" />
                 )}

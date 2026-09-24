@@ -49,6 +49,10 @@ function reducer(state, a) {
   switch (a.type) {
     case 'status':
       return { ...state, status: a.status, error: a.error ?? state.error };
+    case 'clearError':
+      // Separate from 'status': there `error: null` means "no new error" and
+      // keeps the old one, so clearing through it never actually cleared.
+      return state.error == null ? state : { ...state, error: null };
     case 'bootstrap': {
       const r = a.data;
       return {
@@ -203,6 +207,17 @@ export function useChat({ enabled, activeChannelId }) {
     dispatch({ type: 'members', list: data.result || [] });
   }, []);
 
+  // Membership/role changes (a gifted or redeemed membership, a role edit)
+  // move people between member-list groups; the list is otherwise only
+  // loaded once, so refetch it — debounced, since a gift fires several of
+  // these events back to back.
+  const memberReload = useRef(null);
+  const scheduleMemberReload = useCallback(() => {
+    clearTimeout(memberReload.current);
+    memberReload.current = setTimeout(() => { loadMembers().catch(() => {}); }, 1000);
+  }, [loadMembers]);
+  useEffect(() => () => clearTimeout(memberReload.current), []);
+
   const loadHistory = useCallback(async (channelId, { before, replace } = {}) => {
     dispatch({ type: 'loading', channelId });
     const { data } = await api.get(`/chat/channels/${channelId}/messages`, { params: { limit: 50, ...(before ? { before } : {}) } });
@@ -237,6 +252,7 @@ export function useChat({ enabled, activeChannelId }) {
           const focused = d.channelId === activeRef.current && document.visibilityState === 'visible';
           dispatch({ type: 'message', message: d, live: true, focused });
           if (d.special) {
+            if (d.special.kind === 'gift' || d.special.kind === 'redeem') scheduleMemberReload();
             if (d.special.kind === 'shoutout') dispatch({ type: 'shoutouts', channelId: d.channelId, list: [...(stateRef.current.shoutouts[d.channelId] || []), d] });
             if (d.channelId === activeRef.current) dispatch({ type: 'celebrate', celebration: { id: d.id, kind: d.special.kind, color: d.special.color, channelId: d.channelId, at: Date.now() } });
           }
@@ -273,8 +289,11 @@ export function useChat({ enabled, activeChannelId }) {
         case 'channel.updated':
           dispatch({ type: 'channelUpdated', channel: d });
           break;
-        case 'channels.changed':
         case 'roles.updated':
+          loadBootstrap().catch(() => {});
+          scheduleMemberReload();
+          break;
+        case 'channels.changed':
         case 'channel.created':
           loadBootstrap().catch(() => {});
           break;
@@ -282,6 +301,7 @@ export function useChat({ enabled, activeChannelId }) {
           dispatch({ type: 'wallet', balance: d.balance, change: d.change, label: d.label, earned: d.earned });
           break;
         case 'membership.updated':
+          scheduleMemberReload();
           if (d.from) dispatch({ type: 'notice', notice: { kind: 'gifted', from: d.from, planLabel: d.planLabel, endsAt: d.endsAt, at: Date.now() } });
           break;
         case 'mod.action':
@@ -315,7 +335,7 @@ export function useChat({ enabled, activeChannelId }) {
       document.removeEventListener('visibilitychange', onVisible);
       sock.close();
     };
-  }, [enabled, loadBootstrap, loadHistory, loadMembers, markRead]);
+  }, [enabled, loadBootstrap, loadHistory, loadMembers, markRead, scheduleMemberReload]);
 
   // Open a channel: load history once, mark read, tell the server we're looking.
   useEffect(() => {
@@ -460,6 +480,7 @@ export function useChat({ enabled, activeChannelId }) {
       const { data } = await api.post(`/chat/channels/${channelId}/gift`, { toUserId, plan });
       dispatch({ type: 'message', message: data.result.message, live: true, focused: true });
       dispatch({ type: 'wallet', balance: data.result.balance });
+      scheduleMemberReload(); // the recipient (or you) just changed tier
       return data.result;
     },
     shoutout: async (channelId, { points, message }) => {
@@ -483,8 +504,20 @@ export function useChat({ enabled, activeChannelId }) {
     clearCelebration: () => dispatch({ type: 'celebrate', celebration: null }),
     clearNotice: () => dispatch({ type: 'notice', notice: null }),
     markRead,
-    clearError: () => dispatch({ type: 'status', status: stateRef.current.status, error: null }),
-  }), [sendMessage, loadHistory, markRead, loadBootstrap]);
+    clearError: () => dispatch({ type: 'clearError' }),
+    // Top gifters / most active. Resolves null when the endpoint isn't there
+    // (older backend) so the UI can hide itself instead of erroring.
+    leaderboard: async (period) => {
+      try {
+        const { data } = await api.get('/chat/leaderboard', { params: { period } });
+        const r = data?.result ?? data; // the usual { result } envelope, or bare
+        return r && (Array.isArray(r.gifters) || Array.isArray(r.earners)) ? r : null;
+      } catch (err) {
+        if (err.response?.status === 404) return null;
+        throw err;
+      }
+    },
+  }), [sendMessage, loadHistory, markRead, loadBootstrap, scheduleMemberReload]);
 
   return { state, actions };
 }

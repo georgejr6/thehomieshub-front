@@ -120,7 +120,9 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 | Route | Component | Notes |
 |---|---|---|
-| `/` | `HomePage.jsx` | Main feed with stories + vertical video |
+| `/` | `LandingPage.jsx` | Marketing landing (only page bundled eagerly) |
+| `/browse` | `HomePage.jsx` | Main feed with stories + vertical video |
+| `/chat/:channelId?` | `ChatPage.jsx` | Homies Chat (Discord-style) |
 | `/explore` | `ExplorePage.jsx` | Explore/search feed |
 | `/reels` | `ReelsPage.jsx` | Reels-only feed |
 | `/watch/:postId` | `WatchPage.jsx` | Watch page — loads creator content or global feed |
@@ -128,12 +130,24 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 | `/profile/:username` | `UserProfilePage.jsx` | User profile with video grid |
 | `/studio` | `CreatorStudioPage.jsx` | Creator upload + management |
 | `/wagers` | `WagersPage.jsx` | Betting/wager system |
-| `/wallet` | `WalletPage.jsx` | Crypto wallet |
+| `/wallet/*` | `WalletIsolationMode.jsx` | Wallet mode (points balance, purchase, transactions). `pages/WalletPage.jsx` is NOT routed |
 | `/live` | `LivePage.jsx` | Live streaming |
 
 ---
 
 ## Recent Changes Log
+
+### 2026-09-24 — Code-split routes, dist untracked, chat member-list refresh, leaderboard, chat fixes
+- **[PERF] Route code-splitting** (`src/App.jsx`): every routed page except `LandingPage` (plus `StoryViewer`) is now `lazyWithReload(() => import(...))`. Suspense boundaries sit INSIDE `MainLayout` / `MediaLayout` / `WalletLayout` / `AdminRouteWrapper` (so header/sidebar/admin chrome stay up while a page chunk loads), plus one outer boundary around `<Routes>` for the standalone routes and one inside `LocationGate` for `/chat`. Fallback = small `RouteFallback` spinner (dark `#313338` for /chat). Main entry chunk: **4,379.77 kB → 3,504.60 kB** (gzip 1,228 → 1,012 kB). ChatPage is its own ~147 kB chunk.
+  - **Why it's not smaller:** the rest of the entry is providers loaded in `main.jsx` for every page (algosdk + `@txnlab/use-wallet` + bn.js/elliptic via `WalletContext`/`WagerContext`, framer-motion in Header/Sidebar/MobileNav) — and hls.js/@mux (~1 MB) which Rollup keeps in the entry even though only lazy chunks import `@mux/mux-player-react` (verified with a module-graph dump; a `manualChunks` split still leaves a static `import"./mux-*.js"` in the entry, so it was NOT shipped). Next wins: lazy-load the Algorand wallet stack in `WalletContext`, then revisit the Mux placement.
+  - **New `src/lib/lazyWithReload.js`**: if a chunk import fails (a tab opened before a deploy asks for old hashed chunks, which no longer exist), reload the page once (30 s sessionStorage guard against loops).
+- **[BUILD] `dist/` is no longer tracked** (`git rm -r --cached dist`, added to `.gitignore`). Verified Vercel builds from source (`npm run build` → `vite build` in the build log; live asset hashes never matched the committed dist).
+- **[FIX] Member list stale after a gift** (`hooks/useChat.js`): `loadMembers()` is re-run (debounced 1 s) on `membership.updated`, `roles.updated`, a live `message.created` with `special.kind` `gift`/`redeem`, and after your own `actions.gift()`.
+- **[FEAT] Leaderboard** (`components/chat/perks/Leaderboard.jsx`, trophy button in the chat header next to the points pill): `GET /api/chat/leaderboard?period=week|month|all` → Top gifters (points + gift count) / Most active (points earned), Week/Month/All tabs, 🥇🥈🥉 for 1–3, role colours, your row highlighted. Bottom sheet on phones, centred panel on desktop. `actions.leaderboard()` resolves `null` on 404 / unexpected shape → the trophy is hidden (probed once when the chat opens).
+- **[FIX] `clearError` never cleared** (`useChat.js`): it dispatched `status` with `error: null`, which the reducer treats as "keep the old error" (`??`). New `clearError` action — a repeated identical error (e.g. two timeouts) now toasts again.
+- **[FIX] Composer**: attachment thumbnails created a new blob URL (and reloaded the image) on every keystroke and never revoked them → `FileThumb` with create/revoke in an effect. A slow @-mention search could reopen the picker after you'd kept typing or sent → only the latest request applies.
+- **[FIX] PointsPill**: if the balance changed mid count-up, the next animation jumped back to the stale start value.
+- Tested with Playwright against the built app with all `/api/chat/*`, `/auth/me`, `/wallet/*` and `/ws/chat` stubbed (390×844 touch + 1280×800): lazy routes (/chat, /wallet, /wallet/transactions, /media, /browse, /settings, /terms, /admin/login, /memberships) load with no page errors, member list regroups after `membership.updated`, leaderboard tabs/empty state/404-hidden, /points /shoutout /redeem /gift, image viewer open/close, no horizontal overflow at 390 px.
 
 ### 2026-09-22 (round 3) — Location gate now covers logged-in users too + hard membership paywall
 - **[FEAT] `LocationGate.jsx` now gates logged-in users, not just anonymous visitors** (tightened same day, in response to suspected info-gathering by non-paying accounts). Anonymous check unchanged (browser `hh_geo` cache); logged-in check is now the account's own `user.gate.locationEnabledAt` — an existing member who never went through the /join location step is gated exactly like anyone else until they verify once. Verifying calls the same `POST /gate/location` the /join flow uses, then `refreshMe()`. Recomputes on login/logout via a `useEffect` so a mid-session login doesn't leave a stale gate state.
