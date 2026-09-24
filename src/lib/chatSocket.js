@@ -58,6 +58,7 @@ export class ChatSocket {
     ws.onclose = (ev) => {
       if (this.ws !== ws) return;
       // 4004 kick → may reconnect; 4005 ban → stop.
+      if (ev.code === 4006) return this.onStatus('gate_required'); // finish the /join gate first — don't retry
       if (this.closedByUs || ev.code === 4005) return this.onStatus(ev.code === 4005 ? 'banned' : 'closed');
       const wait = BACKOFF_MS[Math.min(this.attempt++, BACKOFF_MS.length - 1)];
       this.onStatus('reconnecting');
