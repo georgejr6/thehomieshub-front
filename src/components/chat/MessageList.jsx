@@ -15,6 +15,7 @@ import ChatMarkdown, { roleColor } from './ChatMarkdown';
 import PostCard from './PostCard';
 import Embed, { embedImageUrl } from './Embed';
 import { openImageViewer, ImageViewerHost } from './ImageViewer';
+import SpecialMessage from './perks/SpecialMessage';
 
 const GROUP_MS = 7 * 60 * 1000;
 export const QUICK_EMOJI = ['👍', '❤️', '😂', '🔥', '😮', '😢', '🙏', '💯', '👀', '🎉', '💀', '🤝'];
@@ -291,6 +292,8 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
           />
           <div className="text-xs text-[#949BA4]">escape to <button onClick={() => setEditing(false)} className="text-[#00A8FC] hover:underline">cancel</button> • enter to <button onClick={saveEdit} className="text-[#00A8FC] hover:underline">save</button></div>
         </div>
+      ) : m.special ? (
+        <SpecialMessage m={m} ctx={ctx} live={m.live} />
       ) : (
         <div className="text-[15px] leading-[1.375rem] text-[#DBDEE1]">
           <ChatMarkdown text={m.content} ctx={ctx} />
@@ -348,7 +351,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
             </div>
           )}
           {can.send && <button onClick={() => onReply(m)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Reply"><Reply className="h-5 w-5" /></button>}
-          {mine && !m.source && <button onClick={() => { setDraft(m.content); setEditing(true); }} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Edit"><Pencil className="h-5 w-5" /></button>}
+          {mine && !m.source && !m.special && <button onClick={() => { setDraft(m.content); setEditing(true); }} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Edit"><Pencil className="h-5 w-5" /></button>}
           {can.manageMessages && <button onClick={async () => { try { const r = await actions.pin(m.id, !m.pinned); onError(`${m.pinned ? 'Unpinned' : 'Pinned'}${discordNote(r?.data?.result)}`); } catch (err) { onError(err.response?.data?.message || "Couldn't pin."); } }} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title={m.pinned ? 'Unpin' : 'Pin'}><Pin className="h-5 w-5" /></button>}
           {!mine && <button onClick={report} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Report"><Flag className="h-5 w-5" /></button>}
           <div className="relative">
@@ -397,7 +400,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
                 <button onClick={() => { navigator.clipboard?.writeText(m.content || ''); setMore(false); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
                   <Copy className="h-4 w-4" /> Copy Text
                 </button>
-                {mine && !m.source && (
+                {mine && !m.source && !m.special && (
                   <button onClick={() => { setMore(false); setDraft(m.content); setEditing(true); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
                     <Pencil className="h-4 w-4" /> Edit Message
                   </button>
@@ -500,7 +503,7 @@ export default function MessageList({ channel, data, state, ctx, actions, onRepl
         out.push({ kind: 'new', key: `new-${m.id}` });
         newShown = isNew = true;
       }
-      const grouped = !!prev && !isNew && !m.replyTo && prev.author?.id === m.author?.id && t - new Date(prev.createdAt) < GROUP_MS && isSameDay(new Date(prev.createdAt), t) && !!prev.source === !!m.source;
+      const grouped = !!prev && !isNew && !m.replyTo && !m.special && !prev.special && prev.author?.id === m.author?.id && t - new Date(prev.createdAt) < GROUP_MS && isSameDay(new Date(prev.createdAt), t) && !!prev.source === !!m.source;
       out.push({ kind: 'msg', key: m.nonce || m.id, m, grouped });
       prev = m;
     }

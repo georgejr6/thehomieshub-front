@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { txLabel, txSubline, txBadge } from '@/lib/walletTx';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Minimize2, Wallet, CreditCard, History,
@@ -191,6 +192,23 @@ const [loadingTx, setLoadingTx] = useState(false);
     loadWallet();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletMode.active, location.pathname, location.search]);
+
+  // Back from Stripe Checkout (?points=success|cancel): the webhook credits
+  // the points a moment later, so show the history and refresh a few times.
+  useEffect(() => {
+    const result = new URLSearchParams(location.search).get('points');
+    if (!walletMode.active || !result) return undefined;
+    navigate('/wallet/transactions', { replace: true });
+    if (result !== 'success') {
+      toast({ title: "Checkout canceled", description: "Nothing was charged." });
+      return undefined;
+    }
+    toast({ title: "Payment received", description: "Your points are being added — a receipt is on its way to your email." });
+    let n = 0;
+    const t = setInterval(() => { loadWallet(); loadTransactions(); if (++n >= 5) clearInterval(t); }, 1500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletMode.active, location.search]);
 
   const copyAddress = () => {
     if (connectedWallet?.address) {
@@ -400,14 +418,9 @@ const [loadingTx, setLoadingTx] = useState(false);
     const amount = Number(t.pointsChange || 0);
     const isIn = amount > 0;
 
-    const desc =
-      t.type === "topup"
-        ? `Purchase: ${t?.meta?.pack || ""}`.trim()
-        : t.type === "gift_sent"
-        ? `Gift sent`
-        : t.type === "gift_received"
-        ? `Gift received`
-        : t.type;
+    const desc = txLabel(t);
+    const sub = txSubline(t);
+    const badge = txBadge(t);
 
     const dateText = t.createdAt
       ? new Date(t.createdAt).toLocaleString()
@@ -422,19 +435,19 @@ const [loadingTx, setLoadingTx] = useState(false);
           <div
             className={cn(
               "h-10 w-10 rounded-full flex items-center justify-center",
-              isIn ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+              amount === 0 ? "bg-amber-500/10 text-amber-400" : isIn ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
             )}
           >
             {isIn ? <ArrowDownLeft className="h-5 w-5" /> : <ArrowUpRight className="h-5 w-5" />}
           </div>
           <div>
             <div className="text-white font-medium">{desc}</div>
-            <div className="text-xs text-muted-foreground">{dateText}</div>
+            <div className="text-xs text-muted-foreground">{dateText}{sub ? ` · ${sub}` : ""}</div>
           </div>
         </div>
 
-        <div className={cn("font-bold text-lg", isIn ? "text-green-400" : "text-white")}>
-          {isIn ? "+" : "-"}{Math.abs(amount).toLocaleString()}
+        <div className={cn("font-bold text-lg", amount === 0 ? "text-muted-foreground text-sm" : isIn ? "text-green-400" : "text-white")}>
+          {amount === 0 ? (badge || "—") : `${isIn ? "+" : "-"}${Math.abs(amount).toLocaleString()}`}
         </div>
       </div>
     );
