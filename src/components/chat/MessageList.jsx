@@ -13,7 +13,8 @@ import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import ChatMarkdown, { roleColor } from './ChatMarkdown';
 import PostCard from './PostCard';
-import Embed from './Embed';
+import Embed, { embedImageUrl } from './Embed';
+import { openImageViewer, ImageViewerHost } from './ImageViewer';
 
 const GROUP_MS = 7 * 60 * 1000;
 export const QUICK_EMOJI = ['👍', '❤️', '😂', '🔥', '😮', '😢', '🙏', '💯', '👀', '🎉', '💀', '🤝'];
@@ -38,15 +39,62 @@ function Avatar({ author, size = 40 }) {
   );
 }
 
+// Inline media: big (up to 520px wide / 60% of the screen tall) and sized from
+// the stored width/height so the list doesn't jump while images load. Tapping
+// an image opens the in-app viewer (ImageViewer.jsx).
+const MEDIA_MAX_W = 520;
+const MEDIA_MAX_H = 480;
+function mediaBox(a) {
+  if (!(a.width > 0 && a.height > 0)) return undefined;
+  const ratio = (a.width / a.height).toFixed(4);
+  return { aspectRatio: `${a.width} / ${a.height}`, width: `min(100%, ${MEDIA_MAX_W}px, ${a.width}px, calc(min(60vh, ${MEDIA_MAX_H}px) * ${ratio}))` };
+}
+
+function ImageTile({ a, onOpen, className, fill }) {
+  const box = fill ? undefined : mediaBox(a);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={a.name ? `Open image ${a.name}` : 'Open image'}
+      className={cn('block cursor-zoom-in overflow-hidden rounded-lg bg-[#2B2D31] transition-[filter] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5865F2]', className)}
+      style={box}
+    >
+      <img
+        src={a.url}
+        alt={a.name || ''}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        className={fill || box ? 'h-full w-full object-cover' : 'block max-h-[min(60vh,480px)] max-w-full object-contain sm:max-w-[520px]'}
+      />
+    </button>
+  );
+}
+
+// One image: natural shape. Several: a 2-column grid (odd count → first spans).
+function ImageGallery({ images, onOpen }) {
+  if (images.length === 1) return <ImageTile a={images[0]} onOpen={() => onOpen(images[0].url)} />;
+  return (
+    <div className="grid w-full max-w-[520px] grid-cols-2 gap-1">
+      {images.map((a, i) => (
+        <ImageTile
+          key={a.url}
+          a={a}
+          fill
+          onOpen={() => onOpen(a.url)}
+          className={images.length % 2 === 1 && i === 0 ? 'col-span-2 aspect-video' : 'aspect-square'}
+        />
+      ))}
+    </div>
+  );
+}
+
 function Attachment({ a }) {
-  if (a.type === 'image') {
-    return (
-      <a href={a.url} target="_blank" rel="noopener noreferrer" className="block w-fit">
-        <img src={a.url} alt={a.name || ''} loading="lazy" className="max-h-[350px] max-w-full rounded-lg object-contain sm:max-w-[400px]" />
-      </a>
-    );
+  if (a.type === 'video') {
+    const box = mediaBox(a);
+    return <video src={a.url} controls playsInline preload="metadata" className={cn('rounded-lg bg-black', box ? 'block' : 'max-h-[min(60vh,480px)] max-w-full sm:max-w-[520px]')} style={box} />;
   }
-  if (a.type === 'video') return <video src={a.url} controls preload="metadata" className="max-h-[350px] max-w-full rounded-lg bg-black sm:max-w-[400px]" />;
   if (a.type === 'audio') {
     return (
       <div className="w-full max-w-[400px] rounded-lg border border-[#1E1F22] bg-[#2B2D31] p-3">
@@ -106,6 +154,17 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   const [picker, setPicker] = useState(false);
   const [more, setMore] = useState(false);
   const mine = m.author?.id === me?.id;
+  // Every image in the message (link previews first, as rendered) forms one
+  // gallery, so the viewer can swipe between them.
+  const images = useMemo(() => (m.attachments || []).filter((a) => a.type === 'image'), [m.attachments]);
+  const otherFiles = useMemo(() => (m.attachments || []).filter((a) => a.type !== 'image'), [m.attachments]);
+  const openImage = (url) => {
+    const gallery = [
+      ...(m.embeds || []).map(embedImageUrl).filter(Boolean).map((u) => ({ url: u })),
+      ...images.map((a) => ({ url: a.url, name: a.name })),
+    ];
+    openImageViewer(gallery, Math.max(0, gallery.findIndex((g) => g.url === url)));
+  };
   // Animate only messages that arrive while you're watching, not history pages.
   const fresh = useRef(m.pending || Date.now() - new Date(m.createdAt).getTime() < 8000).current;
   const pinged = !mine && (m.mentions?.includes(me?.id) || m.mentionEveryone || m.mentionRoles?.some((r) => me?.roleIds?.includes(r)));
@@ -178,7 +237,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
     <div
       id={`msg-${m.id}`}
       className={cn(
-        'group relative pl-[72px] pr-12 transition-[background-color,opacity] duration-150 hover:bg-[#2E3035]',
+        'group relative pl-[72px] pr-4 sm:pr-12 transition-[background-color,opacity] duration-150 hover:bg-[#2E3035]',
         fresh && 'chat-msg-in',
         grouped ? 'py-0.5' : 'mt-[17px] py-0.5',
         pinged && 'border-l-2 border-[#F0B232] bg-[#F0B232]/[0.08] pl-[70px] hover:bg-[#F0B232]/[0.12]',
@@ -240,9 +299,10 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
       )}
 
       {m.post && <PostCard post={m.post} onVote={actions.votePoll} onError={onError} />}
-      {m.embeds?.length > 0 && m.embeds.map((e, i) => <Embed key={i} e={e} ctx={ctx} />)}
-      {m.attachments?.length > 0 && (
-        <div className="mt-1 flex flex-col gap-1">{m.attachments.map((a) => <Attachment key={a.url} a={a} />)}</div>
+      {m.embeds?.length > 0 && m.embeds.map((e, i) => <Embed key={i} e={e} ctx={ctx} onOpenImage={openImage} />)}
+      {images.length > 0 && <div className="mt-1"><ImageGallery images={images} onOpen={openImage} /></div>}
+      {otherFiles.length > 0 && (
+        <div className="mt-1 flex flex-col gap-1">{otherFiles.map((a) => <Attachment key={a.url} a={a} />)}</div>
       )}
       {m.held && <div className="mt-0.5 text-xs text-[#F0B232]">Held for mod review — only you and the mods can see this.</div>}
       {m.failed && (
@@ -451,6 +511,7 @@ export default function MessageList({ channel, data, state, ctx, actions, onRepl
 
   return (
     <div className="relative min-h-0 flex-1">
+      <ImageViewerHost />
       <div key={channel?.id} ref={scroller} onScroll={onScroll} className="chat-fade-in h-full overflow-y-auto overflow-x-hidden pb-4 [scrollbar-width:thin]">
        <div ref={content}>
         {data?.loaded && !data.hasMore && (

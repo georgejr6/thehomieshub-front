@@ -7,7 +7,14 @@ import ChatMarkdown, { roleColor } from './ChatMarkdown';
 
 const safeUrl = (u) => (typeof u === 'string' && /^https?:\/\//i.test(u) ? u : null);
 
-export default function Embed({ e, ctx }) {
+// The still image an embed shows (not gif videos), for the in-chat viewer.
+export function embedImageUrl(e) {
+  if (!e) return null;
+  if (e.type === 'image' || e.type === 'gifv') return e.type === 'gifv' && e.video ? null : safeUrl(e.thumbnail?.url) || safeUrl(e.thumbnail?.proxy_url);
+  return safeUrl(e.image?.url) || safeUrl(e.image?.proxy_url);
+}
+
+export default function Embed({ e, ctx, onOpenImage }) {
   if (!e) return null;
   // Bare image/gif link previews render as just the media, like Discord.
   if ((e.type === 'image' || e.type === 'gifv') && (e.thumbnail || e.video)) {
@@ -15,7 +22,11 @@ export default function Embed({ e, ctx }) {
     if (!src) return null;
     return e.type === 'gifv' && e.video
       ? <video src={src} autoPlay loop muted playsInline className="mt-1 max-h-[300px] max-w-full rounded-lg sm:max-w-[400px]" />
-      : <img src={src} alt="" loading="lazy" className="mt-1 max-h-[300px] max-w-full rounded-lg sm:max-w-[400px]" />;
+      : (
+        <button type="button" onClick={() => onOpenImage?.(src)} className="mt-1 block cursor-zoom-in" aria-label="Open image">
+          <img src={src} alt="" loading="lazy" draggable={false} className="max-h-[min(60vh,480px)] max-w-full rounded-lg sm:max-w-[520px]" />
+        </button>
+      );
   }
   const bar = e.color ? roleColor(e.color) : '#1E1F22';
   const image = safeUrl(e.image?.url) || safeUrl(e.image?.proxy_url);
@@ -48,7 +59,11 @@ export default function Embed({ e, ctx }) {
             ))}
           </div>
         )}
-        {image && <img src={image} alt="" loading="lazy" className="mt-3 max-h-[300px] max-w-full rounded" />}
+        {image && (
+          <button type="button" onClick={() => onOpenImage?.(image)} className="mt-3 block cursor-zoom-in" aria-label="Open image">
+            <img src={image} alt="" loading="lazy" draggable={false} className="max-h-[300px] max-w-full rounded" />
+          </button>
+        )}
         {(e.footer?.text || e.timestamp) && (
           <div className="mt-2 flex items-center gap-2 text-xs text-[#949BA4]">
             {safeUrl(e.footer?.icon_url) && <img src={e.footer.icon_url} alt="" className="h-5 w-5 rounded-full" />}
