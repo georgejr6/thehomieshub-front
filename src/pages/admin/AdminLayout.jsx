@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { Clapperboard, LayoutDashboard, Users, FolderKanban, LogOut, Home, Settings, DollarSign, Shield, UserPlus, Film, Bell, Music, Activity, BarChart3, Wallet, Megaphone, Heart } from 'lucide-react';
+import { Clapperboard, LayoutDashboard, Users, FolderKanban, LogOut, Home, Settings, DollarSign, Shield, ShieldAlert, UserPlus, Film, Bell, Music, Activity, BarChart3, Wallet, Megaphone, Heart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const AdminLayout = ({ children }) => {
@@ -35,6 +35,7 @@ const AdminLayout = ({ children }) => {
       heading: 'Community',
       items: [
         { to: '/admin/users', icon: Users, label: 'Users', roles: ['admin', 'moderator'] },
+        { to: '/admin/moderation', icon: ShieldAlert, label: 'Moderation', roles: ['admin', 'moderator'] },
         { to: '/admin/invite', icon: UserPlus, label: 'Invite Users', roles: ['admin'] },
         { to: '/admin/push', icon: Bell, label: 'Push Notifications', roles: ['admin'] },
         { to: '/admin/banners', icon: Megaphone, label: 'Announcement Banner', roles: ['admin'] },
