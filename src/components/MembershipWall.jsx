@@ -142,11 +142,10 @@ export function BannedScreen() {
     window.addEventListener('hh:account-banned', on);
     return () => window.removeEventListener('hh:account-banned', on);
   }, []);
-  if (!banned && !user?.isBanned) return null;
   if (loading && !user) return null; // wait for /auth/me — it says whether this is a re-verify window
-  // Banned account in its re-verify window (server: utils/reverifyFlow.js):
-  // never show "banned" — /join runs the location step; anywhere else gets a
-  // neutral re-verify prompt pointing there.
+  // Banned account in its re-verify window (server: utils/reverifyFlow.js;
+  // auth/me hides isBanned there): never show "banned" — /join runs the
+  // location step; anywhere else gets a neutral re-verify prompt pointing there.
   if (user?.reverifyPending) {
     if (location.pathname === '/join' || location.pathname.startsWith('/join/')) return null;
     return (
@@ -162,6 +161,7 @@ export function BannedScreen() {
       </div>
     );
   }
+  if (!banned && !user?.isBanned) return null;
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black px-6 text-center">
       <div className="max-w-sm">

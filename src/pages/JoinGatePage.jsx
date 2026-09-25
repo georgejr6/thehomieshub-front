@@ -91,9 +91,9 @@ export default function JoinGatePage() {
       setEmailInput(s.email || '');
       // Re-verifying account (server: utils/reverifyFlow.js) that already
       // confirmed location → neutral "under review"; never the admit steps.
-      if (s.reverifyPending && s.emailVerified && s.locationEnabled) setStep('review');
+      if (s.reverifyPending && s.locationEnabled) setStep('review');
       else if (s.admitted) { setStep('done'); setAdmittedTier(s.tier === 'discord' || s.tier === 'none' ? 'free' : s.tier); }
-      else if (!s.emailVerified) setStep('email');
+      else if (!s.emailVerified && !s.reverifyPending) setStep('email');
       else if (!s.locationEnabled) setStep('location');
       // else: email verified + location enabled, not yet admitted — boot/confirm auto-admits
       return s;
