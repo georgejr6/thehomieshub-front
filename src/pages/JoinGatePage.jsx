@@ -436,7 +436,7 @@ export default function JoinGatePage() {
           )}
         </div>
       )}
-      {step !== 'done' && (step !== 'connect' || canGoNext) && (
+      {step !== 'done' && step !== 'review' && !status?.reverifyPending && (step !== 'connect' || canGoNext) && (
         <div className="mt-6 flex items-center justify-between">
           <button type="button" onClick={goBack} disabled={busy || step === 'connect'} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground disabled:invisible">
             <ChevronLeft className="h-4 w-4" /> Back
