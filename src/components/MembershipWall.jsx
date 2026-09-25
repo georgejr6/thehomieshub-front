@@ -134,7 +134,8 @@ export function MembershipGate({ children, full = false, onLoginRequest }) {
 
 /** Banned accounts see nothing but this. */
 export function BannedScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading } = useAuth();
+  const location = useLocation();
   const [banned, setBanned] = useState(() => !!window.__hhAccountBanned);
   useEffect(() => {
     const on = () => setBanned(true);
@@ -142,6 +143,25 @@ export function BannedScreen() {
     return () => window.removeEventListener('hh:account-banned', on);
   }, []);
   if (!banned && !user?.isBanned) return null;
+  if (loading && !user) return null; // wait for /auth/me — it says whether this is a re-verify window
+  // Banned account in its re-verify window (server: utils/reverifyFlow.js):
+  // never show "banned" — /join runs the location step; anywhere else gets a
+  // neutral re-verify prompt pointing there.
+  if (user?.reverifyPending) {
+    if (location.pathname === '/join' || location.pathname.startsWith('/join/')) return null;
+    return (
+      <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black px-6 text-center">
+        <div className="max-w-sm">
+          <Lock className="mx-auto h-12 w-12 text-amber-400" />
+          <h1 className="mt-4 text-2xl font-bold text-white">Re-verify your account</h1>
+          <p className="mt-2 text-sm text-neutral-400">Suspicious activity was found on your account. Don't worry — you just need to re-verify and confirm your location.</p>
+          <Link to="/join" className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 font-semibold text-primary-foreground hover:bg-primary/90">
+            Re-verify now
+          </Link>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black px-6 text-center">
       <div className="max-w-sm">

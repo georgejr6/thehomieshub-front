@@ -27,7 +27,7 @@ const Shell = ({ children }) => (
 );
 
 const StepDots = ({ active }) => {
-  const order = { connect: 0, email: 1, location: 2, done: 3 };
+  const order = { connect: 0, email: 1, location: 2, done: 3, review: 3 };
   const cur = order[active];
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
@@ -89,7 +89,10 @@ export default function JoinGatePage() {
       const s = data.result;
       setStatus(s);
       setEmailInput(s.email || '');
-      if (s.admitted) { setStep('done'); setAdmittedTier(s.tier === 'discord' || s.tier === 'none' ? 'free' : s.tier); }
+      // Re-verifying account (server: utils/reverifyFlow.js) that already
+      // confirmed location → neutral "under review"; never the admit steps.
+      if (s.reverifyPending && s.emailVerified && s.locationEnabled) setStep('review');
+      else if (s.admitted) { setStep('done'); setAdmittedTier(s.tier === 'discord' || s.tier === 'none' ? 'free' : s.tier); }
       else if (!s.emailVerified) setStep('email');
       else if (!s.locationEnabled) setStep('location');
       // else: email verified + location enabled, not yet admitted — boot/confirm auto-admits
@@ -121,7 +124,7 @@ export default function JoinGatePage() {
         // fully verified-but-not-in (covers fresh confirms, paid returns, and
         // resumed/bounced sessions). If location isn't enabled yet, load()
         // already parked them on the 'location' step above.
-        if (s && s.emailVerified && s.locationEnabled && !s.admitted) await admit();
+        if (s && !s.reverifyPending && s.emailVerified && s.locationEnabled && !s.admitted) await admit();
       }
       setBooting(false);
     })();
@@ -180,6 +183,7 @@ export default function JoinGatePage() {
         return;
       }
       await api.post('/gate/location', { lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy });
+      if (status?.reverifyPending) { setStep('review'); setBusy(false); return; }
       await admit(); // location enabled + email confirmed = in
     } catch (err) {
       toast({ title: 'Could not save location', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
@@ -354,6 +358,19 @@ export default function JoinGatePage() {
           {locationHelpText && (
             <div className="mt-4 rounded-lg bg-red-500/10 p-3 text-left text-sm text-red-300">{locationHelpText}</div>
           )}
+        </div>
+      )}
+
+      {/* ── Re-verification submitted (banned account's re-verify window) ── */}
+      {step === 'review' && (
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-5">
+            <Check className="w-9 h-9 text-emerald-400" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-foreground">Verification submitted</h1>
+          <p className="text-muted-foreground text-sm mt-2">
+            Thanks — your details are in and your account is being reviewed. You'll get access back once the review is done. Nothing else is needed from you.
+          </p>
         </div>
       )}
 
