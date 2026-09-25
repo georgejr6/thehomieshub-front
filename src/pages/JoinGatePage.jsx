@@ -4,8 +4,9 @@ import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Check, Mail, Crown, MessagesSquare, Globe, MapPin } from 'lucide-react';
-import { captureGeo, getCachedGeo, isLocationVerified } from '@/lib/tracker';
+import { Loader2, Check, Mail, Crown, MessagesSquare, Globe, MapPin, EyeOff, Copy, RotateCcw } from 'lucide-react';
+import { detectPrivateMode } from '@/lib/privateMode';
+import { captureFreshLocation, locationHelp } from '@/lib/joinGeo';
 
 const API_BASE = 'https://backend.thehomies.app/api';
 const GUILD_ID = '1293582001840062525';
@@ -61,7 +62,7 @@ const TIERS = [
 
 export default function JoinGatePage() {
   const [params] = useSearchParams();
-  const { setAccessToken } = useAuth();
+  const { setAccessToken, signOut } = useAuth();
   const { toast } = useToast();
 
   const [booting, setBooting] = useState(true);
@@ -76,7 +77,11 @@ export default function JoinGatePage() {
 
   const [billing, setBilling] = useState('monthly'); // monthly | yearly
   const [showFreeWarning, setShowFreeWarning] = useState(false);
-  const [locationDenied, setLocationDenied] = useState(false);
+  const [locationHelpText, setLocationHelpText] = useState('');
+  // Private/incognito windows can't join (the session is forgotten, so people
+  // can't resume, and location is often blocked). null = can't tell → allowed.
+  const [privateMode, setPrivateMode] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -99,14 +104,18 @@ export default function JoinGatePage() {
     (async () => {
       const token = params.get('token');
       const paid = params.get('paid');
+      detectPrivateMode().then(setPrivateMode).catch(() => {});
       // Suppress the in-app onboarding tutorial while inside the join funnel —
-      // it should never interrupt the join flow.
-      localStorage.setItem('hh_onboarding_done', '1');
+      // it should never interrupt the join flow. (Storage can throw in some
+      // private windows — that must never stop the page from loading.)
+      try { localStorage.setItem('hh_onboarding_done', '1'); } catch { /* private window */ }
       if (token) {
         await setAccessToken(token);
         window.history.replaceState({}, '', paid ? '/join?paid=1' : '/join');
       }
-      if (token || localStorage.getItem('access_token')) {
+      let hasToken = !!token;
+      try { hasToken = hasToken || !!localStorage.getItem('access_token'); } catch { /* private window */ }
+      if (hasToken) {
         const s = await load();
         // Email confirmed + location enabled = you're in. Auto-admit anyone
         // fully verified-but-not-in (covers fresh confirms, paid returns, and
@@ -156,27 +165,20 @@ export default function JoinGatePage() {
     } finally { setBusy(false); }
   };
 
-  // Shares lib/tracker.js's capture pipeline with the site-wide LocationGate
-  // — if this browser already verified location (e.g. while browsing
-  // logged-out before signing up), reuses the cached coords instead of
-  // prompting again. force:true on a fresh capture skips the deny-backoff
-  // since this is a deliberate, user-initiated step, not a background check.
+  // Always a fresh reading from the device (never a cached one — cached
+  // readings could be old or planted), with fallbacks + hard timeouts so the
+  // button can't spin forever. Clear, device-specific help when it fails.
   const enableLocation = async () => {
     setBusy(true);
-    setLocationDenied(false);
+    setLocationHelpText('');
     try {
-      let cached = getCachedGeo();
-      if (!cached) {
-        const ok = await captureGeo({ force: true });
-        if (!ok) {
-          setLocationDenied(true);
-          setBusy(false);
-          toast({ title: 'Location access needed', description: 'Enable location access in your browser to finish joining.', variant: 'destructive' });
-          return;
-        }
-        cached = getCachedGeo();
+      const loc = await captureFreshLocation();
+      if (!loc.ok) {
+        setLocationHelpText(locationHelp(loc.reason));
+        setBusy(false);
+        return;
       }
-      await api.post('/gate/location', { lat: cached.lat, lng: cached.lon, accuracy: cached.accuracy });
+      await api.post('/gate/location', { lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy });
       await admit(); // location enabled + email confirmed = in
     } catch (err) {
       toast({ title: 'Could not save location', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
@@ -184,12 +186,17 @@ export default function JoinGatePage() {
     }
   };
 
-  // Already verified on this browser (e.g. from browsing logged-out before
-  // signing up) — skip the button entirely, finish the step automatically.
-  useEffect(() => {
-    if (step === 'location' && isLocationVerified() && !busy) enableLocation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  // Wrong Discord account / want to redo it: sign out of this join session.
+  const startOver = () => {
+    try { signOut(); } catch { /* ignore */ }
+    try { localStorage.removeItem('access_token'); } catch { /* ignore */ }
+    setStatus(null); setCode(''); setCodeSent(false); setEmailInput(''); setLocationHelpText('');
+    setStep('connect');
+  };
+
+  const copyJoinLink = async () => {
+    try { await navigator.clipboard.writeText('https://www.thehomies.app/join'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ }
+  };
 
   const startCheckout = async (plan) => {
     setBusy(true);
@@ -222,6 +229,29 @@ export default function JoinGatePage() {
 
   return (
     <Shell>
+      {/* Private / incognito window: joining isn't possible here — say so up front. */}
+      {privateMode === true && step !== 'done' ? (
+        <div className="text-center">
+          <div className="w-14 h-14 rounded-2xl bg-red-500/15 flex items-center justify-center mx-auto mb-5">
+            <EyeOff className="w-7 h-7 text-red-400" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-foreground">Private windows can't join</h1>
+          <p className="text-muted-foreground text-sm mt-2">
+            You're in a private / incognito window. Joining needs your regular browser so we can verify your location and save your progress.
+          </p>
+          <ol className="mt-5 space-y-2 rounded-xl bg-white/5 p-4 text-left text-sm text-foreground">
+            <li><b>1.</b> Close this private window.</li>
+            <li><b>2.</b> Open your normal Safari or Chrome.</li>
+            <li><b>3.</b> Go to <b>thehomies.app/join</b> and allow location when asked.</li>
+          </ol>
+          <Button size="lg" onClick={copyJoinLink} className="mt-5 w-full h-12 font-bold">
+            {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}{copied ? 'Link copied' : 'Copy the join link'}
+          </Button>
+          <button type="button" onClick={() => detectPrivateMode().then(setPrivateMode)} className="mt-3 text-xs text-muted-foreground underline">
+            Already in a regular window? Check again
+          </button>
+        </div>
+      ) : (<>
       <StepDots active={step} />
 
       {/* ── Step 1: Connect Discord ── */}
@@ -295,10 +325,8 @@ export default function JoinGatePage() {
           <Button size="lg" onClick={enableLocation} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
             {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MapPin className="h-4 w-4 mr-2" />} Enable location
           </Button>
-          {locationDenied && (
-            <p className="text-red-400 text-xs mt-4">
-              Location access was blocked. Enable it in your browser's site settings, then try again.
-            </p>
+          {locationHelpText && (
+            <div className="mt-4 rounded-lg bg-red-500/10 p-3 text-left text-sm text-red-300">{locationHelpText}</div>
           )}
         </div>
       )}
@@ -365,6 +393,15 @@ export default function JoinGatePage() {
           )}
         </div>
       )}
+      {(step === 'email' || step === 'location') && (
+        <div className="mt-8 border-t border-white/10 pt-4 text-center text-xs text-muted-foreground">
+          <p>Your progress is saved. Leave any time — come back to <b>thehomies.app/join</b>, tap Continue with Discord, and you'll pick up right here.</p>
+          <button type="button" onClick={startOver} className="mt-2 inline-flex items-center gap-1 underline hover:text-foreground">
+            <RotateCcw className="h-3 w-3" /> Wrong Discord account? Start over
+          </button>
+        </div>
+      )}
+      </>)}
     </Shell>
   );
 }
