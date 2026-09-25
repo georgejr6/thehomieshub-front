@@ -4,7 +4,7 @@ import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Check, Mail, Crown, MessagesSquare, Globe, MapPin, EyeOff, Copy, RotateCcw } from 'lucide-react';
+import { Loader2, Check, Mail, Crown, MessagesSquare, Globe, MapPin, EyeOff, Copy, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { detectPrivateMode } from '@/lib/privateMode';
 import { captureFreshLocation, locationHelp } from '@/lib/joinGeo';
 
@@ -159,6 +159,7 @@ export default function JoinGatePage() {
     try {
       await api.post('/auth/verify-email/confirm', { code: code.trim() });
       toast({ title: 'Email confirmed ✓' });
+      setStatus((st) => ({ ...(st || {}), emailVerified: true }));
       setStep('location'); // last step before admit — enable location, then in
     } catch (err) {
       toast({ title: 'Invalid code', description: err.response?.data?.message || 'Check the code and try again.', variant: 'destructive' });
@@ -196,6 +197,15 @@ export default function JoinGatePage() {
 
   const copyJoinLink = async () => {
     try { await navigator.clipboard.writeText('https://www.thehomies.app/join'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ }
+  };
+
+  // Back / Next between join steps. Next only unlocks once that step is done
+  // (Discord connected → email confirmed); location must be done with the button.
+  const goBack = () => setStep((st) => (st === 'location' ? 'email' : st === 'email' ? 'connect' : st));
+  const canGoNext = (step === 'connect' && !!status) || (step === 'email' && !!status?.emailVerified);
+  const goNext = () => {
+    if (step === 'connect' && status) setStep(status.emailVerified ? 'location' : 'email');
+    else if (step === 'email' && status?.emailVerified) setStep('location');
   };
 
   const startCheckout = async (plan) => {
@@ -264,9 +274,19 @@ export default function JoinGatePage() {
           <p className="text-muted-foreground text-sm mt-2 mb-8">
             Verify with Discord to get in. Takes 30 seconds — it keeps the community clean and gets you your role instantly.
           </p>
-          <Button size="lg" onClick={connectDiscord} className="w-full font-bold text-white h-12" style={{ background: '#5865F2' }}>
-            <DiscordIcon className="w-5 h-5 mr-2" /> Continue with Discord
-          </Button>
+          {status ? (
+            <>
+              <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-foreground">
+                <Check className="mr-1 inline h-4 w-4 text-emerald-400" />Discord connected{status.discordUsername || status.username ? <> as <b>@{status.discordUsername || status.username}</b></> : ''}
+              </div>
+              <Button size="lg" onClick={goNext} className="w-full font-bold h-12">Continue</Button>
+              <button type="button" onClick={startOver} className="mt-3 w-full text-xs text-muted-foreground underline">Use a different Discord account</button>
+            </>
+          ) : (
+            <Button size="lg" onClick={connectDiscord} className="w-full font-bold text-white h-12" style={{ background: '#5865F2' }}>
+              <DiscordIcon className="w-5 h-5 mr-2" /> Continue with Discord
+            </Button>
+          )}
           <p className="text-white/30 text-[11px] mt-4">We never post to Discord for you. We only verify who you are.</p>
         </div>
       )}
@@ -280,7 +300,13 @@ export default function JoinGatePage() {
           <h1 className="text-2xl font-extrabold text-foreground text-center">Confirm your email</h1>
           <p className="text-muted-foreground text-sm mt-2 mb-6 text-center">One quick step, then you're in. We'll send a 6-digit code.</p>
 
-          {!codeSent ? (
+          {status?.emailVerified ? (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
+              <Check className="mx-auto h-6 w-6 text-emerald-400" />
+              <p className="mt-1 text-sm text-foreground">Email confirmed{status?.email ? <>: <b>{status.email}</b></> : ''}</p>
+              <Button size="lg" onClick={goNext} className="mt-3 w-full h-11 font-bold">Continue</Button>
+            </div>
+          ) : !codeSent ? (
             <div className="space-y-3">
               <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="you@email.com"
                 className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-foreground placeholder:text-white/30 outline-none focus:border-primary/60" />
@@ -393,8 +419,18 @@ export default function JoinGatePage() {
           )}
         </div>
       )}
+      {step !== 'done' && (step !== 'connect' || canGoNext) && (
+        <div className="mt-6 flex items-center justify-between">
+          <button type="button" onClick={goBack} disabled={busy || step === 'connect'} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground disabled:invisible">
+            <ChevronLeft className="h-4 w-4" /> Back
+          </button>
+          <button type="button" onClick={goNext} disabled={busy || !canGoNext} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-30">
+            Next <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       {(step === 'email' || step === 'location') && (
-        <div className="mt-8 border-t border-white/10 pt-4 text-center text-xs text-muted-foreground">
+        <div className="mt-4 border-t border-white/10 pt-4 text-center text-xs text-muted-foreground">
           <p>Your progress is saved. Leave any time — come back to <b>thehomies.app/join</b>, tap Continue with Discord, and you'll pick up right here.</p>
           <button type="button" onClick={startOver} className="mt-2 inline-flex items-center gap-1 underline hover:text-foreground">
             <RotateCcw className="h-3 w-3" /> Wrong Discord account? Start over
