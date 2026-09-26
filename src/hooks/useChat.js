@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import api from '@/api/homieshub';
 import { ChatSocket } from '@/lib/chatSocket';
+import { desktopNotify } from '@/lib/desktopNotify';
 
 // All Homies Chat client state: bootstrap (server, roles, me, channels with
 // unread/mention counts), per-channel message lists, typing, presence and
@@ -202,6 +203,33 @@ export function useChat({ enabled, activeChannelId }) {
     return data.result;
   }, []);
 
+  // Desktop notification for a message that pings me (direct @, @everyone/@here,
+  // or one of my roles), honouring server/channel mutes (a direct @ still
+  // gets through a mute, like Discord's default).
+  const notifyMention = useCallback((m) => {
+    const st = stateRef.current;
+    const me = st.me;
+    if (!me || m.pending || m.author?.id === me.id) return;
+    if (me.blockedUserIds?.includes(m.author?.id)) return; // hidden in the list too
+    // Discord messages the bridge catches up on later arrive as "new" — don't ping for old ones.
+    if (m.createdAt && Date.now() - new Date(m.createdAt).getTime() > 2 * 60 * 1000) return;
+    const direct = m.mentions?.includes(me.id);
+    const pinged = direct || m.mentionEveryone || m.mentionRoles?.some((r) => me.roleIds?.includes(r));
+    if (!pinged) return;
+    const muted = me.notifications?.serverMuted || (me.notifications?.mutedChannels || []).map(String).includes(String(m.channelId));
+    if (muted && !direct) return;
+    const channel = st.channels.find((c) => c.id === m.channelId);
+    const nameOf = (id) => st.users?.[id]?.displayName || st.users?.[id]?.username || 'someone';
+    const body = String(m.content || (m.attachments?.length ? 'Sent an attachment' : ''))
+      .replace(/<@!?([a-f0-9]{24})>/gi, (_, id) => `@${nameOf(id)}`)
+      .replace(/<@&[a-f0-9]{24}>/gi, '@role').replace(/<#[a-f0-9]{24}>/gi, '#channel');
+    desktopNotify('mentions', {
+      title: `${m.author?.displayName || 'Someone'}${channel ? ` in #${channel.name}` : ''}`,
+      body, icon: m.author?.avatarUrl, tag: `msg-${m.id}`,
+      onClick: () => window.dispatchEvent(new CustomEvent('hh:chat-navigate', { detail: { channelId: m.channelId, messageId: m.id } })),
+    });
+  }, []);
+
   const loadMembers = useCallback(async () => {
     const { data } = await api.get('/chat/members');
     dispatch({ type: 'members', list: data.result || [] });
@@ -257,6 +285,22 @@ export function useChat({ enabled, activeChannelId }) {
             if (d.channelId === activeRef.current) dispatch({ type: 'celebrate', celebration: { id: d.id, kind: d.special.kind, color: d.special.color, channelId: d.channelId, at: Date.now() } });
           }
           if (focused) setTimeout(() => markRead(d.channelId), 300);
+          notifyMention(d);
+          break;
+        }
+        case 'dm.created': {
+          // Same DM system as /inbox; pop a desktop notification for it.
+          const msg = d.message || {};
+          const sender = msg.sender || {};
+          const blocked = stateRef.current.me?.blockedUserIds?.includes(String(sender._id));
+          if (sender._id && String(sender._id) !== String(stateRef.current.me?.id) && !d.muted && !d.marketingOptOut && !blocked) {
+            desktopNotify('dms', {
+              title: `${sender.displayName || sender.username || 'Someone'} messaged you`,
+              body: msg.type === 'text' ? msg.content : msg.type === 'image' ? 'Sent an image' : 'Sent a message',
+              icon: sender.avatarUrl, tag: `dm-${d.threadId}`,
+              onClick: () => window.dispatchEvent(new CustomEvent('hh:chat-navigate', { detail: { path: `/inbox?user=${encodeURIComponent(sender.username || '')}` } })),
+            });
+          }
           break;
         }
         case 'message.updated':

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   MessageCircle, User, X, AtSign, Copy, Clock, UserX, Ban, ShieldCheck, Trash2, ChevronRight,
-  ChevronLeft, Loader2, Check, Link2, Timer,
+  ChevronLeft, Loader2, Check, Link2, Timer, FileText, Heart, Play, ExternalLink,
 } from 'lucide-react';
 import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
@@ -80,13 +80,57 @@ function ChoiceGrid({ options, value, onChange }) {
   );
 }
 
+// Homies posts / videos / reels in one list (their profile content, or what
+// they liked). Posts open /post/:id, videos and reels /watch/:id.
+const POST_KIND = { thread: 'Post', poll: 'Poll', trip: 'Trip', event: 'Event' };
+// `owner` = whose content it is; /watch needs it (router state) to load that
+// creator's videos instead of guessing from the global feed.
+function toItems(res, owner) {
+  const posts = (res?.posts || []).map((p) => ({
+    id: p._id, kind: POST_KIND[p.type] || 'Post', path: `/post/${p._id}`, at: p.createdAt, likedAt: p.likedAt,
+    owner: p.author?.username || owner,
+    text: p.trip?.title || p.title || p.text || p.poll?.question || '',
+    thumb: (p.media || []).find((m) => !m.type || String(m.type).startsWith('image'))?.url || null,
+  }));
+  const vids = [...(res?.videos || []).map((v) => ({ ...v, _k: 'Video' })), ...(res?.reels || []).map((v) => ({ ...v, _k: 'Reel' }))].map((v) => ({
+    id: v._id, kind: v._k, path: `/watch/${v._id}`, at: v.createdAt, likedAt: v.likedAt, video: true,
+    owner: v.creator?.username || owner,
+    text: v.title || v.caption || v.description || '',
+    thumb: v.thumbnailUrl || v.thumbnail || (v.muxPlaybackId ? `https://image.mux.com/${v.muxPlaybackId}/thumbnail.jpg?time=1&width=160` : null),
+  }));
+  return [...posts, ...vids];
+}
+function ItemList({ items, onOpen, empty }) {
+  if (!items) return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-[#949BA4]" /></div>;
+  if (items.error) return <p className="py-6 text-center text-sm text-[#F5A3A5]">Couldn't load this right now.</p>;
+  if (!items.length) return <p className="py-6 text-center text-sm text-[#949BA4]">{empty}</p>;
+  return (
+    <div className="max-h-[46vh] space-y-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
+      {items.map((it) => (
+        <button key={`${it.kind}-${it.id}`} type="button" onClick={() => onOpen(it)}
+          className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left transition-colors hover:bg-white/5">
+          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#1E1F22]">
+            {it.thumb ? <img src={it.thumb} alt="" loading="lazy" className="h-full w-full object-cover" /> : <FileText className="h-4 w-4 text-[#6D6F78]" />}
+            {it.video && <Play className="absolute h-4 w-4 fill-white text-white drop-shadow" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="line-clamp-2 text-[13px] leading-snug text-[#DBDEE1]">{it.text || <span className="text-[#949BA4]">({it.kind.toLowerCase()})</span>}</div>
+            <div className="mt-0.5 text-[11px] text-[#949BA4]">{it.kind}{it.at ? ` · ${fmtDate(it.at)}` : ''}</div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function UserCard({ onLoginRequest }) {
   const { user: me } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [card, setCard] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [view, setView] = useState('main'); // main | timeout | kick | ban | purge | roles
+  const [view, setView] = useState('main'); // main | timeout | kick | ban | purge | roles | posts | liked
+  const [items, setItems] = useState({}); // { posts: [...], liked: [...] } for the open card
   const [reason, setReason] = useState('');
   const [minutes, setMinutes] = useState(60);
   const [banHours, setBanHours] = useState(0);
@@ -119,6 +163,7 @@ export default function UserCard({ onLoginRequest }) {
       setView('main');
       setNote(null);
       setReason('');
+      setItems({});
       if (me) load(e.detail.user.id);
     };
     window.addEventListener('hh:chat-user-card', on);
@@ -146,6 +191,21 @@ export default function UserCard({ onLoginRequest }) {
   const name = u.displayName || u.username;
 
   const go = (path) => { setCard(null); navigate(path); };
+  const openItem = (it) => { setCard(null); navigate(it.path, it.video ? { state: { username: it.owner } } : undefined); };
+  const openList = async (which) => {
+    setView(which);
+    if (items[which]) return;
+    const uid = u.id;
+    try {
+      const path = which === 'posts' ? `/profile/${encodeURIComponent(u.username)}/content` : `/profile/${encodeURIComponent(u.username)}/liked`;
+      const { data } = await api.get(path);
+      const key = which === 'liked' ? 'likedAt' : 'at'; // liked: newest like first
+      const list = toItems(data.result, u.username).sort((a, b) => new Date(b[key] || 0) - new Date(a[key] || 0));
+      if (cardId.current === uid) setItems((cur) => ({ ...cur, [which]: list }));
+    } catch {
+      if (cardId.current === uid) setItems((cur) => ({ ...cur, [which]: { error: true } }));
+    }
+  };
   const message = () => {
     if (!me) { setCard(null); onLoginRequest?.({ tab: 'signup', redirect: inboxPath }); return; }
     go(inboxPath);
@@ -268,6 +328,19 @@ export default function UserCard({ onLoginRequest }) {
         {confirmBtn(`Delete last ${purgeCount}`, doPurge, true)}
       </div>
     );
+  } else if (view === 'posts' || view === 'liked') {
+    body = (
+      <div>
+        <BackBar onBack={() => setView('main')} title={view === 'posts' ? `${name}'s posts` : `Liked by ${name}`} />
+        <ItemList items={items[view]} onOpen={openItem} empty={view === 'posts' ? 'No Homies posts yet.' : 'Nothing liked yet.'} />
+        {!u.bot && !u.placeholder && (
+          <button type="button" onClick={() => go(`/profile/${encodeURIComponent(u.username)}`)}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#4E5058] py-2 text-sm font-semibold text-white hover:bg-[#6D6F78]">
+            <ExternalLink className="h-4 w-4" /> Open full profile
+          </button>
+        )}
+      </div>
+    );
   } else if (view === 'roles') {
     body = (
       <div>
@@ -310,6 +383,21 @@ export default function UserCard({ onLoginRequest }) {
           </div>
         )}
 
+        {profile && !u.bot && (
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={() => openList('posts')}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#1E1F22] py-2 text-xs font-semibold text-[#DBDEE1] hover:bg-[#35373C]">
+              <FileText className="h-3.5 w-3.5" /> Posts <span className="text-[#949BA4]">{(u.postCount || 0).toLocaleString()}</span>
+            </button>
+            {typeof u.likeCount === 'number' && (
+              <button type="button" onClick={() => openList('liked')}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#1E1F22] py-2 text-xs font-semibold text-[#DBDEE1] hover:bg-[#35373C]">
+                <Heart className="h-3.5 w-3.5" /> Liked <span className="text-[#949BA4]">{u.likeCount.toLocaleString()}</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {profile?.roles?.length > 0 && (
           <div className="mt-3">
             <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#949BA4]">Roles</div>
@@ -329,7 +417,7 @@ export default function UserCard({ onLoginRequest }) {
               <MessageCircle className="h-4 w-4" /> Message
             </button>
           )}
-          {!u.placeholder && !u.bot && (
+          {!u.bot && !u.placeholder && (
             <button type="button" onClick={() => go(`/profile/${encodeURIComponent(u.username)}`)} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#4E5058] py-2.5 text-sm font-semibold text-white hover:bg-[#6D6F78]">
               <User className="h-4 w-4" /> Profile
             </button>

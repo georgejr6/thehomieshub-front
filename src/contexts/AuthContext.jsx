@@ -80,9 +80,14 @@ export const AuthProvider = ({ children }) => {
       const normalized = normalizeUser(raw);
       setUser(normalized);
       return normalized;
-    } catch {
-      setUser(null);
-      setToken(null);
+    } catch (err) {
+      // Only a real auth rejection signs you out. A network blip or a 5xx
+      // keeps the current session (it used to log people out mid-action).
+      const s = err?.response?.status;
+      if (s === 401 || s === 403 || s === 404) {
+        setUser(null);
+        setToken(null);
+      }
       return null;
     }
   };

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Settings, Trash2, Globe } from 'lucide-react';
+import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Settings, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
@@ -30,8 +30,7 @@ function ChannelRow({ c, active, onOpen, muted, depth = 0 }) {
   );
 }
 
-export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose, onDeleteHistory, onToggleDiscoverable }) {
-  const [menu, setMenu] = useState(false);
+export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose, onDeleteHistory, onToggleDiscoverable, onOpenSettings }) {
   const activeName = state.channels.find((c) => c.id === activeChannelId)?.name;
   const [collapsed, setCollapsed] = useState(() => {
     try { return JSON.parse(localStorage.getItem('hh_chat_collapsed') || '{}'); } catch { return {}; }
@@ -102,34 +101,10 @@ export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose
             <div className="truncate text-xs text-[#B5BAC1]">{state.status === 'connected' ? 'Online' : state.status === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}</div>
           </div>
           <div className="relative">
-            <button onClick={() => setMenu((m) => !m)} title="Chat settings" className={cn('rounded p-1.5 transition-[color,transform] duration-300 hover:bg-[#3F4147] hover:text-white', menu ? 'rotate-90 text-white' : 'text-[#B5BAC1]')}>
+            {/* User settings: profile, notifications (incl. desktop), privacy & data */}
+            <button onClick={() => onOpenSettings?.()} title="User settings" aria-label="User settings" className="rounded p-1.5 text-[#B5BAC1] transition-[color,transform] duration-300 hover:rotate-90 hover:bg-[#3F4147] hover:text-white">
               <Settings className="h-5 w-5" />
             </button>
-            {menu && (
-              <div className="chat-fade-up absolute bottom-full right-0 z-40 mb-2 w-64 rounded-lg border border-[#1E1F22] bg-[#111214] p-1.5 shadow-2xl" onMouseLeave={() => setMenu(false)}>
-                <div className="px-2.5 pb-1 pt-1.5 text-xs font-semibold uppercase text-[#949BA4]">Privacy</div>
-                <button onClick={() => onToggleDiscoverable?.(!(state.me?.chatDiscoverable !== false))} className="flex w-full items-start gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#35373C]">
-                  <Globe className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span className="flex-1">
-                    Discoverable posts
-                    <span className="block text-xs text-[#949BA4]">Good posts in public channels can become Homies posts anyone can find. You can still choose per message.</span>
-                  </span>
-                  <span className={cn('mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors', state.me?.chatDiscoverable !== false ? 'bg-[#23A55A]' : 'bg-[#80848E]')}>
-                    <span className={cn('h-4 w-4 rounded-full bg-white shadow transition-transform duration-200', state.me?.chatDiscoverable !== false && 'translate-x-4')} />
-                  </span>
-                </button>
-                <div className="my-1 h-px bg-[#2B2D31]" />
-                <div className="px-2.5 pb-1 pt-1.5 text-xs font-semibold uppercase text-[#949BA4]">Your messages</div>
-                {activeName && (
-                  <button onClick={() => { setMenu(false); onDeleteHistory?.(activeChannelId, activeName); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">
-                    <Trash2 className="h-4 w-4 shrink-0" /> <span className="truncate">Delete my messages in #{activeName}</span>
-                  </button>
-                )}
-                <button onClick={() => { setMenu(false); onDeleteHistory?.(null); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">
-                  <Trash2 className="h-4 w-4 shrink-0" /> Delete all my chat messages
-                </button>
-              </div>
-            )}
           </div>
           <Link to="/" title="Back to The Homies" className="rounded p-1.5 text-[#B5BAC1] transition-colors hover:bg-[#3F4147] hover:text-white">
             <Home className="h-5 w-5" />

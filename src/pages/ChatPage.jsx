@@ -9,6 +9,7 @@ import MessageList from '@/components/chat/MessageList';
 import Composer from '@/components/chat/Composer';
 import MemberList from '@/components/chat/MemberList';
 import MemberSearch from '@/components/chat/MemberSearch';
+import ChatSettings from '@/components/chat/ChatSettings';
 import ClaimNameBar from '@/components/chat/ClaimNameBar';
 import PointsPill from '@/components/chat/perks/PointsPill';
 import PerksSheet, { takePendingPerk } from '@/components/chat/perks/PerksSheet';
@@ -137,6 +138,20 @@ export default function ChatPage({ onLoginRequest }) {
   }, [toast]);
 
   const open = useCallback((id) => navigate(`/chat/${id}`), [navigate]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Clicking a desktop notification: jump to that channel/message, or a DM.
+  useEffect(() => {
+    const on = (e) => {
+      const { path, channelId: cid, messageId } = e.detail || {};
+      if (path) navigate(path);
+      else if (cid) {
+        open(cid);
+        if (messageId) setTimeout(() => document.getElementById(`msg-${messageId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 900);
+      }
+    };
+    window.addEventListener('hh:chat-navigate', on);
+    return () => window.removeEventListener('hh:chat-navigate', on);
+  }, [navigate, open]);
   // Polls/events use the app's post endpoints, which need a paid membership (or admin).
   const canCreatePosts = !!(user?.isAdmin || ['homie', 'nomad'].includes(state.me?.tier));
   const toggleDiscoverable = async (value) => {
@@ -225,14 +240,14 @@ export default function ChatPage({ onLoginRequest }) {
       </div>
 
       {/* Channel sidebar: static on desktop, drawer on mobile */}
-      <div className="hidden md:flex"><ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} /></div>
+      <div className="hidden md:flex"><ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} onOpenSettings={() => { setDrawer(false); setSettingsOpen(true); }} /></div>
       {drawer && (
         <div className="chat-fade-in fixed inset-0 z-40 flex md:hidden">
           <div className="chat-slide-right flex h-full">
             <div className="flex w-[72px] shrink-0 flex-col bg-[#1E1F22] py-3">
               <ChatAppRail compact onNavigate={() => setDrawer(false)} />
             </div>
-            <ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} />
+            <ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} onOpenSettings={() => { setDrawer(false); setSettingsOpen(true); }} />
           </div>
           <div className="flex-1 bg-black/50" onClick={() => setDrawer(false)} />
         </div>
@@ -241,7 +256,7 @@ export default function ChatPage({ onLoginRequest }) {
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-[#1F2023] px-4 shadow-sm">
-          <button onClick={() => setDrawer(true)} className="mr-1 text-[#B5BAC1] md:hidden"><Menu className="h-6 w-6" /></button>
+          <button onClick={() => setDrawer(true)} aria-label="Open channels" className="mr-1 text-[#B5BAC1] md:hidden"><Menu className="h-6 w-6" /></button>
           {channel && <ChannelIcon className="h-6 w-6 shrink-0 text-[#80848E]" />}
           <span key={channel?.id} className="chat-fade-in truncate font-semibold text-white">{channel?.name}</span>
           {channel?.discoverable && (
@@ -310,6 +325,8 @@ export default function ChatPage({ onLoginRequest }) {
         </div>
       </div>
 
+      <ChatSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} state={state} actions={actions} onToast={setToast}
+        onToggleDiscoverable={toggleDiscoverable} onDeleteHistory={deleteHistory} activeChannel={channel ? { id: channel.id, name: channel.name } : null} />
       {board.available && <Leaderboard open={board.open} onClose={closeBoard} actions={actions} meId={state.me?.id} initial={board.initial} />}
       <SendMoneySheet open={sendMoney} channel={channel} onClose={() => setSendMoney(false)} onDone={setToast} onPoints={() => openPerks({ tab: 'shoutout' })} />
       <PerksSheet open={perks.open} initial={perks.initial} onClose={closePerks} state={state} actions={actions} channel={channel} onToast={setToast} />
