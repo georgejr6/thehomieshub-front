@@ -18,6 +18,8 @@ import { openImageViewer, ImageViewerHost } from './ImageViewer';
 import SpecialMessage from './perks/SpecialMessage';
 import ReactionsModal from './ReactionsModal';
 
+const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches;
+
 const GROUP_MS = 7 * 60 * 1000;
 export const QUICK_EMOJI = ['👍', '❤️', '😂', '🔥', '😮', '😢', '🙏', '💯', '👀', '🎉', '💀', '🤝'];
 
@@ -156,22 +158,30 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   const [picker, setPicker] = useState(false);
   const [more, setMore] = useState(false);
   const [whoReacted, setWhoReacted] = useState(null); // emoji → open "Reactions" panel
-  const longPress = useRef({ timer: null, fired: false });
-  const startLongPress = (emoji) => {
-    longPress.current.fired = false;
+  const longPress = useRef({ timer: null, fired: false, x: 0, y: 0 });
+  const startLongPress = (emoji, e) => {
+    const t = e.touches[0];
+    Object.assign(longPress.current, { fired: false, x: t.clientX, y: t.clientY });
     clearTimeout(longPress.current.timer);
     longPress.current.timer = setTimeout(() => { longPress.current.fired = true; setWhoReacted(emoji); }, 450);
   };
   const cancelLongPress = () => clearTimeout(longPress.current.timer);
+  // Small finger drift is still a long-press; a real scroll cancels it.
+  const moveLongPress = (e) => {
+    const t = e.touches[0];
+    if (Math.hypot(t.clientX - longPress.current.x, t.clientY - longPress.current.y) > 10) cancelLongPress();
+  };
   const reactedBy = (r) => {
     const names = (r.users || []).map((id) => (id === me?.id ? 'You' : ctx.users?.[id]?.displayName || ctx.users?.[id]?.username)).filter(Boolean);
     const shown = names.slice(0, 3);
     const rest = Math.max(0, r.count - shown.length);
     const who = shown.length ? `Reacted by ${shown.join(', ')}${rest ? ` and ${rest} other${rest === 1 ? '' : 's'}` : ''}` : `${r.count} reaction${r.count === 1 ? '' : 's'}`;
-    return `${who} — right-click to see everyone`;
+    return `${who} — ${CAN_HOVER ? 'right-click' : 'press and hold'} to see everyone`;
   };
 
   const mine = m.author?.id === me?.id;
+  // Changes whenever anyone reacts, so an open "Reactions" panel refreshes.
+  const reactionSig = (m.reactions || []).map((r) => `${r.emoji}:${r.count}`).join('|');
   // Every image in the message (link previews first, as rendered) forms one
   // gallery, so the viewer can swipe between them.
   const images = useMemo(() => (m.attachments || []).filter((a) => a.type === 'image'), [m.attachments]);
@@ -342,11 +352,18 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
                 title={reactedBy(r)}
                 onClick={() => { if (longPress.current.fired) { longPress.current.fired = false; return; } react(r.emoji); }}
                 onContextMenu={(e) => { e.preventDefault(); setWhoReacted(r.emoji); }}
-                onTouchStart={() => startLongPress(r.emoji)}
-                onTouchEnd={cancelLongPress}
-                onTouchMove={cancelLongPress}
+                onTouchStart={(e) => startLongPress(r.emoji, e)}
+                onTouchEnd={(e) => {
+                  cancelLongPress();
+                  if (longPress.current.fired) {
+                    e.preventDefault(); // iOS: no synthetic click onto the just-opened panel
+                    setTimeout(() => { longPress.current.fired = false; }, 400);
+                  }
+                }}
+                onTouchMove={moveLongPress}
+                onTouchCancel={cancelLongPress}
                 className={cn(
-                  'chat-pop flex items-center gap-1.5 rounded-lg border px-1.5 py-0.5 text-sm transition-[transform,background-color,border-color] duration-150 hover:scale-105 active:scale-95',
+                  'chat-pop flex select-none [-webkit-touch-callout:none] items-center gap-1.5 rounded-lg border px-1.5 py-0.5 text-sm transition-[transform,background-color,border-color] duration-150 hover:scale-105 active:scale-95',
                   mineR ? 'border-[#5865F2] bg-[#5865F2]/20 text-white' : 'border-transparent bg-[#2B2D31] text-[#B5BAC1] hover:border-[#4E5058]'
                 )}
               >
@@ -357,7 +374,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
           })}
         </div>
       )}
-      {whoReacted && <ReactionsModal messageId={m.id} initialEmoji={whoReacted} onClose={() => setWhoReacted(null)} />}
+      {whoReacted && <ReactionsModal messageId={m.id} initialEmoji={whoReacted} signature={reactionSig} onClose={() => setWhoReacted(null)} />}
 
       {!m.pending && !m.failed && !editing && (
         <div className={cn(
@@ -419,6 +436,11 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
                     <div className="px-2.5 pb-1 text-[11px] text-[#949BA4]">Applies here and on the real Discord.</div>
                     <div className="my-1 h-px bg-[#2B2D31]" />
                   </>
+                )}
+                {m.reactions?.length > 0 && (
+                  <button onClick={() => { setMore(false); setWhoReacted(m.reactions[0].emoji); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
+                    <SmilePlus className="h-4 w-4" /> See who reacted
+                  </button>
                 )}
                 <button onClick={() => { navigator.clipboard?.writeText(m.content || ''); setMore(false); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
                   <Copy className="h-4 w-4" /> Copy Text
