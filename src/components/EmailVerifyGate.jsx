@@ -14,7 +14,7 @@ export default function EmailVerifyGate() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
 
-  if (!user || user.emailVerified || user.createdVia !== 'local') return null;
+  if (!user || user.emailVerified || user.createdVia !== 'local' || user.reverifyPending) return null;
 
   const resend = async () => {
     setBusy(true);
