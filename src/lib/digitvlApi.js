@@ -26,14 +26,18 @@ export function normalizeTrack(t) {
     artist: t.artist || 'Unknown Artist',
     cover: t.image || `https://picsum.photos/seed/${t.id}/400/400`,
     audioUrl: t.audioUrl || null,
-    duration: fmt(t.duration),
-    durationSecs: t.duration || 0,
+    // Signed-out previews are 30s — show that, not the full song length.
+    duration: fmt(t.access === 'preview' ? (t.previewSeconds || 30) : t.duration),
+    durationSecs: t.access === 'preview' ? (t.previewSeconds || 30) : (t.duration || 0),
     type: 'audio',
     genre: t.genre || '',
     tags: t.genre ? [t.genre] : [],
     explicit: t.explicit || false,
     album: t.album || '',
     producers: Array.isArray(t.producers) ? t.producers : [],
+    // "preview" = signed-out visitor; audioUrl is the 30s preview (server-side).
+    access: t.access || 'full',
+    previewSeconds: t.previewSeconds || null,
   };
 }
 
@@ -82,6 +86,13 @@ export const musicApi = {
     const t = r.data?.result?.track;
     return t ? normalizeTrack(t) : null;
   }).catch(() => null),
+  // Song behind a readable URL (/music/<artist>/<song>) -> { track, path } or null.
+  getBySlug:       (artist, song) => musicHttp.get(`/music/by-slug/${encodeURIComponent(artist)}/${encodeURIComponent(song)}`).then(r => {
+    const t = r.data?.result?.track;
+    return t ? { track: normalizeTrack(t), path: r.data.result.path } : null;
+  }).catch(() => null),
+  // Readable URL for a song id ("/music/<artist>/<song>"), or null.
+  getPath:         (id) => musicHttp.get(`/music/path/${encodeURIComponent(id)}`).then(r => r.data?.result?.path || null).catch(() => null),
   // License listing for a track (null if not for sale). Powers the License button.
   getListing:      (trackId) => musicHttp.get(`/music/listing/${trackId}`).then(r => r.data?.result?.listing || null).catch(() => null),
   // Top 10 — ranked by real plays, human songs seeded first (see backend /music/top).

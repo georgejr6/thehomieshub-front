@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
-import { Hash, Megaphone, Menu, Users, X, Loader2, CornerDownRight, Globe, Trophy } from 'lucide-react';
+import { Hash, Megaphone, Menu, Users, X, Loader2, CornerDownRight, Globe, Trophy, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/hooks/useChat';
 import ChannelSidebar from '@/components/chat/ChannelSidebar';
@@ -14,6 +14,10 @@ import PerksSheet, { takePendingPerk } from '@/components/chat/perks/PerksSheet'
 import ShoutoutTicker from '@/components/chat/perks/ShoutoutTicker';
 import Celebration from '@/components/chat/perks/Celebration';
 import Leaderboard from '@/components/chat/perks/Leaderboard';
+import SendMoneySheet from '@/components/chat/SendMoneySheet';
+import Header from '@/components/Header';
+import ChatAppRail, { readRailOpen, saveRailOpen } from '@/components/ChatAppRail';
+import api from '@/api/homieshub';
 import { cn } from '@/lib/utils';
 
 // Homies Chat — the Discord-style community chat, built into the app.
@@ -25,12 +29,27 @@ export default function ChatPage({ onLoginRequest }) {
   const navigate = useNavigate();
   const { state, actions } = useChat({ enabled: !!user, activeChannelId: channelId });
   const [drawer, setDrawer] = useState(false);
+  // App menu in the server rail: collapsed icons ↔ expanded with names (remembered).
+  const [railOpen, setRailOpen] = useState(readRailOpen);
+  const toggleRail = () => setRailOpen((v) => { saveRailOpen(!v); return !v; });
+  // Names only fit on wide screens (rail 220 + channels 240 + members 240 + messages);
+  // below xl the rail stays icons-only.
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const on = (e) => setWide(e.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const railExpanded = railOpen && wide;
   const [showMembers, setShowMembers] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
   const [toast, setToast] = useState(null);
   const [editRequest, setEditRequest] = useState(null);
   const [newSince, setNewSince] = useState({}); // channelId -> lastReadId when opened
   const [perks, setPerks] = useState({ open: false, initial: null });
+  const [sendMoney, setSendMoney] = useState(false);
+  const [params, setParams] = useSearchParams();
   const openPerks = useCallback((initial) => setPerks({ open: true, initial: initial || null }), []);
   const closePerks = useCallback(() => setPerks((p) => ({ ...p, open: false })), []);
   // Leaderboard: probed once on sign-in; the trophy only shows if the API
@@ -98,6 +117,18 @@ export default function ChatPage({ onLoginRequest }) {
     actions.clearError();
     return undefined;
   }, [state.error]); // eslint-disable-line
+  // Back from Stripe Checkout after "Send money": ?paid=<session id> | cancel.
+  useEffect(() => {
+    const paid = params.get('paid');
+    if (!paid || !user) return;
+    const clear = () => { params.delete('paid'); setParams(params, { replace: true }); };
+    if (paid === 'cancel') { setToast('Payment cancelled — nothing was charged.'); clear(); return; }
+    api.post('/livechat/pay/confirm', { sessionId: paid })
+      .then(({ data }) => setToast(data?.result?.status === 'succeeded' ? 'Thank you! Your tip was sent to The Homies 💛' : 'Payment received — it’ll show up in a moment.'))
+      .catch(() => setToast('Payment received — it’ll show up in a moment.'))
+      .finally(clear);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!toast) return undefined;
     const t = setTimeout(() => setToast(null), 5000);
@@ -145,16 +176,7 @@ export default function ChatPage({ onLoginRequest }) {
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#313338]"><Loader2 className="h-8 w-8 animate-spin text-[#949BA4]" /></div>;
 
-  if (!user) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[#313338] px-6 text-center text-[#DBDEE1]">
-        <Helmet><title>Chat · The Homies</title></Helmet>
-        <h1 className="text-3xl font-bold text-white">The Homies Chat</h1>
-        <p className="max-w-md text-[#B5BAC1]">The community chat lives right here in the app now. Log in to jump back into the conversation.</p>
-        <button onClick={onLoginRequest} className="rounded bg-[#5865F2] px-6 py-2.5 font-medium text-white hover:bg-[#4752C4]">Log in</button>
-      </div>
-    );
-  }
+  if (!user) return <SignedOutChat onLoginRequest={onLoginRequest} />;
 
   // CHAT_REQUIRE_GATE: non-members must finish the /join gate (same as the Discord).
   if (state.status === 'gate_required') {
@@ -181,11 +203,13 @@ export default function ChatPage({ onLoginRequest }) {
   const ChannelIcon = channel?.type === 'announcement' ? Megaphone : channel?.type === 'thread' ? CornerDownRight : Hash;
 
   return (
-    <div className="fixed inset-0 flex bg-[#313338] font-sans text-[#DBDEE1]">
+    <div className="fixed inset-0 flex bg-[#313338] font-sans text-[#DBDEE1] md:top-14">
       <Helmet><title>{channel ? `#${channel.name}` : 'Chat'} · The Homies</title></Helmet>
+      {/* The app's top bar (search, notifications, account) on tablet/desktop — chat sits under it. */}
+      <div className="hidden md:block"><Header onLoginClick={onLoginRequest} onLoginRequest={onLoginRequest} onMenuClick={() => {}} isMobile={false} /></div>
 
-      {/* Server rail */}
-      <div className="hidden w-[72px] shrink-0 flex-col items-center gap-2 bg-[#1E1F22] py-3 md:flex">
+      {/* Server rail — the Homies server, then the app's menu (expandable) */}
+      <div className={cn('hidden shrink-0 flex-col items-center gap-2 overflow-hidden bg-[#1E1F22] py-3 transition-[width] duration-300 ease-out md:flex', railExpanded ? 'w-[220px]' : 'w-[72px]')}>
         <div className="relative">
           <span className="absolute -left-3 top-1/2 h-10 w-1 -translate-y-1/2 rounded-r bg-white" />
           {state.server?.iconUrl ? (
@@ -195,7 +219,8 @@ export default function ChatPage({ onLoginRequest }) {
           )}
           {unreadTotal > 0 && <span className="absolute -bottom-1 -right-1 rounded-full border-4 border-[#1E1F22] bg-[#F23F43] px-1 text-[11px] font-bold text-white">{unreadTotal}</span>}
         </div>
-        <div className="mx-auto h-0.5 w-8 rounded bg-[#35363C]" />
+        <div className="mx-auto h-0.5 w-8 shrink-0 rounded bg-[#35363C]" />
+        <ChatAppRail expanded={railExpanded} onToggle={toggleRail} compact={!wide} />
       </div>
 
       {/* Channel sidebar: static on desktop, drawer on mobile */}
@@ -203,7 +228,9 @@ export default function ChatPage({ onLoginRequest }) {
       {drawer && (
         <div className="chat-fade-in fixed inset-0 z-40 flex md:hidden">
           <div className="chat-slide-right flex h-full">
-            <div className="w-[72px] bg-[#1E1F22]" />
+            <div className="flex w-[72px] shrink-0 flex-col bg-[#1E1F22] py-3">
+              <ChatAppRail compact onNavigate={() => setDrawer(false)} />
+            </div>
             <ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} />
           </div>
           <div className="flex-1 bg-black/50" onClick={() => setDrawer(false)} />
@@ -270,6 +297,7 @@ export default function ChatPage({ onLoginRequest }) {
                   onEditLast={editLast}
                   canCreatePosts={canCreatePosts}
                   onOpenPerks={openPerks}
+                  onSendMoney={() => setSendMoney(true)}
                 />
               </>
             ) : (
@@ -281,6 +309,7 @@ export default function ChatPage({ onLoginRequest }) {
       </div>
 
       {board.available && <Leaderboard open={board.open} onClose={closeBoard} actions={actions} meId={state.me?.id} initial={board.initial} />}
+      <SendMoneySheet open={sendMoney} channel={channel} onClose={() => setSendMoney(false)} onDone={setToast} onPoints={() => openPerks({ tab: 'shoutout' })} />
       <PerksSheet open={perks.open} initial={perks.initial} onClose={closePerks} state={state} actions={actions} channel={channel} onToast={setToast} />
 
       {state.notice?.kind === 'gifted' && (
@@ -302,6 +331,49 @@ export default function ChatPage({ onLoginRequest }) {
           <button onClick={() => setToast(null)} className="text-[#B5BAC1] hover:text-white"><X className="h-4 w-4" /></button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Signed-out /chat: a blurred glimpse of the chat behind a sign-in card. The
+// sign-in modal opens by itself once per visit; the buttons reopen it (the
+// App remembers /chat/... so login lands right back here).
+const PREVIEW = [
+  { n: 'Mwosa', c: '#F0B94D', t: 'Who’s pulling up this weekend? 🔥' },
+  { n: 'Homie', c: '#5865F2', t: 'Just landed, drop the spot' },
+  { n: 'Nomad', c: '#3BA55C', t: 'Clip from last night is crazy 😂' },
+  { n: 'Homie', c: '#EB459E', t: 'Say less, I’m in' },
+];
+const AUTO_OPENED_KEY = 'hh_chat_auth_auto_opened';
+function SignedOutChat({ onLoginRequest }) {
+  const timer = React.useRef(null);
+  useEffect(() => {
+    try { if (sessionStorage.getItem(AUTO_OPENED_KEY)) return undefined; sessionStorage.setItem(AUTO_OPENED_KEY, '1'); } catch { /* private mode */ }
+    // `auto`: App leaves an already-open modal (e.g. ?openAuth=1&tab=signup) alone.
+    timer.current = setTimeout(() => onLoginRequest?.('signin', { auto: true }), 600);
+    return () => clearTimeout(timer.current);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const ask = (tab) => { clearTimeout(timer.current); onLoginRequest?.(tab); };
+  return (
+    <div className="relative flex h-[100dvh] items-center justify-center overflow-hidden bg-[#313338] px-5 text-[#DBDEE1]">
+      <Helmet><title>Chat · The Homies</title></Helmet>
+      <div aria-hidden className="pointer-events-none absolute inset-0 flex flex-col justify-end gap-4 p-6 opacity-60 blur-[6px]">
+        {[...PREVIEW, ...PREVIEW].map((m, i) => (
+          <div key={i} className="flex items-start gap-3">
+            <div className="h-10 w-10 shrink-0 rounded-full" style={{ background: m.c }} />
+            <div><div className="font-semibold" style={{ color: m.c }}>{m.n}</div><div className="text-[15px]">{m.t}</div></div>
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-t from-[#1E1F22] via-[#1E1F22]/70 to-transparent" />
+      <div className="chat-pop relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#2B2D31]/95 p-6 text-center shadow-2xl backdrop-blur">
+        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#5865F2] text-white"><MessageCircle className="h-7 w-7" /></div>
+        <h1 className="text-2xl font-bold text-white">The Homies Chat</h1>
+        <p className="mt-2 text-sm text-[#B5BAC1]">The community lives right here now. Sign in to jump into the conversation, or make a free account in a few seconds.</p>
+        <button onClick={() => ask('signin')} className="mt-5 w-full rounded-lg bg-[#5865F2] py-2.5 font-semibold text-white transition-colors hover:bg-[#4752C4]">Sign in</button>
+        <button onClick={() => ask('signup')} className="mt-2 w-full rounded-lg bg-white/10 py-2.5 font-semibold text-white transition-colors hover:bg-white/15">Create a free account</button>
+        <p className="mt-3 text-xs text-[#949BA4]">Same login as thehomies.app — Discord, Google or email.</p>
+      </div>
     </div>
   );
 }

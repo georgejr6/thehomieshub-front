@@ -44,7 +44,11 @@ const mapVideoToFeedPost = (v) => {
     timestamp: v?.createdAt || v?.updatedAt || new Date().toISOString(),
 
     isNSFW: !!v?.isNSFW,
-    isSubscriberOnly: !!v?.isSubscriberOnly,
+    isSubscriberOnly: v?.visibility === "subscribers" || !!v?.isSubscriberOnly,
+    backendType: "video",
+    access: v?.access || "full",
+    previewSeconds: v?.previewSeconds || null,
+    durationSeconds: v?.durationSeconds || null,
   };
 };
 
@@ -76,7 +80,11 @@ const mapReelToFeedPost = (r) => {
     timestamp: r?.createdAt || r?.updatedAt || new Date().toISOString(),
 
     isNSFW: !!r?.isNSFW,
-    isSubscriberOnly: !!r?.isSubscriberOnly,
+    isSubscriberOnly: r?.visibility === "subscribers" || !!r?.isSubscriberOnly,
+    backendType: "reel",
+    access: r?.access || "full",
+    previewSeconds: r?.previewSeconds || null,
+    durationSeconds: r?.durationSeconds || null,
   };
 };
 

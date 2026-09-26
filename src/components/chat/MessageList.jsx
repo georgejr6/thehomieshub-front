@@ -16,6 +16,7 @@ import PostCard from './PostCard';
 import Embed, { embedImageUrl } from './Embed';
 import { openImageViewer, ImageViewerHost } from './ImageViewer';
 import SpecialMessage from './perks/SpecialMessage';
+import { openChatUserCard } from './UserCard';
 import ReactionsModal from './ReactionsModal';
 
 const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches;
@@ -289,9 +290,9 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         <span className="absolute left-0 top-1 w-[72px] text-center text-[11px] leading-[22px] text-[#949BA4] opacity-0 group-hover:opacity-100">{fmtTime(m.createdAt)}</span>
       ) : (
         <>
-          <div className="absolute left-4 mt-0.5"><Avatar author={m.author} /></div>
+          <div className="absolute left-4 mt-0.5 cursor-pointer" onClick={(e) => openChatUserCard(m.author, e)}><Avatar author={m.author} /></div>
           <div className="flex items-baseline gap-2 leading-[22px]">
-            <span className="cursor-pointer font-medium hover:underline" style={{ color: nameColor(m.author) }}>{m.author?.displayName || m.author?.username}</span>
+            <span className="cursor-pointer font-medium hover:underline" onClick={(e) => openChatUserCard(m.author, e)} style={{ color: nameColor(m.author) }}>{m.author?.displayName || m.author?.username}</span>
             {m.author?.bot && <span className="rounded bg-[#5865F2] px-1 text-[10px] font-semibold uppercase leading-4 text-white">Bot</span>}
             {m.source?.platform === 'discord' && <span className="rounded bg-[#5865F2]/30 px-1 text-[10px] font-semibold uppercase text-[#C9CDFB]">via Discord</span>}
             <span className="text-xs text-[#949BA4]">{fmtStamp(m.createdAt)}</span>

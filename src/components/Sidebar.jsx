@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store, Wallet, Package, Smartphone, MapPin } from 'lucide-react';
+import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store, Wallet, Package, Smartphone, MapPin, MessagesSquare } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -39,12 +39,13 @@ const GetAppSidebarButton = () => (
   </Popover>
 );
 
-const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot }) => {
+const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot, highlight }) => {
   const location = useLocation();
   const { checkAccess } = useFeatures();
   const [toPath, toQuery] = to ? to.split('?') : [to, ''];
   const isActive = (location.pathname === toPath && (!toQuery || location.search.includes(toQuery)))
     || (to === '/live' && location.pathname.startsWith('/live-stream'))
+    || (to === '/chat' && location.pathname.startsWith('/chat/'))
     || (to === '/admin/dashboard' && location.pathname.startsWith('/admin'));
 
   if (featureKey) {
@@ -57,14 +58,16 @@ const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, live
       <motion.div
         className={cn(
           "flex items-center w-full h-12 px-4 rounded-lg cursor-pointer transition-colors",
-          isActive ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+          highlight
+            ? (isActive ? "bg-[#5865F2] text-white" : "bg-[#5865F2]/15 text-white hover:bg-[#5865F2]/25 ring-1 ring-[#5865F2]/40")
+            : isActive ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
           isCollapsed ? "justify-center" : ""
         )}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
         <div className="relative shrink-0">
-          <Icon className={cn("h-6 w-6", isActive ? "text-primary" : liveDot ? "text-red-500" : to === '/memberships' ? "text-yellow-500" : "text-muted-foreground")} />
+          <Icon className={cn("h-6 w-6", highlight ? (isActive ? "text-white" : "text-[#8B95F9]") : isActive ? "text-primary" : liveDot ? "text-red-500" : to === '/memberships' ? "text-yellow-500" : "text-muted-foreground")} />
           {liveDot && (
             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
@@ -79,7 +82,7 @@ const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, live
               animate={{ opacity: 1, width: 'auto' }}
               exit={{ opacity: 0, width: 0 }}
               transition={{ duration: 0.2 }}
-              className={cn("font-medium whitespace-nowrap ml-4", isActive ? "text-primary" : "text-foreground")}
+              className={cn("whitespace-nowrap ml-4", highlight ? "font-bold text-white" : cn("font-medium", isActive ? "text-primary" : "text-foreground"))}
             >
               {label}
             </motion.span>
@@ -173,6 +176,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
     {
       label: null, // primary
       items: [
+        { to: '/chat', icon: MessagesSquare, label: 'Homies Chat', highlight: true },
         { to: '/browse', icon: Play, label: 'Browse' },
         { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
         { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },

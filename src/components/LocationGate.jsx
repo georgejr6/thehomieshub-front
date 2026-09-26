@@ -38,7 +38,9 @@ export default function LocationGate({ children }) {
     setVerified(user ? !!user?.gate?.locationEnabledAt : isLocationVerified());
   }, [user?._id, user?.gate?.locationEnabledAt]);
 
-  if (verified) return children;
+  // Signed-out visitors only ever get previews now (2026-09-26), so they
+  // browse without the location step; accounts still verify once.
+  if (verified || !user) return children;
 
   const enableForAccount = async () => {
     let cached = getCachedGeo();

@@ -25,6 +25,7 @@ const TripsPage = lazyWithReload(() => import('@/pages/TripsPage'));
 const AccountSettingsPage = lazyWithReload(() => import('@/pages/AccountSettingsPage'));
 const InboxPage = lazyWithReload(() => import('@/pages/InboxPage'));
 const ChatPage = lazyWithReload(() => import('@/pages/ChatPage'));
+const LiveWatchPage = lazyWithReload(() => import('@/pages/LiveWatchPage'));
 const MyAIPage = lazyWithReload(() => import('@/pages/MyAIPage'));
 const MyClipsPage = lazyWithReload(() => import('@/pages/MyClipsPage'));
 const MyAppsPage = lazyWithReload(() => import('@/pages/MyAppsPage'));
@@ -93,6 +94,8 @@ import HelpAssistant from '@/components/HelpAssistant';
 import LocationGate from '@/components/LocationGate';
 import { MembershipGate, BannedScreen } from '@/components/MembershipWall';
 import JoinInviteModal from '@/components/JoinInviteModal';
+import SignupPrompt from '@/components/SignupPrompt';
+import ChatUserCard from '@/components/chat/UserCard';
 import { isLocationVerified } from '@/lib/tracker';
 
 // Routes reachable without a verified location — everything else in
@@ -150,7 +153,7 @@ const MainLayout = ({
       {/* Desktop Header */}
       {!shouldHideHeader && !isMobile && (
         <Header 
-            onLoginClick={() => setAuthModalState({ isOpen: true, view: 'main' })} 
+            onLoginClick={(o) => { const tab = typeof o === 'string' ? o : o?.tab; setAuthModalState({ isOpen: true, view: 'main', ...(tab ? { tab } : {}) }); }} 
             onMenuClick={() => setSidebarOpen(!isSidebarOpen)} 
             onToggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
             isSidebarCollapsed={isSidebarCollapsed}
@@ -161,7 +164,7 @@ const MainLayout = ({
       {/* Mobile Header */}
        {isMobile && !shouldHideHeader && (
           <Header 
-            onLoginClick={() => setAuthModalState({ isOpen: true, view: 'main' })} 
+            onLoginClick={(o) => { const tab = typeof o === 'string' ? o : o?.tab; setAuthModalState({ isOpen: true, view: 'main', ...(tab ? { tab } : {}) }); }} 
             onMenuClick={() => setSidebarOpen(!isSidebarOpen)} 
             onLoginRequest={handleLoginRequest}
             isMobile={true}
@@ -325,7 +328,7 @@ const AppContent = React.memo(() => {
     if (user) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (cancelled || location.pathname === '/join') return;
+      if (cancelled || location.pathname === '/join' || location.pathname === '/live') return; // /live has its own sign-in prompts
       if (!isLocationVerified()) return;
       try {
         const last = Number(localStorage.getItem(JOIN_INVITE_KEY) || 0);
@@ -376,7 +379,9 @@ const AppContent = React.memo(() => {
       handleLoginRequest();
       return;
     }
-    if (!isPremium) {
+    // Posting is open to every account (2026-09-26); PostModal keeps video
+    // uploads / going live for members.
+    if (type === 'live' && !isPremium) {
         setIsLockedModalOpen(true);
         return;
     }
@@ -389,10 +394,21 @@ const AppContent = React.memo(() => {
     }
   };
   
-  const handleLoginRequest = () => {
-    if (!user) {
-      setAuthModalState({ isOpen: true, view: 'main' });
+  // Callers may pass { tab: 'signup'|'signin', redirect: '/watch/<id>' } — or
+  // nothing / a click event. After auth the user lands back on `redirect`
+  // (default: the page they were on), via post_auth_redirect below.
+  const handleLoginRequest = (opts) => {
+    if (user) return;
+    const o = opts && typeof opts === 'object' && !opts.nativeEvent && !opts.target ? opts : {};
+    const here = location.pathname + location.search;
+    const redirect = o.redirect || (location.pathname !== '/' ? here : null);
+    if (redirect) {
+      try {
+        localStorage.setItem('post_auth_redirect', redirect);
+        localStorage.setItem('post_auth_redirect_ts', String(Date.now()));
+      } catch { /* private mode */ }
     }
+    setAuthModalState({ isOpen: true, view: 'main', ...(o.tab ? { tab: o.tab } : {}) });
   }
 
   const handleUpgradeRequest = () => {
@@ -445,6 +461,8 @@ const AppContent = React.memo(() => {
             <Route element={<MediaLayout />}>
                 <Route path="/song/:id" element={<SongPage />} />
                 <Route path="/track/:id" element={<SongPage />} />
+                {/* Readable URL (indexed by Google); /song and /track swap to it. */}
+                <Route path="/music/:artistSlug/:songSlug" element={<SongPage />} />
             </Route>
             
             {/* --- My AI Route (Guarded) CHANGED to /AI --- */}
@@ -462,7 +480,10 @@ const AppContent = React.memo(() => {
 
             {/* --- Homies Chat (Discord-style community chat, full-screen) ---
                  /discord and /community are friendly aliases. */}
-            <Route path="/chat/:channelId?" element={<LocationGate><Suspense fallback={<RouteFallback full dark />}><ChatPage onLoginRequest={() => setAuthModalState({ isOpen: true, view: 'main' })} /></Suspense></LocationGate>} />
+            <Route path="/chat/:channelId?" element={<LocationGate><Suspense fallback={<RouteFallback full dark />}><ChatPage onLoginRequest={(tab, { auto = false } = {}) => { try { localStorage.setItem('post_auth_redirect', location.pathname); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState((prev) => (auto && prev.isOpen ? prev : { isOpen: true, view: 'main', tab: tab === 'signup' ? 'signup' : 'signin' })); }} /></Suspense></LocationGate>} />
+            {/* --- /live: watch the stream (YouTube/Kick embed) + live chat. Open to
+                 logged-out visitors (owner decision 2026-09-25), no location gate. --- */}
+            <Route path="/live" element={<Suspense fallback={<RouteFallback full dark />}><LiveWatchPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', '/live'); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
             <Route path="/discord/*" element={<Navigate to="/chat" replace />} />
             <Route path="/community/*" element={<Navigate to="/chat" replace />} />
 
@@ -550,7 +571,6 @@ const AppContent = React.memo(() => {
                     </FeatureGuard>
                 } />
                 
-                <Route path="/live" element={<LiveComingSoon />} />
 
                 <Route path="/live-stream/:username" element={<LiveComingSoon />} />
 
@@ -615,7 +635,12 @@ const AppContent = React.memo(() => {
 
         <AuthModal
             isOpen={authModalState.isOpen}
-            onOpenChange={(isOpen) => setAuthModalState(prev => ({ ...prev, isOpen }))}
+            onOpenChange={(isOpen) => {
+              // Closed without signing in: forget a /chat return path so a later,
+              // unrelated login doesn't bounce them back to the chat.
+              if (!isOpen && !user) { try { if ((localStorage.getItem('post_auth_redirect') || '').startsWith('/chat')) { localStorage.removeItem('post_auth_redirect'); localStorage.removeItem('post_auth_redirect_ts'); } } catch { /* private mode */ } }
+              setAuthModalState(prev => ({ ...prev, isOpen }));
+            }}
             initialView={authModalState.view}
             initialTab={authModalState.tab || 'signin'}
         />
@@ -632,9 +657,11 @@ const AppContent = React.memo(() => {
         <OnboardingFlow isOpen={showOnboarding} onClose={stopTutorial} />
         <DiscordConnectPrompt open={showDiscordPrompt && !showOnboarding && !location.pathname.startsWith('/chat')} onDismiss={dismissDiscordPrompt} />
         {showJoinInvite && <JoinInviteModal onClose={() => setShowJoinInvite(false)} />}
+        <SignupPrompt onLoginRequest={handleLoginRequest} />
+        {location.pathname.startsWith('/chat') && <ChatUserCard onLoginRequest={handleLoginRequest} />}
         <PlaceView />
         {/* The chat composer owns the bottom-right corner on /chat. */}
-        {!location.pathname.startsWith('/chat') && <HelpAssistant />}
+        {!location.pathname.startsWith('/chat') && location.pathname !== '/live' && <HelpAssistant />}
         <Toaster />
 
         {/* Story viewer — fixed fullscreen, independent of all layout/feed lifecycle */}

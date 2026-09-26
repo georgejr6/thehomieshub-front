@@ -29,4 +29,6 @@ export function txSubline(t) {
 }
 
 // Zero-point rows (e.g. a membership someone gifted you) show a badge, not "+0".
-export const txBadge = (t) => (t?.type === 'membership_received' ? '🎁 Gift' : '');
+export const txBadge = (t) => (t?.type === 'membership_received' ? '🎁 Gift'
+  : t?.type === 'live_payment' && t.meta?.amountCents ? `${(t.meta.amountCents / 100).toFixed(2)}` // /live donation or gift, paid in dollars
+  : '');

@@ -253,7 +253,7 @@ export function useChat({ enabled, activeChannelId }) {
           dispatch({ type: 'message', message: d, live: true, focused });
           if (d.special) {
             if (d.special.kind === 'gift' || d.special.kind === 'redeem') scheduleMemberReload();
-            if (d.special.kind === 'shoutout') dispatch({ type: 'shoutouts', channelId: d.channelId, list: [...(stateRef.current.shoutouts[d.channelId] || []), d] });
+            if (d.special.kind === 'shoutout' || d.special.kind === 'donation') dispatch({ type: 'shoutouts', channelId: d.channelId, list: [...(stateRef.current.shoutouts[d.channelId] || []), d] });
             if (d.channelId === activeRef.current) dispatch({ type: 'celebrate', celebration: { id: d.id, kind: d.special.kind, color: d.special.color, channelId: d.channelId, at: Date.now() } });
           }
           if (focused) setTimeout(() => markRead(d.channelId), 300);
