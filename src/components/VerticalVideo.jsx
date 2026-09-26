@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import ShareDialog from '@/components/ShareDialog';
+import { notePreviewEnded } from '@/components/SignupPrompt';
 import CommentsSheet from '@/components/CommentsSheet';
 import SubscriptionDialog from '@/components/SubscriptionDialog';
 import GiftDialog from '@/components/GiftDialog';
@@ -173,6 +174,10 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     const isBlurred = localIsNSFW && !isUnlocked;
     const isPreview = !!post.access && post.access !== 'full';
     const [previewEnded, setPreviewEnded] = useState(false);
+    // Signed out: count this toward the every-3rd full sign-up screen.
+    useEffect(() => {
+        if (previewEnded && !user) notePreviewEnded({ kind: 'video', redirect: `/watch/${post.id}` });
+    }, [previewEnded]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // likes/saves
     const liked = isPostLiked(post.id);

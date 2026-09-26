@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Crown, Music2, Play, UserPlus, LogIn, X } from 'lucide-react';
@@ -11,15 +11,44 @@ import { useAuth } from '@/contexts/AuthContext';
 // Signed out → free sign-up / sign-in, and after auth they land back on
 // `redirect` (App.jsx post_auth_redirect). Signed in (free) → membership.
 export const openSignupPrompt = (detail) => window.dispatchEvent(new CustomEvent('hh:signup-prompt', { detail }));
+// A preview ended somewhere that already shows its own inline prompt (feed
+// video overlay, Media Mode gate) — only counts toward the every-3rd screen.
+export const notePreviewEnded = (detail) => window.dispatchEvent(new CustomEvent('hh:preview-ended', { detail }));
+
+// Every 3rd preview a signed-out visitor finishes (songs + videos, per tab
+// session) opens the full sign-up / log-in screen instead of the sheet.
+const EVERY = 3;
+const KEY = 'hh_preview_ends';
 
 export default function SignupPrompt({ onLoginRequest }) {
   const { user } = useAuth();
   const [prompt, setPrompt] = useState(null);
+  const userRef = useRef(user);
+  userRef.current = user;
+  const loginRef = useRef(onLoginRequest);
+  loginRef.current = onLoginRequest;
+  const memCount = useRef(0);
 
   useEffect(() => {
-    const on = (e) => setPrompt(e.detail || {});
-    window.addEventListener('hh:signup-prompt', on);
-    return () => window.removeEventListener('hh:signup-prompt', on);
+    // Returns true when this preview end should open the full auth screen.
+    const bump = (detail) => {
+      if (userRef.current || detail?.noCount) return false;
+      let n;
+      try { n = Number(sessionStorage.getItem(KEY) || 0) + 1; sessionStorage.setItem(KEY, String(n)); }
+      catch { n = ++memCount.current; }
+      if (n % EVERY !== 0) return false;
+      setPrompt(null);
+      loginRef.current?.({ tab: 'signup', redirect: detail?.redirect });
+      return true;
+    };
+    const onPrompt = (e) => { if (!bump(e.detail)) setPrompt(e.detail || {}); };
+    const onEnded = (e) => { bump(e.detail); };
+    window.addEventListener('hh:signup-prompt', onPrompt);
+    window.addEventListener('hh:preview-ended', onEnded);
+    return () => {
+      window.removeEventListener('hh:signup-prompt', onPrompt);
+      window.removeEventListener('hh:preview-ended', onEnded);
+    };
   }, []);
 
   // Signing in from the sheet closes it.

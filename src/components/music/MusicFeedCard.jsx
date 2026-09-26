@@ -34,7 +34,7 @@ export default function MusicFeedCard({ post, index, isVisible, onLoginRequest }
 
   const track = {
     id: post.trackId, title: post.title, artist: post.artist, cover: post.cover,
-    audioUrl: post.audioUrl, type: 'audio', durationSecs: post.duration,
+    audioUrl: post.audioUrl, type: 'audio', durationSecs: isPreview ? limit : post.duration,
     access: post.access, previewSeconds: post.previewSeconds,
   };
   const liked = isLiked(post.trackId);
@@ -48,7 +48,7 @@ export default function MusicFeedCard({ post, index, isVisible, onLoginRequest }
     } else {
       a.pause();
       setPlaying(false);
-      if (!isVisible) { a.currentTime = 0; setT(0); setEnded(false); }
+      if (!isVisible) { a.currentTime = 0; setT(0); setEnded(false); endedRef.current = false; }
     }
   }, [isVisible, playerIsPlaying, ended]);
 
@@ -58,7 +58,10 @@ export default function MusicFeedCard({ post, index, isVisible, onLoginRequest }
     setT(a.currentTime);
     if (a.currentTime >= limit) finish();
   };
+  const endedRef = useRef(false); // one preview end = one prompt/count
   const finish = () => {
+    if (endedRef.current) return;
+    endedRef.current = true;
     const a = audioRef.current;
     a?.pause();
     setPlaying(false);
@@ -73,7 +76,7 @@ export default function MusicFeedCard({ post, index, isVisible, onLoginRequest }
     const at = a && !ended ? a.currentTime : 0;
     a?.pause();
     setPlaying(false);
-    if (isPreview && ended) { finish(); return; }
+    if (isPreview && ended) { openSignupPrompt({ kind: 'music', title: `${post.title} · ${post.artist}`, cover: post.cover, redirect: `/song/${post.trackId}`, noCount: true }); return; }
     playMedia(track, { startAt: at });
     navigate(`/song/${post.trackId}`);
   };
@@ -82,7 +85,7 @@ export default function MusicFeedCard({ post, index, isVisible, onLoginRequest }
     e.stopPropagation();
     const a = audioRef.current;
     if (!a) return;
-    if (ended) { a.currentTime = 0; setEnded(false); a.play().then(() => setPlaying(true)).catch(() => {}); return; }
+    if (ended) { a.currentTime = 0; setEnded(false); endedRef.current = false; a.play().then(() => setPlaying(true)).catch(() => {}); return; }
     if (a.paused) a.play().then(() => setPlaying(true)).catch(() => {});
     else { a.pause(); setPlaying(false); }
   };
@@ -147,7 +150,7 @@ export default function MusicFeedCard({ post, index, isVisible, onLoginRequest }
 
         <div className="mt-5 w-[min(72vw,340px)]">
           <div className="h-1 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-[#F0B94D] transition-[width] duration-300" style={{ width: `${pct}%` }} /></div>
-          <div className="mt-1 flex justify-between text-[11px] text-white/50"><span>{fmt(t)}</span><span>{isPreview ? `${limit}s preview` : fmt(post.duration || 0)}</span></div>
+          <div className="mt-1 flex justify-between text-[11px] text-white/50"><span>{fmt(t)}</span><span>{fmt(isPreview ? limit : (post.duration || 0))}</span></div>
         </div>
       </div>
 

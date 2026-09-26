@@ -391,7 +391,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
         <div className="sticky top-0 z-10 flex items-center gap-2 flex-wrap mb-3 p-2.5 rounded-xl border border-primary/30 bg-primary/10 backdrop-blur-md">
           <span className="text-sm font-semibold text-white px-1">{selected.size} selected</span>
           <Button size="sm" onClick={bulkApprove} disabled={bulkBusy} className="h-8 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30"><Check className="w-3.5 h-3.5 mr-1" />Approve (lockdown)</Button>
-          <Button size="sm" onClick={() => bulkVisibility('public')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><Eye className="w-3.5 h-3.5 mr-1" />Public</Button>
+          <Button size="sm" onClick={() => bulkVisibility('public')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><Eye className="w-3.5 h-3.5 mr-1" />Free for everyone</Button>
           <Button size="sm" onClick={() => bulkVisibility('subscribers')} disabled={bulkBusy} className="h-8 bg-white/10 hover:bg-white/20 text-white border border-white/10"><EyeOff className="w-3.5 h-3.5 mr-1" />Subscribers</Button>
           <select defaultValue="" disabled={bulkBusy}
             onChange={e => { const c = categories.find(c => String(c._id) === e.target.value); if (c) bulkAddToCategory(c); e.target.value = ''; }}
@@ -456,7 +456,7 @@ const LibraryTab = ({ categories, onCategoriesChange }) => {
                       {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                     </button>
                   )}
-                  <button onClick={() => handleToggleVisibility(item)} title={item.visibility === 'public' ? 'Make subscribers only' : 'Make public'}
+                  <button onClick={() => handleToggleVisibility(item)} title={item.visibility === 'public' ? 'Free for everyone (signed out too) — click for members only' : 'Members only — click to make free for everyone'}
                     className={`p-2 rounded-lg transition-colors ${item.visibility === 'public' ? 'text-blue-400 hover:bg-blue-500/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
                     {item.visibility === 'public' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                   </button>

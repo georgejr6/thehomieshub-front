@@ -31,6 +31,11 @@ const MusicPlayer = () => {
   // emit a `music_listen` event when the track changes or the tab hides. This is
   // what powers "how long did each person listen" in the admin song analytics.
   const measuredRef = useRef({ id: null, title: null, ms: 0 });
+  // Signed-out 30s preview: show 0:30 as the length and stop exactly there
+  // (the ended handler in MediaContext then shows the sign-up prompt). A ref,
+  // because the same track id reloads as the full song after signing in.
+  const previewCapRef = useRef(null);
+  previewCapRef.current = currentTrack?.access === 'preview' ? (currentTrack.previewSeconds || 30) : null;
   const lastTRef    = useRef(0);
   const flushListen = useCallback(() => {
     const m = measuredRef.current;
@@ -49,14 +54,25 @@ const MusicPlayer = () => {
     if (!audio) return;
     const onTime = () => {
       const t = audio.currentTime || 0;
-      setCurrentTime(t);
+      const cap = previewCapRef.current;
+      if (cap && t >= cap && !audio.paused) {
+        audio.pause();
+        audio.currentTime = 0; // Play again = replay the preview, not re-trigger the end
+        audio.dispatchEvent(new Event('ended'));
+        return;
+      }
+      setCurrentTime(cap ? Math.min(t, cap) : t);
       // Accumulate real listen time. `timeupdate` only fires while playing, so a
       // small forward delta is genuine playback; larger/backward jumps are seeks.
       const dt = t - lastTRef.current;
       if (dt > 0 && dt < 2) measuredRef.current.ms += dt * 1000;
       lastTRef.current = t;
     };
-    const onDur  = () => { if (!isNaN(audio.duration)) setDuration(audio.duration || 0); };
+    const onDur  = () => {
+      if (isNaN(audio.duration)) return;
+      const cap = previewCapRef.current;
+      setDuration(cap ? Math.min(audio.duration || cap, cap) : (audio.duration || 0));
+    };
     onTime(); onDur();
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('durationchange', onDur);

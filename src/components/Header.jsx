@@ -287,10 +287,17 @@ const Header = ({
               </DropdownMenuContent>
             </DropdownMenu>
           </> : <>
-            <Button onClick={onLoginClick} size={isMobile ? "sm" : "default"}>
-              <User className={cn("mr-2 h-4 w-4", isMobile ? "mr-0" : "")} />
-              {!isMobile && "Sign In"}
-            </Button>
+            {/* Signed out: the join button is the loudest thing up here —
+                everything they watch/hear is a preview until they sign up. */}
+            <button type="button" onClick={onLoginClick}
+              className="hidden sm:inline-flex h-9 items-center rounded-full px-3 text-sm font-semibold text-white/80 hover:bg-white/10 hover:text-white">
+              Log in
+            </button>
+            <button type="button" onClick={() => onLoginClick?.('signup')}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#F0B94D] px-4 text-sm font-extrabold text-black shadow-[0_0_18px_rgba(240,185,77,0.45)] transition-transform hover:scale-[1.03] active:scale-[0.98] md:h-10 md:px-5 md:text-base">
+              <User className="h-4 w-4" />
+              Sign up free
+            </button>
           </>}
       </div>
     </header>;

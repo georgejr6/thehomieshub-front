@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import EditVideoModal from './EditVideoModal';
 import api from '@/api/homieshub';
 import { useVideoPlaybackDisabled } from '@/lib/videoPlaybackStatus';
+import { notePreviewEnded } from '@/components/SignupPrompt';
 
 function fmt(s) {
   if (!s || isNaN(s) || s === 0) return '0:00';
@@ -328,7 +329,7 @@ const VideoPlayer = () => {
           }}
           metadata={{ video_id: currentVideo.id, video_title: currentVideo.title }}
           onError={() => setMediaError(true)}
-          onEnded={() => { if (isPreview) { const v = currentVideo; closeVideo(); setGatedVideo(v); } }}
+          onEnded={() => { if (isPreview) { const v = currentVideo; closeVideo(); setGatedVideo(v); if (!user) notePreviewEnded({ kind: 'video', redirect: `/media/${v.id}` }); } }}
         />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 gap-3">

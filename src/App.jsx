@@ -152,7 +152,7 @@ const MainLayout = ({
       {/* Desktop Header */}
       {!shouldHideHeader && !isMobile && (
         <Header 
-            onLoginClick={() => setAuthModalState({ isOpen: true, view: 'main' })} 
+            onLoginClick={(o) => { const tab = typeof o === 'string' ? o : o?.tab; setAuthModalState({ isOpen: true, view: 'main', ...(tab ? { tab } : {}) }); }} 
             onMenuClick={() => setSidebarOpen(!isSidebarOpen)} 
             onToggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
             isSidebarCollapsed={isSidebarCollapsed}
@@ -163,7 +163,7 @@ const MainLayout = ({
       {/* Mobile Header */}
        {isMobile && !shouldHideHeader && (
           <Header 
-            onLoginClick={() => setAuthModalState({ isOpen: true, view: 'main' })} 
+            onLoginClick={(o) => { const tab = typeof o === 'string' ? o : o?.tab; setAuthModalState({ isOpen: true, view: 'main', ...(tab ? { tab } : {}) }); }} 
             onMenuClick={() => setSidebarOpen(!isSidebarOpen)} 
             onLoginRequest={handleLoginRequest}
             isMobile={true}
