@@ -137,6 +137,12 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-09-26 — Homies Chat is the community's front door (/join, chat buttons, app nav inside /chat)
+- **`/join`** ("Join The Homies"): Continue with Discord (`/auth/discord?gate=1`) or Google (`/auth/google?gate=1`); "No Discord needed. It's all in the app." badge; done step = animated Homies Chat preview (`ChatPreview`, framer-motion, `MotionConfig reducedMotion="user"`) → "Check out Homies Chat". Discord is optional after: "Join our Discord too" → `POST /auth/discord/connect?gate=1` (or a Discord gate sign-in if Discord is already linked), back to `/join?discord=connected` (or the timestamped `hh_join_link_discord` sessionStorage flag) → `admit({discordOnly:true})` adds them to the server. Backend returns `discord:false` on chat-only admits; `/gate/status` has `inDiscord`.
+- **Chat buttons everywhere**: Header "Chat" pill (md+) + "Homies Chat" in the account menu; Sidebar first item (highlighted); MobileNav Chat slot (replaced Home — logo goes home); MembershipWall, JoinInviteModal, LandingPage (hero + links + footer), VerticalVideo paywall. Logged-out → `/join`, signed-in → `/chat`.
+- **Inside /chat** (`components/ChatAppRail.jsx`): the app's nav as round icons in the server rail under the server icon; toggle widens the rail to 220px with names (xl+ only, `hh_chat_rail_open`); phone drawer uses `compact` (icons only). On md+ the app `Header` sits above the chat (`ChatPage` root `md:top-14`).
+- Note: a global `@media (max-width:768px) button, a {display:flex; justify-content:center}` in `index.css` overrides Tailwind layout on phones — add `block`/explicit classes on card-like buttons.
+
 ### 2026-09-26 — Content restored: previews for signed-out/free, music in the feed, chat → DMs
 - **Access is server-decided** (homieshub-backend `utils/mediaAccess.js`): each video carries `access` (`full` / `sample` 60s / `teaser` 8s) + `previewSeconds`, and non-full viewers get a preview clip's playback ID. The old client paywall (`isPaywalled`) is gone; the 60s/3-min client gates only apply to items without `access`. The "Video Gate System" section above is legacy.
 - **`VerticalVideo.jsx`**: preview pill while a clip plays; when it ends → signed out: "Sign up free" / "I already have an account" (returns to `/watch/<id>`); free account: membership modal. No random start / no loop for clips.
