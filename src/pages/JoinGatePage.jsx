@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,68 @@ function GoogleIcon({ className }) {
       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
     </svg>
+  );
+}
+
+// "No Discord needed" — the one-liner that explains Homies Chat.
+function NoDiscordNeeded({ delay = 0.15 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.45, ease: 'easeOut' }}
+      className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-[#5865F2]/40 bg-[#5865F2]/15 px-3.5 py-1.5 text-xs font-semibold text-white"
+    >
+      <MessagesSquare className="h-3.5 w-3.5 text-[#8B95F9]" />
+      No Discord needed. Our Discord now lives in the app.
+    </motion.div>
+  );
+}
+
+// Finish screen: a little Homies Chat that "comes alive" — channels, then messages.
+const PREVIEW_CHANNELS = ['announcements', 'general', 'travel', 'nightlife'];
+const PREVIEW_MESSAGES = [
+  { name: 'homie_jay', color: '#F0B94D', text: "who's pulling up this weekend? 🔥" },
+  { name: 'nomad.k', color: '#23A55A', text: "just landed ✈️ who's out tonight?" },
+  { name: 'dre', color: '#8B95F9', text: "welcome in! say what's up 👋" },
+];
+function ChatPreview() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: 0.25, duration: 0.5, ease: 'easeOut' }}
+      className="mb-5 flex overflow-hidden rounded-2xl border border-white/10 bg-[#313338] text-left shadow-2xl"
+      aria-hidden="true"
+    >
+      <div className="w-[38%] shrink-0 bg-[#2B2D31] p-2.5">
+        <div className="mb-2 truncate px-1 text-[11px] font-bold text-white">The Homies</div>
+        {PREVIEW_CHANNELS.map((c, i) => (
+          <motion.div
+            key={c}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.45 + i * 0.08 }}
+            className={`truncate rounded px-1.5 py-1 text-[11px] ${c === 'general' ? 'bg-white/10 text-white' : 'text-[#949BA4]'}`}
+          >
+            # {c}
+          </motion.div>
+        ))}
+      </div>
+      <div className="min-w-0 flex-1 space-y-2 p-3">
+        {PREVIEW_MESSAGES.map((m, i) => (
+          <motion.div
+            key={m.name}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 + i * 0.35 }}
+          >
+            <div className="text-[11px] font-semibold" style={{ color: m.color }}>{m.name}</div>
+            <div className="truncate text-[12px] text-[#DBDEE1]">{m.text}</div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
   );
 }
 
@@ -95,6 +158,14 @@ export default function JoinGatePage() {
   const [privateMode, setPrivateMode] = useState(null);
   const [copied, setCopied] = useState(false);
 
+  // Coming back via the browser Back button (bfcache) after leaving for
+  // Discord/Google: un-stick the buttons.
+  useEffect(() => {
+    const onShow = (e) => { if (e.persisted) setBusy(false); };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
+
   const load = useCallback(async () => {
     try {
       const { data } = await api.get('/gate/status');
@@ -120,8 +191,14 @@ export default function JoinGatePage() {
       const token = params.get('token');
       const paid = params.get('paid');
       // Came back from "Join our Discord too" (either link flow) → finish by adding them to the server.
+      // Timestamped so a cancelled Discord trip (which lands on /auth/callback,
+      // not here) can't fire a surprise Discord redirect on a later visit.
       let linkPending = false;
-      try { linkPending = sessionStorage.getItem('hh_join_link_discord') === '1'; sessionStorage.removeItem('hh_join_link_discord'); } catch { /* private window */ }
+      try {
+        const at = Number(sessionStorage.getItem('hh_join_link_discord'));
+        linkPending = !!at && Date.now() - at < 10 * 60 * 1000;
+        sessionStorage.removeItem('hh_join_link_discord');
+      } catch { /* private window */ }
       const discordLinked = params.get('discord') === 'connected' || linkPending;
       const discordError = params.get('discord_error');
       if (discordLinked || discordError) window.history.replaceState({}, '', '/join');
@@ -159,12 +236,13 @@ export default function JoinGatePage() {
   }, []);
 
   const connectDiscord = () => { window.location.href = `${API_BASE}/auth/discord?gate=1`; };
+  const markLinkPending = () => { try { sessionStorage.setItem('hh_join_link_discord', String(Date.now())); } catch { /* private window */ } };
   const connectGoogle = () => { window.location.href = `${API_BASE}/auth/google?gate=1`; };
   // Signed-in account that's already in Homies Chat (e.g. Google) → link Discord
   // to THIS account and come back to /join, which then adds them to the server.
   const linkDiscord = async () => {
     setBusy(true);
-    try { sessionStorage.setItem('hh_join_link_discord', '1'); } catch { /* private window */ }
+    markLinkPending();
     // Discord already linked (e.g. from Settings) but not in the server yet →
     // Discord sign-in in gate mode re-grants the server-join permission.
     if (status?.hasDiscord) { connectDiscord(); return; }
@@ -283,7 +361,11 @@ export default function JoinGatePage() {
       if (discordOnly && inDiscord) toast({ title: "You're in the Discord too ✓" });
     } catch (err) {
       const errCode = err.response?.data?.error?.code || err.response?.data?.code;
-      if (errCode === 'gate_reauth') { toast({ title: 'Session expired', description: 'Reconnecting your Discord…' }); return connectDiscord(); }
+      if (errCode === 'gate_reauth') {
+        toast({ title: 'Session expired', description: 'Reconnecting your Discord…' });
+        if (discordOnly) markLinkPending(); // finish adding them to the server when they're back
+        return connectDiscord();
+      }
       toast({ title: discordOnly ? 'Could not add you to Discord' : 'Could not finish joining', description: err.response?.data?.message || 'Please try again.', variant: 'destructive' });
     } finally { setBusy(false); }
   };
@@ -322,13 +404,11 @@ export default function JoinGatePage() {
       {/* ── Step 1: Sign in (Discord or Google) ── */}
       {step === 'connect' && (
         <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#5865F2] flex items-center justify-center mx-auto mb-6">
-            <MessagesSquare className="w-9 h-9 text-white" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-foreground">Join Homies Chat</h1>
-          <p className="text-muted-foreground text-sm mt-2 mb-8">
-            The Homies community lives in our own chat, right here in the app. Sign in with Discord or Google to get in. Takes 30 seconds and keeps the community clean.
+          <h1 className="text-2xl font-extrabold text-foreground">Join The Homies</h1>
+          <p className="text-muted-foreground text-sm mt-2 mb-4">
+            Sign in with Discord or Google. Takes 30 seconds and keeps the community clean.
           </p>
+          <NoDiscordNeeded />
           {status ? (
             <>
               <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-foreground">
@@ -437,14 +517,18 @@ export default function JoinGatePage() {
             <Check className="w-9 h-9 text-emerald-400" />
           </div>
           <h1 className="text-2xl font-extrabold text-foreground">You're in! 🎉</h1>
-          <p className="text-muted-foreground text-sm mt-2 mb-6">
+          <p className="text-muted-foreground text-sm mt-2 mb-4">
             {admittedTier && admittedTier !== 'free'
-              ? `You're in The Homies as a ${admittedTier} member — everything's unlocked. Say what's up in Homies Chat.`
-              : `Homies Chat is open. Jump in and say what's up.`}
+              ? `Welcome to The Homies as a ${admittedTier} member. Everything's unlocked.`
+              : `Welcome to The Homies.`}
           </p>
-          <Button size="lg" onClick={openChat} className="w-full h-14 text-base font-bold text-white" style={{ background: '#5865F2' }}>
-            <MessagesSquare className="w-5 h-5 mr-2" /> Open Homies Chat <ArrowRight className="w-5 h-5 ml-2" />
-          </Button>
+          <NoDiscordNeeded delay={0.1} />
+          <ChatPreview />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.1 }}>
+            <Button size="lg" onClick={openChat} className="w-full h-14 text-base font-bold text-white" style={{ background: '#5865F2' }}>
+              <MessagesSquare className="w-5 h-5 mr-2" /> Check out Homies Chat <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </motion.div>
           {status?.inDiscord ? (
             <button type="button" onClick={() => (window.location.href = OPEN_DISCORD_URL)} className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
               <DiscordIcon className="w-4 h-4" /> Also open the Discord

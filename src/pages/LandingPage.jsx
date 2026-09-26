@@ -172,9 +172,9 @@ const LandingPage = ({ onLoginRequest }) => {
               {/* Community links */}
               <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
                 <Link to={chatPath}>
-                  <Button size="sm" className="text-white bg-[#5865F2] hover:bg-[#4752C4] gap-2 font-semibold">
+                  <Button variant="ghost" size="sm" className="text-[#8B95F9] bg-[#5865F2]/10 hover:bg-[#5865F2]/20 gap-2">
                     <MessagesSquare className="h-4 w-4" />
-                    Join Homies Chat
+                    Homies Chat
                   </Button>
                 </Link>
                 <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer">

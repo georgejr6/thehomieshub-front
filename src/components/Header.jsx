@@ -189,14 +189,14 @@ const Header = ({
       </div>
 
       <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-        {/* Homies Chat — the community's home, on every screen size */}
+        {/* Homies Chat — tablet/desktop (phones have it in the bottom nav) */}
         <Link
-          to="/chat"
+          to={user ? '/chat' : '/join'}
           title="Homies Chat"
-          className="flex h-9 items-center gap-1.5 rounded-full bg-[#5865F2] px-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#4752C4]"
+          className="hidden h-9 items-center gap-1.5 rounded-full bg-[#5865F2] px-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#4752C4] md:flex"
         >
           <MessagesSquare className="h-4 w-4" />
-          <span className="hidden sm:inline">Chat</span>
+          <span>Chat</span>
         </Link>
         {/* Get the app + YouTube + donate — desktop only */}
         <div className="hidden md:flex items-center gap-1">

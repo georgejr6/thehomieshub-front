@@ -647,7 +647,7 @@ const togglePlayPause = () => {
                                     className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full h-12 text-base rounded-xl">
                                     {user ? 'Get a Membership' : 'Log In / Sign Up'}
                                 </Button>
-                                <Button onClick={() => navigate('/chat')} variant="outline"
+                                <Button onClick={() => navigate(user ? '/chat' : '/join')} variant="outline"
                                     className="border-[#5865F2]/50 text-white bg-[#5865F2] hover:bg-[#4752C4] hover:text-white w-full h-11 text-sm font-semibold rounded-xl">
                                     Hang out in Homies Chat
                                 </Button>

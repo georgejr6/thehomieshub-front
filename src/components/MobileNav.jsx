@@ -54,7 +54,7 @@ const MobileNav = ({ onPostClick, onLoginRequest, onMenuClick }) => {
             <MobileNavItem to="/browse" icon={Play} label="Browse" />
 
             {/* Homies Chat — highlighted; the community lives here (Home is the logo in the header) */}
-            <NavLink to="/chat" className="flex flex-col items-center justify-center w-full h-full space-y-0.5 text-[#8B95F9] hover:text-white">
+            <NavLink to={user ? '/chat' : '/join'} className="flex flex-col items-center justify-center w-full h-full space-y-0.5 text-[#8B95F9] hover:text-white">
                 <span className="flex h-7 w-11 items-center justify-center rounded-full bg-[#5865F2]/20">
                     <MessagesSquare className="h-5 w-5" strokeWidth={2.5} />
                 </span>
