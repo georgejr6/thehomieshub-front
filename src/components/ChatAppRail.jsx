@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  Home, Play, Compass, Radio, Library, Music, ShoppingBag, MapPin, Clapperboard,
+  Play, Compass, Radio, Library, Music, ShoppingBag, MapPin, Clapperboard,
   Crown, Wallet, Package, Bot, LayoutGrid, ShieldCheck, ChevronsRight, ChevronsLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,7 +21,6 @@ function RailLink({ to, icon: Icon, label, expanded, onNavigate, accent }) {
   return (
     <NavLink
       to={to}
-      end={to === '/'}
       onClick={onNavigate}
       title={expanded ? undefined : label}
       className={({ isActive }) => cn(
@@ -40,14 +39,15 @@ function RailLink({ to, icon: Icon, label, expanded, onNavigate, accent }) {
 
 const Divider = () => <div className="mx-auto my-1 h-0.5 w-8 shrink-0 rounded bg-[#35363C]" />;
 
-export default function ChatAppRail({ expanded, onToggle, onNavigate }) {
+// compact: icons only, no toggle (the phone drawer — names won't fit beside the channel list).
+export default function ChatAppRail({ expanded: expandedProp, onToggle, onNavigate, compact = false }) {
+  const expanded = !compact && expandedProp;
   const { user } = useAuth();
   const { checkAccess } = useFeatures();
   const visible = (item) => !item.featureKey || checkAccess(item.featureKey).status !== 'hidden';
 
   const groups = [
     [
-      { to: '/', icon: Home, label: 'Home' },
       { to: '/browse', icon: Play, label: 'Browse' },
       { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
       { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming' },
@@ -79,7 +79,7 @@ export default function ChatAppRail({ expanded, onToggle, onNavigate }) {
           </React.Fragment>
         ))}
       </nav>
-      <button
+      {!compact && <button
         type="button"
         onClick={onToggle}
         title={expanded ? 'Collapse menu' : 'Show menu names'}
@@ -88,7 +88,7 @@ export default function ChatAppRail({ expanded, onToggle, onNavigate }) {
         className={cn('mx-auto mt-1 flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl text-[#B5BAC1] transition-colors hover:bg-[#313338] hover:text-white', expanded ? 'w-[calc(100%-1.5rem)] px-3' : 'w-11')}
       >
         {expanded ? <><ChevronsLeft className="h-5 w-5" /><span className="text-xs font-medium">Collapse</span></> : <ChevronsRight className="h-5 w-5" />}
-      </button>
+      </button>}
     </div>
   );
 }

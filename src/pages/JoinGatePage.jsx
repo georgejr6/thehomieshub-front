@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, MotionConfig } from 'framer-motion';
 import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -39,10 +39,10 @@ function NoDiscordNeeded({ delay = 0.15 }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.45, ease: 'easeOut' }}
-      className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-[#5865F2]/40 bg-[#5865F2]/15 px-3.5 py-1.5 text-xs font-semibold text-white"
+      className="mx-auto mb-6 flex w-fit items-center gap-2 whitespace-nowrap rounded-full border border-[#5865F2]/40 bg-[#5865F2]/15 px-3.5 py-1.5 text-xs font-semibold text-white"
     >
       <MessagesSquare className="h-3.5 w-3.5 text-[#8B95F9]" />
-      No Discord needed. Our Discord now lives in the app.
+      No Discord needed. It's all in the app.
     </motion.div>
   );
 }
@@ -63,7 +63,7 @@ function ChatPreview() {
       className="mb-5 flex overflow-hidden rounded-2xl border border-white/10 bg-[#313338] text-left shadow-2xl"
       aria-hidden="true"
     >
-      <div className="w-[38%] shrink-0 bg-[#2B2D31] p-2.5">
+      <div className="w-[34%] shrink-0 bg-[#2B2D31] p-2.5">
         <div className="mb-2 truncate px-1 text-[11px] font-bold text-white">The Homies</div>
         {PREVIEW_CHANNELS.map((c, i) => (
           <motion.div
@@ -86,7 +86,7 @@ function ChatPreview() {
             transition={{ delay: 0.8 + i * 0.35 }}
           >
             <div className="text-[11px] font-semibold" style={{ color: m.color }}>{m.name}</div>
-            <div className="truncate text-[12px] text-[#DBDEE1]">{m.text}</div>
+            <div className="line-clamp-2 text-[12px] text-[#DBDEE1]">{m.text}</div>
           </motion.div>
         ))}
       </div>
@@ -375,6 +375,7 @@ export default function JoinGatePage() {
   }
 
   return (
+    <MotionConfig reducedMotion="user">
     <Shell>
       {/* Private / incognito window: joining isn't possible here — say so up front. */}
       {privateMode === true && step !== 'done' ? (
@@ -486,7 +487,7 @@ export default function JoinGatePage() {
           </div>
           <h1 className="text-2xl font-extrabold text-foreground">Enable your location</h1>
           <p className="text-muted-foreground text-sm mt-2 mb-6">
-            Last step — The Homies Hub uses location to keep the community safe. Enable it to finish joining.
+            Last step — The Homies uses location to keep the community safe. Enable it to finish joining.
           </p>
           <Button size="lg" onClick={enableLocation} disabled={busy} className="w-full h-12 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
             {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MapPin className="h-4 w-4 mr-2" />} Enable location
@@ -524,11 +525,10 @@ export default function JoinGatePage() {
           </p>
           <NoDiscordNeeded delay={0.1} />
           <ChatPreview />
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.1 }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
             <Button size="lg" onClick={openChat} className="w-full h-14 text-base font-bold text-white" style={{ background: '#5865F2' }}>
               <MessagesSquare className="w-5 h-5 mr-2" /> Check out Homies Chat <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
-          </motion.div>
           {status?.inDiscord ? (
             <button type="button" onClick={() => (window.location.href = OPEN_DISCORD_URL)} className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
               <DiscordIcon className="w-4 h-4" /> Also open the Discord
@@ -538,6 +538,7 @@ export default function JoinGatePage() {
               <DiscordIcon className="w-4 h-4" /> Join our Discord too (optional)
             </button>
           )}
+          </motion.div>
 
           {/* Upsell — only shown to free members */}
           {(!admittedTier || admittedTier === 'free') && (
@@ -564,7 +565,7 @@ export default function JoinGatePage() {
                   const rec = t.recommended;
                   return (
                     <button key={t.key} onClick={() => startCheckout(t.key)} disabled={busy}
-                      className={`w-full text-left rounded-2xl p-4 transition-colors relative overflow-hidden ${rec ? 'border-2 bg-white/[0.03]' : 'border border-white/10 bg-card hover:border-white/25'}`}
+                      className={`block w-full text-left rounded-2xl p-4 transition-colors relative overflow-hidden ${rec ? 'border-2 bg-white/[0.03]' : 'border border-white/10 bg-card hover:border-white/25'}`}
                       style={rec ? { borderColor: t.accent, boxShadow: `0 0 22px ${t.accent}33` } : undefined}>
                       {rec && <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: t.accent, color: '#0b0b0b' }}>Recommended</span>}
                       <div className="flex items-center gap-2 mb-1.5" style={{ color: t.accent }}>
@@ -605,5 +606,6 @@ export default function JoinGatePage() {
       )}
       </>)}
     </Shell>
+    </MotionConfig>
   );
 }

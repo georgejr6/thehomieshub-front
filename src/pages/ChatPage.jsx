@@ -218,8 +218,8 @@ export default function ChatPage({ onLoginRequest }) {
       {drawer && (
         <div className="chat-fade-in fixed inset-0 z-40 flex md:hidden">
           <div className="chat-slide-right flex h-full">
-            <div className={cn('flex shrink-0 flex-col bg-[#1E1F22] py-3 transition-[width] duration-300 ease-out', railOpen ? 'w-[200px]' : 'w-[72px]')}>
-              <ChatAppRail expanded={railOpen} onToggle={toggleRail} onNavigate={() => setDrawer(false)} />
+            <div className="flex w-[72px] shrink-0 flex-col bg-[#1E1F22] py-3">
+              <ChatAppRail compact onNavigate={() => setDrawer(false)} />
             </div>
             <ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} />
           </div>
