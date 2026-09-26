@@ -119,9 +119,21 @@ function Player({ state, source }) {
       </div>
     );
   }
-  const src = yt.videoId
-    ? `https://www.youtube.com/embed/${yt.videoId}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`
-    : `https://www.youtube.com/embed/live_stream?channel=${yt.channelId}&autoplay=1&mute=1&playsinline=1`;
+  // No confirmed YouTube video (e.g. live on Kick only): show Kick rather than
+  // YouTube's channel embed, which can land on an old scheduled stream.
+  if (!yt.videoId && kick.live) {
+    return <iframe key="kick" title="Kick stream" src={`https://player.kick.com/${kick.slug}?autoplay=true&muted=true`} className="h-full w-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
+  }
+  if (!yt.videoId) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#0b0b0d] px-6 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-white/40" />
+        <div className="text-lg font-bold text-white">The stream is starting…</div>
+        <p className="max-w-sm text-sm text-white/55">The player shows up here as soon as YouTube has it. Chat's open below.</p>
+      </div>
+    );
+  }
+  const src = `https://www.youtube.com/embed/${yt.videoId}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`;
   return <iframe key={src} title="YouTube stream" src={src} className="h-full w-full" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen />;
 }
 
@@ -145,6 +157,13 @@ export default function LiveWatchPage({ onLoginRequest }) {
   const [bubble, setBubble] = useState(null);
   const [help, setHelp] = useState(false);
   const [ownerPanel, setOwnerPanel] = useState(false);
+  // Back from connecting YouTube/Kick for the chat relay (?relay=youtube-connected).
+  const [relayNotice] = useState(() => params.get('relay'));
+  useEffect(() => {
+    if (!relayNotice) return;
+    setOwnerPanel('relay');
+    setParams((p) => { p.delete('relay'); return p; }, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -559,7 +578,7 @@ export default function LiveWatchPage({ onLoginRequest }) {
           api.get('/livechat/me').then(({ data }) => setMe(data.result)).catch(() => {});
         }}
       />
-      {ownerPanel && <LiveOwnerPanel state={state} onClose={() => setOwnerPanel(false)} onState={setState} />}
+      {ownerPanel && me?.owner && <LiveOwnerPanel state={state} initialTab={ownerPanel === 'relay' ? 'relay' : undefined} notice={ownerPanel === 'relay' ? relayNotice : null} onClose={() => setOwnerPanel(false)} onState={setState} />}
     </div>
   );
 }

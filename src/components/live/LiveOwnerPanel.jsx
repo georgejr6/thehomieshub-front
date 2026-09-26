@@ -4,8 +4,10 @@ import { X, Loader2, RefreshCw } from 'lucide-react';
 import api from '@/api/homieshub';
 import { cn } from '@/lib/utils';
 
-// Owner-only: who's watching /live (the viewer log) + stream overrides.
-// Backend: GET /livechat/admin/shows|viewers, PATCH /livechat/admin/config.
+// Owner-only: who's watching /live (the viewer log), stream overrides, and the
+// chat relay (/live chat + donations → YouTube/Kick chat).
+// Backend: GET /livechat/admin/shows|viewers, PATCH /livechat/admin/config,
+// /livechat/admin/relay (utils/live/relay.js).
 
 const ago = (d) => {
   const s = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 1000));
@@ -15,8 +17,74 @@ const ago = (d) => {
 };
 const showLabel = (k) => (k?.startsWith('live:') ? `Live · ${new Date(k.slice(5)).toLocaleString()}` : k?.startsWith('day:') ? `Off-air · ${k.slice(4)}` : k);
 
-export default function LiveOwnerPanel({ state, onClose, onState }) {
-  const [tab, setTab] = useState('viewers');
+const RELAY_NOTICE = {
+  connected: "Connected — chat and donations from /live will post there while you're live.",
+  failed: "Couldn't connect. Check the redirect URI in the setup notes and try again.",
+  cancelled: 'Connection cancelled.',
+  expired: 'That link expired — press Connect again.',
+};
+
+function RelayTab({ notice }) {
+  const [r, setR] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState(() => {
+    const [platform, result] = String(notice || '').split('-');
+    return RELAY_NOTICE[result] ? `${platform === 'kick' ? 'Kick' : 'YouTube'}: ${RELAY_NOTICE[result]}` : '';
+  });
+  useEffect(() => {
+    api.get('/livechat/admin/relay').then(({ data }) => setR(data.result)).catch((err) => setMsg(err.response?.data?.message || "Couldn't load the relay."));
+  }, []);
+  const act = async (key, fn) => {
+    setBusy(key); setMsg('');
+    try { await fn(); } catch (err) { setMsg(err.response?.data?.message || 'Something went wrong.'); }
+    setBusy('');
+  };
+  const connect = (p) => act(p, async () => { const { data } = await api.post(`/livechat/admin/relay/${p}/connect`); window.location.href = data.result.url; });
+  const disconnect = (p) => act(p, async () => { const { data } = await api.delete(`/livechat/admin/relay/${p}`); setR(data.result); });
+  const patch = (body) => act('patch', async () => { const { data } = await api.patch('/livechat/admin/relay', body); setR(data.result); });
+  const test = () => act('test', async () => {
+    const { data } = await api.post('/livechat/admin/relay/test');
+    const t = data.result;
+    const none = !t.youtube && !t.kick && !t.errors.length ? ' (it only posts while that platform is live)' : '';
+    setMsg(`Test: YouTube ${t.youtube ? 'sent ✅' : 'not sent'} · Kick ${t.kick ? 'sent ✅' : 'not sent'}${t.errors.length ? ` — ${t.errors.join('; ')}` : ''}${none}`);
+  });
+  if (!r) return <div className="flex flex-1 items-center justify-center p-6">{msg ? <span className="text-xs text-white/70">{msg}</span> : <Loader2 className="h-6 w-6 animate-spin text-white/40" />}</div>;
+  const row = (p, label, color, info) => (
+    <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r[p].connected ? color : '#555' }} />
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold">{label}</div>
+        <div className="truncate text-xs text-white/50">{r[p].connected ? info : r[p].configured ? 'Not connected' : 'Server keys missing — see setup notes'}</div>
+      </div>
+      {r[p].connected
+        ? <button type="button" disabled={!!busy} onClick={() => disconnect(p)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/10">Disconnect</button>
+        : <button type="button" disabled={!!busy || !r[p].configured} onClick={() => connect(p)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-40">{busy === p ? '…' : 'Connect'}</button>}
+    </div>
+  );
+  return (
+    <div className="live-scroll min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-sm">
+      <p className="text-white/60">Chat, donations and gifts sent on thehomies.app/live get posted into your stream chats as <span className="font-mono text-white/80">[The Homies App] name: Sent $100 - message</span> while that platform is live.</p>
+      {row('youtube', 'YouTube', '#ff0033', `${r.youtube.channelTitle || 'Connected'} · ${r.youtube.unitsUsedToday}/${r.youtube.unitsPerDay} API units today`)}
+      {row('kick', 'Kick', '#53fc18', r.kick.slug ? `kick.com/${r.kick.slug}` : 'Connected')}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={!!busy} onClick={() => patch({ enabled: !r.enabled })} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 hover:bg-white/10">Relay: {r.enabled ? 'on' : 'off'}</button>
+        <button type="button" disabled={!!busy} onClick={() => patch({ chat: !r.chat })} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 hover:bg-white/10">Plain chat: {r.chat ? 'relayed' : 'donations/gifts only'}</button>
+        <button type="button" disabled={!!busy} onClick={test} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 hover:bg-white/10">{busy === 'test' ? '…' : 'Send test'}</button>
+      </div>
+      <div className="text-xs text-white/45">Sent since last restart: YouTube {r.sent.youtube} · Kick {r.sent.kick}{r.skipped ? ` · ${r.skipped} chat lines skipped (YouTube quota/pace)` : ''}</div>
+      {r.lastError && <div className="rounded-lg bg-[#ff0033]/10 p-2 text-xs text-[#ff8a9b]">Last error ({new Date(r.lastError.at).toLocaleTimeString()}): {r.lastError.message}</div>}
+      <details className="text-xs text-white/45">
+        <summary className="cursor-pointer">Setup notes</summary>
+        <p className="mt-1">YouTube: in Google Cloud (the project behind GOOGLE_CLIENT_ID, or LIVE_YT_CLIENT_ID), enable YouTube Data API v3 and add the redirect URI <span className="break-all font-mono">{r.youtube.redirectUri}</span>. Sign in with the account that owns the channel. Plain chat is batched every 15 s to stay inside the daily API quota; donations and gifts always go.</p>
+        <p className="mt-1">Kick: create an app at kick.com → Settings → Developer with redirect URI <span className="break-all font-mono">{r.kick.redirectUri}</span>, then set KICK_CLIENT_ID / KICK_CLIENT_SECRET on the server.</p>
+      </details>
+      {msg && <div className="rounded-lg bg-white/[0.06] p-2 text-xs text-white/80">{msg}</div>}
+    </div>
+  );
+}
+
+export default function LiveOwnerPanel({ state, onClose, onState, initialTab, notice }) {
+  const [tab, setTab] = useState(initialTab || 'viewers');
   const [shows, setShows] = useState([]);
   const [show, setShow] = useState('');
   const [data, setData] = useState(null);
@@ -59,7 +127,7 @@ export default function LiveOwnerPanel({ state, onClose, onState }) {
       <div className="live-sheet-up relative flex h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#141518] text-white sm:h-[640px] sm:rounded-3xl" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
           <div className="flex rounded-full bg-white/[0.06] p-1 text-xs font-semibold">
-            {['viewers', 'stream'].map((t) => (
+            {['viewers', 'stream', 'relay'].map((t) => (
               <button key={t} type="button" onClick={() => setTab(t)} className={cn('rounded-full px-3 py-1 capitalize', tab === t ? 'bg-white text-black' : 'text-white/70')}>{t}</button>
             ))}
           </div>
@@ -67,7 +135,7 @@ export default function LiveOwnerPanel({ state, onClose, onState }) {
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-white/60 hover:bg-white/10"><X className="h-5 w-5" /></button>
         </div>
 
-        {tab === 'viewers' ? (
+        {tab === 'relay' ? <RelayTab notice={notice} /> : tab === 'viewers' ? (
           <>
             <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
               <select value={show} onChange={(e) => { setShow(e.target.value); load(e.target.value); }} className="max-w-full rounded-lg border border-white/10 bg-[#1c1d22] px-2 py-1.5">
@@ -97,7 +165,7 @@ export default function LiveOwnerPanel({ state, onClose, onState }) {
         ) : (
           <div className="space-y-4 p-4 text-sm">
             <div className="rounded-xl bg-white/[0.04] p-3 text-white/70">
-              Detected: YouTube {state?.youtube?.live ? <b className="text-[#ff5a73]">live</b> : 'offline'} · Kick {state?.kick?.live ? <b className="text-[#53fc18]">live</b> : 'offline'} — checked every minute.
+              Detected: YouTube {state?.youtube?.live ? <b className="text-[#ff5a73]">live</b> : state?.upcoming ? 'starting soon' : 'offline'}{state?.youtube?.videoId && <span className="font-mono text-white/45"> ({state.youtube.videoId})</span>} · Kick {state?.kick?.live ? <b className="text-[#53fc18]">live</b> : 'offline'} — checked every minute.
             </div>
             <div>
               <div className="mb-1 font-semibold">Pin a YouTube video</div>
