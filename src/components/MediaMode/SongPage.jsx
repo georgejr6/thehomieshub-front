@@ -1,16 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Play, Pause, Heart, Share2, Repeat, ArrowLeft, Music, Loader2, Gift } from 'lucide-react';
 import { useMedia } from '@/contexts/MediaContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { musicApi } from '@/lib/digitvlApi';
-import api from '@/api/homieshub';
-import PayWithCardModal from '@/components/PayWithCardModal';
-
-// Only creator in the catalog today — see docs/CREATOR_ONBOARDING_DESIGN.md
-// in digitvl-x402 for when this needs to become per-track/per-artist.
-const DEFAULT_TIP_OWNER_SLUG = 'mwosa';
+import TipModal from '@/components/TipModal';
+import { useToast } from '@/components/ui/use-toast';
 
 // Dedicated per-song page. Canonical URL is /music/<artist>/<song> (readable,
 // indexed by Google — the server injects the song's meta tags, routes/og.js);
@@ -30,7 +25,8 @@ const SongPage = () => {
     isLiked, toggleLike, repeatOne, toggleRepeat,
   } = useMedia();
 
-  const { user, triggerLockedFeature } = useAuth();
+  const location = useLocation();
+  const { toast } = useToast();
   const [track, setTrack] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -41,18 +37,15 @@ const SongPage = () => {
   // Set when /song/:id swaps to the readable URL, so the slug lookup is skipped.
   const resolvedRef = useRef(null);
 
-  const fetchTipIntent = useCallback(async () => {
-    const resp = await api.post('/x402/tip-intent', {
-      ownerSlug: DEFAULT_TIP_OWNER_SLUG,
-      amountMicroUsdc: 250_000, // $0.25 default tip — TODO: let the user pick an amount
-    });
-    return resp?.data?.result;
-  }, []);
+  // Back from Stripe Checkout (routes/tips.js success_url): thank them once.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('tip') !== 'thanks') return;
+    toast({ title: 'Thank you for the tip! 🙏', description: 'It goes straight to the artist.' });
+    navigate(location.pathname, { replace: true });
+  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleTipClick = () => {
-    if (!user) { triggerLockedFeature?.(); return; }
-    setTipModalOpen(true);
-  };
+  // Anyone can tip (card or crypto), signed in or not.
+  const handleTipClick = () => setTipModalOpen(true);
 
   // Readable URL: look the song up by its slugs.
   useEffect(() => {
@@ -264,14 +257,12 @@ const SongPage = () => {
         </div>
       )}
 
-      <PayWithCardModal
+      <TipModal
         open={tipModalOpen}
         onClose={() => setTipModalOpen(false)}
-        title={`Tip ${track.artist || 'the artist'}`}
-        intentFetcher={fetchTipIntent}
-        onSettled={() => {
-          setTimeout(() => setTipModalOpen(false), 1200);
-        }}
+        artist={track.artist}
+        trackId={track.id}
+        returnPath={songPath || location.pathname}
       />
     </div>
   );
