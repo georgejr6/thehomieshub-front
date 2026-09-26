@@ -2,8 +2,9 @@ User-agent: *
 Disallow: /media
 Disallow: /song/
 Disallow: /track/
-Disallow: /post/
 Disallow: /watch/
 Disallow: /browse
 Disallow: /profile/
 Disallow: /explore
+
+Sitemap: https://www.thehomies.app/sitemap.xml
