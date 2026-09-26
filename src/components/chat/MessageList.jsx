@@ -16,6 +16,7 @@ import PostCard from './PostCard';
 import Embed, { embedImageUrl } from './Embed';
 import { openImageViewer, ImageViewerHost } from './ImageViewer';
 import SpecialMessage from './perks/SpecialMessage';
+import ReactionsModal from './ReactionsModal';
 
 const GROUP_MS = 7 * 60 * 1000;
 export const QUICK_EMOJI = ['👍', '❤️', '😂', '🔥', '😮', '😢', '🙏', '💯', '👀', '🎉', '💀', '🤝'];
@@ -154,6 +155,22 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   const [draft, setDraft] = useState(m.content);
   const [picker, setPicker] = useState(false);
   const [more, setMore] = useState(false);
+  const [whoReacted, setWhoReacted] = useState(null); // emoji → open "Reactions" panel
+  const longPress = useRef({ timer: null, fired: false });
+  const startLongPress = (emoji) => {
+    longPress.current.fired = false;
+    clearTimeout(longPress.current.timer);
+    longPress.current.timer = setTimeout(() => { longPress.current.fired = true; setWhoReacted(emoji); }, 450);
+  };
+  const cancelLongPress = () => clearTimeout(longPress.current.timer);
+  const reactedBy = (r) => {
+    const names = (r.users || []).map((id) => (id === me?.id ? 'You' : ctx.users?.[id]?.displayName || ctx.users?.[id]?.username)).filter(Boolean);
+    const shown = names.slice(0, 3);
+    const rest = Math.max(0, r.count - shown.length);
+    const who = shown.length ? `Reacted by ${shown.join(', ')}${rest ? ` and ${rest} other${rest === 1 ? '' : 's'}` : ''}` : `${r.count} reaction${r.count === 1 ? '' : 's'}`;
+    return `${who} — right-click to see everyone`;
+  };
+
   const mine = m.author?.id === me?.id;
   // Every image in the message (link previews first, as rendered) forms one
   // gallery, so the viewer can swipe between them.
@@ -322,7 +339,12 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
             return (
               <button
                 key={r.emoji}
-                onClick={() => react(r.emoji)}
+                title={reactedBy(r)}
+                onClick={() => { if (longPress.current.fired) { longPress.current.fired = false; return; } react(r.emoji); }}
+                onContextMenu={(e) => { e.preventDefault(); setWhoReacted(r.emoji); }}
+                onTouchStart={() => startLongPress(r.emoji)}
+                onTouchEnd={cancelLongPress}
+                onTouchMove={cancelLongPress}
                 className={cn(
                   'chat-pop flex items-center gap-1.5 rounded-lg border px-1.5 py-0.5 text-sm transition-[transform,background-color,border-color] duration-150 hover:scale-105 active:scale-95',
                   mineR ? 'border-[#5865F2] bg-[#5865F2]/20 text-white' : 'border-transparent bg-[#2B2D31] text-[#B5BAC1] hover:border-[#4E5058]'
@@ -335,6 +357,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
           })}
         </div>
       )}
+      {whoReacted && <ReactionsModal messageId={m.id} initialEmoji={whoReacted} onClose={() => setWhoReacted(null)} />}
 
       {!m.pending && !m.failed && !editing && (
         <div className={cn(
