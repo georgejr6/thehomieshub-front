@@ -280,7 +280,18 @@ useEffect(() => {
 
   const p = el.play?.();
   if (p instanceof Promise) {
-    p.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    p.then(() => setIsPlaying(true)).catch((err) => {
+      // A swipe isn't a tap, so iOS (and Chrome before the first tap) refuses
+      // to autoplay the next video WITH sound. Fall back to muted autoplay;
+      // the speaker button unmutes.
+      if (err?.name === 'NotAllowedError' && !el.muted) {
+        el.muted = true;
+        setIsMuted(true);
+        el.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      } else {
+        setIsPlaying(false);
+      }
+    });
   } else {
     setIsPlaying(true);
   }

@@ -64,6 +64,7 @@ export const MediaProvider = ({ children }) => {
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const audioRef     = useRef(null);
+  const userToggledRef = useRef(false); // play/pause tapped since the current track started loading
   const isFirstRef   = useRef(true);
   const tracksRef    = useRef([]);
   const trackRef     = useRef(null);
@@ -332,8 +333,11 @@ export const MediaProvider = ({ children }) => {
       audio.removeEventListener('error',   onError);
       setIsLoading(false);
       if (startAt > 0) { try { audio.currentTime = startAt; } catch { /* not seekable yet */ } }
-      if (autoplay) audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      // Skip if the user already started it by tapping (togglePlay) or paused
+      // it in the meantime — don't restart against their pause.
+      if (autoplay && !userToggledRef.current) audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     };
+    userToggledRef.current = false;
     const onError = () => {
       audio.removeEventListener('canplay', onCanPlay);
       audio.removeEventListener('error',   onError);
@@ -347,6 +351,7 @@ export const MediaProvider = ({ children }) => {
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    userToggledRef.current = true;
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
@@ -354,7 +359,7 @@ export const MediaProvider = ({ children }) => {
       // No isLoading guard: iOS/Safari won't fetch audio that was loaded without
       // a tap (song-page autoplay), so 'canplay' never fires and we'd be stuck
       // "loading" forever. play() from this tap starts the download itself.
-      audio.play().then(() => { setIsLoading(false); setIsPlaying(true); }).catch(() => setIsPlaying(false));
+      audio.play().then(() => { setIsLoading(false); setIsPlaying(true); }).catch(() => { setIsLoading(false); setIsPlaying(false); });
     }
   }, [isPlaying]);
 

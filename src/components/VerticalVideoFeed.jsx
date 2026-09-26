@@ -40,12 +40,15 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
     setItems(wrapPosts(posts, 0));
   }, [posts]);
 
-  // Scroll to initialIndex on mount
+  // Scroll to initialIndex once the feed container has mounted (it only
+  // mounts after the playback check resolves).
+  const didInitialScrollRef = useRef(false);
   useEffect(() => {
-    if (!initialIndex || !containerRef.current) return;
+    if (didInitialScrollRef.current || !initialIndex || !containerRef.current) return;
+    didInitialScrollRef.current = true;
     // Use instant scroll so there's no animation on first load
     containerRef.current.scrollTop = initialIndex * containerRef.current.clientHeight;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playbackDisabled, initialIndex, items.length]);
 
   // Append a shuffled loop when nearing the end
   const maybeRefill = useCallback((currentIndex, totalItems) => {
@@ -60,6 +63,13 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
     }
   }, [posts]);
 
+  // Latest callbacks in refs, so the observer isn't rebuilt mid-swipe when a
+  // parent passes a new inline function (a fresh observer re-reports every card).
+  const onTopChangeRef = useRef(onTopChange);
+  onTopChangeRef.current = onTopChange;
+  const maybeRefillRef = useRef(maybeRefill);
+  maybeRefillRef.current = maybeRefill;
+
   // IntersectionObserver to track visible post
   useEffect(() => {
     const container = containerRef.current;
@@ -68,11 +78,13 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach(entry => {
-          if (entry.isIntersecting) {
+          // isIntersecting is true for ANY partly visible card; only the
+          // one that's at least 60% on screen is "the" visible card.
+          if (entry.intersectionRatio >= 0.6) {
             const index = parseInt(entry.target.dataset.index, 10);
             setVisibleIndex(index);
-            onTopChange?.(index === 0);
-            maybeRefill(index, container.children.length);
+            onTopChangeRef.current?.(index === 0);
+            maybeRefillRef.current(index, container.children.length);
           }
         });
       },
@@ -80,8 +92,11 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
     );
 
     Array.from(container.children).forEach(child => observer.observe(child));
-    return () => Array.from(container.children).forEach(child => observer.unobserve(child));
-  }, [items, onTopChange, maybeRefill]);
+    return () => observer.disconnect();
+    // playbackDisabled: the feed container only mounts once the playback check
+    // resolves. Without it, posts that loaded first left the observer unattached
+    // and visibleIndex stuck at 0 (first video kept playing while swiping).
+  }, [items, playbackDisabled]);
 
   // Blunt site-wide circuit breaker (2026-09-23) — when on, no VerticalVideo
   // (and therefore no <video>/<MuxPlayer>) ever mounts, for anyone, full
