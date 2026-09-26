@@ -346,14 +346,17 @@ export const MediaProvider = ({ children }) => {
   // ── Audio controls ─────────────────────────────────────────────────────────
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio || isLoading) return;
+    if (!audio) return;
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      // No isLoading guard: iOS/Safari won't fetch audio that was loaded without
+      // a tap (song-page autoplay), so 'canplay' never fires and we'd be stuck
+      // "loading" forever. play() from this tap starts the download itself.
+      audio.play().then(() => { setIsLoading(false); setIsPlaying(true); }).catch(() => setIsPlaying(false));
     }
-  }, [isPlaying, isLoading]);
+  }, [isPlaying]);
 
   const seek = useCallback((val) => {
     // Setting audio.currentTime fires 'timeupdate', which MusicPlayer's local

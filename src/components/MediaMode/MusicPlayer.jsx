@@ -261,7 +261,6 @@ const MusicPlayer = () => {
                 </button>
                 <button
                   onClick={togglePlay}
-                  disabled={isLoading}
                   className="bg-white hover:bg-white/90 text-black rounded-full w-12 h-12 flex items-center justify-center disabled:opacity-50"
                 >
                   {isLoading
@@ -382,7 +381,6 @@ const MusicPlayer = () => {
                   </button>
                   <button
                     onClick={togglePlay}
-                    disabled={isLoading}
                     className="bg-white hover:bg-white/90 text-black rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0 disabled:opacity-50"
                   >
                     {isLoading

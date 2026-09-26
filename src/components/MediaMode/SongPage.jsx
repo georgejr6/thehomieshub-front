@@ -210,7 +210,7 @@ const SongPage = () => {
               </div>
 
               <div className="flex items-center gap-3 justify-center sm:justify-start mt-6">
-                <button onClick={handlePlay} disabled={isLoading}
+                <button onClick={handlePlay}
                   className="bg-primary hover:bg-primary/90 text-black rounded-full h-14 w-14 flex items-center justify-center disabled:opacity-50 shadow-lg">
                   {isLoading && isThis
                     ? <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
