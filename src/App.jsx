@@ -460,6 +460,8 @@ const AppContent = React.memo(() => {
             <Route element={<MediaLayout />}>
                 <Route path="/song/:id" element={<SongPage />} />
                 <Route path="/track/:id" element={<SongPage />} />
+                {/* Readable URL (indexed by Google); /song and /track swap to it. */}
+                <Route path="/music/:artistSlug/:songSlug" element={<SongPage />} />
             </Route>
             
             {/* --- My AI Route (Guarded) CHANGED to /AI --- */}

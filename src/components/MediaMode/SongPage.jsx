@@ -12,12 +12,18 @@ import PayWithCardModal from '@/components/PayWithCardModal';
 // in digitvl-x402 for when this needs to become per-track/per-artist.
 const DEFAULT_TIP_OWNER_SLUG = 'mwosa';
 
-// Dedicated per-song page (/song/:id and /track/:id).
+// Dedicated per-song page. Canonical URL is /music/<artist>/<song> (readable,
+// indexed by Google — the server injects the song's meta tags, routes/og.js);
+// /song/:id and /track/:id resolve the song, then swap the address bar to it.
 // Opening a share link lands here, auto-plays the track through the shared
 // MusicPlayer, and — once it ends and the user isn't looping — the MediaContext
 // auto-advances to the most-popular track next.
 const SongPage = () => {
-  const { id } = useParams();
+  const { id: idParam, artistSlug, songSlug } = useParams();
+  const slugKey = artistSlug && songSlug ? `${artistSlug}/${songSlug}` : null;
+  const [slugId, setSlugId] = useState(null); // track id resolved from the slug URL
+  const [songPath, setSongPath] = useState(null); // "/music/<artist>/<song>"
+  const id = idParam || slugId;
   const navigate = useNavigate();
   const {
     allTracks, top10, playMedia, currentTrack, isPlaying, isLoading, togglePlay,
@@ -30,6 +36,10 @@ const SongPage = () => {
   const [notFound, setNotFound] = useState(false);
   const [tipModalOpen, setTipModalOpen] = useState(false);
   const autoPlayedFor = useRef(null); // song id we've already auto-started
+  const trackRef = useRef(null);
+  trackRef.current = track;
+  // Set when /song/:id swaps to the readable URL, so the slug lookup is skipped.
+  const resolvedRef = useRef(null);
 
   const fetchTipIntent = useCallback(async () => {
     const resp = await api.post('/x402/tip-intent', {
@@ -44,8 +54,54 @@ const SongPage = () => {
     setTipModalOpen(true);
   };
 
-  // Resolve the track: prefer the already-loaded catalog, else fetch it cold.
+  // Readable URL: look the song up by its slugs.
   useEffect(() => {
+    if (!slugKey) return undefined;
+    const done = resolvedRef.current;
+    resolvedRef.current = null; // one-shot
+    setNotFound(false);
+    if (done?.track && done.path === `/music/${slugKey}`) {
+      setTrack(done.track);
+      setSongPath(done.path);
+      setSlugId(done.track.id);
+      setLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setSongPath(null);
+    setSlugId(null);
+    musicApi.getBySlug(artistSlug, songSlug).then(res => {
+      if (cancelled) return;
+      if (!res) { setNotFound(true); setLoading(false); return; }
+      setSongPath(res.path);
+      setTrack(res.track);
+      setSlugId(res.track.id);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [slugKey, artistSlug, songSlug]);
+
+  // Id URL (/song/:id, /track/:id): swap the address bar to the readable URL.
+  useEffect(() => {
+    if (!idParam) return undefined;
+    let cancelled = false;
+    setSongPath(null);
+    musicApi.getPath(idParam).then(p => {
+      if (cancelled || !p) return;
+      setSongPath(p);
+      // Hand the loaded track over only if it's this song (getTrack may still be pending).
+      const cur = trackRef.current;
+      resolvedRef.current = { path: p, track: cur && String(cur.id) === String(idParam) ? cur : null };
+      navigate(p, { replace: true });
+    });
+    return () => { cancelled = true; };
+  }, [idParam, navigate]);
+
+  // Resolve the track by id: prefer the already-loaded catalog, else fetch it cold.
+  useEffect(() => {
+    if (!idParam) return undefined;
+    const id = idParam;
     let cancelled = false;
     setLoading(true);
     setNotFound(false);
@@ -63,7 +119,7 @@ const SongPage = () => {
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [id, allTracks]);
+  }, [idParam, allTracks]);
 
   // Auto-play once per song when it resolves (a share link should start playing).
   useEffect(() => {
@@ -85,7 +141,7 @@ const SongPage = () => {
 
   const handleShare = () => {
     const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://www.thehomies.app';
-    const url = `${origin}/track/${track.id}`;
+    const url = songPath ? `${origin}${songPath}` : `${origin}/track/${track.id}`;
     const title = `${track.title}${track.artist ? ` by ${track.artist}` : ''}`;
     if (navigator.share) navigator.share({ title, url }).catch(() => {});
     else navigator.clipboard?.writeText(url).catch(() => {});
@@ -122,8 +178,10 @@ const SongPage = () => {
   return (
     <div className="min-h-screen bg-black text-white pb-40">
       <Helmet>
-        <title>{track.title}{track.artist ? ` · ${track.artist}` : ''}</title>
-        <meta name="description" content={`Listen to ${track.title}${track.artist ? ` by ${track.artist}` : ''}`} />
+        {/* Same wording as the server-rendered tags (backend routes/og.js songHead). */}
+        <title>{`${track.title} — ${track.artist || 'Unknown artist'} | The Homies Hub`}</title>
+        <meta name="description" content={`Listen to "${track.title}" by ${track.artist || 'Unknown artist'}${track.genre ? ` (${track.genre})` : ''} on The Homies Hub.`} />
+        {songPath && <link rel="canonical" href={`https://www.thehomies.app${songPath}`} />}
       </Helmet>
 
       {/* Ambient cover backdrop */}
