@@ -3,8 +3,8 @@
 // Algorand = the Mwosa creator wallet, opted into USDC (ASA 31566704).
 
 const ALGO_ADDRESS = 'ZHKTZUB7T7IDPUWN3EFJIMTPM5GYAFEQXBBOGZQWC4MUFWYCVDDXYPVR6Q';
-const BTC_ADDRESS = ''; // pending from owner
-const ETH_ADDRESS = ''; // pending from owner
+const BTC_ADDRESS = 'bc1q8x8y5qzu83frzjwjdn7efavs9a0w596l29he8t'; // bech32 checksum verified 2026-09-26
+const ETH_ADDRESS = '0x89a7Aa3876bf1deBc380F2EbB600E1DF76f2f7Ab'; // EIP-55 checksum verified 2026-09-26
 
 export const TIP_WALLETS = [
   {
