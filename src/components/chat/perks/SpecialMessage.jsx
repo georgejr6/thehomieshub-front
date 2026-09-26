@@ -71,7 +71,7 @@ export function ShoutoutCard({ m, ctx, live }) {
     >
       <div className="flex items-center gap-2 px-3.5 py-2" style={{ background: color }}>
         <Megaphone className="h-4 w-4 shrink-0 text-white" />
-        <span className="truncate text-sm font-bold text-white">{s.kind === 'donation' ? 'Live donation' : 'Shoutout'}</span>
+        <span className="truncate text-sm font-bold text-white">{s.kind === 'donation' ? (s.label || 'Live donation') : 'Shoutout'}</span>
         <span className="ml-auto shrink-0 rounded-full bg-black/25 px-2 py-0.5 text-xs font-bold text-white">{s.kind === 'donation' ? fmtUsd(s.amountCents) : fmtPts(s.points)}</span>
       </div>
       {m.content ? (

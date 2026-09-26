@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { PlusCircle, X, FileText, Loader2, Upload, BarChart3, CalendarDays, Gift, Megaphone, Coins, Sparkles } from 'lucide-react';
+import { PlusCircle, X, FileText, Loader2, Upload, BarChart3, CalendarDays, Gift, Megaphone, Coins, Sparkles, Banknote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import { PollDialog, EventDialog } from './CreateDialogs';
 
 const MAX_FILES = 10;
-const MAX_BYTES = 25 * 1024 * 1024;
+const DEFAULT_MAX_BYTES = 20 * 1024 * 1024; // server sends me.uploadMaxBytes (null = no cap)
 const SHORTCODES = {
   fire: '🔥', joy: '😂', heart: '❤️', '100': '💯', pray: '🙏', skull: '💀', eyes: '👀', tada: '🎉', thumbsup: '👍', '+1': '👍',
   sob: '😭', smile: '😄', wave: '👋', clap: '👏', rofl: '🤣', thinking: '🤔', muscle: '💪', crown: '👑', money: '💰', cap: '🧢',
@@ -40,7 +40,7 @@ function typingText(names) {
   return 'Several people are typing…';
 }
 
-export default function Composer({ channel, state, actions, replyTo, clearReply, onError, onEditLast, canCreatePosts, onOpenPerks }) {
+export default function Composer({ channel, state, actions, replyTo, clearReply, onError, onEditLast, canCreatePosts, onOpenPerks, onSendMoney }) {
   const [text, setText] = useState('');
   const [files, setFiles] = useState([]);
   const [progress, setProgress] = useState(null);
@@ -81,8 +81,9 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
   const addFiles = (list) => {
     if (!can.attach) return onError('You can\'t upload files in this channel.');
     const incoming = [...list];
-    const tooBig = incoming.find((f) => f.size > MAX_BYTES);
-    if (tooBig) return onError(`${tooBig.name} is over 25 MB.`);
+    const max = state.me?.uploadMaxBytes === null ? Infinity : (state.me?.uploadMaxBytes || DEFAULT_MAX_BYTES);
+    const tooBig = incoming.find((f) => f.size > max);
+    if (tooBig) return onError(`${tooBig.name} is over ${Math.round(max / 1024 / 1024)} MB.`);
     setFiles((cur) => [...cur, ...incoming].slice(0, MAX_FILES));
   };
 
@@ -309,12 +310,20 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
               <button onClick={() => openCreate('event')} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
                 <CalendarDays className="h-5 w-5" /> Create Event
               </button>
+              {onSendMoney && (
+                <>
+                  <div className="mx-2 my-1 h-px bg-white/10" />
+                  <button onClick={() => { setPlusMenu(false); onSendMoney(); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#23A55A] hover:text-white">
+                    <Banknote className="h-5 w-5" /> Send Money
+                  </button>
+                </>
+              )}
             </div>
           )}
           <button
             disabled={disabled}
             onClick={(e) => { e.stopPropagation(); setPlusMenu((v) => !v); }}
-            title="Upload a file, create a poll or an event"
+            title="Upload a file, create a poll or event, or send money"
             className={cn('px-4 py-[11px] transition-[color,transform] duration-200 hover:text-[#DBDEE1] disabled:opacity-30', plusMenu ? 'rotate-45 text-[#DBDEE1]' : 'text-[#B5BAC1]')}
           >
             {progress !== null ? <Loader2 className="h-6 w-6 animate-spin" /> : <PlusCircle className="h-6 w-6" />}
