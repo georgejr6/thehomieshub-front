@@ -71,7 +71,8 @@ export default function ChatAppRail({ expanded: expandedProp, onToggle, onNaviga
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
-      <nav aria-label="The Homies app" className={cn('no-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2', expanded ? 'px-3' : 'items-center')}>
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <nav aria-label="The Homies app" className={cn('no-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-6', expanded ? 'px-3' : 'items-center')}>
         {groups.map((items, gi) => (
           <React.Fragment key={gi}>
             {gi > 0 && <Divider />}
@@ -79,6 +80,9 @@ export default function ChatAppRail({ expanded: expandedProp, onToggle, onNaviga
           </React.Fragment>
         ))}
       </nav>
+      {/* Fade at the bottom: there's more menu below when it scrolls. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#1E1F22] to-transparent" />
+      </div>
       {!compact && <button
         type="button"
         onClick={onToggle}

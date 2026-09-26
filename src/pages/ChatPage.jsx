@@ -32,6 +32,16 @@ export default function ChatPage({ onLoginRequest }) {
   // App menu in the server rail: collapsed icons ↔ expanded with names (remembered).
   const [railOpen, setRailOpen] = useState(readRailOpen);
   const toggleRail = () => setRailOpen((v) => { saveRailOpen(!v); return !v; });
+  // Names only fit on wide screens (rail 220 + channels 240 + members 240 + messages);
+  // below xl the rail stays icons-only.
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const on = (e) => setWide(e.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const railExpanded = railOpen && wide;
   const [showMembers, setShowMembers] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
   const [toast, setToast] = useState(null);
@@ -199,7 +209,7 @@ export default function ChatPage({ onLoginRequest }) {
       <div className="hidden md:block"><Header onLoginClick={onLoginRequest} onLoginRequest={onLoginRequest} onMenuClick={() => {}} isMobile={false} /></div>
 
       {/* Server rail — the Homies server, then the app's menu (expandable) */}
-      <div className={cn('hidden shrink-0 flex-col items-center gap-2 overflow-hidden bg-[#1E1F22] py-3 transition-[width] duration-300 ease-out md:flex', railOpen ? 'w-[220px]' : 'w-[72px]')}>
+      <div className={cn('hidden shrink-0 flex-col items-center gap-2 overflow-hidden bg-[#1E1F22] py-3 transition-[width] duration-300 ease-out md:flex', railExpanded ? 'w-[220px]' : 'w-[72px]')}>
         <div className="relative">
           <span className="absolute -left-3 top-1/2 h-10 w-1 -translate-y-1/2 rounded-r bg-white" />
           {state.server?.iconUrl ? (
@@ -210,7 +220,7 @@ export default function ChatPage({ onLoginRequest }) {
           {unreadTotal > 0 && <span className="absolute -bottom-1 -right-1 rounded-full border-4 border-[#1E1F22] bg-[#F23F43] px-1 text-[11px] font-bold text-white">{unreadTotal}</span>}
         </div>
         <div className="mx-auto h-0.5 w-8 shrink-0 rounded bg-[#35363C]" />
-        <ChatAppRail expanded={railOpen} onToggle={toggleRail} />
+        <ChatAppRail expanded={railExpanded} onToggle={toggleRail} compact={!wide} />
       </div>
 
       {/* Channel sidebar: static on desktop, drawer on mobile */}
