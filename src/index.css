@@ -240,9 +240,25 @@ mux-player {
 .chat-float-up { animation: chat-float-up 1.4s ease-out both; }
 .chat-sheet-up { animation: chat-sheet-up 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .chat-gift-bounce { animation: chat-gift-bounce 1.6s ease-in-out infinite; }
+/* Composer: a mention that will really ping flashes once as it becomes valid
+   (no padding — the highlight sits in a mirror under the textarea text). */
+@keyframes chat-mention-pop {
+  0% { background-color: rgba(88, 101, 242, 0.85); box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.5); }
+  100% { background-color: rgba(88, 101, 242, 0.22); box-shadow: 0 0 0 0 rgba(88, 101, 242, 0); }
+}
+@keyframes chat-everyone-pop {
+  0% { background-color: rgba(240, 185, 77, 0.9); box-shadow: 0 0 0 4px rgba(240, 185, 77, 0.55); }
+  40% { box-shadow: 0 0 0 2px rgba(240, 185, 77, 0.35); }
+  100% { background-color: rgba(240, 185, 77, 0.22); box-shadow: 0 0 0 0 rgba(240, 185, 77, 0); }
+}
+.chat-mention-pop { animation: chat-mention-pop 650ms ease-out both; }
+.chat-everyone-pop { animation: chat-everyone-pop 950ms ease-out both; }
+@keyframes chat-search-open { from { transform: scaleX(0.15); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.chat-search-open { transform-origin: right center; animation: chat-search-open 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @media (prefers-reduced-motion: reduce) {
   .chat-msg-in, .chat-fade-in, .chat-fade-up, .chat-pop, .chat-bump, .chat-slide-right,
-  .chat-skeleton, .chat-typing-dot, .chat-glow, .chat-float-up, .chat-sheet-up, .chat-gift-bounce { animation: none !important; }
+  .chat-skeleton, .chat-typing-dot, .chat-glow, .chat-float-up, .chat-sheet-up, .chat-gift-bounce,
+  .chat-mention-pop, .chat-everyone-pop, .chat-search-open { animation: none !important; }
   .chat-confetti { display: none !important; }
 }
 

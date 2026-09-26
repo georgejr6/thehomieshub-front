@@ -8,6 +8,7 @@ import ChannelSidebar from '@/components/chat/ChannelSidebar';
 import MessageList from '@/components/chat/MessageList';
 import Composer from '@/components/chat/Composer';
 import MemberList from '@/components/chat/MemberList';
+import MemberSearch from '@/components/chat/MemberSearch';
 import ClaimNameBar from '@/components/chat/ClaimNameBar';
 import PointsPill from '@/components/chat/perks/PointsPill';
 import PerksSheet, { takePendingPerk } from '@/components/chat/perks/PerksSheet';
@@ -259,6 +260,7 @@ export default function ChatPage({ onLoginRequest }) {
                 <Trophy className="h-5 w-5" />
               </button>
             )}
+            <MemberSearch staff={!!state.me?.isStaff} />
             <PointsPill wallet={state.wallet} onClick={() => openPerks({ tab: 'points' })} />
             <button onClick={() => setShowMembers((s) => !s)} title="Member list" className={cn('hidden lg:block', showMembers ? 'text-white' : 'text-[#B5BAC1] hover:text-[#DBDEE1]')}><Users className="h-6 w-6" /></button>
           </div>

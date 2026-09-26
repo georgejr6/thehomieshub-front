@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PlusCircle, X, FileText, Loader2, Upload, BarChart3, CalendarDays, Gift, Megaphone, Coins, Sparkles, Banknote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
@@ -32,6 +32,57 @@ function FileThumb({ file }) {
   return url ? <img src={url} alt="" className="max-h-[80px] max-w-full rounded object-contain" /> : null;
 }
 
+// Draft highlighting: a mention that will REALLY ping gets the pill it'll
+// have once sent (ChatMarkdown) and flashes once as it becomes valid, so you
+// know before you hit Enter. @everyone/@here only when you're allowed to use
+// them; @name only once it matches a real member (picked from the list, or
+// typed and resolved). The textarea's text goes transparent over a mirror
+// div that renders the coloured text, only while the draft contains one.
+const EVERYONE_RE = /(^|\s)(@(?:everyone|here))(?![\w])/g;
+// A typed "@name": 2-32 chars of [\w.], never ending in "." (that's the
+// sentence's full stop), followed by space, punctuation or the end.
+const TYPED_MENTION_RE = /(^|\s)@([\w.]{1,31}\w)(?![\w]|\.[\w])/g;
+function highlightParts(text, mentionTokens, everyoneOk) {
+  const marks = [];
+  let m;
+  if (everyoneOk) {
+    EVERYONE_RE.lastIndex = 0;
+    while ((m = EVERYONE_RE.exec(text))) marks.push([m.index + m[1].length, m[2].length, 'everyone']);
+  }
+  for (const token of mentionTokens) {
+    let i = text.indexOf(token);
+    while (i !== -1) {
+      const end = i + token.length;
+      // Same boundary rule as send(): not followed by a word char or ".word".
+      const next = text.slice(end, end + 2);
+      if ((i === 0 || /\s/.test(text[i - 1])) && !/^[\w]|^\.[\w]/.test(next)) marks.push([i, token.length, 'user']);
+      i = text.indexOf(token, end);
+    }
+  }
+  if (!marks.length) return null;
+  marks.sort((a, b) => a[0] - b[0]);
+  const out = [];
+  const seen = {};
+  let at = 0;
+  for (const [start, len, kind] of marks) {
+    if (start < at) continue;
+    if (start > at) out.push(text.slice(at, start));
+    const word = text.slice(start, start + len);
+    // Key by the word + its occurrence (not its position) so typing earlier
+    // in the draft doesn't replay the flash.
+    seen[word] = (seen[word] || 0) + 1;
+    out.push(
+      <span key={`${word}#${seen[word]}`}
+        className={cn('rounded', kind === 'everyone' ? 'chat-everyone-pop bg-[#F0B94D]/20 text-[#F6D48E]' : 'chat-mention-pop bg-[#5865F2]/20 text-[#C9CDFB]')}>
+        {word}
+      </span>
+    );
+    at = start + len;
+  }
+  out.push(text.slice(at));
+  return out;
+}
+
 function typingText(names) {
   if (!names.length) return '';
   if (names.length === 1) return <><b>{names[0]}</b> is typing…</>;
@@ -49,22 +100,36 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
   const [plusMenu, setPlusMenu] = useState(false);
   const [dialog, setDialog] = useState(null); // 'poll' | 'event'
   const [cmdIndex, setCmdIndex] = useState(0);
-  const mentionMap = useRef({}); // "@username" -> userId
+  const mentionMap = useRef({}); // "@username" (as typed) -> userId
+  const resolved = useRef({}); // lowercase name -> userId | null (typed @names looked up)
+  const resolveTimer = useRef(null);
+  const [, rerender] = useState(0);
   const lastTyping = useRef(0);
   const mentionReq = useRef(0);
   const input = useRef(null);
   const fileInput = useRef(null);
+  const mirror = useRef(null);
   const can = channel?.can || {};
   const mutedUntil = state.me?.mutedUntil && new Date(state.me.mutedUntil) > new Date() ? new Date(state.me.mutedUntil) : null;
   const disabled = !can.send || !!mutedUntil;
 
-  // Drafts are per channel, like Discord.
+  // Drafts are per channel, like Discord. Mentions in a restored draft are
+  // re-resolved so they still ping (the name → id map lives in memory only).
   useEffect(() => {
-    try { setText(localStorage.getItem(`hh_chat_draft_${channel?.id}`) || ''); } catch { setText(''); }
+    let draft = '';
+    try { draft = localStorage.getItem(`hh_chat_draft_${channel?.id}`) || ''; } catch { /* private mode */ }
+    setText(draft);
+    mentionMap.current = {};
+    if (draft) resolveTyped(draft);
     setFiles([]);
     setMention(null);
     if (!disabled) input.current?.focus();
   }, [channel?.id]); // eslint-disable-line
+  useEffect(() => () => clearTimeout(resolveTimer.current), []);
+  // Keep the highlight mirror scrolled with the textarea (it mounts late).
+  useLayoutEffect(() => {
+    if (mirror.current && input.current) mirror.current.scrollTop = input.current.scrollTop;
+  });
   useEffect(() => {
     try { localStorage.setItem(`hh_chat_draft_${channel?.id}`, text); } catch { /* private mode */ }
   }, [text, channel?.id]);
@@ -87,9 +152,61 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     setFiles((cur) => [...cur, ...incoming].slice(0, MAX_FILES));
   };
 
+  // A typed "@name" (not picked from the list) still counts once it matches a
+  // real member exactly — by username, as Discord does. Known members resolve
+  // instantly; others with one debounced lookup, cached.
+  const resolveTyped = (v) => {
+    const pending = [];
+    let changed = false;
+    for (const [, , name] of v.matchAll(TYPED_MENTION_RE)) {
+      const token = `@${name}`;
+      const lower = name.toLowerCase();
+      if (mentionMap.current[token] || lower === 'everyone' || lower === 'here') continue;
+      const known = Object.values(state.users || {}).find((u) => u?.username?.toLowerCase() === lower);
+      const id = known?.id || resolved.current[lower];
+      if (id) { mentionMap.current[token] = id; changed = true; } else if (!(lower in resolved.current)) pending.push(lower);
+    }
+    if (changed) rerender((n) => n + 1);
+    if (!pending.length) return;
+    clearTimeout(resolveTimer.current);
+    resolveTimer.current = setTimeout(async () => {
+      for (const lower of pending.slice(0, 5)) {
+        if (lower in resolved.current) continue;
+        const res = await actions.searchMembers(lower).catch(() => null);
+        if (!res) continue;
+        const id = res.find((u) => u.username?.toLowerCase() === lower)?.id;
+        // Only remember a miss when the lookup wasn't cut off by its limit —
+        // a full page may simply not include the exact name.
+        if (id || res.length < 8) resolved.current[lower] = id || null;
+      }
+      const cur = input.current?.value || '';
+      let hit = false;
+      for (const [, , name] of cur.matchAll(TYPED_MENTION_RE)) {
+        const id = resolved.current[name.toLowerCase()];
+        if (id && !mentionMap.current[`@${name}`]) { mentionMap.current[`@${name}`] = id; hit = true; }
+      }
+      if (hit) rerender((n) => n + 1);
+    }, 350);
+  };
+
+  // "Mention" on a member card drops @username into the draft.
+  useEffect(() => {
+    const on = (e) => {
+      const { id, username } = e.detail || {};
+      if (!id || !username || disabled) return;
+      const token = `@${username}`;
+      mentionMap.current[token] = id;
+      setText((t) => `${t}${t && !/\s$/.test(t) ? ' ' : ''}${token} `);
+      setTimeout(() => { const el = input.current; if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 0);
+    };
+    window.addEventListener('hh:chat-mention', on);
+    return () => window.removeEventListener('hh:chat-mention', on);
+  }, [disabled]);
+
   const onChange = async (e) => {
     const v = e.target.value;
     setText(v);
+    resolveTyped(v);
     if (Date.now() - lastTyping.current > 3000 && v.trim()) {
       lastTyping.current = Date.now();
       actions.typing(channel.id);
@@ -101,9 +218,16 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
       const query = m[2];
       const start = caret - query.length - 1;
       const results = await actions.searchMembers(query).catch(() => []);
+      // @everyone / @here first, only for people allowed to use them.
+      const q = query.toLowerCase();
+      const special = can.mentionEveryone
+        ? [['everyone', 'Notify everyone who can see this channel'], ['here', 'Notify everyone online right now']]
+            .filter(([w]) => w.startsWith(q))
+            .map(([w, desc]) => ({ id: `@${w}`, special: true, username: w, displayName: `@${w}`, desc }))
+        : [];
       // Only the latest keystroke's search may open the picker — an older,
       // slower response would otherwise reopen it after you moved on/sent.
-      if (req === mentionReq.current) setMention({ query, start, results: results.slice(0, 8), index: 0 });
+      if (req === mentionReq.current) setMention({ query, start, results: [...special, ...results].slice(0, 10), index: 0 });
     } else setMention(null);
   };
 
@@ -111,7 +235,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     const before = text.slice(0, mention.start);
     const after = text.slice(mention.start + 1 + mention.query.length);
     const token = `@${u.username}`;
-    mentionMap.current[token] = u.id;
+    if (!u.special) mentionMap.current[token] = u.id;
     setText(`${before}${token} ${after}`);
     setMention(null);
     input.current?.focus();
@@ -147,9 +271,13 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     if (runCommand(text)) return;
     let content = text.trim();
     if ((!content && !files.length) || disabled || progress !== null) return;
-    // Visible "@username" → wire format "<@id>"; :shortcodes: → emoji.
-    for (const [token, id] of Object.entries(mentionMap.current)) {
-      content = content.split(token).join(`<@${id}>`);
+    // Visible "@username" → wire format "<@id>" (whole words only, longest
+    // first, so "@bob" never eats the start of "@bobby"); :shortcodes: → emoji.
+    // A trailing "." ends the sentence, it isn't part of the name ("hi @bob.").
+    const tokens = Object.entries(mentionMap.current).sort((a, b) => b[0].length - a[0].length);
+    for (const [token, id] of tokens) {
+      const esc = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      content = content.replace(new RegExp(`(^|\\s)${esc}(?![\\w]|\\.[\\w])`, 'g'), `$1<@${id}>`);
     }
     content = content.replace(/:([\w+]+):/g, (all, code) => SHORTCODES[code] || all);
     const toUpload = files;
@@ -168,6 +296,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
       } catch (err) {
         setProgress(null);
         setText(text);
+        resolveTyped(text); // the mention map was cleared for the send
         setFiles(toUpload);
         return onError(err.response?.data?.message || 'Upload failed.');
       }
@@ -218,6 +347,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     .filter((id) => id !== state.me?.id)
     .map((id) => state.users[id]?.displayName || state.users[id]?.username || 'Someone');
 
+  const highlighted = highlightParts(text, Object.keys(mentionMap.current), !!can.mentionEveryone);
   if (!channel) return null;
   const placeholder = mutedUntil
     ? `You're timed out until ${mutedUntil.toLocaleTimeString()}`
@@ -262,8 +392,22 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
               onMouseDown={(e) => { e.preventDefault(); pickMention(u); }}
               className={cn('flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-100', i === mention.index ? 'bg-[#404249]' : 'hover:bg-[#35373C]')}
             >
-              <span className="font-medium" style={{ color: u.color ? roleColor(u.color) : '#F2F3F5' }}>{u.displayName}</span>
-              <span className="text-sm text-[#949BA4]">{u.username}</span>
+              {u.special ? (
+                <>
+                  <span className="font-semibold text-[#F6D48E]">{u.displayName}</span>
+                  <span className="truncate text-sm text-[#949BA4]">{u.desc}</span>
+                </>
+              ) : (
+                <>
+                  {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+                    : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#5865F2] text-[11px] font-semibold text-white">{(u.displayName || '?')[0].toUpperCase()}</span>}
+                  <span className="truncate font-medium" style={{ color: u.color ? roleColor(u.color) : '#F2F3F5' }}>{u.displayName}</span>
+                  <span className="shrink-0 text-sm text-[#949BA4]">{u.username}</span>
+                  {u.discordUsername && u.discordUsername !== u.username && (
+                    <span className="ml-auto hidden truncate text-xs text-[#6D6F78] sm:block">Discord: {u.discordUsername}</span>
+                  )}
+                </>
+              )}
             </button>
           ))}
         </div>
@@ -329,8 +473,15 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
             {progress !== null ? <Loader2 className="h-6 w-6 animate-spin" /> : <PlusCircle className="h-6 w-6" />}
           </button>
           <input ref={fileInput} data-chat-file-input type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+          <div className="relative min-w-0 flex-1">
+          {highlighted && (
+            <div ref={mirror} aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-[11px] pr-2 text-[15px] leading-[1.375rem] text-[#DBDEE1]">
+              {highlighted}{'​'}
+            </div>
+          )}
           <textarea
             ref={input}
+            onScroll={(e) => { if (mirror.current) mirror.current.scrollTop = e.currentTarget.scrollTop; }}
             value={text}
             disabled={disabled}
             onChange={onChange}
@@ -339,8 +490,9 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
             placeholder={placeholder}
             rows={1}
             maxLength={4000}
-            className="max-h-[50vh] flex-1 resize-none bg-transparent py-[11px] pr-2 text-[15px] leading-[1.375rem] text-[#DBDEE1] placeholder-[#6D6F78] outline-none disabled:cursor-not-allowed"
+            className={cn('relative block max-h-[50vh] w-full resize-none break-words bg-transparent [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-[11px] pr-2 text-[15px] leading-[1.375rem] placeholder-[#6D6F78] outline-none disabled:cursor-not-allowed', highlighted ? 'text-transparent caret-[#DBDEE1]' : 'text-[#DBDEE1]')}
           />
+          </div>
           {onOpenPerks && (
             <button
               type="button"

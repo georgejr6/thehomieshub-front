@@ -322,7 +322,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         </div>
       ) : m.special ? (
         <SpecialMessage m={m} ctx={ctx} live={m.live} />
-      ) : (
+      ) : m.embeds?.length === 1 && (m.embeds[0].type === 'image' || m.embeds[0].type === 'gifv') && m.content?.trim() === m.embeds[0].url && !m.editedAt ? null : (
         <div className="text-[15px] leading-[1.375rem] text-[#DBDEE1]">
           <ChatMarkdown text={m.content} ctx={ctx} />
           {m.editedAt && <span className="ml-1 text-[10px] text-[#949BA4]">(edited)</span>}
