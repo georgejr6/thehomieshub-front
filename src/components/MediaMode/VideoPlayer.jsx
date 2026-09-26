@@ -45,7 +45,10 @@ function parseVtt(vtt) {
 }
 
 const VideoPlayer = () => {
-  const { currentVideo, closeVideo, isLiked, toggleLike } = useMedia();
+  const { currentVideo, closeVideo, isLiked, toggleLike, setGatedVideo } = useMedia();
+  // Server sent a preview clip instead of the full video (homieshub-backend
+  // utils/mediaAccess.js) — when it ends, show the members/sign-in gate.
+  const isPreview = !!currentVideo?.access && currentVideo.access !== 'full';
   const { user } = useAuth();
   const playbackDisabled = useVideoPlaybackDisabled();
 
@@ -297,6 +300,11 @@ const VideoPlayer = () => {
       onTouchStart={resetHide}
     >
       <Watermark />
+      {isPreview && (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-[#F0B94D] backdrop-blur">
+          Preview · {currentVideo.previewSeconds || 8}s
+        </div>
+      )}
       {/* ── MuxPlayer — pointer-events disabled so our overlay owns all clicks ── */}
       {playbackDisabled ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 gap-3">
@@ -320,6 +328,7 @@ const VideoPlayer = () => {
           }}
           metadata={{ video_id: currentVideo.id, video_title: currentVideo.title }}
           onError={() => setMediaError(true)}
+          onEnded={() => { if (isPreview) { const v = currentVideo; closeVideo(); setGatedVideo(v); } }}
         />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 gap-3">

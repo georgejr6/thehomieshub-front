@@ -84,6 +84,8 @@ export const MediaProvider = ({ children }) => {
   const playVideoRef   = useRef(null); // populated after playVideo is defined below
 
   useEffect(() => { tracksRef.current    = allTracks;    }, [allTracks]);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { trackRef.current     = currentTrack; }, [currentTrack]);
   useEffect(() => { isPlayingRef.current = isPlaying;    }, [isPlaying]);
 
@@ -103,7 +105,7 @@ export const MediaProvider = ({ children }) => {
             if (!seen.has(t.id)) { seen.add(t.id); flat.push(t); }
           }));
           setAllTracks(flat);
-          if (flat.length > 0) setCurrentTrack(flat[0]);
+          if (flat.length > 0) setCurrentTrack((prev) => prev || flat[0]);
           return;
         }
         // Fallback: no curated playlists yet.
@@ -121,17 +123,18 @@ export const MediaProvider = ({ children }) => {
             .filter(([, items]) => items.length >= 2)
             .map(([genre, items]) => ({ genre, items }))
         );
-        if (tracks.length > 0) setCurrentTrack(tracks[0]);
+        if (tracks.length > 0) setCurrentTrack((prev) => prev || tracks[0]);
       } catch { /* degrade gracefully */ }
       finally { setCatalogLoading(false); }
     })();
-  }, []);
+    // Refetch on sign-in/out: signed-out visitors get 30s preview URLs.
+  }, [user?._id]);
 
   // ── Top 10 (play-ranked, human-seeded) ─────────────────────────────────────
-  useEffect(() => { musicApi.getTop(10).then(setTopTracks).catch(() => {}); }, []);
+  useEffect(() => { musicApi.getTop(10).then(setTopTracks).catch(() => {}); }, [user?._id]);
 
   // ── New Releases (newest uploads, catalog -created_at) ─────────────────────
-  useEffect(() => { musicApi.getNewReleases(15).then(setNewReleases).catch(() => {}); }, []);
+  useEffect(() => { musicApi.getNewReleases(15).then(setNewReleases).catch(() => {}); }, [user?._id]);
 
   // Top 10 padded with the freshest drops when there aren't yet 10 played tracks
   // (young catalog) — so a brand-new release still surfaces on the Top 10 row.
@@ -171,7 +174,8 @@ export const MediaProvider = ({ children }) => {
       setMovies(movs);
       setSeries(sers);
     }).finally(() => setVideoLoading(false));
-  }, []);
+    // Refetch on sign-in/out: the server sends full videos or previews per viewer.
+  }, [user?._id]);
 
   // ── Fetch HomieshHub videos + reels for media mode library ────────────────
   const normalizeHhItem = useCallback((item, backendType) => {
@@ -188,6 +192,8 @@ export const MediaProvider = ({ children }) => {
       mediaKind:     'video',
       backendType,
       user:          item.creator,
+      access:        item.access || 'full',
+      previewSeconds: item.previewSeconds || null,
     };
   }, []);
 
@@ -220,7 +226,7 @@ export const MediaProvider = ({ children }) => {
       .finally(() => setCategoryRowsLoading(false));
   }, []);
 
-  useEffect(() => { fetchCategoryRows(); }, [fetchCategoryRows]);
+  useEffect(() => { fetchCategoryRows(); }, [fetchCategoryRows, user?._id]);
 
   // ── Fetch individual video purchases ──────────────────────────────────────
   const fetchPurchases = useCallback(() => {
@@ -261,6 +267,17 @@ export const MediaProvider = ({ children }) => {
     // re-rendering on every tick. Only 'ended' matters here (auto-advance).
     const onEnded    = () => {
       setIsPlaying(false);
+      // A 30s preview finished. Signed out → ask them to join (SignupPrompt);
+      // signed in since it started → carry on with the full song from 0:30.
+      const cur = trackRef.current;
+      if (cur?.access === 'preview') {
+        const at = cur.previewSeconds || 30;
+        const full = userRef.current && tracksRef.current.find((t) => t.id === cur.id && t.access !== 'preview');
+        if (full) _loadTrack(full, true, at);
+        else if (userRef.current) musicApi.getTrack(cur.id).then((t) => { if (t?.audioUrl && t.access !== 'preview') _loadTrack(t, true, at); }).catch(() => {});
+        else window.dispatchEvent(new CustomEvent('hh:signup-prompt', { detail: { kind: 'music', title: cur.title, cover: cur.cover, redirect: `/song/${cur.id}` } }));
+        return;
+      }
       // Loop the current track if the user turned repeat on.
       if (repeatRef.current) {
         const a = audioRef.current;
@@ -299,7 +316,7 @@ export const MediaProvider = ({ children }) => {
   }, []);
 
   // ── Load a track ───────────────────────────────────────────────────────────
-  const _loadTrack = useCallback((track, autoplay) => {
+  const _loadTrack = useCallback((track, autoplay, startAt = 0) => {
     const audio = audioRef.current;
     if (!audio || !track?.audioUrl) return;
 
@@ -314,6 +331,7 @@ export const MediaProvider = ({ children }) => {
       audio.removeEventListener('canplay', onCanPlay);
       audio.removeEventListener('error',   onError);
       setIsLoading(false);
+      if (startAt > 0) { try { audio.currentTime = startAt; } catch { /* not seekable yet */ } }
       if (autoplay) audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     };
     const onError = () => {
@@ -361,21 +379,25 @@ export const MediaProvider = ({ children }) => {
     _loadTrack(tks[(idx - 1 + tks.length) % tks.length], true);
   }, [_loadTrack]);
 
-  const playMedia = useCallback((track) => {
+  // opts.startAt (seconds): continue where a feed music card left off.
+  const playMedia = useCallback((track, opts = {}) => {
     isFirstRef.current = false;
     // Being on the /media route via the mobile nav or a video deep-link doesn't run
     // confirmEnterMediaMode, so hasEnteredMediaMode can still be false here. Set it
     // when playback actually starts so the MusicPlayer bar renders regardless of how
     // the user got into media mode.
     setHasEnteredMediaMode(true);
-    _loadTrack(track, true);
+    _loadTrack(track, true, opts?.startAt || 0);
     if (track) trackEvent('music_play', { target: { kind: 'music', id: track.id || track._id, title: track.title || track.name } });
   }, [_loadTrack]);
 
   // ── Video controls ─────────────────────────────────────────────────────────
   const playVideo = useCallback((video) => {
     const videoId = video?.id || video?._id;
-    if (isPremium || isAdmin || hasPurchased(videoId)) {
+    // The server already decided what this viewer gets: a preview clip plays
+    // (VideoPlayer shows the gate when it ends); full access plays as normal.
+    const isPreview = !!video?.access && video.access !== 'full';
+    if (isPreview ? !!video.muxPlaybackId : (isPremium || isAdmin || hasPurchased(videoId))) {
       if (audioRef.current && isPlayingRef.current) {
         audioRef.current.pause();
         setIsPlaying(false);

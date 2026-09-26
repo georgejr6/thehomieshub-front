@@ -34,6 +34,9 @@ export function normalizeTrack(t) {
     explicit: t.explicit || false,
     album: t.album || '',
     producers: Array.isArray(t.producers) ? t.producers : [],
+    // "preview" = signed-out visitor; audioUrl is the 30s preview (server-side).
+    access: t.access || 'full',
+    previewSeconds: t.previewSeconds || null,
   };
 }
 

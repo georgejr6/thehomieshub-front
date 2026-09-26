@@ -13,7 +13,11 @@ const OPEN_PREFIXES = ['/live', '/memberships', '/join', '/settings', '/wallet',
 const isOpenPath = (path) => path === '/' || OPEN_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 
 // Logged-out visitors see only these (everything else → sign-in screen).
-const PUBLIC_PREFIXES = ['/live', '/join', '/memberships', '/chat', '/auth', '/admin/login', '/pay', '/appeal', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
+// Browsing (feed, Media Mode, songs, profiles) is open since 2026-09-26 — the
+// server only ever sends them previews (8s videos, 30s songs) and each one
+// ends in the sign-up sheet (SignupPrompt.jsx).
+const BROWSE_PREFIXES = ['/browse', '/watch', '/post', '/media', '/song', '/track', '/profile', '/explore', '/reels'];
+const PUBLIC_PREFIXES = [...BROWSE_PREFIXES, '/live', '/join', '/memberships', '/chat', '/auth', '/admin/login', '/pay', '/appeal', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
 const isPublicPath = (path) => path === '/' || PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 
 // Joining goes through /join (Discord or Google sign-in → verify → Homies Chat).

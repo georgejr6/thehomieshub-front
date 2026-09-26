@@ -93,6 +93,8 @@ import HelpAssistant from '@/components/HelpAssistant';
 import LocationGate from '@/components/LocationGate';
 import { MembershipGate, BannedScreen } from '@/components/MembershipWall';
 import JoinInviteModal from '@/components/JoinInviteModal';
+import SignupPrompt from '@/components/SignupPrompt';
+import ChatUserCard from '@/components/chat/UserCard';
 import { isLocationVerified } from '@/lib/tracker';
 
 // Routes reachable without a verified location — everything else in
@@ -376,7 +378,9 @@ const AppContent = React.memo(() => {
       handleLoginRequest();
       return;
     }
-    if (!isPremium) {
+    // Posting is open to every account (2026-09-26); PostModal keeps video
+    // uploads / going live for members.
+    if (type === 'live' && !isPremium) {
         setIsLockedModalOpen(true);
         return;
     }
@@ -389,10 +393,21 @@ const AppContent = React.memo(() => {
     }
   };
   
-  const handleLoginRequest = () => {
-    if (!user) {
-      setAuthModalState({ isOpen: true, view: 'main' });
+  // Callers may pass { tab: 'signup'|'signin', redirect: '/watch/<id>' } — or
+  // nothing / a click event. After auth the user lands back on `redirect`
+  // (default: the page they were on), via post_auth_redirect below.
+  const handleLoginRequest = (opts) => {
+    if (user) return;
+    const o = opts && typeof opts === 'object' && !opts.nativeEvent && !opts.target ? opts : {};
+    const here = location.pathname + location.search;
+    const redirect = o.redirect || (location.pathname !== '/' ? here : null);
+    if (redirect) {
+      try {
+        localStorage.setItem('post_auth_redirect', redirect);
+        localStorage.setItem('post_auth_redirect_ts', String(Date.now()));
+      } catch { /* private mode */ }
     }
+    setAuthModalState({ isOpen: true, view: 'main', ...(o.tab ? { tab: o.tab } : {}) });
   }
 
   const handleUpgradeRequest = () => {
@@ -638,6 +653,8 @@ const AppContent = React.memo(() => {
         <OnboardingFlow isOpen={showOnboarding} onClose={stopTutorial} />
         <DiscordConnectPrompt open={showDiscordPrompt && !showOnboarding && !location.pathname.startsWith('/chat')} onDismiss={dismissDiscordPrompt} />
         {showJoinInvite && <JoinInviteModal onClose={() => setShowJoinInvite(false)} />}
+        <SignupPrompt onLoginRequest={handleLoginRequest} />
+        {location.pathname.startsWith('/chat') && <ChatUserCard onLoginRequest={handleLoginRequest} />}
         <PlaceView />
         {/* The chat composer owns the bottom-right corner on /chat. */}
         {!location.pathname.startsWith('/chat') && location.pathname !== '/live' && <HelpAssistant />}

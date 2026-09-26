@@ -1811,8 +1811,15 @@ const TripForm = ({ onChange }) => {
 const PostModal = ({ isOpen, onOpenChange, initialPostType }) => {
     const [postType, setPostType] = useState(initialPostType);
     const [mediaUploadOpen, setMediaUploadOpen] = useState(false);
-    const { user } = useAuth();
+    const { user, isPremium } = useAuth();
     const navigate = useNavigate();
+    // Threads/polls/trips/events are open to every account; video uploads,
+    // going live and minting stay with members (the server enforces it too).
+    const membersOnly = (fn) => () => {
+        if (isPremium || user?.isAdmin) return fn();
+        onOpenChange(false);
+        navigate('/memberships');
+    };
 
     useEffect(() => { if (isOpen) setPostType(initialPostType); }, [isOpen, initialPostType]);
 
@@ -1832,13 +1839,13 @@ const PostModal = ({ isOpen, onOpenChange, initialPostType }) => {
                                 <DialogTitle className="text-2xl text-center text-primary">Create a Post</DialogTitle>
                             </DialogHeader>
                             <div className="grid grid-cols-3 gap-4 mt-6">
-                                <PostTypeButton icon={Film} label="Upload Moment" onClick={() => setPostType('moments')} active={postType === 'moments'} />
-                                <PostTypeButton icon={Radio} label="Go Live" onClick={handleGoLive} />
+                                <PostTypeButton icon={Film} label="Upload Moment" onClick={membersOnly(() => setPostType('moments'))} active={postType === 'moments'} />
+                                <PostTypeButton icon={Radio} label="Go Live" onClick={membersOnly(handleGoLive)} />
                                 <PostTypeButton icon={MessageSquare} label="Thread" onClick={() => setPostType('thread')} active={postType === 'thread'} />
                                 <PostTypeButton icon={BarChart2} label="Poll" onClick={() => setPostType('poll')} active={postType === 'poll'} />
                                 <PostTypeButton icon={MapPin} label="Trip" onClick={() => setPostType('trip')} active={postType === 'trip'} />
                                 <PostTypeButton icon={Calendar} label="Event" onClick={() => setPostType('event')} active={postType === 'event'} />
-                                <PostTypeButton icon={Aperture} label="Mint a Moment" onClick={() => setPostType('mint')} special={true} />
+                                <PostTypeButton icon={Aperture} label="Mint a Moment" onClick={membersOnly(() => setPostType('mint'))} special={true} />
                                 {user?.isAdmin && (
                                     <PostTypeButton icon={UploadCloud} label="Upload to Media Mode" onClick={handleMediaUpload} special={true} />
                                 )}

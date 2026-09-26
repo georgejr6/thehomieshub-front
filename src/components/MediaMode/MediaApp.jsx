@@ -226,6 +226,8 @@ const MediaApp = () => {
       mediaKind:     'video',
       backendType:   post.backendType || 'reel',
       isHH:          true,
+      access:        post.access || 'full',
+      previewSeconds: post.previewSeconds || null,
     };
     if (video.muxPlaybackId) playVideo(video);
   }, [postId]); // eslint-disable-line

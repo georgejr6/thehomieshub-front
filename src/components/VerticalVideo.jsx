@@ -162,17 +162,17 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     // True once we know this video is longer than 3 min (shows persistent media mode pill)
     const [isLongVideo, setIsLongVideo] = useState(false);
 
-    // Blur logic — NSFW gets immediate blur; subscriber content uses the 60s
-    // preview gate below; a non-paying viewer (added 2026-09-22, in response
-    // to suspected info-gathering by non-paying accounts) gets an immediate,
-    // permanent blur on EVERYTHING — no free preview at all, unlike the
-    // subscriber-only preview gate. "isMember" already excludes plain free
-    // (Discord-only) accounts — see its definition above — so this matches
-    // "you need a paid membership to even see the content."
+    // Blur logic — only NSFW blurs. Who sees what is decided SERVER-side
+    // (homieshub-backend utils/mediaAccess.js, 2026-09-26): a viewer without
+    // full access is sent a short preview CLIP in place of the video
+    // (post.access "teaser" = signed out, 8s; "sample" = free account on a
+    // long video, 60s). When it ends we show sign-up / membership — the old
+    // client-side 60s + 3-min gates only apply to items without post.access.
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [localIsNSFW, setLocalIsNSFW] = useState(post.isNSFW);
-    const isPaywalled = !isMember;
-    const isBlurred = (localIsNSFW && !isUnlocked) || isPaywalled;
+    const isBlurred = localIsNSFW && !isUnlocked;
+    const isPreview = !!post.access && post.access !== 'full';
+    const [previewEnded, setPreviewEnded] = useState(false);
 
     // likes/saves
     const liked = isPostLiked(post.id);
@@ -237,6 +237,7 @@ const commentTargetType =
         if (!isVisible) {
             flushWatch();
             setPreviewExpired(false);
+            setPreviewEnded(false);
             setLongVideoExpired(false);
             playbackStartRef.current = null;
             pendingPlayRef.current = false;
@@ -306,9 +307,20 @@ useEffect(() => {
                 if (pct > maxPctRef.current) maxPctRef.current = pct;
             }
 
+            // Server-sent preview clip: stop at its end and show the prompt.
+            if (isPreview) {
+                if ((post.previewSeconds && video.currentTime >= post.previewSeconds - 0.3) || video.ended) {
+                    video.pause?.();
+                    setIsPlaying(false);
+                    setPreviewEnded(true);
+                }
+                return;
+            }
             // Gate checks use elapsed time from where playback started, not absolute position
             const start = playbackStartRef.current ?? 0;
             const elapsed = video.currentTime - start;
+            // Legacy client gates — only for items without a server access decision.
+            if (post.access) return;
             // 60-second preview gate for subscriber content (non-members)
             if (post.isSubscriberOnly && !isMember && elapsed >= PREVIEW_LIMIT_SECONDS) {
                 video.pause?.();
@@ -331,7 +343,7 @@ useEffect(() => {
             // Only seek to a random start point when this video is the visible one.
             // Seeking on a non-visible HLS stream wastes a segment fetch and stalls buffering.
             if (!isVisibleRef.current) return;
-            const start = pickStartTime(post.id, d);
+            const start = isPreview ? 0 : pickStartTime(post.id, d);
             playbackStartRef.current = start;
             if (start > 0) {
                 // Seeking to a non-zero position on an HLS stream pauses internal buffering.
@@ -349,21 +361,24 @@ useEffect(() => {
 
         const handlePlay = () => setIsPlaying(true);
         const handlePause = () => setIsPlaying(false);
+        const handleEnded = () => { if (isPreview) { setIsPlaying(false); setPreviewEnded(true); } };
 
         video.addEventListener('timeupdate', handleTimeUpdate);
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
         video.addEventListener('seeked', handleSeeked);
         video.addEventListener('play', handlePlay);
         video.addEventListener('pause', handlePause);
+        video.addEventListener('ended', handleEnded);
 
         return () => {
+            video.removeEventListener('ended', handleEnded);
             video.removeEventListener('timeupdate', handleTimeUpdate);
             video.removeEventListener('loadedmetadata', handleLoadedMetadata);
             video.removeEventListener('seeked', handleSeeked);
             video.removeEventListener('play', handlePlay);
             video.removeEventListener('pause', handlePause);
         };
-    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly, startFraction, !!user]);
+    }, [post.isNSFW, isDragging, isMember, post.isSubscriberOnly, startFraction, !!user, isPreview, post.previewSeconds]);
 
     const handleSeek = (value) => {
         const newTime = (value[0] / 100) * duration;
@@ -387,7 +402,7 @@ useEffect(() => {
 
     // ✅ Tap on video to play/pause; show overlay briefly
 const togglePlayPause = () => {
-  if (isBlurred || previewExpired || longVideoExpired) return;
+  if (isBlurred || previewExpired || longVideoExpired || previewEnded) return;
 
   if (isMux) {
     // ✅ Mux controlled playback
@@ -576,7 +591,7 @@ const togglePlayPause = () => {
                             playbackId={playbackId}
                             streamType="on-demand"
                             poster={muxPoster || post.thumbnail}
-                            loop
+                            loop={!isPreview}
                             muted={isMuted}
                             playsInline
                             autoPlay={false}
@@ -629,29 +644,50 @@ const togglePlayPause = () => {
                         </div>
                     )}
 
-                    {/* MEMBERSHIP PAYWALL OVERLAY — blurs everything for non-members,
-                        no free preview. Takes priority display-wise only when the NSFW
-                        warning isn't also showing (isBlurred already covers both). */}
-                    {isPaywalled && !(localIsNSFW && !isUnlocked) && (
-                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/90 backdrop-blur-md">
+                    {/* PREVIEW PILL — this is a server-sent preview clip */}
+                    {isPreview && !previewEnded && playbackId && !isBlurred && (
+                        <div className="pointer-events-none absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-[#F0B94D] backdrop-blur">
+                            Preview{post.previewSeconds ? ` · ${post.previewSeconds}s` : ''}
+                        </div>
+                    )}
+
+                    {/* PREVIEW ENDED (or no preview clip yet) — signed out: free sign-up,
+                        back to this video after. Free account: membership. */}
+                    {isPreview && !isBlurred && (previewEnded || !playbackId) && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/80 backdrop-blur-sm cursor-default" onClick={(e) => e.stopPropagation()}>
                             <div className="mb-5">
-                                {post.thumbnail && <img src={post.thumbnail} alt="" className="w-20 h-20 rounded-xl object-cover mx-auto mb-3 opacity-60" />}
-                                <p className="text-[#F0B94D] text-xs font-semibold uppercase tracking-widest mb-1">Members Only</p>
-                                <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Exclusive Content'}</h3>
+                                {post.thumbnail && <img src={post.thumbnail} alt="" className="w-28 h-20 rounded-xl object-cover mx-auto mb-3" />}
+                                <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{post.title || post.description?.slice(0, 60) || 'Keep watching'}</h3>
+                                <p className="text-white/50 text-xs mt-1">@{post.user.username}</p>
                             </div>
-                            <p className="text-white/70 text-sm mb-5 leading-relaxed">
-                                A paid membership is required to view content on The Homies Hub.
-                            </p>
-                            <div className="w-full max-w-[260px] space-y-2">
-                                <Button onClick={() => { if (!user) { onLoginRequest?.(); return; } setShowUpgradeModal(true); }}
-                                    className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full h-12 text-base rounded-xl">
-                                    {user ? 'Get a Membership' : 'Log In / Sign Up'}
-                                </Button>
-                                <Button onClick={() => navigate(user ? '/chat' : '/join')} variant="outline"
-                                    className="border-[#5865F2]/50 text-white bg-[#5865F2] hover:bg-[#4752C4] hover:text-white w-full h-11 text-sm font-semibold rounded-xl">
-                                    Hang out in Homies Chat
-                                </Button>
-                            </div>
+                            {user ? (
+                                <>
+                                    <p className="text-white/80 text-sm mb-5 leading-relaxed">That was the free part. Members watch every<br/>video in full, plus the whole Media Mode library.</p>
+                                    <Button onClick={() => setShowUpgradeModal(true)} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full max-w-[260px] h-12 text-base rounded-xl">
+                                        Become a member
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-white/80 text-sm mb-5 leading-relaxed">Sign up free to keep watching,<br/>like and comment. Takes a few seconds.</p>
+                                    <div className="w-full max-w-[260px] space-y-2">
+                                        <Button onClick={() => onLoginRequest?.({ tab: 'signup', redirect: `/watch/${post.id}` })} className="bg-[#F0B94D] hover:bg-[#e0a83a] text-black font-bold w-full h-12 text-base rounded-xl">
+                                            Sign up free
+                                        </Button>
+                                        <Button onClick={() => onLoginRequest?.({ tab: 'signin', redirect: `/watch/${post.id}` })} variant="ghost" className="w-full h-10 text-sm text-white hover:bg-white/10 hover:text-white rounded-xl">
+                                            I already have an account
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
+                            {playbackId && (
+                                <button type="button" onClick={() => {
+                                    const video = videoRef.current;
+                                    if (video) { video.currentTime = 0; video.play?.().catch(() => {}); }
+                                    setPreviewEnded(false);
+                                    setIsPlaying(true);
+                                }} className="mt-4 text-xs text-white/40 underline hover:text-white/70">Replay preview</button>
+                            )}
                         </div>
                     )}
 

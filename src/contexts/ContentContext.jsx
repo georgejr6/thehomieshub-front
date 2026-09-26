@@ -66,6 +66,11 @@ function mapReelToVerticalPost(r) {
     isNew: false,
     isNSFW: !!r?.isNSFW,
     isSubscriberOnly: r?.visibility === "subscribers" || !!r?.isSubscriberOnly,
+    // Server-decided (homieshub-backend utils/mediaAccess.js): "full", or a
+    // preview clip — "teaser" (signed out, 8s) / "sample" (free account, 60s).
+    access: r?.access || 'full',
+    previewSeconds: r?.previewSeconds || null,
+    durationSeconds: r?.durationSeconds || null,
   };
 }
 
@@ -104,7 +109,43 @@ function mapVideoToVerticalPost(v) {
     isNew: false,
     isNSFW: !!v?.isNSFW,
     isSubscriberOnly: v?.visibility === "subscribers" || !!v?.isSubscriberOnly,
+    // Server-decided (homieshub-backend utils/mediaAccess.js): "full", or a
+    // preview clip — "teaser" (signed out, 8s) / "sample" (free account, 60s).
+    access: v?.access || 'full',
+    previewSeconds: v?.previewSeconds || null,
+    durationSeconds: v?.durationSeconds || null,
   };
+}
+
+// A song from /music/feed as a feed card (MusicFeedCard). audioUrl is the 30s
+// preview for signed-out visitors (server-side).
+function mapTrackToFeedPost(t) {
+  return {
+    id: `music-${t.trackId}`,
+    type: 'music',
+    trackId: String(t.trackId),
+    title: t.title || 'Untitled',
+    artist: t.artist || '',
+    cover: t.image || '',
+    audioUrl: t.audioUrl || '',
+    duration: t.duration || 0,
+    genre: t.genre || '',
+    access: t.access || 'full',
+    previewSeconds: t.previewSeconds || null,
+    engagement: { likes: 0, comments: t.comments || 0, shares: 0, saves: 0 },
+  };
+}
+
+// Drop a song in after every `every` videos (never first, never two in a row).
+function interleaveMusic(videos, songs, every = 6) {
+  if (!songs.length) return videos;
+  const out = [];
+  let s = 0;
+  videos.forEach((v, i) => {
+    out.push(v);
+    if ((i + 1) % every === 0 && s < songs.length) out.push(songs[s++]);
+  });
+  return out;
 }
 
 function shuffle(arr) {
@@ -291,9 +332,10 @@ const loadMyLibrary = async () => {
 
     const loadVerticalFeed = async () => {
       try {
-        const [reelsResp, videosResp] = await Promise.all([
+        const [reelsResp, videosResp, musicResp] = await Promise.all([
           api.get("/user/reels",  { params: { page: 1, limit: 50 } }),
           api.get("/user/videos", { params: { page: 1, limit: 50 } }),
+          api.get("/music/feed", { params: { limit: 12 } }).catch(() => null),
         ]);
 
         const reelsResult  = reelsResp?.data?.result;
@@ -305,10 +347,12 @@ const loadMyLibrary = async () => {
         const mapped = [
           ...reels.map(mapReelToVerticalPost),
           ...videos.map(mapVideoToVerticalPost),
-        ].filter(p => p?.id && p?.videoUrl);
+        // Previews without a clip yet still show (thumbnail + sign-up prompt).
+        ].filter(p => p?.id && (p?.videoUrl || (p?.access && p.access !== 'full' && p?.thumbnail)));
+        const songs = safeArray(musicResp?.data?.result?.tracks).map(mapTrackToFeedPost).filter(t => t.audioUrl);
 
-        // Shuffle instead of chronological sort
-        const mixed = shuffle(mapped);
+        // Shuffle instead of chronological sort; songs mixed in between videos
+        const mixed = interleaveMusic(shuffle(mapped), songs);
 
         if (!cancelled && mixed.length) {
           setVerticalPosts([...mixed]);
@@ -325,7 +369,8 @@ const loadMyLibrary = async () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Reload on sign-in/out: what each item plays (full vs preview) depends on who's watching.
+  }, [user?._id]);
 
   const addReel = (newReel) => setVerticalPosts(prev => [newReel, ...prev]);
   const addPost = (newPost) => {
@@ -454,6 +499,7 @@ function normalizeTargetType(t) {
 
   if (t === "video") return "video";
   if (t === "reel" || t === "reels") return "reel";
+  if (t === "music" || t === "song" || t === "track") return "music"; // keyed by DIGITVL track id
 
   return t; // fallback (backend will validate)
 }

@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import VerticalVideo from '@/components/VerticalVideo';
+import MusicFeedCard from '@/components/music/MusicFeedCard';
 import { useVideoPlaybackDisabled } from '@/lib/videoPlaybackStatus';
 
 // How many posts from the end before we append more
@@ -50,7 +51,12 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
   const maybeRefill = useCallback((currentIndex, totalItems) => {
     if (totalItems - currentIndex <= REFILL_THRESHOLD && posts.length > 0) {
       loopCountRef.current += 1;
-      setItems(prev => [...prev, ...wrapPosts(shuffle(posts), loopCountRef.current)]);
+      // Reshuffle videos, keep songs spaced out (one after every 6 videos).
+      const videos = shuffle(posts.filter(p => p.type !== 'music'));
+      const songs = shuffle(posts.filter(p => p.type === 'music'));
+      const mixed = [];
+      videos.forEach((v, i) => { mixed.push(v); if ((i + 1) % 6 === 0 && songs.length) mixed.push(songs.shift()); });
+      setItems(prev => [...prev, ...wrapPosts(mixed.length ? mixed : shuffle(posts), loopCountRef.current)]);
     }
   }, [posts]);
 
@@ -98,7 +104,15 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
       className="h-[100svh] w-full overflow-y-scroll snap-y snap-mandatory bg-black [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
       style={{ scrollBehavior: 'smooth' }}
     >
-      {items.map(({ post, instanceKey }, index) => (
+      {items.map(({ post, instanceKey }, index) => post.type === 'music' ? (
+        <MusicFeedCard
+          key={instanceKey}
+          post={post}
+          index={index}
+          isVisible={index === visibleIndex}
+          onLoginRequest={onLoginRequest}
+        />
+      ) : (
         <VerticalVideo
           key={instanceKey}
           post={post}
