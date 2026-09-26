@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Play, Compass, Radio, Users, Library, Swords,
+  Play, Compass, Radio, Users, Library,
   Crown, Bot, ArrowRight, Shield, FileText, Mail, Heart, DollarSign,
   Globe, Clock, MessagesSquare
 } from 'lucide-react';
@@ -65,10 +65,10 @@ const LandingPage = ({ onLoginRequest }) => {
       description: 'Discover trending creators and new content.',
     },
     {
-      to: '/live',
-      icon: Radio,
-      title: 'Live',
-      description: 'Watch and join real-time live streams.',
+      to: chatPath,
+      icon: MessagesSquare,
+      title: 'Chat',
+      description: 'Our own native Discord. Channels, DMs and the homies, right in the app.',
     },
     {
       to: '/communities',
@@ -76,11 +76,12 @@ const LandingPage = ({ onLoginRequest }) => {
       title: 'Communities',
       description: 'Connect with your people across shared interests.',
     },
+    // Wagers hidden for now (owner 2026-09-26: only show what's live); /wagers still works.
     {
-      to: '/wagers',
-      icon: Swords,
-      title: 'Wagers',
-      description: 'Participate in community challenges and wagers.',
+      to: '/live',
+      icon: Radio,
+      title: 'Live',
+      description: 'Watch and join real-time live streams.',
     },
     {
       to: '/memberships',
@@ -136,28 +137,13 @@ const LandingPage = ({ onLoginRequest }) => {
 
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <Button asChild size="lg" className="bg-[#5865F2] text-white hover:bg-[#4752C4] font-bold gap-2">
-                  <Link to={chatPath}><MessagesSquare className="h-5 w-5" /> Join Homies Chat</Link>
+                  <Link to={chatPath}><MessagesSquare className="h-5 w-5" /> Join Chat</Link>
                 </Button>
                 <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-glow-gold">
                   <Link to="/browse">Browse Content</Link>
                 </Button>
-                {!user ? (
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-primary/40 text-foreground hover:bg-primary/10"
-                    onClick={onLoginRequest}
-                  >
-                    Sign In
-                  </Button>
-                ) : (
-                  <Button asChild size="lg" variant="outline" className="border-primary/40 text-foreground hover:bg-primary/10">
-                    <Link to="/memberships">View Memberships</Link>
-                  </Button>
-                )}
-                {/* Consultation funnel — shown to everyone */}
-                <Button asChild size="lg" variant="outline" className="border-primary/60 text-foreground hover:bg-primary/10">
-                  <Link to="/consultation">Book A Consultation</Link>
+                <Button asChild size="lg" variant="outline" className="border-primary/40 text-foreground hover:bg-primary/10">
+                  <Link to="/memberships">View Memberships</Link>
                 </Button>
               </div>
 
@@ -323,7 +309,7 @@ const LandingPage = ({ onLoginRequest }) => {
                 <Link to={chatPath}>
                   <Button size="lg" className="text-white bg-[#5865F2] hover:bg-[#4752C4] gap-2 font-semibold">
                     <MessagesSquare className="h-5 w-5" />
-                    Join Homies Chat
+                    Join Chat
                   </Button>
                 </Link>
                 <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer">
