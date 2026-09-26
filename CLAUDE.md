@@ -137,6 +137,9 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-09-26 (later) — MobileNav alignment
+- Every bottom-nav tab uses the same `h-7` icon slot + `gap-1` + `leading-none` label, so the Chat pill no longer sits higher than Browse/Media/Menu. The + button is `w-11 h-11` inside the bar (no more `-mt-6` float / `border-4`).
+
 ### 2026-09-26 — Homies Chat is the community's front door (/join, chat buttons, app nav inside /chat)
 - **`/join`** ("Join The Homies"): Continue with Discord (`/auth/discord?gate=1`) or Google (`/auth/google?gate=1`); "No Discord needed. It's all in the app." badge; done step = animated Homies Chat preview (`ChatPreview`, framer-motion, `MotionConfig reducedMotion="user"`) → "Check out Homies Chat". Discord is optional after: "Join our Discord too" → `POST /auth/discord/connect?gate=1` (or a Discord gate sign-in if Discord is already linked), back to `/join?discord=connected` (or the timestamped `hh_join_link_discord` sessionStorage flag) → `admit({discordOnly:true})` adds them to the server. Backend returns `discord:false` on chat-only admits; `/gate/status` has `inDiscord`.
 - **Chat buttons everywhere**: Header "Chat" pill (md+) + "Homies Chat" in the account menu; Sidebar first item (highlighted); MobileNav Chat slot (replaced Home — logo goes home); MembershipWall, JoinInviteModal, LandingPage (hero + links + footer), VerticalVideo paywall. Logged-out → `/join`, signed-in → `/chat`.
