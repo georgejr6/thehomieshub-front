@@ -15,6 +15,8 @@ import ShoutoutTicker from '@/components/chat/perks/ShoutoutTicker';
 import Celebration from '@/components/chat/perks/Celebration';
 import Leaderboard from '@/components/chat/perks/Leaderboard';
 import SendMoneySheet from '@/components/chat/SendMoneySheet';
+import Header from '@/components/Header';
+import ChatAppRail, { readRailOpen, saveRailOpen } from '@/components/ChatAppRail';
 import api from '@/api/homieshub';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +29,9 @@ export default function ChatPage({ onLoginRequest }) {
   const navigate = useNavigate();
   const { state, actions } = useChat({ enabled: !!user, activeChannelId: channelId });
   const [drawer, setDrawer] = useState(false);
+  // App menu in the server rail: collapsed icons ↔ expanded with names (remembered).
+  const [railOpen, setRailOpen] = useState(readRailOpen);
+  const toggleRail = () => setRailOpen((v) => { saveRailOpen(!v); return !v; });
   const [showMembers, setShowMembers] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
   const [toast, setToast] = useState(null);
@@ -188,11 +193,13 @@ export default function ChatPage({ onLoginRequest }) {
   const ChannelIcon = channel?.type === 'announcement' ? Megaphone : channel?.type === 'thread' ? CornerDownRight : Hash;
 
   return (
-    <div className="fixed inset-0 flex bg-[#313338] font-sans text-[#DBDEE1]">
+    <div className="fixed inset-0 flex bg-[#313338] font-sans text-[#DBDEE1] md:top-14">
       <Helmet><title>{channel ? `#${channel.name}` : 'Chat'} · The Homies</title></Helmet>
+      {/* The app's top bar (search, notifications, account) on tablet/desktop — chat sits under it. */}
+      <div className="hidden md:block"><Header onLoginClick={onLoginRequest} onLoginRequest={onLoginRequest} onMenuClick={() => {}} isMobile={false} /></div>
 
-      {/* Server rail */}
-      <div className="hidden w-[72px] shrink-0 flex-col items-center gap-2 bg-[#1E1F22] py-3 md:flex">
+      {/* Server rail — the Homies server, then the app's menu (expandable) */}
+      <div className={cn('hidden shrink-0 flex-col items-center gap-2 overflow-hidden bg-[#1E1F22] py-3 transition-[width] duration-300 ease-out md:flex', railOpen ? 'w-[220px]' : 'w-[72px]')}>
         <div className="relative">
           <span className="absolute -left-3 top-1/2 h-10 w-1 -translate-y-1/2 rounded-r bg-white" />
           {state.server?.iconUrl ? (
@@ -202,7 +209,8 @@ export default function ChatPage({ onLoginRequest }) {
           )}
           {unreadTotal > 0 && <span className="absolute -bottom-1 -right-1 rounded-full border-4 border-[#1E1F22] bg-[#F23F43] px-1 text-[11px] font-bold text-white">{unreadTotal}</span>}
         </div>
-        <div className="mx-auto h-0.5 w-8 rounded bg-[#35363C]" />
+        <div className="mx-auto h-0.5 w-8 shrink-0 rounded bg-[#35363C]" />
+        <ChatAppRail expanded={railOpen} onToggle={toggleRail} />
       </div>
 
       {/* Channel sidebar: static on desktop, drawer on mobile */}
@@ -210,7 +218,9 @@ export default function ChatPage({ onLoginRequest }) {
       {drawer && (
         <div className="chat-fade-in fixed inset-0 z-40 flex md:hidden">
           <div className="chat-slide-right flex h-full">
-            <div className="w-[72px] bg-[#1E1F22]" />
+            <div className={cn('flex shrink-0 flex-col bg-[#1E1F22] py-3 transition-[width] duration-300 ease-out', railOpen ? 'w-[200px]' : 'w-[72px]')}>
+              <ChatAppRail expanded={railOpen} onToggle={toggleRail} onNavigate={() => setDrawer(false)} />
+            </div>
             <ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} />
           </div>
           <div className="flex-1 bg-black/50" onClick={() => setDrawer(false)} />
