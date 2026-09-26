@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Lock, Crown, Film, Plane, Music2, MessagesSquare, CalendarDays, Sparkles, RefreshCw, LogOut, Ban, LogIn, UserPlus } from 'lucide-react';
+import { Lock, Crown, Film, Plane, Music2, MessagesSquare, CalendarDays, Sparkles, RefreshCw, LogOut, Ban, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Members-only lock (server: middleware/memberGate.js, CONTENT_REQUIRE_MEMBERSHIP).
@@ -16,8 +16,9 @@ const isOpenPath = (path) => path === '/' || OPEN_PREFIXES.some((p) => path === 
 const PUBLIC_PREFIXES = ['/live', '/join', '/memberships', '/chat', '/auth', '/admin/login', '/pay', '/appeal', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
 const isPublicPath = (path) => path === '/' || PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 
-// Discord invite goes through /join (the verification gate) — never a raw invite.
-const DISCORD_PATH = '/join';
+// Joining goes through /join (Discord or Google sign-in → verify → Homies Chat).
+// Discord is an optional extra from there — never a raw invite.
+const JOIN_PATH = '/join';
 
 export const isMemberUser = (user) => !!user && (user.isAdmin || (user.effectiveTier && user.effectiveTier !== 'none'));
 
@@ -60,15 +61,10 @@ export function MembershipWall() {
 
         {/* Not paying yet? Hang out with the community in the meantime. */}
         <div className="mt-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Not ready yet? Hang with the homies</div>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <Link to="/chat" className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition-colors hover:bg-white/10">
-            <MessagesSquare className="h-5 w-5 text-[#F0B94D]" /> Open Homies Chat
-          </Link>
-          <Link to={DISCORD_PATH} className="flex items-center justify-center gap-2 rounded-xl border border-[#5865F2]/40 bg-[#5865F2]/15 py-3 font-semibold text-white transition-colors hover:bg-[#5865F2]/25">
-            <UserPlus className="h-5 w-5 text-[#8B95F9]" /> {admitted ? 'Go to the Discord' : 'Join the Discord'}
-          </Link>
-        </div>
-        {!admitted && <p className="mt-2 text-xs text-muted-foreground">Chat and Discord open after the quick join steps (verify email + location).</p>}
+        <Link to={admitted ? '/chat' : JOIN_PATH} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#5865F2] py-3.5 text-base font-bold text-white transition-colors hover:bg-[#4752C4]">
+          <MessagesSquare className="h-5 w-5" /> {admitted ? 'Open Homies Chat' : 'Join Homies Chat, free'}
+        </Link>
+        {!admitted && <p className="mt-2 text-xs text-muted-foreground">Sign in with Discord or Google, verify, and you're in the chat. Discord is optional after that.</p>}
         <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
           <Link to="/chat" className="flex items-center gap-1.5 text-muted-foreground hover:text-white"><Sparkles className="h-4 w-4" />Got Homies Points? Redeem membership in chat</Link>
           <button
@@ -98,8 +94,8 @@ export function SignInWall({ onLoginRequest }) {
         <button type="button" onClick={onLoginRequest} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#F0B94D] py-3.5 text-lg font-bold text-black transition-transform hover:scale-[1.01] active:scale-[0.99]">
           <LogIn className="h-5 w-5" /> Sign in
         </button>
-        <Link to={DISCORD_PATH} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#5865F2]/40 bg-[#5865F2]/15 py-3 font-semibold text-white transition-colors hover:bg-[#5865F2]/25">
-          <UserPlus className="h-5 w-5 text-[#8B95F9]" /> New here? Join the community
+        <Link to={JOIN_PATH} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#5865F2] py-3 font-semibold text-white transition-colors hover:bg-[#4752C4]">
+          <MessagesSquare className="h-5 w-5" /> New here? Join Homies Chat
         </Link>
         <Link to="/memberships" className="mt-3 inline-block text-sm text-muted-foreground hover:text-white">See memberships</Link>
       </div>

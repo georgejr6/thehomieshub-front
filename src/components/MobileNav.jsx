@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Play, Plus, Tv, Menu } from 'lucide-react';
+import { Play, Plus, Tv, Menu, MessagesSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { useFeatures } from '@/contexts/FeatureContext';
 const MobileNavItem = ({ to, icon: Icon, label, onClick, featureKey, isActiveOverride }) => {
     const location = useLocation();
     const { checkAccess } = useFeatures();
-    const isActive = isActiveOverride !== undefined ? isActiveOverride : (location.pathname === to || (to === '/media' && location.pathname.startsWith('/media')));
+    const isActive = isActiveOverride !== undefined ? isActiveOverride : (location.pathname === to || (to === '/media' && location.pathname.startsWith('/media')) || (to === '/chat' && location.pathname.startsWith('/chat/')));
 
     if (featureKey) {
         const { status } = checkAccess(featureKey);
@@ -51,9 +51,15 @@ const MobileNav = ({ onPostClick, onLoginRequest, onMenuClick }) => {
 
     return (
         <nav className="fixed bottom-0 left-0 right-0 h-16 bg-background/95 backdrop-blur-xl border-t border-border flex items-center justify-around z-50 px-2 pb-safe shadow-lg">
-            <MobileNavItem to="/" icon={Home} label="Home" />
-
             <MobileNavItem to="/browse" icon={Play} label="Browse" />
+
+            {/* Homies Chat — highlighted; the community lives here (Home is the logo in the header) */}
+            <NavLink to="/chat" className="flex flex-col items-center justify-center w-full h-full space-y-0.5 text-[#8B95F9] hover:text-white">
+                <span className="flex h-7 w-11 items-center justify-center rounded-full bg-[#5865F2]/20">
+                    <MessagesSquare className="h-5 w-5" strokeWidth={2.5} />
+                </span>
+                <span className="text-[10px] font-bold">Chat</span>
+            </NavLink>
 
             <div className="flex items-center justify-center -mt-6">
                 {createPostAccess.status !== 'hidden' && (

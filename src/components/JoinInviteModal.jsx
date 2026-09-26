@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Sparkles } from 'lucide-react';
+import { X, MessagesSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Soft, dismissible nudge toward /join — shown (throttled, see App.jsx) to
@@ -27,16 +27,16 @@ export default function JoinInviteModal({ onClose }) {
           <X className="w-4 h-4" />
         </button>
         <div className="relative">
-          <div className="w-12 h-12 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
-            <Sparkles className="w-6 h-6 text-primary" />
+          <div className="w-12 h-12 rounded-2xl bg-[#5865F2]/20 flex items-center justify-center mb-4">
+            <MessagesSquare className="w-6 h-6 text-[#8B95F9]" />
           </div>
-          <h3 className="text-lg font-extrabold text-white mb-1.5">Enjoying The Homies Hub?</h3>
+          <h3 className="text-lg font-extrabold text-white mb-1.5">Come hang in Homies Chat</h3>
           <p className="text-white/60 text-sm mb-5 leading-relaxed">
-            Join the community to unlock chat, exclusive content, and connect with the crew. Takes less than a minute.
+            The community lives in our own chat, right here in the app. Sign in with Discord or Google. Takes less than a minute.
           </p>
           <div className="flex gap-2">
-            <Button onClick={() => { onClose(); navigate('/join'); }} className="flex-1 font-bold">
-              Join now
+            <Button onClick={() => { onClose(); navigate('/join'); }} className="flex-1 font-bold text-white bg-[#5865F2] hover:bg-[#4752C4]">
+              Join Homies Chat
             </Button>
             <Button variant="ghost" onClick={onClose} className="text-white/50 hover:text-white hover:bg-white/5">
               Not now

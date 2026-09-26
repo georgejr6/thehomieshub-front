@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   Play, Compass, Radio, Users, Library, Swords,
   Crown, Bot, ArrowRight, Shield, FileText, Mail, Heart, DollarSign,
-  Globe, Clock
+  Globe, Clock, MessagesSquare
 } from 'lucide-react';
 
 const DonateIcon = ({ className }) => <DollarSign className={className} />;
@@ -13,12 +13,6 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import BundleSegment from '@/components/BundleSegment';
-
-const DiscordIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.114 18.1.134 18.11a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-  </svg>
-);
 
 const YouTubeIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -54,6 +48,8 @@ const FeatureCard = ({ to, icon: Icon, title, description, delay = 0, accent = f
 
 const LandingPage = ({ onLoginRequest }) => {
   const { user } = useAuth();
+  // Community CTA: signed-in → straight into Homies Chat; new visitors → /join (Discord or Google sign-in → chat).
+  const chatPath = user ? '/chat' : '/join';
 
   const navItems = [
     {
@@ -139,6 +135,9 @@ const LandingPage = ({ onLoginRequest }) => {
               </p>
 
               <div className="flex items-center justify-center gap-3 flex-wrap">
+                <Button asChild size="lg" className="bg-[#5865F2] text-white hover:bg-[#4752C4] font-bold gap-2">
+                  <Link to={chatPath}><MessagesSquare className="h-5 w-5" /> Join Homies Chat</Link>
+                </Button>
                 <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-glow-gold">
                   <Link to="/browse">Browse Content</Link>
                 </Button>
@@ -172,10 +171,10 @@ const LandingPage = ({ onLoginRequest }) => {
 
               {/* Community links */}
               <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
-                <Link to="/join">
-                  <Button variant="ghost" size="sm" className="text-[#5865F2] bg-[#5865F2]/10 hover:bg-[#5865F2]/20 gap-2">
-                    <DiscordIcon className="h-4 w-4" />
-                    Join Discord
+                <Link to={chatPath}>
+                  <Button size="sm" className="text-white bg-[#5865F2] hover:bg-[#4752C4] gap-2 font-semibold">
+                    <MessagesSquare className="h-4 w-4" />
+                    Join Homies Chat
                   </Button>
                 </Link>
                 <a href="https://www.youtube.com/@TheHomiesHub_" target="_blank" rel="noopener noreferrer">
@@ -315,16 +314,16 @@ const LandingPage = ({ onLoginRequest }) => {
                 Ready to go all in?
               </h3>
               <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                Get full access to exclusive content, investment opportunities, Discord tiers, and more.
+                Get full access to exclusive content, investment opportunities, every chat channel, and more.
               </p>
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-glow-gold">
                   <Link to="/memberships">See Memberships</Link>
                 </Button>
-                <Link to="/join">
-                  <Button size="lg" variant="outline" className="border-[#5865F2]/50 text-[#5865F2] bg-[#5865F2]/10 hover:bg-[#5865F2]/20 gap-2">
-                    <DiscordIcon className="h-5 w-5" />
-                    Join Discord
+                <Link to={chatPath}>
+                  <Button size="lg" className="text-white bg-[#5865F2] hover:bg-[#4752C4] gap-2 font-semibold">
+                    <MessagesSquare className="h-5 w-5" />
+                    Join Homies Chat
                   </Button>
                 </Link>
                 <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer">
@@ -370,8 +369,8 @@ const LandingPage = ({ onLoginRequest }) => {
                 <h5 className="text-sm font-semibold">Follow Us</h5>
                 <ul className="space-y-1 text-sm text-muted-foreground">
                   <li>
-                    <Link to="/join" className="text-[#5865F2] hover:text-[#5865F2]/80 flex items-center gap-1">
-                      <DiscordIcon className="h-3 w-3" /> Discord
+                    <Link to={chatPath} className="text-[#8B95F9] hover:text-[#8B95F9]/80 flex items-center gap-1">
+                      <MessagesSquare className="h-3 w-3" /> Homies Chat
                     </Link>
                   </li>
                   <li>
