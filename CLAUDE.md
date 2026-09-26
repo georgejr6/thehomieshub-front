@@ -137,6 +137,13 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-09-26 (evening) — Song URLs, tips, feed swipe, landing trim
+- **Readable song URLs** `/music/<artist>/<song>` (route in App.jsx → `SongPage`); `/song/:id` + `/track/:id` swap the address bar to it (`musicApi.getPath`/`getBySlug`). vercel.json proxies `/music/:a/:s` + `/song/:id` to backend `og.js` (server-injected SEO tags; old ids 301). robots.txt allows /post/, /song/, /track/ and lists the sitemap.
+- **Tips** (`components/TipModal.jsx`, `lib/tipWallets.js`): Card tab → `POST /tips/checkout` → Stripe Checkout (anyone, no account); Crypto tab → QR + open-in-wallet (USDC/ALGO on Algorand = Mwosa wallet; BTC/ETH hidden until addresses are filled in). `?tip=thanks` → toast on SongPage.
+- **Feed swipe fix** (`VerticalVideoFeed.jsx`): observer attaches after the feed container mounts (it waits on the playback check), visible = ≥60% on screen, callbacks in refs (no rebuild mid-swipe). `VerticalVideo`: muted-autoplay fallback when iOS blocks unmuted play after a swipe.
+- **Music**: a tap always starts playback even while "loading" (iOS never loads gesture-less audio); play buttons no longer disabled while loading.
+- **Landing**: Wagers card hidden, Chat card ("Our own native Discord") + Live moved; hero = Join Chat / Browse Content / View Memberships (consultation button removed).
+
 ### 2026-09-26 (later) — MobileNav alignment
 - Every bottom-nav tab uses the same `h-7` icon slot + `gap-1` + `leading-none` label, so the Chat pill no longer sits higher than Browse/Media/Menu. The + button is `w-11 h-11` inside the bar (no more `-mt-6` float / `border-4`).
 
