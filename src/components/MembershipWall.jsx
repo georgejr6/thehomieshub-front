@@ -9,11 +9,11 @@ import { useAuth } from '@/contexts/AuthContext';
 // the friendly face of that — every path leads to /memberships.
 
 // Pages a non-member can still use: pay, join, account, legal, chat (its own gate).
-const OPEN_PREFIXES = ['/memberships', '/join', '/settings', '/wallet', '/chat', '/appeal', '/pay', '/auth', '/admin', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
+const OPEN_PREFIXES = ['/live', '/memberships', '/join', '/settings', '/wallet', '/chat', '/appeal', '/pay', '/auth', '/admin', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
 const isOpenPath = (path) => path === '/' || OPEN_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 
 // Logged-out visitors see only these (everything else → sign-in screen).
-const PUBLIC_PREFIXES = ['/join', '/memberships', '/chat', '/auth', '/admin/login', '/pay', '/appeal', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
+const PUBLIC_PREFIXES = ['/live', '/join', '/memberships', '/chat', '/auth', '/admin/login', '/pay', '/appeal', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
 const isPublicPath = (path) => path === '/' || PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 
 // Discord invite goes through /join (the verification gate) — never a raw invite.

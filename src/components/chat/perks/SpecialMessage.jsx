@@ -6,10 +6,14 @@ import ChatMarkdown, { roleColor } from '../ChatMarkdown';
 //   gift     — "<you> gifted <them> 1 month of Homies"
 //   redeem   — "<you> redeemed 1 month of Homies with points"
 //   shoutout — the message on a coloured card (colour = how many points)
+//   donation — a /live dollar donation, same card (utils/live/pay.js)
 // `live` = it just arrived while you were watching → a short glow.
 
 const nameColor = (a) => (a?.color ? roleColor(a.color) : '#F2F3F5');
 const fmtPts = (n) => `${(n || 0).toLocaleString()} pts`;
+const fmtUsd = (c) => `$${((c || 0) / 100).toFixed(2).replace(/\.00$/, '')}`;
+// Paid in dollars from the /live chat (amountCents) or with Homies Points.
+const paidLine = (s) => (s.amountCents ? `${fmtUsd(s.amountCents)} · from the live stream` : `${fmtPts(s.points)} · Homies Points`);
 
 function MiniAvatar({ user }) {
   if (user?.avatarUrl) return <img src={user.avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />;
@@ -37,7 +41,7 @@ export function GiftCard({ m, live }) {
           {redeem ? (
             <div className="text-[15px] leading-snug text-white">
               <span className="font-semibold" style={{ color: nameColor(m.author) }}>{m.author?.displayName}</span> redeemed{' '}
-              <span className="font-bold text-[#F0B94D]">{s.planLabel}</span> with points
+              <span className="font-bold text-[#F0B94D]">{s.planLabel}</span>{s.amountCents ? '' : ' with points'}
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[15px] leading-snug text-white">
@@ -50,7 +54,7 @@ export function GiftCard({ m, live }) {
               <span className="font-bold text-[#F0B94D]">{s.planLabel}</span>
             </div>
           )}
-          <div className="mt-0.5 text-xs text-[#C9B27A]">{fmtPts(s.points)} · Homies Points</div>
+          <div className="mt-0.5 text-xs text-[#C9B27A]">{paidLine(s)}</div>
         </div>
       </div>
     </div>
@@ -67,8 +71,8 @@ export function ShoutoutCard({ m, ctx, live }) {
     >
       <div className="flex items-center gap-2 px-3.5 py-2" style={{ background: color }}>
         <Megaphone className="h-4 w-4 shrink-0 text-white" />
-        <span className="truncate text-sm font-bold text-white">Shoutout</span>
-        <span className="ml-auto shrink-0 rounded-full bg-black/25 px-2 py-0.5 text-xs font-bold text-white">{fmtPts(s.points)}</span>
+        <span className="truncate text-sm font-bold text-white">{s.kind === 'donation' ? 'Live donation' : 'Shoutout'}</span>
+        <span className="ml-auto shrink-0 rounded-full bg-black/25 px-2 py-0.5 text-xs font-bold text-white">{s.kind === 'donation' ? fmtUsd(s.amountCents) : fmtPts(s.points)}</span>
       </div>
       {m.content ? (
         <div className="px-3.5 py-2.5 text-[15px] leading-[1.375rem] text-white">
@@ -81,6 +85,6 @@ export function ShoutoutCard({ m, ctx, live }) {
 
 export default function SpecialMessage({ m, ctx, live }) {
   if (!m.special) return null;
-  if (m.special.kind === 'shoutout') return <ShoutoutCard m={m} ctx={ctx} live={live} />;
+  if (m.special.kind === 'shoutout' || m.special.kind === 'donation') return <ShoutoutCard m={m} ctx={ctx} live={live} />;
   return <GiftCard m={m} live={live} />;
 }

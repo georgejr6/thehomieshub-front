@@ -25,6 +25,7 @@ const TripsPage = lazyWithReload(() => import('@/pages/TripsPage'));
 const AccountSettingsPage = lazyWithReload(() => import('@/pages/AccountSettingsPage'));
 const InboxPage = lazyWithReload(() => import('@/pages/InboxPage'));
 const ChatPage = lazyWithReload(() => import('@/pages/ChatPage'));
+const LiveWatchPage = lazyWithReload(() => import('@/pages/LiveWatchPage'));
 const MyAIPage = lazyWithReload(() => import('@/pages/MyAIPage'));
 const MyClipsPage = lazyWithReload(() => import('@/pages/MyClipsPage'));
 const MyAppsPage = lazyWithReload(() => import('@/pages/MyAppsPage'));
@@ -324,7 +325,7 @@ const AppContent = React.memo(() => {
     if (user) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (cancelled || location.pathname === '/join') return;
+      if (cancelled || location.pathname === '/join' || location.pathname === '/live') return; // /live has its own sign-in prompts
       if (!isLocationVerified()) return;
       try {
         const last = Number(localStorage.getItem(JOIN_INVITE_KEY) || 0);
@@ -462,6 +463,9 @@ const AppContent = React.memo(() => {
             {/* --- Homies Chat (Discord-style community chat, full-screen) ---
                  /discord and /community are friendly aliases. */}
             <Route path="/chat/:channelId?" element={<LocationGate><Suspense fallback={<RouteFallback full dark />}><ChatPage onLoginRequest={() => setAuthModalState({ isOpen: true, view: 'main' })} /></Suspense></LocationGate>} />
+            {/* --- /live: watch the stream (YouTube/Kick embed) + live chat. Open to
+                 logged-out visitors (owner decision 2026-09-25), no location gate. --- */}
+            <Route path="/live" element={<Suspense fallback={<RouteFallback full dark />}><LiveWatchPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', '/live'); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
             <Route path="/discord/*" element={<Navigate to="/chat" replace />} />
             <Route path="/community/*" element={<Navigate to="/chat" replace />} />
 
@@ -548,7 +552,6 @@ const AppContent = React.memo(() => {
                     </FeatureGuard>
                 } />
                 
-                <Route path="/live" element={<LiveComingSoon />} />
 
                 <Route path="/live-stream/:username" element={<LiveComingSoon />} />
 
@@ -632,7 +635,7 @@ const AppContent = React.memo(() => {
         {showJoinInvite && <JoinInviteModal onClose={() => setShowJoinInvite(false)} />}
         <PlaceView />
         {/* The chat composer owns the bottom-right corner on /chat. */}
-        {!location.pathname.startsWith('/chat') && <HelpAssistant />}
+        {!location.pathname.startsWith('/chat') && location.pathname !== '/live' && <HelpAssistant />}
         <Toaster />
 
         {/* Story viewer — fixed fullscreen, independent of all layout/feed lifecycle */}
