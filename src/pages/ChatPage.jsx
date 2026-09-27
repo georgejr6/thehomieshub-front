@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Hash, Megaphone, Menu, Users, X, Loader2, CornerDownRight, Globe, Trophy, MessageCircle } from 'lucide-react';
@@ -31,6 +31,41 @@ export default function ChatPage({ onLoginRequest }) {
   const navigate = useNavigate();
   const { state, actions } = useChat({ enabled: !!user, activeChannelId: channelId });
   const [drawer, setDrawer] = useState(false);
+  // Opts the chat (and its portals) out of the site's phone tap-target CSS (index.css).
+  useEffect(() => {
+    document.body.classList.add('hh-chat-open');
+    return () => document.body.classList.remove('hh-chat-open');
+  }, []);
+  // Phones: the on-screen keyboard only shrinks the *visible* viewport, so a
+  // plain fixed/inset-0 chat slid under it (header pushed off, the page behind
+  // scrolling instead of the messages). Pin the chat to the visible area.
+  const rootRef = useRef(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    let frame = 0;
+    const apply = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const el = rootRef.current;
+        if (!el) return;
+        if (window.innerWidth >= 768) { el.style.height = ''; el.style.bottom = ''; el.style.transform = ''; return; }
+        el.style.height = `${Math.round(vv.height)}px`;
+        el.style.bottom = 'auto';
+        el.style.transform = vv.offsetTop ? `translateY(${Math.round(vv.offsetTop)}px)` : '';
+      });
+    };
+    apply();
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    window.addEventListener('resize', apply);
+    return () => {
+      cancelAnimationFrame(frame);
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+      window.removeEventListener('resize', apply);
+    };
+  });
   // App menu in the server rail: collapsed icons ↔ expanded with names (remembered).
   const [railOpen, setRailOpen] = useState(readRailOpen);
   const toggleRail = () => setRailOpen((v) => { saveRailOpen(!v); return !v; });
@@ -219,7 +254,7 @@ export default function ChatPage({ onLoginRequest }) {
   const ChannelIcon = channel?.type === 'announcement' ? Megaphone : channel?.type === 'thread' ? CornerDownRight : Hash;
 
   return (
-    <div className="fixed inset-0 flex bg-[#313338] font-sans text-[#DBDEE1] md:top-14">
+    <div ref={rootRef} className="fixed inset-0 flex bg-[#313338] font-sans text-[#DBDEE1] md:top-14">
       <Helmet><title>{channel ? `#${channel.name}` : 'Chat'} · The Homies</title></Helmet>
       {/* The app's top bar (search, notifications, account) on tablet/desktop — chat sits under it. */}
       <div className="hidden md:block"><Header onLoginClick={onLoginRequest} onLoginRequest={onLoginRequest} onMenuClick={() => {}} isMobile={false} /></div>

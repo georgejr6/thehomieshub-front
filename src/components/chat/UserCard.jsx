@@ -8,6 +8,7 @@ import OwnerPrivateInfo from '@/components/OwnerPrivateInfo';
 import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import Avatar from './Avatar';
 
 // Click a name/avatar/member row in Homies Chat → this card (Discord's
 // profile popout). Everyone gets Message / Profile / Mention. Staff also get
@@ -474,11 +475,7 @@ export default function UserCard({ onLoginRequest }) {
       <div className="px-4 pb-4">
         <div className="-mt-9 flex items-end gap-3">
           <div className="relative">
-            {u.avatarUrl ? (
-              <img src={u.avatarUrl} alt="" className="h-[76px] w-[76px] rounded-full border-[5px] border-[#232428] object-cover" />
-            ) : (
-              <div className="flex h-[76px] w-[76px] items-center justify-center rounded-full border-[5px] border-[#232428] bg-[#5865F2] text-2xl font-semibold text-white">{(name || '?')[0].toUpperCase()}</div>
-            )}
+            <Avatar user={{ ...u, displayName: name }} size={76} className="border-[5px] border-[#232428]" />
             {u.status && u.status !== 'offline' && (
               <span className={cn('absolute bottom-1 right-1 h-4 w-4 rounded-full border-[3px] border-[#232428]', u.status === 'idle' ? 'bg-[#F0B232]' : 'bg-[#23A55A]')} />
             )}

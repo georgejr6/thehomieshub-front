@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { SmilePlus, Reply, Pencil, Trash2, Pin, Flag, FileText, Download, CornerUpLeft, Loader2, AlertCircle, ArrowDown, MoreHorizontal, Globe, Lock, Copy, ExternalLink, Clock, UserX, Ban } from 'lucide-react';
 
 // What happened on the real Discord, for the mod toast.
@@ -18,11 +19,12 @@ import { openImageViewer, ImageViewerHost } from './ImageViewer';
 import SpecialMessage from './perks/SpecialMessage';
 import { openChatUserCard } from './UserCard';
 import ReactionsModal from './ReactionsModal';
+import EmojiPicker, { recentReactions, rememberReaction } from './EmojiPicker';
+import Avatar from './Avatar';
 
 const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches;
 
 const GROUP_MS = 7 * 60 * 1000;
-export const QUICK_EMOJI = ['👍', '❤️', '😂', '🔥', '😮', '😢', '🙏', '💯', '👀', '🎉', '💀', '🤝'];
 
 const nameColor = (a) => (a?.color ? roleColor(a.color) : '#F2F3F5');
 const fmtTime = (d) => format(new Date(d), 'h:mm a');
@@ -34,15 +36,7 @@ const fmtStamp = (d) => {
 };
 const fmtBytes = (n) => (!n ? '' : n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.ceil(n / 1e3)} KB`);
 
-function Avatar({ author, size = 40 }) {
-  const initial = (author?.displayName || author?.username || '?').slice(0, 1).toUpperCase();
-  if (author?.avatarUrl) return <img src={author.avatarUrl} alt="" className="shrink-0 rounded-full bg-[#1E1F22] object-cover" style={{ width: size, height: size }} />;
-  return (
-    <div className="flex shrink-0 items-center justify-center rounded-full bg-[#5865F2] font-semibold text-white" style={{ width: size, height: size, fontSize: size * 0.42 }}>
-      {initial}
-    </div>
-  );
-}
+const AuthorAvatar = ({ author, size }) => <Avatar user={author} size={size} />;
 
 // Inline media: big (up to 520px wide / 60% of the screen tall) and sized from
 // the stored width/height so the list doesn't jump while images load. Tapping
@@ -138,26 +132,108 @@ function MessageSkeleton() {
   );
 }
 
-function EmojiPicker({ onPick, onClose }) {
+const narrowScreen = () => typeof window !== 'undefined' && window.innerWidth < 640;
+
+// Discord-style message menu: right-click (desktop), press-and-hold (phones)
+// or the ⋯ button. A popover at the pointer on desktop, a bottom sheet on
+// phones. `items`: {label, icon, onClick, danger} | {heading} | {divider}.
+function MessageMenu({ menu, items, quick, onReact, onMoreEmoji, onClose }) {
+  const box = useRef(null);
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    if (menu.sheet || !box.current) return;
+    const { offsetWidth: w, offsetHeight: h } = box.current;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    setPos({
+      left: Math.max(8, Math.min(menu.x, vw - w - 8)),
+      top: menu.y + h > vh - 8 ? Math.max(8, vh - h - 8) : menu.y,
+    });
+  }, [menu]);
   useEffect(() => {
-    const h = () => onClose();
-    setTimeout(() => window.addEventListener('click', h), 0);
-    return () => window.removeEventListener('click', h);
-  }, [onClose]);
-  return (
-    <div onClick={(e) => e.stopPropagation()} className="chat-fade-up absolute right-0 top-8 z-30 grid grid-cols-6 gap-1 rounded-lg border border-[#1E1F22] bg-[#2B2D31] p-2 shadow-xl">
-      {QUICK_EMOJI.map((e) => (
-        <button key={e} onClick={() => { onPick(e); onClose(); }} className="rounded p-1 text-xl transition-transform duration-100 hover:scale-125 hover:bg-[#404249]">{e}</button>
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    // Desktop popover: scrolling the chat or resizing closes it, like Discord.
+    // (Not the phone sheet — its backdrop covers the chat, and mobile browsers
+    // fire resize when the address bar moves.)
+    const onScroll = (e) => { if (!box.current?.contains(e.target)) onClose(); };
+    if (!menu.sheet) {
+      window.addEventListener('resize', onClose);
+      window.addEventListener('scroll', onScroll, true);
+    }
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [onClose, menu.sheet]);
+
+  const list = items.map((it, i) => {
+    if (it.divider) return <div key={i} className="mx-1 my-1 h-px bg-[#2B2D31]" />;
+    if (it.heading) return <div key={i} className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase text-[#949BA4]">{it.heading}</div>;
+    if (it.note) return <div key={i} className="px-2.5 pb-1 text-[11px] text-[#949BA4]">{it.note}</div>;
+    const Icon = it.icon;
+    return (
+      <button
+        key={i}
+        type="button"
+        onClick={() => { onClose(); it.onClick(); }}
+        className={cn(
+          'flex w-full items-center justify-between gap-3 rounded px-2.5 text-left transition-colors',
+          menu.sheet ? 'py-3 text-[15px]' : 'py-1.5 text-sm',
+          it.danger ? 'text-[#F23F43] hover:bg-[#F23F43] hover:text-white active:bg-[#F23F43] active:text-white' : 'text-[#DBDEE1] hover:bg-[#5865F2] hover:text-white active:bg-[#5865F2] active:text-white'
+        )}
+      >
+        <span className="truncate">{it.label}</span>
+        {Icon && <Icon className="h-[18px] w-[18px] shrink-0" />}
+      </button>
+    );
+  });
+
+  const reactRow = quick.length > 0 && (
+    <div className={cn('flex items-center', menu.sheet ? 'justify-between gap-1 px-1 pb-2' : 'gap-0.5 px-1 pb-1')}>
+      {quick.map((e) => (
+        <button key={e} type="button" onClick={() => { onClose(); onReact(e); }} title={`React ${e}`}
+          className={cn('flex items-center justify-center rounded-full bg-[#1E1F22] transition-transform duration-100 hover:scale-110 hover:bg-[#404249] active:scale-95',
+            menu.sheet ? 'h-12 w-12 text-[26px]' : 'h-9 w-9 text-xl')}>{e}</button>
       ))}
+      <button type="button" onClick={() => { onClose(); onMoreEmoji(); }} title="More emoji"
+        className={cn('flex items-center justify-center rounded-full bg-[#1E1F22] text-[#B5BAC1] transition-colors hover:bg-[#404249] hover:text-white',
+          menu.sheet ? 'h-12 w-12' : 'h-9 w-9')}><SmilePlus className={menu.sheet ? 'h-6 w-6' : 'h-5 w-5'} /></button>
     </div>
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60]" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }}>
+      {menu.sheet ? (
+        <div className="chat-fade-in absolute inset-0 flex flex-col justify-end bg-black/50">
+          <div ref={box} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}
+            className="chat-sheet-up max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-2xl bg-[#232428] px-3 pt-2"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#4E5058]" />
+            {reactRow}
+            <div className="rounded-xl bg-[#2B2D31] p-1">{list}</div>
+          </div>
+        </div>
+      ) : (
+        <div ref={box} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}
+          className="chat-fade-up absolute w-[220px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-lg border border-[#1E1F22] bg-[#111214] p-1.5 shadow-2xl"
+          style={pos ? { left: pos.left, top: pos.top } : { left: menu.x, top: menu.y, visibility: 'hidden' }}>
+          {reactRow}
+          {reactRow && <div className="mx-1 mb-1 h-px bg-[#2B2D31]" />}
+          {list}
+        </div>
+      )}
+    </div>,
+    document.body
   );
 }
 
 function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onError, highlight }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.content);
-  const [picker, setPicker] = useState(false);
-  const [more, setMore] = useState(false);
+  const [picker, setPicker] = useState(null); // full emoji picker: anchor rect / point
+  const [menu, setMenu] = useState(null); // {x, y, sheet}
   const [whoReacted, setWhoReacted] = useState(null); // emoji → open "Reactions" panel
   const longPress = useRef({ timer: null, fired: false, x: 0, y: 0 });
   const startLongPress = (emoji, e) => {
@@ -202,6 +278,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
 
   const react = async (emoji) => {
     const already = m.reactions?.find((r) => r.emoji === emoji)?.users?.includes(me.id);
+    if (!already) rememberReaction(emoji);
     try { await actions.react(m.id, emoji, !already); } catch (err) { onError(err.response?.data?.message || 'Couldn\'t react.'); }
   };
   const saveEdit = async () => {
@@ -214,16 +291,45 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
     if (!window.confirm('Delete this message?')) return;
     try { await actions.deleteMessage(m.id); } catch (err) { onError(err.response?.data?.message || 'Couldn\'t delete.'); }
   };
-  useEffect(() => {
-    if (!more) return undefined;
-    const close = () => setMore(false);
-    setTimeout(() => window.addEventListener('click', close), 0);
-    return () => window.removeEventListener('click', close);
-  }, [more]);
+  // Press and hold a message on a phone → the message menu (bottom sheet).
+  const rowPress = useRef({ timer: null, fired: false, x: 0, y: 0 });
+  const menuAllowed = !m.pending && !m.failed && !editing;
+  const rowTouchStart = (e) => {
+    if (!menuAllowed || e.touches.length > 1 || e.target.closest('[data-own-press], textarea, input')) return;
+    const t = e.touches[0];
+    Object.assign(rowPress.current, { fired: false, x: t.clientX, y: t.clientY });
+    clearTimeout(rowPress.current.timer);
+    rowPress.current.timer = setTimeout(() => {
+      rowPress.current.fired = true;
+      navigator.vibrate?.(10);
+      setMenu({ sheet: true });
+    }, 450);
+  };
+  const rowTouchMove = (e) => {
+    const t = e.touches[0];
+    if (Math.hypot(t.clientX - rowPress.current.x, t.clientY - rowPress.current.y) > 10) clearTimeout(rowPress.current.timer);
+  };
+  const rowTouchEnd = (e) => {
+    clearTimeout(rowPress.current.timer);
+    if (rowPress.current.fired) { e.preventDefault(); rowPress.current.fired = false; } // no tap onto a name/image under the finger
+  };
+  useEffect(() => () => clearTimeout(rowPress.current.timer), []);
+  const onRowContextMenu = (e) => {
+    if (!menuAllowed) return;
+    // Right-clicking a link, or with text selected, keeps the browser's menu (copy link / copy).
+    if (e.target.closest('a[href]') || String(window.getSelection?.() || '').trim()) return;
+    e.preventDefault();
+    if (!CAN_HOVER) return; // phones: the press-and-hold timer opens the sheet
+    setMenu({ x: e.clientX, y: e.clientY, sheet: false });
+  };
+  const openMenuAt = (el) => {
+    const r = el.getBoundingClientRect();
+    setMenu(narrowScreen() ? { sheet: true } : { x: r.right - 220, y: r.bottom + 4, sheet: false });
+  };
+  const openPicker = (anchor) => setPicker(anchor || { x: menu?.x ?? window.innerWidth / 2 - 176, y: menu?.y ?? window.innerHeight / 4 });
 
   // Public = this message is also a Homies post people can discover.
   const setDiscover = async (mode) => {
-    setMore(false);
     try {
       await actions.setDiscover(m.id, mode);
       onError(mode === 'private' ? 'Kept private — it won\'t be shown as a public post.' : 'Made public — it\'s now a discoverable Homies post.');
@@ -234,7 +340,6 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
 
   // Staff tools on someone else's message. The server enforces rank.
   const moderate = async (kind, minutes) => {
-    setMore(false);
     const who = m.author?.displayName || m.author?.username || 'this member';
     try {
       if (kind === 'timeout') {
@@ -262,11 +367,50 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
     try { await actions.report(m.id, 'other', note); onError('Thanks — the mods have been notified.'); } catch (err) { onError(err.response?.data?.message || 'Couldn\'t report.'); }
   };
 
+  const togglePin = async () => {
+    try { const r = await actions.pin(m.id, !m.pinned); onError(`${m.pinned ? 'Unpinned' : 'Pinned'}${discordNote(r?.data?.result)}`); } catch (err) { onError(err.response?.data?.message || "Couldn't pin."); }
+  };
+  const startEdit = () => { setDraft(m.content); setEditing(true); };
+  const canEdit = mine && !m.source && !m.special;
+  const who = m.author?.displayName || m.author?.username;
+  const menuItems = [
+    can.react && { label: 'Add Reaction', icon: SmilePlus, onClick: () => openPicker() },
+    can.send && { label: 'Reply', icon: Reply, onClick: () => onReply(m) },
+    canEdit && { label: 'Edit Message', icon: Pencil, onClick: startEdit },
+    can.manageMessages && { label: m.pinned ? 'Unpin Message' : 'Pin Message', icon: Pin, onClick: togglePin },
+    m.reactions?.length > 0 && { label: 'View Reactions', icon: SmilePlus, onClick: () => setWhoReacted(m.reactions[0].emoji) },
+    m.content && { label: 'Copy Text', icon: Copy, onClick: () => navigator.clipboard?.writeText(m.content) },
+    ...(mine && m.discover?.eligible ? [
+      { divider: true }, { heading: 'Discoverability' },
+      m.discover.public
+        ? { label: 'Make private', icon: Lock, onClick: () => setDiscover('private') }
+        : { label: 'Make public', icon: Globe, onClick: () => setDiscover('public') },
+      m.discover.public && m.discover.postId && { label: 'View public post', icon: ExternalLink, onClick: () => window.open(`/post/${m.discover.postId}`, '_blank', 'noopener') },
+      { note: m.discover.public ? 'Anyone can find this as a Homies post.' : 'Only people in this channel can see it.' },
+    ] : []),
+    ...(!mine && isStaff && m.author?.id ? [
+      { divider: true }, { heading: `Moderate ${who}` },
+      ...TIMEOUTS.map(([label, mins]) => ({ label: `Timeout ${label}`, icon: Clock, onClick: () => moderate('timeout', mins) })),
+      { label: 'Kick', icon: UserX, danger: true, onClick: () => moderate('kick') },
+      { label: 'Ban', icon: Ban, danger: true, onClick: () => moderate('ban') },
+      { note: 'Applies here and on the real Discord.' },
+    ] : []),
+    { divider: true },
+    !mine && { label: 'Report Message', icon: Flag, danger: true, onClick: report },
+    (mine || can.manageMessages) && { label: 'Delete Message', icon: Trash2, danger: true, onClick: remove },
+  ].filter(Boolean).filter((it, i, arr) => !(it.divider && (i === 0 || i === arr.length - 1 || arr[i + 1]?.divider)));
+
   return (
     <div
       id={`msg-${m.id}`}
+      onContextMenu={onRowContextMenu}
+      onTouchStart={rowTouchStart}
+      onTouchMove={rowTouchMove}
+      onTouchEnd={rowTouchEnd}
+      onTouchCancel={() => clearTimeout(rowPress.current.timer)}
       className={cn(
-        'group relative pl-[72px] pr-4 sm:pr-12 transition-[background-color,opacity] duration-150 hover:bg-[#2E3035]',
+        'group relative pl-[72px] pr-4 sm:pr-12 transition-[background-color,opacity] duration-150 hover:bg-[#2E3035] [@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]',
+        menu && 'bg-[#2E3035]',
         fresh && 'chat-msg-in',
         grouped ? 'py-0.5' : 'mt-[17px] py-0.5',
         pinged && 'border-l-2 border-[#F0B232] bg-[#F0B232]/[0.08] pl-[70px] hover:bg-[#F0B232]/[0.12]',
@@ -279,7 +423,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
           <CornerUpLeft className="absolute -left-9 top-1 h-3.5 w-6 -scale-y-100 text-[#4E5058]" />
           {m.replyTo.deleted ? <span className="italic">Original message was deleted</span> : (
             <>
-              <Avatar author={m.replyTo.author} size={16} />
+              <AuthorAvatar author={m.replyTo.author} size={16} />
               <span className="font-medium" style={{ color: nameColor(m.replyTo.author) }}>@{m.replyTo.author?.displayName}</span>
               <button onClick={() => ctx.jumpTo(m.replyTo.id)} className="truncate hover:text-white">{m.replyTo.content || 'Click to see attachment'}</button>
             </>
@@ -290,7 +434,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         <span className="absolute left-0 top-1 w-[72px] text-center text-[11px] leading-[22px] text-[#949BA4] opacity-0 group-hover:opacity-100">{fmtTime(m.createdAt)}</span>
       ) : (
         <>
-          <div className="absolute left-4 mt-0.5 cursor-pointer" onClick={(e) => openChatUserCard(m.author, e)}><Avatar author={m.author} /></div>
+          <div className="absolute left-4 mt-0.5 cursor-pointer" onClick={(e) => openChatUserCard(m.author, e)}><AuthorAvatar author={m.author} size={40} /></div>
           <div className="flex items-baseline gap-2 leading-[22px]">
             <span className="cursor-pointer font-medium hover:underline" onClick={(e) => openChatUserCard(m.author, e)} style={{ color: nameColor(m.author) }}>{m.author?.displayName || m.author?.username}</span>
             {m.author?.bot && <span className="rounded bg-[#5865F2] px-1 text-[10px] font-semibold uppercase leading-4 text-white">Bot</span>}
@@ -350,6 +494,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
             return (
               <button
                 key={r.emoji}
+                data-own-press
                 title={reactedBy(r)}
                 onClick={() => { if (longPress.current.fired) { longPress.current.fired = false; return; } react(r.emoji); }}
                 onContextMenu={(e) => { e.preventDefault(); setWhoReacted(r.emoji); }}
@@ -373,95 +518,38 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
               </button>
             );
           })}
+          {can.react && (
+            <button type="button" data-own-press onClick={(e) => openPicker(e.currentTarget.getBoundingClientRect())} title="Add reaction"
+              className="flex items-center rounded-lg border border-transparent bg-[#2B2D31] px-1.5 py-0.5 text-[#B5BAC1] transition-opacity hover:border-[#4E5058] hover:text-white [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
+              <SmilePlus className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
       {whoReacted && <ReactionsModal messageId={m.id} initialEmoji={whoReacted} signature={reactionSig} onClose={() => setWhoReacted(null)} />}
 
-      {!m.pending && !m.failed && !editing && (
+      {CAN_HOVER && menuAllowed && (
         <div className={cn(
           'absolute -top-4 right-4 z-20 flex rounded-md border border-[#1E1F22] bg-[#313338] shadow-md transition-all duration-150',
-          picker || more ? 'opacity-100' : 'pointer-events-none translate-y-1 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100'
+          picker || menu ? 'opacity-100' : 'pointer-events-none translate-y-1 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100'
         )}>
-          {can.react && QUICK_EMOJI.slice(0, 3).map((e) => (
-            <button key={e} onClick={() => react(e)} className="px-1.5 py-1 transition-transform duration-100 hover:scale-125 hover:bg-[#404249]" title={`React ${e}`}>{e}</button>
-          ))}
-          {can.react && (
-            <div className="relative">
-              <button onClick={() => setPicker((p) => !p)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Add reaction"><SmilePlus className="h-5 w-5" /></button>
-              {picker && <EmojiPicker onPick={react} onClose={() => setPicker(false)} />}
-            </div>
-          )}
+          {can.react && <button onClick={(e) => openPicker(e.currentTarget.getBoundingClientRect())} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Add Reaction"><SmilePlus className="h-5 w-5" /></button>}
           {can.send && <button onClick={() => onReply(m)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Reply"><Reply className="h-5 w-5" /></button>}
-          {mine && !m.source && !m.special && <button onClick={() => { setDraft(m.content); setEditing(true); }} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Edit"><Pencil className="h-5 w-5" /></button>}
-          {can.manageMessages && <button onClick={async () => { try { const r = await actions.pin(m.id, !m.pinned); onError(`${m.pinned ? 'Unpinned' : 'Pinned'}${discordNote(r?.data?.result)}`); } catch (err) { onError(err.response?.data?.message || "Couldn't pin."); } }} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title={m.pinned ? 'Unpin' : 'Pin'}><Pin className="h-5 w-5" /></button>}
-          {!mine && <button onClick={report} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Report"><Flag className="h-5 w-5" /></button>}
-          <div className="relative">
-            <button onClick={() => setMore((v) => !v)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="More"><MoreHorizontal className="h-5 w-5" /></button>
-            {more && (
-              <div onClick={(e) => e.stopPropagation()} className="chat-fade-up absolute right-0 top-9 z-40 w-60 rounded-lg border border-[#1E1F22] bg-[#111214] p-1.5 shadow-2xl">
-                {mine && m.discover?.eligible && (
-                  <>
-                    <div className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase text-[#949BA4]">Discoverability</div>
-                    {m.discover.public ? (
-                      <button onClick={() => setDiscover('private')} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
-                        <Lock className="h-4 w-4" /> Make private
-                      </button>
-                    ) : (
-                      <button onClick={() => setDiscover('public')} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
-                        <Globe className="h-4 w-4" /> Make public
-                      </button>
-                    )}
-                    {m.discover.public && m.discover.postId && (
-                      <a href={`/post/${m.discover.postId}`} target="_blank" rel="noopener noreferrer" className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
-                        <ExternalLink className="h-4 w-4" /> View public post
-                      </a>
-                    )}
-                    <div className="px-2.5 pb-1 text-[11px] text-[#949BA4]">{m.discover.public ? 'Anyone can find this as a Homies post.' : 'Only people in this channel can see it.'}</div>
-                    <div className="my-1 h-px bg-[#2B2D31]" />
-                  </>
-                )}
-                {!mine && isStaff && m.author?.id && (
-                  <>
-                    <div className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase text-[#949BA4]">Moderate {m.author.displayName || m.author.username}</div>
-                    {TIMEOUTS.map(([label, mins]) => (
-                      <button key={mins} onClick={() => moderate('timeout', mins)} className="flex w-full items-center gap-3 rounded px-2.5 py-1.5 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
-                        <Clock className="h-4 w-4" /> Timeout {label}
-                      </button>
-                    ))}
-                    <button onClick={() => moderate('kick')} className="flex w-full items-center gap-3 rounded px-2.5 py-1.5 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">
-                      <UserX className="h-4 w-4" /> Kick
-                    </button>
-                    <button onClick={() => moderate('ban')} className="flex w-full items-center gap-3 rounded px-2.5 py-1.5 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">
-                      <Ban className="h-4 w-4" /> Ban
-                    </button>
-                    <div className="px-2.5 pb-1 text-[11px] text-[#949BA4]">Applies here and on the real Discord.</div>
-                    <div className="my-1 h-px bg-[#2B2D31]" />
-                  </>
-                )}
-                {m.reactions?.length > 0 && (
-                  <button onClick={() => { setMore(false); setWhoReacted(m.reactions[0].emoji); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
-                    <SmilePlus className="h-4 w-4" /> See who reacted
-                  </button>
-                )}
-                <button onClick={() => { navigator.clipboard?.writeText(m.content || ''); setMore(false); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
-                  <Copy className="h-4 w-4" /> Copy Text
-                </button>
-                {mine && !m.source && !m.special && (
-                  <button onClick={() => { setMore(false); setDraft(m.content); setEditing(true); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
-                    <Pencil className="h-4 w-4" /> Edit Message
-                  </button>
-                )}
-                {(mine || can.manageMessages) && (
-                  <button onClick={() => { setMore(false); remove(); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#F23F43] transition-colors hover:bg-[#F23F43] hover:text-white">
-                    <Trash2 className="h-4 w-4" /> Delete Message
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          {(mine || can.manageMessages) && <button onClick={remove} className="p-1.5 text-[#F23F43] hover:bg-[#404249]" title="Delete"><Trash2 className="h-5 w-5" /></button>}
+          {canEdit && <button onClick={startEdit} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="Edit"><Pencil className="h-5 w-5" /></button>}
+          <button onClick={(e) => openMenuAt(e.currentTarget)} className="p-1.5 text-[#B5BAC1] hover:bg-[#404249] hover:text-white" title="More"><MoreHorizontal className="h-5 w-5" /></button>
         </div>
       )}
+      {menu && (
+        <MessageMenu
+          menu={menu}
+          items={menuItems}
+          quick={can.react ? recentReactions(menu.sheet ? 5 : 4) : []}
+          onReact={react}
+          onMoreEmoji={() => openPicker()}
+          onClose={() => setMenu(null)}
+        />
+      )}
+      {picker && <EmojiPicker anchor={picker} onPick={react} onClose={() => setPicker(null)} />}
     </div>
   );
 }
@@ -561,7 +649,7 @@ export default function MessageList({ channel, data, state, ctx, actions, onRepl
   return (
     <div className="relative min-h-0 flex-1">
       <ImageViewerHost />
-      <div key={channel?.id} ref={scroller} onScroll={onScroll} className="chat-fade-in h-full overflow-y-auto overflow-x-hidden pb-4 [scrollbar-width:thin]">
+      <div key={channel?.id} ref={scroller} onScroll={onScroll} className="hh-chat-scroll chat-fade-in h-full overflow-y-auto overflow-x-hidden pb-4 [scrollbar-width:thin]">
        <div ref={content}>
         {data?.loaded && !data.hasMore && (
           <div className="px-4 pb-2 pt-12">

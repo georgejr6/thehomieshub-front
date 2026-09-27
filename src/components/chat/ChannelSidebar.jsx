@@ -3,6 +3,7 @@ import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Se
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
+import Avatar from './Avatar';
 
 const ICONS = { text: Hash, announcement: Megaphone, forum: MessagesSquare, thread: CornerDownRight };
 
@@ -62,7 +63,7 @@ export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose
       <div className="flex h-12 shrink-0 items-center border-b border-[#1F2023] px-4 shadow-sm">
         <span className="truncate text-[15px] font-semibold text-white">{state.server?.name || 'The Homies'}</span>
       </div>
-      <div className="flex-1 overflow-y-auto py-2 [scrollbar-width:thin]">
+      <div className="hh-chat-scroll min-h-0 flex-1 overflow-y-auto py-2 [scrollbar-width:thin]">
         {groups.map((g) => {
           const isCollapsed = collapsed[g.name];
           return (
@@ -93,7 +94,7 @@ export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose
       {me && (
         <div className="flex h-[52px] shrink-0 items-center gap-2 bg-[#232428] px-2">
           <div className="relative">
-            <img src={me.avatarUrl || '/favicon.ico'} alt="" className="h-8 w-8 rounded-full bg-[#5865F2] object-cover" />
+            <Avatar user={me} size={32} />
             <span className={cn('absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-[3px] border-[#232428] transition-colors duration-300', status === 'online' ? 'bg-[#23A55A]' : 'bg-[#80848E]')} />
           </div>
           <div className="min-w-0 flex-1 leading-tight">

@@ -4,6 +4,7 @@ import api from '@/api/homieshub';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import { openChatUserCard } from './UserCard';
+import Avatar from './Avatar';
 
 // Member rows + search results for /chat. Every row opens the member card
 // (UserCard) on click, like Discord.
@@ -25,11 +26,7 @@ export function MemberRow({ m, status, dim, extra }) {
       className={cn('chat-fade-in flex w-full items-center gap-3 rounded px-2 py-1.5 text-left transition-[background-color,opacity] duration-150 hover:bg-[#35373C] active:bg-[#404249]', dim && 'opacity-40 hover:opacity-100')}
     >
       <div className="relative shrink-0">
-        {m.avatarUrl ? (
-          <img src={m.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-        ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5865F2] text-sm font-semibold text-white">{(m.displayName || '?')[0].toUpperCase()}</div>
-        )}
+        <Avatar user={m} size={32} />
         {status && status !== 'offline' && (
           <span className={cn('absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-[3px] border-[#2B2D31]', status === 'idle' ? 'bg-[#F0B232]' : 'bg-[#23A55A]')} />
         )}

@@ -183,8 +183,13 @@ export default function ChatSettings({ open, onClose, state, actions, onToast, o
   return (
     <div className="chat-fade-in fixed inset-0 z-[120] flex items-stretch justify-center bg-black/70 sm:items-center sm:p-6" onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label="User settings" className="chat-pop outline-none flex h-full w-full flex-col overflow-hidden bg-[#313338] text-[#DBDEE1] shadow-2xl sm:h-[82vh] sm:max-w-3xl sm:flex-row sm:rounded-xl">
+        {/* Phones: title + close always visible above the (scrolling) tabs */}
+        <div className="flex shrink-0 items-center justify-between bg-[#2B2D31] px-4 pb-1 pt-[max(0.5rem,env(safe-area-inset-top))] sm:hidden">
+          <span className="text-base font-bold text-white">User Settings</span>
+          <button type="button" onClick={close} aria-label="Close settings" className="-mr-1.5 rounded-full p-2 text-[#B5BAC1] hover:bg-white/10 hover:text-white"><X className="h-5 w-5" /></button>
+        </div>
         {/* Nav: sidebar on desktop, tabs on phones */}
-        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#1F2023] bg-[#2B2D31] px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:w-52 sm:flex-col sm:items-stretch sm:border-b-0 sm:border-r sm:p-3">
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#1F2023] bg-[#2B2D31] px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-52 sm:flex-col sm:items-stretch sm:overflow-visible sm:border-b-0 sm:border-r sm:p-3">
           <div className="hidden px-2 pb-2 text-xs font-bold uppercase tracking-wide text-[#949BA4] sm:block">User settings</div>
           {TABS.map((t) => (
             <button key={t.id} type="button" onClick={() => setTab(t.id)}
@@ -192,7 +197,6 @@ export default function ChatSettings({ open, onClose, state, actions, onToast, o
               <t.icon className="h-4 w-4" /> {t.label}
             </button>
           ))}
-          <button type="button" onClick={close} aria-label="Close settings" className="ml-auto rounded-full p-1.5 text-[#B5BAC1] hover:bg-white/10 hover:text-white sm:hidden"><X className="h-5 w-5" /></button>
         </div>
 
         <div className="relative min-h-0 flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 [scrollbar-width:thin]">

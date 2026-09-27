@@ -138,18 +138,21 @@ mux-player {
 }
 
 /* Mobile specific overrides */
+/* Not inside Homies Chat (body.hh-chat-open): it's sized like Discord, and
+   44px-min flex buttons/links broke inline links, reaction chips and icon rows.
+   :where() keeps these at their old (zero-class) specificity elsewhere. */
 @media (max-width: 768px) {
   /* Hide hover effects on touch devices */
-  .hover\:scale-105:hover, 
-  .group:hover .group-hover\:opacity-100 {
+  :where(body:not(.hh-chat-open)) .hover\:scale-105:hover,
+  :where(body:not(.hh-chat-open)) .group:hover .group-hover\:opacity-100 {
     transform: none;
     opacity: 1; /* Always show controls/overlays or handle via JS state */
   }
 
   /* Increase tap targets */
-  button, 
-  a, 
-  [role="button"] {
+  :where(body:not(.hh-chat-open)) button,
+  :where(body:not(.hh-chat-open)) a,
+  :where(body:not(.hh-chat-open)) [role="button"] {
     min-height: 44px;
     min-width: 44px;
     display: flex;
@@ -255,6 +258,23 @@ mux-player {
 .chat-everyone-pop { animation: chat-everyone-pop 950ms ease-out both; }
 @keyframes chat-search-open { from { transform: scaleX(0.15); opacity: 0.4; } to { transform: none; opacity: 1; } }
 .chat-search-open { transform-origin: right center; animation: chat-search-open 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* While /chat is open the page behind it never scrolls or rubber-bands —
+   only the message list, sidebars and sheets do. */
+body.hh-chat-open { overflow: hidden; overscroll-behavior: none; }
+body.hh-chat-open .hh-chat-scroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* Full emoji picker (emoji-mart web component) in Discord colours. */
+em-emoji-picker {
+  --rgb-background: 43, 45, 49;
+  --rgb-input: 30, 31, 34;
+  --rgb-color: 219, 222, 225;
+  --rgb-accent: 88, 101, 242;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --shadow: none;
+  --border-radius: 8px;
+  --font-family: inherit;
+  max-height: 435px;
+}
+.hh-emoji-sheet em-emoji-picker { --border-radius: 0; width: 100%; height: min(60dvh, 420px); max-height: none; }
 @media (prefers-reduced-motion: reduce) {
   .chat-msg-in, .chat-fade-in, .chat-fade-up, .chat-pop, .chat-bump, .chat-slide-right,
   .chat-skeleton, .chat-typing-dot, .chat-glow, .chat-float-up, .chat-sheet-up, .chat-gift-bounce,

@@ -1,8 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { PlusCircle, X, FileText, Loader2, Upload, BarChart3, CalendarDays, Gift, Megaphone, Coins, Sparkles, Banknote } from 'lucide-react';
+import { PlusCircle, X, FileText, Loader2, Upload, BarChart3, CalendarDays, Gift, Megaphone, Coins, Sparkles, Banknote, Smile } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import { PollDialog, EventDialog } from './CreateDialogs';
+import EmojiPicker from './EmojiPicker';
 
 const MAX_FILES = 10;
 const DEFAULT_MAX_BYTES = 20 * 1024 * 1024; // server sends me.uploadMaxBytes (null = no cap)
@@ -93,6 +94,7 @@ function typingText(names) {
 
 export default function Composer({ channel, state, actions, replyTo, clearReply, onError, onEditLast, canCreatePosts, onOpenPerks, onSendMoney }) {
   const [text, setText] = useState('');
+  const [emojiAt, setEmojiAt] = useState(null); // emoji picker anchor
   const [files, setFiles] = useState([]);
   const [progress, setProgress] = useState(null);
   const [mention, setMention] = useState(null); // { query, start, results, index }
@@ -187,6 +189,20 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
       }
       if (hit) rerender((n) => n + 1);
     }, 350);
+  };
+
+  // Emoji picker → insert at the cursor (or the end), keep typing after it.
+  const caretRef = useRef(null);
+  const insertEmoji = (emoji) => {
+    const el = input.current;
+    const cur = el?.value ?? text;
+    const [a, b] = caretRef.current || [cur.length, cur.length];
+    const next = `${cur.slice(0, a)}${emoji}${cur.slice(b)}`.slice(0, 4000);
+    setText(next);
+    const at = Math.min(next.length, a + emoji.length);
+    caretRef.current = [at, at];
+    // Phones: don't pop the keyboard up over the chat after every pick.
+    if (window.matchMedia?.('(hover: hover)').matches) setTimeout(() => { el?.focus(); el?.setSelectionRange(at, at); }, 0);
   };
 
   // "Mention" on a member card drops @username into the draft.
@@ -493,6 +509,22 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
             className={cn('relative block max-h-[50vh] w-full resize-none break-words bg-transparent [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-[11px] pr-2 text-[15px] leading-[1.375rem] placeholder-[#6D6F78] outline-none disabled:cursor-not-allowed', highlighted ? 'text-transparent caret-[#DBDEE1]' : 'text-[#DBDEE1]')}
           />
           </div>
+          <button
+            type="button"
+            disabled={disabled}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              const el = input.current;
+              caretRef.current = el && document.activeElement === el ? [el.selectionStart, el.selectionEnd] : null;
+              setEmojiAt(e.currentTarget.getBoundingClientRect());
+            }}
+            title="Emoji"
+            aria-label="Emoji"
+            className="group py-[11px] pl-2 pr-1 text-[#B5BAC1] transition-colors hover:text-[#F0B232] disabled:opacity-30 sm:px-2"
+          >
+            <Smile className="h-6 w-6 transition-transform duration-200 group-hover:scale-110" />
+          </button>
+          {emojiAt && <EmojiPicker anchor={emojiAt} onPick={insertEmoji} onClose={() => setEmojiAt(null)} />}
           {onOpenPerks && (
             <button
               type="button"
