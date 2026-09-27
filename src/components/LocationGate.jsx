@@ -43,12 +43,12 @@ export default function LocationGate({ children }) {
   if (verified || !user) return children;
 
   const enableForAccount = async () => {
-    let cached = getCachedGeo();
-    if (!cached) {
-      const ok = await captureGeo({ force: true });
-      if (!ok) return false;
-      cached = getCachedGeo();
-    }
+    // Always a fresh reading for the account's verification (it goes into the
+    // permanent location history). A cached one could be days old, or from
+    // someone else who used this browser.
+    const ok = await captureGeo({ force: true });
+    if (!ok) return false;
+    const cached = getCachedGeo();
     if (!cached) return false;
     try {
       await api.post('/gate/location', { lat: cached.lat, lng: cached.lon, accuracy: cached.accuracy });

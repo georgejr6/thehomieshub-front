@@ -1,3 +1,4 @@
+import { Sensitive, RevealToggle } from '@/components/admin/Sensitive';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -488,7 +489,7 @@ const IpHistoryDialog = ({ user, isOpen, onOpenChange }) => {
             <>
               {data?.signupIp && (
                 <div className="mb-3 text-xs text-muted-foreground">
-                  Signup IP: <span className="font-mono text-foreground">{data.signupIp}</span>
+                  Signup IP: <Sensitive className="font-mono text-foreground">{data.signupIp}</Sensitive>
                 </div>
               )}
               {ips.length === 0 ? (
@@ -499,7 +500,7 @@ const IpHistoryDialog = ({ user, isOpen, onOpenChange }) => {
                     <div key={`${k.ip}-${i}`} className="flex items-start gap-2 p-2.5 rounded-lg border border-border bg-secondary/20">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm text-foreground">{k.ip}</span>
+                          <Sensitive className="font-mono text-sm text-foreground">{k.ip}</Sensitive>
                           <button onClick={() => copy(k.ip)} title="Copy IP" className="text-muted-foreground hover:text-foreground">
                             <Copy className="w-3 h-3" />
                           </button>
@@ -612,9 +613,9 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
             <div>
               <SectionHeader icon={MapPin} title="Location & Access" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-                <Fact label="Location (by IP)" value={loc || 'unknown'} />
-                <Fact label="ISP" value={p?.location?.isp} />
-                <Fact label="Primary IP" value={p?.primaryIp} />
+                <Fact label="Location (by IP)" value={loc ? <Sensitive mask="••••••">{loc}</Sensitive> : 'unknown'} />
+                <Fact label="ISP" value={p?.location?.isp ? <Sensitive mask="••••••">{p.location.isp}</Sensitive> : null} />
+                <Fact label="Primary IP" value={p?.primaryIp ? <Sensitive>{p.primaryIp}</Sensitive> : null} />
                 <Fact label="Known IPs" value={p?.knownIps?.length ? String(p.knownIps.length) : '—'} />
                 <Fact label="Last login" value={fmtD(p?.lastLoginAt)} />
                 {p?.vpnFlag?.suspected && (
@@ -869,7 +870,7 @@ const AdminUsers = () => {
     <div className="p-4 md:p-8 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">User Management <RevealToggle /></h1>
           <p className="text-sm text-muted-foreground mt-0.5">{total} total users</p>
         </div>
         <form onSubmit={handleSearch} className="flex gap-2">

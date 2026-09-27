@@ -4,6 +4,7 @@ import {
   MessageCircle, User, X, AtSign, Copy, Clock, UserX, Ban, ShieldCheck, Trash2, ChevronRight,
   ChevronLeft, Loader2, Check, Link2, Timer, FileText, Heart, Play, ExternalLink,
 } from 'lucide-react';
+import OwnerPrivateInfo from '@/components/OwnerPrivateInfo';
 import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -433,6 +434,9 @@ export default function UserCard({ onLoginRequest }) {
             <Copy className="h-3.5 w-3.5" /> Copy @username
           </button>
         </div>
+
+        {/* Owner only; collapsed and not even fetched until expanded (stream-safe). */}
+        {!u.bot && !u.placeholder && <OwnerPrivateInfo key={u.id} userId={u.id} compact />}
 
         {anyMod && (
           <div className="mt-4 border-t border-[#3F4147] pt-3">

@@ -1,3 +1,4 @@
+import OwnerPrivateInfo from '@/components/OwnerPrivateInfo';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -535,6 +536,9 @@ const RealUserProfilePage = () => {
                 )}
               </div>
             )}
+
+            {/* Owner only: IPs + verified locations, collapsed until expanded (stream-safe). */}
+            {!isOwnProfile && <div className="max-w-md"><OwnerPrivateInfo key={profileUser._id} userId={profileUser._id} /></div>}
 
             {/* Points row */}
             <div className="flex items-center gap-4 mt-4">

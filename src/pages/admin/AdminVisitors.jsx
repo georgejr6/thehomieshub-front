@@ -1,3 +1,4 @@
+import { Sensitive, RevealToggle } from '@/components/admin/Sensitive';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, Search, Loader2, RefreshCw, Globe, User as UserIcon, Eye, Clock, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -185,7 +186,7 @@ const AdminVisitors = () => {
     <div className="p-4 md:p-8 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Activity className="w-6 h-6 text-primary" /> Visitors & Activity</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Activity className="w-6 h-6 text-primary" /> Visitors & Activity <RevealToggle className="ml-2" /></h1>
           <p className="text-sm text-muted-foreground mt-0.5">Anonymous + logged-in sessions, correlated by IP. Recorded since tracking went live.</p>
         </div>
         <div className="flex gap-2 items-center">
@@ -250,7 +251,7 @@ const AdminVisitors = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-sm">{s.authed ? `@${s.username || 'member'}` : 'Anonymous'}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{s.ip}</span>
+                    <Sensitive className="font-mono text-xs text-muted-foreground">{s.ip}</Sensitive>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                     <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {s.pageViews} views</span>

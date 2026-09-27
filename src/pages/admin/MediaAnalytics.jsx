@@ -1,3 +1,4 @@
+import { Sensitive, RevealToggle } from '@/components/admin/Sensitive';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Loader2, BarChart3, Music, Film, Globe, Headphones, Clock, Eye,
@@ -120,7 +121,7 @@ function AudienceDialog({ item, kind, isOpen, onOpenChange }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold truncate">{l.authed ? `@${l.username || 'member'}` : 'Anonymous'}</span>
-                      <span className="font-mono text-xs text-white/40">{l.ip}</span>
+                      <Sensitive className="font-mono text-xs text-white/40">{l.ip}</Sensitive>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-white/45 mt-0.5 flex-wrap">
                       {kind === 'video' ? (
@@ -463,7 +464,7 @@ function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
             {idn?.isBanned && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 flex items-center gap-1"><Ban className="w-3 h-3" />banned</span>}
           </DialogTitle>
           <DialogDescription className="flex items-center gap-3 flex-wrap">
-            {idn?.ip && <span className="font-mono flex items-center gap-1"><MapPin className="w-3 h-3" />{idn.ip}</span>}
+            {idn?.ip && <span className="font-mono flex items-center gap-1"><MapPin className="w-3 h-3" /><Sensitive>{idn.ip}</Sensitive></span>}
             {idn?.source && <span className="flex items-center gap-1"><Globe className="w-3 h-3" />{idn.source}</span>}
             {idn?.lastSeen && <span>last seen {fmtTime(idn.lastSeen)}</span>}
           </DialogDescription>
@@ -528,7 +529,7 @@ function AudienceProfileDialog({ visitor, isOpen, onOpenChange }) {
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
-                      {idn.ips.map((ip) => <span key={ip} className="text-xs font-mono px-2 py-1 rounded-lg bg-white/[0.05] border border-white/10">{ip}</span>)}
+                      {idn.ips.map((ip) => <span key={ip} className="text-xs font-mono px-2 py-1 rounded-lg bg-white/[0.05] border border-white/10"><Sensitive>{ip}</Sensitive></span>)}
                     </div>
                   )}
                 </div>
@@ -623,7 +624,7 @@ function VisitorRow({ v, rank, onClick }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-semibold truncate">{v.authed ? `@${v.username || 'member'}` : 'Anonymous'}</span>
-          <span className="font-mono text-xs text-white/40">{v.ip}</span>
+          <Sensitive className="font-mono text-xs text-white/40">{v.ip}</Sensitive>
         </div>
         <div className="flex items-center gap-3 text-xs text-white/45 mt-0.5 flex-wrap">
           <span className="flex items-center gap-1"><Headphones className="w-3 h-3" />{v.plays} plays</span>
@@ -1121,6 +1122,7 @@ export default function MediaAnalytics() {
             </button>
           ))}
         </div>
+        <RevealToggle />
         <div className="flex gap-1.5">
           {[7, 30, 90].map(d => (
             <button key={d} onClick={() => setDays(d)}

@@ -1,3 +1,4 @@
+import { Sensitive, RevealToggle } from '@/components/admin/Sensitive';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2, Music, Plus, Trash2, Pencil, Check, X, Search,
@@ -104,7 +105,7 @@ function SongListenersDialog({ song, isOpen, onOpenChange }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold truncate">{l.authed ? `@${l.username || 'member'}` : 'Anonymous'}</span>
-                      {!l.authed && <span className="font-mono text-xs text-muted-foreground">{l.ip}</span>}
+                      {!l.authed && <Sensitive className="font-mono text-xs text-muted-foreground">{l.ip}</Sensitive>}
                       {l.addedToPlaylist ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">＋ playlist</span> : null}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
@@ -452,7 +453,7 @@ export default function AdminMusicManager() {
         <div className="flex items-center gap-3">
           <Music className="w-7 h-7 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Music Manager</h1>
+            <h1 className="text-2xl font-bold flex items-center gap-3">Music Manager <RevealToggle /></h1>
             <p className="text-sm text-muted-foreground">
               Curate playlists from the digitvl catalog and see who's listening.
             </p>
