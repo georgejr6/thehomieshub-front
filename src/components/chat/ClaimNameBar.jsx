@@ -58,7 +58,7 @@ export default function ClaimNameBar({ me, onSaved }) {
       </button>
       {value && !valid && <span className="text-xs text-[#F0B232]">2–32 letters, numbers, _ or .</span>}
       {err && <span className="text-xs text-[#F23F43]">{err}</span>}
-      <button onClick={snooze} title="Remind me later" className="ml-auto text-[#B5BAC1] hover:text-white"><X className="h-4 w-4" /></button>
+      <button onClick={snooze} title="Remind me later" aria-label="Remind me later" className="-m-2 ml-auto p-2 text-[#B5BAC1] hover:text-white"><X className="h-4 w-4" /></button>
     </div>
   );
 }

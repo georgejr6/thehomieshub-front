@@ -55,7 +55,7 @@ export default function MemberSearch({ staff }) {
         <input ref={input} value={query} onChange={(e) => setQuery(e.target.value.slice(0, 40))}
           placeholder={staff ? 'Search every member' : 'Search members'} aria-label="Search members"
           className="w-full min-w-0 bg-transparent py-1.5 text-sm text-[#DBDEE1] outline-none placeholder:text-[#6D6F78]" />
-        <button type="button" onClick={close} aria-label="Close search" className="text-[#949BA4] hover:text-white"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={close} aria-label="Close search" className="-m-2 p-2 text-[#949BA4] hover:text-white"><X className="h-4 w-4" /></button>
       </label>
       <div className={cn('chat-fade-up absolute right-0 top-full z-50 max-h-[70vh] overflow-y-auto rounded-b-lg bg-[#2B2D31] py-2 shadow-2xl ring-1 ring-black/40 [scrollbar-width:thin]',
         'left-0 sm:left-auto sm:mt-2 sm:w-[380px] sm:rounded-lg')}>

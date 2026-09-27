@@ -32,14 +32,17 @@ export default function ChatPage({ onLoginRequest }) {
   const { state, actions } = useChat({ enabled: !!user, activeChannelId: channelId });
   const [drawer, setDrawer] = useState(false);
   // Opts the chat (and its portals) out of the site's phone tap-target CSS (index.css).
+  // Signed-in only: signed-out visitors get the site's sign-in dialog, which keeps the site sizing.
   useEffect(() => {
+    if (!user) return undefined;
     document.body.classList.add('hh-chat-open');
     return () => document.body.classList.remove('hh-chat-open');
-  }, []);
+  }, [user]);
   // Phones: the on-screen keyboard only shrinks the *visible* viewport, so a
   // plain fixed/inset-0 chat slid under it (header pushed off, the page behind
   // scrolling instead of the messages). Pin the chat to the visible area.
   const rootRef = useRef(null);
+  const chatReady = !loading && !!user;
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return undefined;
@@ -49,10 +52,12 @@ export default function ChatPage({ onLoginRequest }) {
       frame = requestAnimationFrame(() => {
         const el = rootRef.current;
         if (!el) return;
-        if (window.innerWidth >= 768) { el.style.height = ''; el.style.bottom = ''; el.style.transform = ''; return; }
-        el.style.height = `${Math.round(vv.height)}px`;
+        el.style.top = ''; el.style.height = ''; el.style.bottom = '';
+        // Its normal top: 0 on phones, below the app header (md:top-14) on wider screens.
+        const top = parseFloat(getComputedStyle(el).top) || 0;
+        el.style.top = `${Math.round(top + vv.offsetTop)}px`;
+        el.style.height = `${Math.max(0, Math.round(vv.height - top))}px`;
         el.style.bottom = 'auto';
-        el.style.transform = vv.offsetTop ? `translateY(${Math.round(vv.offsetTop)}px)` : '';
       });
     };
     apply();
@@ -65,7 +70,7 @@ export default function ChatPage({ onLoginRequest }) {
       vv.removeEventListener('scroll', apply);
       window.removeEventListener('resize', apply);
     };
-  });
+  }, [chatReady, state.status]);
   // App menu in the server rail: collapsed icons ↔ expanded with names (remembered).
   const [railOpen, setRailOpen] = useState(readRailOpen);
   const toggleRail = () => setRailOpen((v) => { saveRailOpen(!v); return !v; });
@@ -291,7 +296,7 @@ export default function ChatPage({ onLoginRequest }) {
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-[#1F2023] px-4 shadow-sm">
-          <button onClick={() => setDrawer(true)} aria-label="Open channels" className="mr-1 text-[#B5BAC1] md:hidden"><Menu className="h-6 w-6" /></button>
+          <button onClick={() => setDrawer(true)} aria-label="Open channels" className="-ml-2 mr-0 rounded p-2 text-[#B5BAC1] active:bg-white/10 md:hidden"><Menu className="h-6 w-6" /></button>
           {channel && <ChannelIcon className="h-6 w-6 shrink-0 text-[#80848E]" />}
           <span key={channel?.id} className="chat-fade-in truncate font-semibold text-white">{channel?.name}</span>
           {channel?.discoverable && (
@@ -382,7 +387,7 @@ export default function ChatPage({ onLoginRequest }) {
       {toast && (
         <div key={toast} className="chat-fade-up fixed bottom-24 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-lg bg-[#111214] px-4 py-3 text-sm text-white shadow-2xl">
           {toast}
-          <button onClick={() => setToast(null)} className="text-[#B5BAC1] hover:text-white"><X className="h-4 w-4" /></button>
+          <button onClick={() => setToast(null)} aria-label="Dismiss" className="-m-2 p-2 text-[#B5BAC1] hover:text-white"><X className="h-4 w-4" /></button>
         </div>
       )}
     </div>

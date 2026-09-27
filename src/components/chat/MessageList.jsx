@@ -156,15 +156,17 @@ function MessageMenu({ menu, items, quick, onReact, onMoreEmoji, onClose }) {
     // Desktop popover: scrolling the chat or resizing closes it, like Discord.
     // (Not the phone sheet — its backdrop covers the chat, and mobile browsers
     // fire resize when the address bar moves.)
-    const onScroll = (e) => { if (!box.current?.contains(e.target)) onClose(); };
+    // Only the user scrolling counts — the list also auto-scrolls when new
+    // messages or images arrive, and that mustn't close the menu.
+    const onWheel = (e) => { if (!box.current?.contains(e.target)) onClose(); };
     if (!menu.sheet) {
       window.addEventListener('resize', onClose);
-      window.addEventListener('scroll', onScroll, true);
+      window.addEventListener('wheel', onWheel, { capture: true, passive: true });
     }
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onClose);
-      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('wheel', onWheel, { capture: true });
     };
   }, [onClose, menu.sheet]);
 
@@ -294,7 +296,11 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   // Press and hold a message on a phone → the message menu (bottom sheet).
   const rowPress = useRef({ timer: null, fired: false, x: 0, y: 0 });
   const menuAllowed = !m.pending && !m.failed && !editing;
+  // Popups (menu, pickers, reactions panel) are portaled but still bubble
+  // React events up here — only touches on the message itself count.
+  const onRow = (e) => e.currentTarget.contains(e.target);
   const rowTouchStart = (e) => {
+    if (!onRow(e)) return;
     if (!menuAllowed || e.touches.length > 1 || e.target.closest('[data-own-press], textarea, input')) return;
     const t = e.touches[0];
     Object.assign(rowPress.current, { fired: false, x: t.clientX, y: t.clientY });
@@ -306,20 +312,24 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
     }, 450);
   };
   const rowTouchMove = (e) => {
+    if (!onRow(e)) return;
     const t = e.touches[0];
     if (Math.hypot(t.clientX - rowPress.current.x, t.clientY - rowPress.current.y) > 10) clearTimeout(rowPress.current.timer);
   };
   const rowTouchEnd = (e) => {
+    if (!onRow(e)) return;
     clearTimeout(rowPress.current.timer);
     if (rowPress.current.fired) { e.preventDefault(); rowPress.current.fired = false; } // no tap onto a name/image under the finger
   };
   useEffect(() => () => clearTimeout(rowPress.current.timer), []);
   const onRowContextMenu = (e) => {
-    if (!menuAllowed) return;
-    // Right-clicking a link, or with text selected, keeps the browser's menu (copy link / copy).
+    if (!onRow(e) || !menuAllowed) return;
+    // Phones (Android fires contextmenu on long-press): our timer opens the
+    // sheet — never the browser's menu on top of it.
+    if (!CAN_HOVER) { e.preventDefault(); return; }
+    // Desktop: right-clicking a link, or with text selected, keeps the browser's menu (copy link / copy).
     if (e.target.closest('a[href]') || String(window.getSelection?.() || '').trim()) return;
     e.preventDefault();
-    if (!CAN_HOVER) return; // phones: the press-and-hold timer opens the sheet
     setMenu({ x: e.clientX, y: e.clientY, sheet: false });
   };
   const openMenuAt = (el) => {
@@ -407,7 +417,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
       onTouchStart={rowTouchStart}
       onTouchMove={rowTouchMove}
       onTouchEnd={rowTouchEnd}
-      onTouchCancel={() => clearTimeout(rowPress.current.timer)}
+      onTouchCancel={(e) => { if (onRow(e)) clearTimeout(rowPress.current.timer); }}
       className={cn(
         'group relative pl-[72px] pr-4 sm:pr-12 transition-[background-color,opacity] duration-150 hover:bg-[#2E3035] [@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]',
         menu && 'bg-[#2E3035]',

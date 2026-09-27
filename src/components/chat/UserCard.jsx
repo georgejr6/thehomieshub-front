@@ -469,7 +469,7 @@ export default function UserCard({ onLoginRequest }) {
     >
       {/* Banner in their role colour, avatar overlapping it (Discord popout). */}
       <div className="h-16" style={{ background: color || '#5865F2' }} />
-      <button type="button" onClick={() => setCard(null)} aria-label="Close" className="absolute right-3 top-3 rounded-full bg-black/30 p-1 text-white hover:bg-black/50">
+      <button type="button" onClick={() => setCard(null)} aria-label="Close" className="absolute right-2 top-2 rounded-full bg-black/30 p-2 text-white hover:bg-black/50">
         <X className="h-4 w-4" />
       </button>
       <div className="px-4 pb-4">

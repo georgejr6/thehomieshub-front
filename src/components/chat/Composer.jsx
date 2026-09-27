@@ -197,8 +197,11 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     const el = input.current;
     const cur = el?.value ?? text;
     const [a, b] = caretRef.current || [cur.length, cur.length];
-    const next = `${cur.slice(0, a)}${emoji}${cur.slice(b)}`.slice(0, 4000);
+    if (cur.length - (b - a) + emoji.length > 4000) return;
+    const next = `${cur.slice(0, a)}${emoji}${cur.slice(b)}`;
     setText(next);
+    setMention(null);
+    resolveTyped(next);
     const at = Math.min(next.length, a + emoji.length);
     caretRef.current = [at, at];
     // Phones: don't pop the keyboard up over the chat after every pick.
@@ -432,7 +435,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
       {replyTo && (
         <div className="chat-fade-up flex items-center justify-between rounded-t-lg bg-[#2B2D31] px-4 py-2 text-sm text-[#B5BAC1]">
           <span>Replying to <b style={{ color: replyTo.author?.color ? roleColor(replyTo.author.color) : '#F2F3F5' }}>{replyTo.author?.displayName}</b></span>
-          <button onClick={clearReply} className="rounded-full bg-[#B5BAC1] p-0.5 text-[#2B2D31] hover:bg-white"><X className="h-3 w-3" /></button>
+          <button onClick={clearReply} aria-label="Cancel reply" className="group -m-2 p-2"><span className="block rounded-full bg-[#B5BAC1] p-0.5 text-[#2B2D31] group-hover:bg-white"><X className="h-3 w-3" /></span></button>
         </div>
       )}
 
@@ -447,7 +450,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
                   <FileText className="h-10 w-10 text-[#B5BAC1]" />
                 )}
                 <div className="mt-1 w-full truncate text-center text-xs text-[#DBDEE1]">{f.name}</div>
-                <button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="absolute -right-2 -top-2 rounded bg-[#2B2D31] p-1 text-[#F23F43] shadow hover:bg-[#404249]">
+                <button onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label="Remove file" className="absolute -right-2 -top-2 rounded bg-[#2B2D31] p-1.5 text-[#F23F43] shadow hover:bg-[#404249]">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -516,6 +519,8 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
             onClick={(e) => {
               const el = input.current;
               caretRef.current = el && document.activeElement === el ? [el.selectionStart, el.selectionEnd] : null;
+              // Phones: drop the keyboard so it doesn't cover the emoji sheet.
+              if (!window.matchMedia?.('(hover: hover)').matches) el?.blur();
               setEmojiAt(e.currentTarget.getBoundingClientRect());
             }}
             title="Emoji"
