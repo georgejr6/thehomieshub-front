@@ -19,6 +19,7 @@ const showLabel = (k) => (k?.startsWith('live:') ? `Live · ${new Date(k.slice(5
 
 const RELAY_NOTICE = {
   connected: "Connected — chat and donations from /live will post there while you're live.",
+  'bot-connected': "Bot account connected — it'll answer viewers' app questions and post call-to-action lines while you're live. Make sure it's a moderator in your stream chat.",
   failed: "Couldn't connect. Check the redirect URI in the setup notes and try again.",
   cancelled: 'Connection cancelled.',
   expired: 'That link expired — press Connect again.',
@@ -28,19 +29,27 @@ function RelayTab({ notice }) {
   const [r, setR] = useState(null);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(() => {
-    const [platform, result] = String(notice || '').split('-');
+    const [platform, ...rest] = String(notice || '').split('-');
+    const result = rest.join('-');
     return RELAY_NOTICE[result] ? `${platform === 'kick' ? 'Kick' : 'YouTube'}: ${RELAY_NOTICE[result]}` : '';
   });
+  const [h, setH] = useState(null); // chat helper (bot replies + CTAs)
   useEffect(() => {
     api.get('/livechat/admin/relay').then(({ data }) => setR(data.result)).catch((err) => setMsg(err.response?.data?.message || "Couldn't load the relay."));
+    api.get('/livechat/admin/helper').then(({ data }) => setH(data.result)).catch(() => {});
   }, []);
   const act = async (key, fn) => {
     setBusy(key); setMsg('');
     try { await fn(); } catch (err) { setMsg(err.response?.data?.message || 'Something went wrong.'); }
     setBusy('');
   };
-  const connect = (p) => act(p, async () => { const { data } = await api.post(`/livechat/admin/relay/${p}/connect`); window.location.href = data.result.url; });
-  const disconnect = (p) => act(p, async () => { const { data } = await api.delete(`/livechat/admin/relay/${p}`); setR(data.result); });
+  const connect = (p, as = 'owner') => act(`${as}:${p}`, async () => { const { data } = await api.post(`/livechat/admin/relay/${p}/connect`, { as }); window.location.href = data.result.url; });
+  const disconnect = (p, as = 'owner') => act(`${as}:${p}`, async () => {
+    const { data } = await api.delete(`/livechat/admin/relay/${p}`, { params: { as } });
+    setR(data.result);
+    if (as === 'bot') api.get('/livechat/admin/helper').then(({ data: d }) => setH(d.result)).catch(() => {});
+  });
+  const patchHelper = (body) => act('helper', async () => { const { data } = await api.patch('/livechat/admin/helper', body); setH(data.result); });
   const patch = (body) => act('patch', async () => { const { data } = await api.patch('/livechat/admin/relay', body); setR(data.result); });
   const test = () => act('test', async () => {
     const { data } = await api.post('/livechat/admin/relay/test');
@@ -58,7 +67,20 @@ function RelayTab({ notice }) {
       </div>
       {r[p].connected
         ? <button type="button" disabled={!!busy} onClick={() => disconnect(p)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/10">Disconnect</button>
-        : <button type="button" disabled={!!busy || !r[p].configured} onClick={() => connect(p)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-40">{busy === p ? '…' : 'Connect'}</button>}
+        : <button type="button" disabled={!!busy || !r[p].configured} onClick={() => connect(p)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-40">{busy === `owner:${p}` ? '…' : 'Connect'}</button>}
+    </div>
+  );
+  const bot = r.bot || { youtube: {}, kick: {} };
+  const botRow = (p, label, color, info, hint) => (
+    <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: bot[p].connected ? color : '#555' }} />
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold">{label}</div>
+        <div className="truncate text-xs text-white/50">{bot[p].connected ? info : r[p].configured ? hint : 'Server keys missing — see setup notes'}</div>
+      </div>
+      {bot[p].connected
+        ? <button type="button" disabled={!!busy} onClick={() => disconnect(p, 'bot')} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/10">Disconnect</button>
+        : <button type="button" disabled={!!busy || !r[p].configured} onClick={() => connect(p, 'bot')} className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-40">{busy === `bot:${p}` ? '…' : 'Connect bot'}</button>}
     </div>
   );
   return (
@@ -78,6 +100,31 @@ function RelayTab({ notice }) {
         <p className="mt-1">YouTube: in Google Cloud (the project behind GOOGLE_CLIENT_ID, or LIVE_YT_CLIENT_ID), enable YouTube Data API v3 and add the redirect URI <span className="break-all font-mono">{r.youtube.redirectUri}</span>. Sign in with the account that owns the channel. Plain chat is batched every 15 s to stay inside the daily API quota; donations and gifts always go.</p>
         <p className="mt-1">Kick: create an app at kick.com → Settings → Developer with redirect URI <span className="break-all font-mono">{r.kick.redirectUri}</span>, then set KICK_CLIENT_ID / KICK_CLIENT_SECRET on the server.</p>
       </details>
+      <div className="mt-2 border-t border-white/10 pt-4">
+        <div className="font-semibold">Chat bot</div>
+        <p className="mt-1 text-white/60">A separate account (e.g. <b>The Homies Hub LIVE</b>) that answers viewers asking about the app — by name, on the platform they asked from — and posts a call-to-action every few minutes. It only answers app questions from a fixed set of replies; it ignores everything else. Make it a moderator in your stream chat first.</p>
+      </div>
+      {botRow('youtube', 'YouTube bot', '#ff0033', bot.youtube.channelTitle || 'Connected', 'Not connected — pick The Homies Hub LIVE when Google asks')}
+      {botRow('kick', 'Kick bot', '#53fc18', bot.kick.name ? `kick.com/${bot.kick.name}` : 'Connected', "Not connected — log in to the bot's Kick account")}
+      {h && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={!!busy} onClick={() => patchHelper({ replies: !h.replies })} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 hover:bg-white/10">Answer questions: {h.replies ? 'on' : 'off'}</button>
+            <button type="button" disabled={!!busy} onClick={() => patchHelper({ ctas: !h.ctas })} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 hover:bg-white/10">Call-to-action lines: {h.ctas ? 'on' : 'off'}</button>
+            <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5">
+              every
+              <select value={h.ctaEveryMin} disabled={!!busy} onChange={(e) => patchHelper({ ctaEveryMin: Number(e.target.value) })} className="bg-transparent outline-none">
+                {[8, 10, 12, 15, 20, 30].map((m) => <option key={m} value={m} className="bg-[#111]">{m} min</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="text-xs text-white/45">
+            Since last restart: {h.stats.replies} answers · {h.stats.ctas} CTA lines{h.stats.skipped ? ` · ${h.stats.skipped} skipped (pace/limits)` : ''} · {h.stats.today}/{h.dailyCap} answers today
+            {h.stats.lastReply && <div className="mt-1 truncate">Last answer ({h.stats.lastReply.platform}): {h.stats.lastReply.line}</div>}
+          </div>
+          {h.stats.lastError && <div className="rounded-lg bg-[#ff0033]/10 p-2 text-xs text-[#ff8a9b]">Bot error ({new Date(h.stats.lastError.at).toLocaleTimeString()}): {h.stats.lastError.message}</div>}
+        </>
+      )}
       {msg && <div className="rounded-lg bg-white/[0.06] p-2 text-xs text-white/80">{msg}</div>}
     </div>
   );
