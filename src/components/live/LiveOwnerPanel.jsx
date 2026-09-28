@@ -114,7 +114,7 @@ function RelayTab({ notice }) {
             <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5">
               every
               <select value={h.ctaEveryMin} disabled={!!busy} onChange={(e) => patchHelper({ ctaEveryMin: Number(e.target.value) })} className="bg-transparent outline-none">
-                {[8, 10, 12, 15, 20, 30].map((m) => <option key={m} value={m} className="bg-[#111]">{m} min</option>)}
+                {[...new Set([8, 10, 12, 15, 20, 30, h.ctaEveryMin])].sort((a, b) => a - b).map((m) => <option key={m} value={m} className="bg-[#111]">{m} min</option>)}
               </select>
             </label>
           </div>
