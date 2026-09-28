@@ -50,6 +50,12 @@ function RelayTab({ notice }) {
     if (as === 'bot') api.get('/livechat/admin/helper').then(({ data: d }) => setH(d.result)).catch(() => {});
   });
   const patchHelper = (body) => act('helper', async () => { const { data } = await api.patch('/livechat/admin/helper', body); setH(data.result); });
+  const testBot = () => act('bottest', async () => {
+    const { data } = await api.post('/livechat/admin/helper/test');
+    const t = data.result;
+    const none = !t.youtube && !t.kick && !t.errors.length ? " (the bot only posts while you're live, on platforms where it's connected)" : '';
+    setMsg(`Bot test: YouTube ${t.youtube ? 'sent ✅' : 'not sent'}${t.errors.length ? ` — ${t.errors.join('; ')}` : ''}${none}`);
+  });
   const patch = (body) => act('patch', async () => { const { data } = await api.patch('/livechat/admin/relay', body); setR(data.result); });
   const test = () => act('test', async () => {
     const { data } = await api.post('/livechat/admin/relay/test');
@@ -111,6 +117,7 @@ function RelayTab({ notice }) {
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={!!busy} onClick={() => patchHelper({ replies: !h.replies })} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 hover:bg-white/10">Answer questions: {h.replies ? 'on' : 'off'}</button>
             <button type="button" disabled={!!busy} onClick={() => patchHelper({ ctas: !h.ctas })} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 hover:bg-white/10">Call-to-action lines: {h.ctas ? 'on' : 'off'}</button>
+            <button type="button" disabled={!!busy} onClick={testBot} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 hover:bg-white/10">{busy === 'bottest' ? '…' : 'Test bot'}</button>
             <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5">
               every
               <select value={h.ctaEveryMin} disabled={!!busy} onChange={(e) => patchHelper({ ctaEveryMin: Number(e.target.value) })} className="bg-transparent outline-none">
