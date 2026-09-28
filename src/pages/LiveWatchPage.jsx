@@ -419,7 +419,7 @@ export default function LiveWatchPage({ onLoginRequest }) {
           <h1 className="min-w-0 flex-1 truncate text-sm font-semibold lg:text-base">{state?.title || 'Mwosa — The Homies'}</h1>
           {state?.watching > 0 && <span className="flex items-center gap-1 text-xs text-white/60"><Eye className="h-4 w-4" />{state.watching}</span>}
           {me?.owner && (
-            <button type="button" onClick={() => setOwnerPanel(true)} className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold hover:bg-white/15"><Users className="h-3.5 w-3.5" /> Viewers</button>
+            <button type="button" onClick={() => setOwnerPanel(true)} className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold hover:bg-white/15"><Users className="h-3.5 w-3.5" /> Owner</button>
           )}
         </header>
 
