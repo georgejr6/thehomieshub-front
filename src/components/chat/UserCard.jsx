@@ -162,7 +162,8 @@ export default function UserCard({ onLoginRequest }) {
       cardId.current = e.detail.user.id;
       setCard(e.detail);
       setProfile(null);
-      setView('main');
+      // Opened from the right-click menu on a mod action: go straight to it.
+      setView(e.detail.view || 'main');
       setNote(null);
       setReason('');
       setItems({});

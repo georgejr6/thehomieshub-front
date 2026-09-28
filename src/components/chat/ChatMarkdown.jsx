@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { openChatUserCard } from './UserCard';
+import { openUserMenu } from './ContextMenu';
 
 // Discord-flavored markdown for chat messages, rendered to React elements
 // (never innerHTML): **bold** *italic* _italic_ __underline__ ~~strike~~
@@ -34,8 +36,12 @@ const RULES = [
     render: (m, k, ctx) => {
       const u = ctx.users?.[m[1]];
       const self = m[1] === ctx.meId;
+      const who = u?.username ? { ...u, id: u.id || m[1] } : null;
       return (
-        <span key={k} className={`cursor-pointer rounded px-0.5 font-medium ${self ? 'bg-[#F0B232]/25 text-[#F0B232]' : 'bg-[#5865F2]/25 text-[#C9CDFB] hover:bg-[#5865F2]'}`}>
+        <span key={k}
+          onClick={who ? (e) => openChatUserCard(who, e) : undefined}
+          onContextMenu={who ? (e) => openUserMenu(who, e) : undefined}
+          className={`cursor-pointer rounded px-0.5 font-medium ${self ? 'bg-[#F0B232]/25 text-[#F0B232]' : 'bg-[#5865F2]/25 text-[#C9CDFB] hover:bg-[#5865F2]'}`}>
           @{u?.displayName || u?.username || 'unknown-user'}
         </span>
       );

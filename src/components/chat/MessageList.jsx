@@ -20,6 +20,7 @@ import SpecialMessage from './perks/SpecialMessage';
 import { openChatUserCard } from './UserCard';
 import ReactionsModal from './ReactionsModal';
 import EmojiPicker, { recentReactions, rememberReaction } from './EmojiPicker';
+import ContextMenu, { openUserMenu } from './ContextMenu';
 import Avatar from './Avatar';
 
 const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches;
@@ -134,103 +135,6 @@ function MessageSkeleton() {
 
 const narrowScreen = () => typeof window !== 'undefined' && window.innerWidth < 640;
 
-// Discord-style message menu: right-click (desktop), press-and-hold (phones)
-// or the ⋯ button. A popover at the pointer on desktop, a bottom sheet on
-// phones. `items`: {label, icon, onClick, danger} | {heading} | {divider}.
-function MessageMenu({ menu, items, quick, onReact, onMoreEmoji, onClose }) {
-  const box = useRef(null);
-  const [pos, setPos] = useState(null);
-  useLayoutEffect(() => {
-    if (menu.sheet || !box.current) return;
-    const { offsetWidth: w, offsetHeight: h } = box.current;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    setPos({
-      left: Math.max(8, Math.min(menu.x, vw - w - 8)),
-      top: menu.y + h > vh - 8 ? Math.max(8, vh - h - 8) : menu.y,
-    });
-  }, [menu]);
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    // Desktop popover: scrolling the chat or resizing closes it, like Discord.
-    // (Not the phone sheet — its backdrop covers the chat, and mobile browsers
-    // fire resize when the address bar moves.)
-    // Only the user scrolling counts — the list also auto-scrolls when new
-    // messages or images arrive, and that mustn't close the menu.
-    const onWheel = (e) => { if (!box.current?.contains(e.target)) onClose(); };
-    if (!menu.sheet) {
-      window.addEventListener('resize', onClose);
-      window.addEventListener('wheel', onWheel, { capture: true, passive: true });
-    }
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', onClose);
-      window.removeEventListener('wheel', onWheel, { capture: true });
-    };
-  }, [onClose, menu.sheet]);
-
-  const list = items.map((it, i) => {
-    if (it.divider) return <div key={i} className="mx-1 my-1 h-px bg-[#2B2D31]" />;
-    if (it.heading) return <div key={i} className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase text-[#949BA4]">{it.heading}</div>;
-    if (it.note) return <div key={i} className="px-2.5 pb-1 text-[11px] text-[#949BA4]">{it.note}</div>;
-    const Icon = it.icon;
-    return (
-      <button
-        key={i}
-        type="button"
-        onClick={() => { onClose(); it.onClick(); }}
-        className={cn(
-          'flex w-full items-center justify-between gap-3 rounded px-2.5 text-left transition-colors',
-          menu.sheet ? 'py-3 text-[15px]' : 'py-1.5 text-sm',
-          it.danger ? 'text-[#F23F43] hover:bg-[#F23F43] hover:text-white active:bg-[#F23F43] active:text-white' : 'text-[#DBDEE1] hover:bg-[#5865F2] hover:text-white active:bg-[#5865F2] active:text-white'
-        )}
-      >
-        <span className="truncate">{it.label}</span>
-        {Icon && <Icon className="h-[18px] w-[18px] shrink-0" />}
-      </button>
-    );
-  });
-
-  const reactRow = quick.length > 0 && (
-    <div className={cn('flex items-center', menu.sheet ? 'justify-between gap-1 px-1 pb-2' : 'gap-0.5 px-1 pb-1')}>
-      {quick.map((e) => (
-        <button key={e} type="button" onClick={() => { onClose(); onReact(e); }} title={`React ${e}`}
-          className={cn('flex items-center justify-center rounded-full bg-[#1E1F22] transition-transform duration-100 hover:scale-110 hover:bg-[#404249] active:scale-95',
-            menu.sheet ? 'h-12 w-12 text-[26px]' : 'h-9 w-9 text-xl')}>{e}</button>
-      ))}
-      <button type="button" onClick={() => { onClose(); onMoreEmoji(); }} title="More emoji"
-        className={cn('flex items-center justify-center rounded-full bg-[#1E1F22] text-[#B5BAC1] transition-colors hover:bg-[#404249] hover:text-white',
-          menu.sheet ? 'h-12 w-12' : 'h-9 w-9')}><SmilePlus className={menu.sheet ? 'h-6 w-6' : 'h-5 w-5'} /></button>
-    </div>
-  );
-
-  return createPortal(
-    <div className="fixed inset-0 z-[60]" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }}>
-      {menu.sheet ? (
-        <div className="chat-fade-in absolute inset-0 flex flex-col justify-end bg-black/50">
-          <div ref={box} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}
-            className="chat-sheet-up max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-2xl bg-[#232428] px-3 pt-2"
-            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#4E5058]" />
-            {reactRow}
-            <div className="rounded-xl bg-[#2B2D31] p-1">{list}</div>
-          </div>
-        </div>
-      ) : (
-        <div ref={box} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}
-          className="chat-fade-up absolute w-[220px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-lg border border-[#1E1F22] bg-[#111214] p-1.5 shadow-2xl"
-          style={pos ? { left: pos.left, top: pos.top } : { left: menu.x, top: menu.y, visibility: 'hidden' }}>
-          {reactRow}
-          {reactRow && <div className="mx-1 mb-1 h-px bg-[#2B2D31]" />}
-          {list}
-        </div>
-      )}
-    </div>,
-    document.body
-  );
-}
-
 function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onError, highlight }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.content);
@@ -334,7 +238,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   };
   const openMenuAt = (el) => {
     const r = el.getBoundingClientRect();
-    setMenu(narrowScreen() ? { sheet: true } : { x: r.right - 220, y: r.bottom + 4, sheet: false });
+    setMenu(narrowScreen() ? { sheet: true } : { x: r.right - 240, y: r.bottom + 4, sheet: false });
   };
   const openPicker = (anchor) => setPicker(anchor || { x: menu?.x ?? window.innerWidth / 2 - 176, y: menu?.y ?? window.innerHeight / 4 });
 
@@ -434,7 +338,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
           {m.replyTo.deleted ? <span className="italic">Original message was deleted</span> : (
             <>
               <AuthorAvatar author={m.replyTo.author} size={16} />
-              <span className="font-medium" style={{ color: nameColor(m.replyTo.author) }}>@{m.replyTo.author?.displayName}</span>
+              <span className="cursor-pointer font-medium hover:underline" onClick={(e) => openChatUserCard(m.replyTo.author, e)} onContextMenu={(e) => openUserMenu(m.replyTo.author, e)} style={{ color: nameColor(m.replyTo.author) }}>@{m.replyTo.author?.displayName}</span>
               <button onClick={() => ctx.jumpTo(m.replyTo.id)} className="truncate hover:text-white">{m.replyTo.content || 'Click to see attachment'}</button>
             </>
           )}
@@ -444,9 +348,9 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         <span className="absolute left-0 top-1 w-[72px] text-center text-[11px] leading-[22px] text-[#949BA4] opacity-0 group-hover:opacity-100">{fmtTime(m.createdAt)}</span>
       ) : (
         <>
-          <div className="absolute left-4 mt-0.5 cursor-pointer" onClick={(e) => openChatUserCard(m.author, e)}><AuthorAvatar author={m.author} size={40} /></div>
+          <div className="absolute left-4 mt-0.5 cursor-pointer" onClick={(e) => openChatUserCard(m.author, e)} onContextMenu={(e) => openUserMenu(m.author, e)}><AuthorAvatar author={m.author} size={40} /></div>
           <div className="flex items-baseline gap-2 leading-[22px]">
-            <span className="cursor-pointer font-medium hover:underline" onClick={(e) => openChatUserCard(m.author, e)} style={{ color: nameColor(m.author) }}>{m.author?.displayName || m.author?.username}</span>
+            <span className="cursor-pointer font-medium hover:underline" onClick={(e) => openChatUserCard(m.author, e)} onContextMenu={(e) => openUserMenu(m.author, e)} style={{ color: nameColor(m.author) }}>{m.author?.displayName || m.author?.username}</span>
             {m.author?.bot && <span className="rounded bg-[#5865F2] px-1 text-[10px] font-semibold uppercase leading-4 text-white">Bot</span>}
             {m.source?.platform === 'discord' && <span className="rounded bg-[#5865F2]/30 px-1 text-[10px] font-semibold uppercase text-[#C9CDFB]">via Discord</span>}
             <span className="text-xs text-[#949BA4]">{fmtStamp(m.createdAt)}</span>
@@ -550,7 +454,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         </div>
       )}
       {menu && (
-        <MessageMenu
+        <ContextMenu
           menu={menu}
           items={menuItems}
           quick={can.react ? recentReactions(menu.sheet ? 5 : 4) : []}

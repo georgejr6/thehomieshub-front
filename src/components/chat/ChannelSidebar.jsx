@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Settings, Globe } from 'lucide-react';
+import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Settings, Globe, CheckCheck, Bell, BellOff, Link2, Copy, Timer, Check } from 'lucide-react';
+import ContextMenu from './ContextMenu';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
@@ -7,12 +8,15 @@ import Avatar from './Avatar';
 
 const ICONS = { text: Hash, announcement: Megaphone, forum: MessagesSquare, thread: CornerDownRight };
 
-function ChannelRow({ c, active, onOpen, muted, depth = 0 }) {
+const SLOWMODES = [[0, 'Off'], [5, '5 seconds'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes'], [3600, '1 hour']];
+
+function ChannelRow({ c, active, onOpen, muted, depth = 0, onMenu }) {
   const Icon = ICONS[c.type] || Hash;
   const unread = c.unread > 0 && !active;
   return (
     <button
       onClick={() => onOpen(c.id)}
+      onContextMenu={(e) => onMenu?.(c, e)}
       className={cn(
         'group relative mx-2 flex w-[calc(100%-16px)] items-center gap-1.5 rounded px-2 py-[5px] text-left text-[15px] leading-5 transition-colors duration-150 active:scale-[0.99]',
         depth && 'pl-7',
@@ -31,7 +35,8 @@ function ChannelRow({ c, active, onOpen, muted, depth = 0 }) {
   );
 }
 
-export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose, onDeleteHistory, onToggleDiscoverable, onOpenSettings }) {
+export default function ChannelSidebar({ state, actions, onToast, activeChannelId, onOpen, onClose, onDeleteHistory, onToggleDiscoverable, onOpenSettings }) {
+  const [menu, setMenu] = useState(null); // { x, y, sheet, channel } | { x, y, sheet, category }
   const activeName = state.channels.find((c) => c.id === activeChannelId)?.name;
   const [collapsed, setCollapsed] = useState(() => {
     try { return JSON.parse(localStorage.getItem('hh_chat_collapsed') || '{}'); } catch { return {}; }
@@ -42,7 +47,42 @@ export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose
     try { localStorage.setItem('hh_chat_collapsed', JSON.stringify(next)); } catch { /* private mode */ }
   };
 
-  const mutedIds = new Set(state.me?.notifications?.mutedChannels || []);
+  const mutedIds = new Set((state.me?.notifications?.mutedChannels || []).map(String));
+  const openMenu = (target, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, sheet: window.innerWidth < 640, ...target });
+  };
+  const run = async (fn, ok, fail = "Couldn't do that.") => {
+    try { await fn(); if (ok) onToast?.(ok); } catch (err) { onToast?.(err.response?.data?.message || fail); }
+  };
+  const menuItems = () => {
+    if (menu?.category) {
+      const isCollapsed = collapsed[menu.category];
+      return [{ label: isCollapsed ? 'Expand Category' : 'Collapse Category', icon: ChevronDown, onClick: () => toggle(menu.category) }];
+    }
+    const c = menu.channel;
+    const isMuted = mutedIds.has(String(c.id));
+    const link = `${window.location.origin}/chat/${c.id}`;
+    return [
+      (c.unread > 0 || c.mentions > 0) && actions?.markRead && { label: 'Mark As Read', icon: CheckCheck, onClick: () => actions.markRead(c.id) },
+      actions?.setChannelMuted && (isMuted
+        ? { label: 'Unmute Channel', icon: Bell, onClick: () => run(() => actions.setChannelMuted(c.id, false), `#${c.name} unmuted.`) }
+        : { label: 'Mute Channel', icon: BellOff, onClick: () => run(() => actions.setChannelMuted(c.id, true), `#${c.name} muted — no notifications from it.`) }),
+      { divider: true },
+      { label: 'Copy Link', icon: Link2, onClick: () => run(() => navigator.clipboard.writeText(link), 'Link copied.') },
+      state.me?.isStaff && { label: 'Copy Channel ID', icon: Copy, onClick: () => run(() => navigator.clipboard.writeText(String(c.id)), 'Channel ID copied.') },
+      ...(c.can?.manageChannel && actions?.setSlowMode && c.type !== 'forum' ? [
+        { divider: true },
+        { heading: `Slow mode${c.slowModeSec ? ` · ${SLOWMODES.find(([s]) => s === c.slowModeSec)?.[1] || `${c.slowModeSec}s`}` : ''}` },
+        ...SLOWMODES.map(([sec, label]) => ({
+          label: sec === 0 ? 'Slow mode off' : label,
+          icon: (c.slowModeSec || 0) === sec ? Check : Timer,
+          onClick: () => run(() => actions.setSlowMode(c.id, sec), sec ? `Slow mode in #${c.name}: ${label}.` : `Slow mode off in #${c.name}.`),
+        })),
+      ] : []),
+    ].filter(Boolean).filter((it, i, arr) => !(it.divider && (i === 0 || i === arr.length - 1 || arr[i + 1]?.divider)));
+  };
   const groups = useMemo(() => {
     const top = state.channels.filter((c) => c.type !== 'thread').sort((a, b) => a.categoryPosition - b.categoryPosition || a.position - b.position);
     const threadsOf = {};
@@ -69,7 +109,7 @@ export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose
           return (
             <div key={g.name || '_'} className="mb-1">
               {g.name && (
-                <button onClick={() => toggle(g.name)} className="flex w-full items-center gap-0.5 px-1 pb-1 pt-4 text-[12px] font-semibold uppercase tracking-wide text-[#949BA4] transition-colors duration-150 hover:text-[#DBDEE1]">
+                <button onClick={() => toggle(g.name)} onContextMenu={(e) => openMenu({ category: g.name }, e)} className="flex w-full items-center gap-0.5 px-1 pb-1 pt-4 text-[12px] font-semibold uppercase tracking-wide text-[#949BA4] transition-colors duration-150 hover:text-[#DBDEE1]">
                   <ChevronDown className={cn('h-3 w-3 transition-transform duration-200', isCollapsed && '-rotate-90')} />
                   <span className="truncate">{g.name}</span>
                 </button>
@@ -80,9 +120,9 @@ export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose
                 if (isCollapsed && !active && !c.unread && !c.mentions) return null;
                 return (
                   <React.Fragment key={c.id}>
-                    <ChannelRow c={c} active={active} onOpen={(id) => { onOpen(id); onClose?.(); }} muted={mutedIds.has(c.id)} />
+                    <ChannelRow c={c} active={active} onOpen={(id) => { onOpen(id); onClose?.(); }} muted={mutedIds.has(String(c.id))} onMenu={(ch, e) => openMenu({ channel: ch }, e)} />
                     {!isCollapsed && threads.map((t) => (
-                      <ChannelRow key={t.id} c={t} depth={1} active={t.id === activeChannelId} onOpen={(id) => { onOpen(id); onClose?.(); }} />
+                      <ChannelRow key={t.id} c={t} depth={1} active={t.id === activeChannelId} onOpen={(id) => { onOpen(id); onClose?.(); }} muted={mutedIds.has(String(t.id))} onMenu={(ch, e) => openMenu({ channel: ch }, e)} />
                     ))}
                   </React.Fragment>
                 );
@@ -111,6 +151,14 @@ export default function ChannelSidebar({ state, activeChannelId, onOpen, onClose
             <Home className="h-5 w-5" />
           </Link>
         </div>
+      )}
+      {menu && (
+        <ContextMenu
+          menu={menu}
+          header={menu.channel ? `#${menu.channel.name}` : menu.category}
+          items={menuItems()}
+          onClose={() => setMenu(null)}
+        />
       )}
     </div>
   );

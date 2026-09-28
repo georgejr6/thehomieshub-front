@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import { openChatUserCard } from './UserCard';
 import Avatar from './Avatar';
+import { openUserMenu } from './ContextMenu';
 
 // Member rows + search results for /chat. Every row opens the member card
 // (UserCard) on click, like Discord.
@@ -23,6 +24,7 @@ export function MemberRow({ m, status, dim, extra }) {
     <button
       type="button"
       onClick={(e) => openChatUserCard(m, e)}
+      onContextMenu={(e) => openUserMenu(m, e)}
       className={cn('chat-fade-in flex w-full items-center gap-3 rounded px-2 py-1.5 text-left transition-[background-color,opacity] duration-150 hover:bg-[#35373C] active:bg-[#404249]', dim && 'opacity-40 hover:opacity-100')}
     >
       <div className="relative shrink-0">

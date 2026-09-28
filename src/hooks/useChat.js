@@ -473,6 +473,15 @@ export function useChat({ enabled, activeChannelId }) {
       if (result) dispatch({ type: 'reaction', d: result });
       return result;
     },
+    // Channel right-click menu.
+    setChannelMuted: async (channelId, muted) => {
+      const notifications = (await api.patch('/chat/notifications', { channelId, channelMuted: muted })).data.result;
+      dispatch({ type: 'me', patch: { notifications } });
+    },
+    setSlowMode: async (channelId, slowModeSec) => {
+      const channel = (await api.patch(`/chat/mod/channels/${channelId}`, { slowModeSec })).data.result;
+      dispatch({ type: 'channelUpdated', channel });
+    },
     pin: async (id, pinned) => api[pinned ? 'put' : 'delete'](`/chat/messages/${id}/pin`),
     report: async (id, reason, note) => api.post(`/chat/messages/${id}/report`, { reason, note }),
     // Moderation — the server applies it in Homies Chat and on Discord, and

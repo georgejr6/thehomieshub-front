@@ -21,6 +21,7 @@ import Header from '@/components/Header';
 import ChatAppRail, { readRailOpen, saveRailOpen } from '@/components/ChatAppRail';
 import api from '@/api/homieshub';
 import { cn } from '@/lib/utils';
+import { UserMenuHost } from '@/components/chat/ContextMenu';
 
 // Homies Chat — the Discord-style community chat, built into the app.
 // Full-screen layout (server header, channel sidebar, messages, member
@@ -256,10 +257,22 @@ export default function ChatPage({ onLoginRequest }) {
     return <div className="flex h-screen items-center justify-center bg-[#313338] text-[#DBDEE1]">You've been banned from this chat.</div>;
   }
 
+  // Right-clicks nothing in the chat handles: no browser page menu (Back /
+  // Reload / Save as…), like Discord. Text fields, links, images and selected
+  // text keep the browser menu so copy / paste / open-link / save-image work.
+  const suppressBrowserMenu = (e) => {
+    if (e.defaultPrevented) return;
+    const t = e.target;
+    if (t.closest?.('input, textarea, [contenteditable="true"], a[href], img, video')) return;
+    if (String(window.getSelection?.() || '').trim()) return;
+    e.preventDefault();
+  };
+
   const ChannelIcon = channel?.type === 'announcement' ? Megaphone : channel?.type === 'thread' ? CornerDownRight : Hash;
 
   return (
-    <div ref={rootRef} className="fixed inset-0 flex bg-[#313338] font-sans text-[#DBDEE1] md:top-14">
+    <div ref={rootRef} onContextMenu={suppressBrowserMenu} className="fixed inset-0 flex bg-[#313338] font-sans text-[#DBDEE1] md:top-14">
+      <UserMenuHost me={state.me} onOpenSettings={() => { setDrawer(false); setSettingsOpen(true); }} onToast={setToast} />
       <Helmet><title>{channel ? `#${channel.name}` : 'Chat'} · The Homies</title></Helmet>
       {/* The app's top bar (search, notifications, account) on tablet/desktop — chat sits under it. */}
       <div className="hidden md:block"><Header onLoginClick={onLoginRequest} onLoginRequest={onLoginRequest} onMenuClick={() => {}} isMobile={false} /></div>
@@ -280,14 +293,14 @@ export default function ChatPage({ onLoginRequest }) {
       </div>
 
       {/* Channel sidebar: static on desktop, drawer on mobile */}
-      <div className="hidden md:flex"><ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} onOpenSettings={() => { setDrawer(false); setSettingsOpen(true); }} /></div>
+      <div className="hidden md:flex"><ChannelSidebar state={state} actions={actions} onToast={setToast} activeChannelId={channelId} onOpen={open} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} onOpenSettings={() => { setDrawer(false); setSettingsOpen(true); }} /></div>
       {drawer && (
         <div className="chat-fade-in fixed inset-0 z-40 flex md:hidden">
           <div className="chat-slide-right flex h-full">
             <div className="flex w-[72px] shrink-0 flex-col bg-[#1E1F22] py-3">
               <ChatAppRail compact onNavigate={() => setDrawer(false)} />
             </div>
-            <ChannelSidebar state={state} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} onOpenSettings={() => { setDrawer(false); setSettingsOpen(true); }} />
+            <ChannelSidebar state={state} actions={actions} onToast={setToast} activeChannelId={channelId} onOpen={open} onClose={() => setDrawer(false)} onDeleteHistory={deleteHistory} onToggleDiscoverable={toggleDiscoverable} onOpenSettings={() => { setDrawer(false); setSettingsOpen(true); }} />
           </div>
           <div className="flex-1 bg-black/50" onClick={() => setDrawer(false)} />
         </div>

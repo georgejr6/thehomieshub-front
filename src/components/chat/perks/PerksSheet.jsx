@@ -240,7 +240,12 @@ function PointsTab({ balance, need, actions, onBought, onCheckout, busy, setBusy
         <div className="text-xs font-semibold uppercase tracking-wide text-[#C9B27A]">Your balance</div>
         <div className="mt-1 flex items-baseline gap-2"><span className="text-3xl font-extrabold text-[#F0B94D]">{balance == null ? '—' : fmt(balance)}</span><span className="text-[#C9B27A]">pts</span></div>
         {need > 0 && <div className="mt-1 text-sm text-white">You need <b>{fmt(need)}</b> more for that.</div>}
-        <div className="mt-2 text-xs leading-relaxed text-[#C9B27A]">Earn free points by chatting (+1, up to 10 a day) and when others react to your messages (+2, up to 20 a day).</div>
+        <div className="mt-2 space-y-0.5 text-xs leading-relaxed text-[#C9B27A]">
+          <div>Earn free points by showing up — here or on our Discord:</div>
+          <div>• +1 per message (up to 10 a day; Discord counts for 5) · +5 for your first message of the day</div>
+          <div>• +25 every 7 days in a row · +2 when someone replies to you · +1 when someone reacts</div>
+          <div className="text-[#9C8A5E]">Up to 150 a week. Earned points cover one free month every 3 months; points you buy work anytime.</div>
+        </div>
       </div>
       {!packs ? (
         <div className="flex justify-center py-6"><Loader2 className="h-6 w-6 animate-spin text-[#949BA4]" /></div>
