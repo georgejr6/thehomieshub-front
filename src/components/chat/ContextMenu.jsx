@@ -114,6 +114,9 @@ export default function ContextMenu({ menu, items, quick = [], onReact, onMoreEm
 /** Call from an onContextMenu handler: opens the menu for that member. */
 export function openUserMenu(user, e) {
   if (!user?.id || !user?.username || user.username === 'deleted') return;
+  // Phones: press-and-hold opens the message sheet (tap a name for the card).
+  // Android also fires contextmenu on long-press — don't stack a second sheet.
+  if (!window.matchMedia?.('(hover: hover)').matches) { e.preventDefault(); return; }
   e.preventDefault();
   e.stopPropagation();
   window.dispatchEvent(new CustomEvent('hh:chat-user-menu', {
