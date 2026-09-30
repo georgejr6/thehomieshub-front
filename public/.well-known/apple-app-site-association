@@ -1,0 +1,25 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["L58B2JA9JJ.app.thehomies.mobile"],
+        "appID": "L58B2JA9JJ.app.thehomies.mobile",
+        "components": [
+          { "/": "/join", "comment": "invite / referral links" },
+          { "/": "/join/*" },
+          { "/": "/live-stream/*" },
+          { "/": "/chat" },
+          { "/": "/chat/*" },
+          { "/": "/points" },
+          { "/": "/profile/*" },
+          { "/": "/u/*" }
+        ],
+        "paths": ["/join", "/join/*", "/live-stream/*", "/chat", "/chat/*", "/points", "/profile/*", "/u/*"]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["L58B2JA9JJ.app.thehomies.mobile"]
+  }
+}
