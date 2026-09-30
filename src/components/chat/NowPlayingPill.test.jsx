@@ -50,4 +50,11 @@ describe('NowPlayingPill', () => {
     rerender(<MemoryRouter><NowPlayingPill /></MemoryRouter>);
     expect(screen.getByText('Next One · Mwosa')).toBeInTheDocument();
   });
+
+  it('dismissing the phone bar also hides the header pill (resize across 2xl)', () => {
+    render(<MemoryRouter><NowPlayingPill variant="header" /><NowPlayingPill variant="bar" /></MemoryRouter>);
+    expect(screen.getAllByTestId('now-playing-pill')).toHaveLength(2);
+    fireEvent.click(screen.getAllByLabelText('Hide now playing')[1]);
+    expect(screen.queryAllByTestId('now-playing-pill')).toHaveLength(0);
+  });
 });
