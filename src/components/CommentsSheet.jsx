@@ -18,6 +18,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useContent } from '@/contexts/ContentContext';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import api from '@/api/homieshub';
+import { isBlockedError } from '@/lib/apiErrors';
 
 const CommentItem = ({ comment }) => {
     const [liked, setLiked] = useState(false);
@@ -113,6 +114,9 @@ const CommentsSheet = ({ children, post,targetType = "community_post", onLoginRe
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
   const [hasFetched, setHasFetched] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null); // older comments to load (newest-first paging)
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const { toast } = useToast();
   const inputRef = useRef(null);
 
   // Determine if we are showing/controlled by parent or local state
@@ -143,19 +147,33 @@ const CommentsSheet = ({ children, post,targetType = "community_post", onLoginRe
           const targetId = post?.id || post?._id;
 if (!targetId) return;
 
-const data = await fetchComments({
-  targetType: targetType,
-  targetId,
-  page: 1,
-  limit: 50,
-});
-
-setLocalComments(data);
+          // Newest first; "Load older comments" pages back with the cursor.
+          const { items, pagination } = await fetchComments({ targetType, targetId, limit: 30, order: 'newest', withPagination: true });
+          setLocalComments(items);
+          setNextCursor(pagination?.hasMore ? pagination.nextCursor || null : null);
           setHasFetched(true);
       } catch (error) {
           console.error("Failed to load comments", error);
       } finally {
           setIsLoading(false);
+      }
+  };
+
+  const loadOlder = async () => {
+      const targetId = post?.id || post?._id;
+      if (!nextCursor || !targetId || loadingOlder) return;
+      setLoadingOlder(true);
+      try {
+          const { items, pagination } = await fetchComments({ targetType, targetId, limit: 30, before: nextCursor, withPagination: true });
+          setLocalComments((prev) => {
+              const seen = new Set(prev.map((c) => String(c._id || c.id)));
+              return [...prev, ...items.filter((c) => !seen.has(String(c._id || c.id)))];
+          });
+          setNextCursor(pagination?.hasMore ? pagination.nextCursor || null : null);
+      } catch (error) {
+          console.error("Failed to load older comments", error);
+      } finally {
+          setLoadingOlder(false);
       }
   };
 
@@ -214,6 +232,10 @@ setLocalComments(prev => [patched, ...prev]);
 
       } catch (error) {
           console.error("Failed to post comment", error);
+          // A block (403 "blocked") already gets the app-wide notice (api/homieshub.js).
+          if (!isBlockedError(error)) {
+              toast({ title: "Couldn't post your comment", description: error?.response?.data?.message || "Please try again.", variant: "destructive" });
+          }
       } finally {
           setIsSubmitting(false);
       }
@@ -234,9 +256,18 @@ setLocalComments(prev => [patched, ...prev]);
                   <p className="text-sm">Loading comments...</p>
               </div>
           ) : localComments.length > 0 ? (
-              localComments.map(comment => (
-                  <CommentItem key={comment.id} comment={comment}/>
-              ))
+              <>
+                  {localComments.map(comment => (
+                      <CommentItem key={comment.id || comment._id} comment={comment}/>
+                  ))}
+                  {nextCursor && !isLiveChat && (
+                      <div className="flex justify-center py-3">
+                          <Button type="button" variant="ghost" size="sm" onClick={loadOlder} disabled={loadingOlder}>
+                              {loadingOlder ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load older comments'}
+                          </Button>
+                      </div>
+                  )}
+              </>
           ) : (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-10 text-center">
                   <div className="bg-muted/50 p-4 rounded-full mb-3">

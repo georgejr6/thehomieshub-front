@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Lock, Crown, Film, Plane, Music2, MessagesSquare, CalendarDays, Sparkles, RefreshCw, LogOut, Ban, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { APPEAL_PATH, safeAppealUrl } from '@/lib/apiErrors';
 
 // Members-only lock (server: middleware/memberGate.js, CONTENT_REQUIRE_MEMBERSHIP).
 // Signed-in accounts without a paid membership see this screen instead of
@@ -162,12 +163,21 @@ export function BannedScreen() {
     );
   }
   if (!banned && !user?.isBanned) return null;
+  // The appeal page (and the support contact it points to) stay reachable.
+  if (location.pathname === APPEAL_PATH || location.pathname === '/support') return null;
+  const appealUrl = safeAppealUrl(window.__hhBanAppealUrl);
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black px-6 text-center">
       <div className="max-w-sm">
         <Ban className="mx-auto h-12 w-12 text-red-500" />
         <h1 className="mt-4 text-2xl font-bold text-white">This account has been banned</h1>
         <p className="mt-2 text-sm text-neutral-400">It no longer has access to The Homies app, chat or Discord.</p>
+        <p className="mt-3 text-sm text-neutral-400">
+          Think this is a mistake?{' '}
+          {appealUrl.startsWith('/')
+            ? <Link to={appealUrl} className="font-semibold text-primary underline underline-offset-2">Appeal the ban</Link>
+            : <a href={appealUrl} className="font-semibold text-primary underline underline-offset-2">Appeal the ban</a>}
+        </p>
         <button type="button" onClick={() => { signOut(); window.__hhAccountBanned = false; setBanned(false); window.location.href = '/'; }} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white/10 px-5 py-2.5 font-semibold text-white hover:bg-white/15">
           <LogOut className="h-4 w-4" /> Sign out
         </button>

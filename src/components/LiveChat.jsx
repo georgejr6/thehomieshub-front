@@ -9,8 +9,17 @@ import api from '@/api/homieshub';
 
 const WS_BASE = import.meta.env.VITE_WS_URL || 'wss://backend.thehomies.app';
 
-export default function LiveChat({ streamId, isCollapsible = true, className, onGiftMessage, replay = false, replaySeconds = 0, streamStartMs = null }) {
+const readToken = () => { try { return localStorage.getItem('access_token') || ''; } catch { return ''; } };
+
+// Live chat socket (backend utils/wsServer.js). Every socket starts as a
+// read-only guest; signed-in viewers send {type:"auth", token} as the first
+// frame and the server answers auth_ok (with the name it will show) or
+// auth_error. Identity never comes from the URL or from a username we send.
+export default function LiveChat({ streamId, isCollapsible = true, className, onGiftMessage, onLoginRequest, replay = false, replaySeconds = 0, streamStartMs = null }) {
   const { user } = useAuth();
+  // 'guest' (read-only) | 'pending' | 'ok' | 'error'
+  const [authState, setAuthState] = useState('guest');
+  const [chatName, setChatName] = useState(null); // the name the server shows for us
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [connected, setConnected] = useState(false);
@@ -38,12 +47,8 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
     window.speechSynthesis.speak(u);
   }, []);
 
-  const usernameRef = useRef(user?.username || 'Guest');
-  const avatarUrlRef = useRef(user?.avatarUrl || null);
-  useEffect(() => {
-    usernameRef.current = user?.username || 'Guest';
-    avatarUrlRef.current = user?.avatarUrl || null;
-  }, [user?.username, user?.avatarUrl]);
+  // Reconnect when the viewer signs in or out, so the socket's identity follows.
+  const signedInAs = user ? String(user._id || user.id || user.sub || user.username || 'me') : null;
 
   const bottomRef = useRef(null);
 
@@ -69,22 +74,34 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
   const connect = useCallback(() => {
     if (!streamId) return;
-    const params = new URLSearchParams({ streamId, username: usernameRef.current });
-    if (avatarUrlRef.current) params.set('avatarUrl', avatarUrlRef.current);
-
+    const params = new URLSearchParams({ streamId });
     const ws = new WebSocket(`${WS_BASE}/ws/live-chat?${params}`);
     wsRef.current = ws;
+    setAuthState('guest');
+    setChatName(null);
 
     ws.onopen = () => {
       setConnected(true);
       reconnectDelay.current = 3000;
       clearTimeout(reconnectTimer.current);
+      const token = signedInAs ? readToken() : '';
+      if (token) {
+        setAuthState('pending');
+        ws.send(JSON.stringify({ type: 'auth', token }));
+      }
     };
 
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'viewer_count') {
+        if (msg.type === 'auth_ok') {
+          setAuthState('ok');
+          setChatName(msg.username || null);
+        } else if (msg.type === 'auth_error') {
+          setAuthState('error');
+        } else if (msg.type === 'system' && msg.code === 'auth_required') {
+          setAuthState((st) => (st === 'pending' ? st : 'guest'));
+        } else if (msg.type === 'viewer_count') {
           setViewerCount(msg.count);
         } else if (msg.type === 'gift') {
           if (onGiftMessage) onGiftMessage(msg);
@@ -102,7 +119,10 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
     };
 
     ws.onclose = () => {
+      // A socket replaced on sign-in/out closes late; it mustn't touch state.
+      if (wsRef.current !== ws) return;
       setConnected(false);
+      setAuthState('guest');
       reconnectTimer.current = setTimeout(() => {
         if (wsRef.current === ws) connect();
       }, reconnectDelay.current);
@@ -110,7 +130,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
     };
 
     ws.onerror = () => ws.close();
-  }, [streamId, addMessage]);
+  }, [streamId, addMessage, signedInAs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (replay) return; // VOD replay is read-only — no live socket
@@ -137,7 +157,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
   const sendChat = (e) => {
     e?.preventDefault();
-    if (!input.trim() || !connected || wsRef.current?.readyState !== 1) return;
+    if (!input.trim() || !connected || authState !== 'ok' || wsRef.current?.readyState !== 1) return;
     wsRef.current.send(JSON.stringify({ type: 'chat', content: input.trim() }));
     setInput('');
   };
@@ -244,7 +264,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
           }
 
           // Regular chat
-          const isMe = msg.username === user?.username;
+          const isMe = !!chatName && msg.username === chatName;
           return (
             <div key={msg._key || msg.id || i} className="flex items-start gap-2 group hover:bg-white/[0.03] px-1 py-0.5 rounded">
               <Avatar className="h-5 w-5 shrink-0 mt-0.5">
@@ -269,22 +289,31 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
       <div className="px-3 pb-3 pt-2 border-t border-white/5 shrink-0">
         {replay ? (
           <p className="text-white/30 text-xs text-center py-2">Chat replay — messages play back with the recording</p>
-        ) : user ? (
+        ) : user && authState !== 'error' ? (
           <form onSubmit={sendChat} className="flex gap-2">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={connected ? "Say something..." : "Connecting..."}
-              disabled={!connected}
+              placeholder={!connected || authState === 'pending' ? "Connecting..." : authState === 'ok' ? "Say something..." : "Signing you in..."}
+              disabled={!connected || authState !== 'ok'}
               maxLength={300}
               className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-primary rounded-full text-sm h-9"
             />
-            <Button type="submit" size="icon" disabled={!input.trim() || !connected} className="h-9 w-9 rounded-full shrink-0 bg-primary hover:bg-primary/90">
+            <Button type="submit" size="icon" aria-label="Send" disabled={!input.trim() || !connected || authState !== 'ok'} className="h-9 w-9 rounded-full shrink-0 bg-primary hover:bg-primary/90">
               <Send className="h-4 w-4" />
             </Button>
           </form>
         ) : (
-          <p className="text-white/30 text-xs text-center py-2">Sign in to chat</p>
+          <div className="flex items-center justify-between gap-2 py-1">
+            <p className="text-white/40 text-xs">
+              {user ? "Couldn't sign you into chat. Log in again to chat." : 'Watching as a guest — chat is read-only.'}
+            </p>
+            {onLoginRequest && (
+              <Button type="button" size="sm" onClick={() => onLoginRequest()} className="h-8 shrink-0 rounded-full bg-primary px-4 text-xs hover:bg-primary/90">
+                Log in to chat
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </div>

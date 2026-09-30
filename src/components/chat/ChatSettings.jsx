@@ -150,6 +150,13 @@ export default function ChatSettings({ open, onClose, state, actions, onToast, o
     }
   };
 
+  // Promotional push is opt-in (server utils/marketingPush.js): on only when
+  // pushNotifications.marketing is true and not unsubscribed (marketing.push).
+  const setMarketingPush = async (value) => {
+    await setPref('push', 'marketing', value);
+    if (value && prefs.marketing?.push === false) await setPref('marketing', 'push', true);
+  };
+
   const muted = mutedLocal ?? !!state.me?.notifications?.serverMuted;
   const setServerMuted = async (value) => {
     setMutedLocal(value);
@@ -298,7 +305,7 @@ export default function ChatSettings({ open, onClose, state, actions, onToast, o
                 <Row icon={Megaphone} title="Email" desc="Member news, perks and the occasional deal."><Toggle label="Updates by email" on={onOff(mk.email)} onChange={(v) => setPref('marketing', 'email', v)} /></Row>
                 <Row title="Discord DMs from The Homies Bot"><Toggle label="Updates on Discord" on={onOff(mk.discord)} onChange={(v) => setPref('marketing', 'discord', v)} /></Row>
                 <Row title="Messages from @thehomies"><Toggle label="Updates in app" on={onOff(mk.dm)} onChange={(v) => setPref('marketing', 'dm', v)} /></Row>
-                <Row title="Push"><Toggle label="Updates by push" on={onOff(mk.push)} onChange={(v) => setPref('marketing', 'push', v)} /></Row>
+                <Row title="Marketing & promotions push" desc="Off unless you turn it on."><Toggle label="Marketing & promotions push" on={push.marketing === true && mk.push !== false} onChange={setMarketingPush} /></Row>
               </Section>
             </div>
           )}

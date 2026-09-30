@@ -496,6 +496,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
             <LiveChat
               streamId={String(stream._id || stream.id)}
               isCollapsible
+              onLoginRequest={onLoginRequest}
               onGiftMessage={(msg) => {
                 setLiveGiftEvent(msg);
                 setTimeout(() => setLiveGiftEvent(null), 3500);

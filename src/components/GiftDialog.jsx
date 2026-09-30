@@ -9,6 +9,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import api from "@/api/homieshub";
 
+// Stream card donations (backend utils/live/streamDonation.js).
+const CARD_MIN_CENTS = 100;
+const CARD_MAX_CENTS = 50000;
+
 const GIFT_AMOUNTS = [10, 50, 100, 500, 1000];
 
 const POINT_PACKS = [
@@ -156,6 +160,7 @@ const GiftDialog = ({
   };
 
   const [cardDonating, setCardDonating] = useState(false);
+  const [cardDollars, setCardDollars] = useState('5');
   const needsTopUp = selectedAmount !== null && balance < selectedAmount;
 
   const handleCardDonate = async () => {
@@ -163,15 +168,27 @@ const GiftDialog = ({
       window.open('https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09', '_blank');
       return;
     }
+    // Live streams: our own Stripe Checkout. The message is read aloud only
+    // after Stripe confirms the payment (backend webhook), never before.
+    if (!user) {
+      toast({ title: "Login required", description: "Sign in to donate to this stream.", variant: "destructive" });
+      return;
+    }
+    const amountCents = Math.round(Number(cardDollars) * 100);
+    if (!Number.isFinite(amountCents) || amountCents < CARD_MIN_CENTS || amountCents > CARD_MAX_CENTS) {
+      toast({ title: "Pick an amount", description: `Donations are $${CARD_MIN_CENTS / 100}–$${CARD_MAX_CENTS / 100}.`, variant: "destructive" });
+      return;
+    }
     setCardDonating(true);
     try {
-      if (user) {
-        await api.post(`/live/${targetId}/card-donation`, { ttsMessage: ttsMessage.trim() || undefined });
-      }
-    } catch (_) {}
-    setCardDonating(false);
-    window.open('https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09', '_blank');
-    onOpenChange(false);
+      const { data } = await api.post(`/live/${targetId}/card-donation/checkout`, { amountCents, ttsMessage: ttsMessage.trim() || undefined });
+      const url = data?.result?.url;
+      if (!url) throw new Error('Missing checkout URL');
+      window.location.href = url;
+    } catch (e) {
+      setCardDonating(false);
+      toast({ title: "Couldn't start checkout", description: e?.response?.data?.message || "Please try again.", variant: "destructive" });
+    }
   };
 
   return (
@@ -323,14 +340,29 @@ const GiftDialog = ({
                 <p className="text-xs font-semibold text-green-400 flex items-center gap-1.5">
                   <CreditCard className="h-3.5 w-3.5" /> Donate with Card
                 </p>
-                <p className="text-xs text-muted-foreground">Skip the points — donate directly via Stripe. Your message will be read aloud in the stream.</p>
+                <p className="text-xs text-muted-foreground">Skip the points — donate directly via Stripe. Your message is read aloud in the stream once the payment goes through.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[2, 5, 10, 20].map((d) => (
+                    <button key={d} type="button" onClick={() => setCardDollars(String(d))}
+                      className={cn("rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors",
+                        Number(cardDollars) === d ? "border-green-500 bg-green-500/15 text-green-400" : "border-border hover:border-green-500/50")}>
+                      ${d}
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground">$</span>
+                    <Input type="number" inputMode="decimal" min={CARD_MIN_CENTS / 100} max={CARD_MAX_CENTS / 100} step="1"
+                      aria-label="Donation amount in dollars" value={cardDollars} onChange={(e) => setCardDollars(e.target.value)}
+                      className="h-8 w-20 text-sm" />
+                  </div>
+                </div>
                 <Button
                   type="button"
                   onClick={handleCardDonate}
                   disabled={cardDonating}
                   className="w-full bg-green-600 hover:bg-green-700 text-white border-0 h-10"
                 >
-                  {cardDonating ? <Loader2 className="h-4 w-4 animate-spin" /> : '💳 Donate with Card'}
+                  {cardDonating ? <Loader2 className="h-4 w-4 animate-spin" /> : `💳 Donate $${Number(cardDollars) > 0 ? Number(cardDollars) : '…'} with Card`}
                 </Button>
               </div>
             )}

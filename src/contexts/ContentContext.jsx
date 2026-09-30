@@ -505,19 +505,23 @@ function normalizeTargetType(t) {
 }
 
 
-const fetchComments = async ({ targetType, targetId, page = 1, limit = 50 }) => {
-  console.log("Fetching comments for", targetType, targetId, "page:", page, "limit:", limit);
+// order: "newest" (+ before: pagination.nextCursor for older pages) uses the
+// backend's cursor paging; without it, the original oldest-first page/limit.
+// withPagination: true returns { items, pagination } instead of just items.
+const fetchComments = async ({ targetType, targetId, page = 1, limit = 50, order, before, withPagination = false }) => {
   const normalized = normalizeTargetType(targetType);
 
   if (!normalized || !targetId) {
     throw new Error("fetchComments missing targetType/targetId");
   }
 
-  const resp = await api.get("/user/comments", {
-    params: { targetType: normalized, targetId, page, limit },
-  });
+  const params = order === "newest" || before
+    ? { targetType: normalized, targetId, limit, order: "newest", ...(before ? { before } : {}) }
+    : { targetType: normalized, targetId, page, limit };
+  const resp = await api.get("/user/comments", { params });
 
-  return resp?.data?.result?.items ?? [];
+  const items = resp?.data?.result?.items ?? [];
+  return withPagination ? { items, pagination: resp?.data?.result?.pagination || {} } : items;
 };
 
 const addComment = async ({ targetType, targetId, text, parentId = null }) => {

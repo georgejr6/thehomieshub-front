@@ -137,6 +137,14 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-09-30 (later) — Adopt backend safety APIs (live chat auth, paid-only card donations, bans/blocks, marketing push opt-in)
+- **`LiveChat.jsx`**: the socket URL carries only `streamId`; signed-in viewers send `{type:"auth", token}` on open, `auth_ok` gives the name the server shows (used for "You"), `auth_error` / guests → read-only with a "Log in to chat" button (`onLoginRequest`). Reconnects on sign-in/out; a replaced socket's late close can't touch state.
+- **`GiftDialog.jsx`** card donations: amount picker ($1–$500) → `POST /live/:id/card-donation/checkout {amountCents, ttsMessage}` → redirect to Stripe; the TTS message is announced only after payment (webhook). Old pre-payment endpoint no longer called.
+- **Comments**: `fetchComments({ order:'newest', before, withPagination })` (old page/limit call unchanged); `CommentsSheet` loads newest first + "Load older comments".
+- **`lib/apiErrors.js`** (`apiErrorCode`, `isBannedError`, `isBlockedError`, `safeAppealUrl`). `api/homieshub.js`: 403 `banned` (and legacy `account_banned`) sets the banned screen once and keeps `appealUrl`; 403 `blocked` → one friendly toast (5 s throttle). `BannedScreen` links "Appeal the ban"; `/appeal` (`pages/AppealPage.jsx`) + `/support` stay reachable while banned.
+- **Marketing & promotions push** is opt-in (`pushNotifications.marketing`, backend `utils/marketingPush.js`): toggle in Settings → Notifications and in chat User Settings (`PATCH /profile/me/notifications {channel:"push", marketing}`; turning it on also clears a `marketing.push:false` unsubscribe).
+- Handoff: WalletLayout / PayPage already exchange `?code=` via `/auth/handoff-exchange` and strip it. MyConsent "Continue on web" still sends `?token=` to myconsent.me — that site (separate repo `myconsent-front`) only reads `token`, so switching needs it to exchange a code first.
+
 ### 2026-09-30 — Chat: drop files anywhere in the channel, paste screenshots, live link previews; tests + CI
 - **`chat/DropZone.jsx`** wraps the message list + composer (ChatPage): dragging files from the desktop shows a full-channel "Drop to upload to #channel" overlay (enter/leave counted, no flicker; "You can't upload files here" where `can.attach`/`can.send` is off). Drops go to the composer through its ref (`Composer` is `forwardRef`, exposes `addFiles`). A file dropped outside the zone no longer makes the browser open it.
 - **`chat/attachments.js`**: client checks that mirror the server (10 files, `me.uploadMaxBytes` / 20 MB, blocked html/svg/js/exe…, folders) with friendly toasts; the good files still attach. Clipboard screenshots are renamed `screenshot-<time>.png`. Composer tray: image + video thumbnails, size, per-file remove (`Remove <name>`), "Uploading N files… 42%" + progressbar; a failed upload puts the files back. Pasting text never gets hijacked by a clipboard file.

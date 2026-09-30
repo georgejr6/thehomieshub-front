@@ -65,6 +65,7 @@ const PrivacyPolicyPage = lazyWithReload(() => import('@/pages/PrivacyPolicyPage
 const CommunityGuidelinesPage = lazyWithReload(() => import('@/pages/CommunityGuidelinesPage'));
 const ChildSafetyPage = lazyWithReload(() => import('@/pages/ChildSafetyPage'));
 const SupportPage = lazyWithReload(() => import('@/pages/SupportPage'));
+const AppealPage = lazyWithReload(() => import('@/pages/AppealPage'));
 import LandingPage from '@/pages/LandingPage';
 const MembershipsPage = lazyWithReload(() => import('@/pages/MembershipsPage'));
 const BillingPage = lazyWithReload(() => import('@/pages/BillingPage'));
@@ -102,7 +103,7 @@ import { isLocationVerified } from '@/lib/tracker';
 // the entry point + legally-required pages so people can still learn what
 // the site is and reach required disclosures before being asked for it.
 const LOCATION_GATE_EXEMPT_PATHS = new Set([
-  '/', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support',
+  '/', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support', '/appeal',
 ]);
 
 // chat.thehomies.app / community.thehomies.app / discord.thehomies.app all
@@ -613,6 +614,7 @@ const AppContent = React.memo(() => {
                 <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
                 <Route path="/child-safety" element={<ChildSafetyPage />} />
                 <Route path="/support" element={<SupportPage />} />
+                <Route path="/appeal" element={<AppealPage />} />
 
                 <Route path="/creator-studio" element={user ? <CreatorStudioPage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />} />
                 <Route path="/trips" element={<TripsPage onLoginRequest={handleLoginRequest} />} />

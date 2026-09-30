@@ -61,6 +61,23 @@ const AccountSettingsPage = () => {
     wagers:    user?.emailNotifications?.wagers    ?? true,
   });
 
+  // Promotional push is opt-in (server utils/marketingPush.js).
+  const [marketingPush, setMarketingPush] = useState(user?.pushNotifications?.marketing === true && user?.marketing?.push !== false);
+  const handleMarketingPushToggle = async () => {
+    const next = !marketingPush;
+    setMarketingPush(next);
+    try {
+      await api.patch('/profile/me/notifications', { channel: 'push', marketing: next });
+      // Turning it on also lifts an earlier "unsubscribe from marketing push".
+      if (next && user?.marketing?.push === false) await api.patch('/profile/me/notifications', { channel: 'marketing', push: true });
+      toast({ title: 'Settings Updated', description: `Marketing & promotions push ${next ? 'enabled' : 'disabled'}.` });
+      if (refreshMe) refreshMe();
+    } catch {
+      setMarketingPush(!next);
+      toast({ title: 'Error', description: 'Failed to update notification preference.', variant: 'destructive' });
+    }
+  };
+
   // Privacy States
   const [privacy, setPrivacy] = useState({
     messaging: 'everyone',
@@ -379,6 +396,21 @@ const AccountSettingsPage = () => {
               />
             </div>
           ))}
+          <div className="border-t pt-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Push (Homies app)</p>
+            <div className="flex items-center justify-between space-x-2">
+              <Label htmlFor="marketing-push" className="flex-1">
+                Marketing & promotions push
+                <span className="block text-xs font-normal text-muted-foreground">Member news, perks and deals on your phone. Off unless you turn it on.</span>
+              </Label>
+              <Switch
+                id="marketing-push"
+                checked={marketingPush}
+                onCheckedChange={handleMarketingPushToggle}
+                className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
