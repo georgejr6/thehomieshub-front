@@ -361,7 +361,7 @@ export default function ChatPage({ onLoginRequest }) {
           </div>
         </div>
 
-        {/* Phones: the header has no room, so the now-playing controls get a slim row under it. */}
+        {/* Below 2xl the header has no room, so the now-playing controls get a slim row under it. */}
         <NowPlayingPill variant="bar" />
         <ClaimNameBar me={state.me} onSaved={(name) => { setToast(`You're now @${name} — everyone sees your new name.`); actions.reload(); }} />
         <div className="flex min-h-0 flex-1">
