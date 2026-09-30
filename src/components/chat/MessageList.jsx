@@ -14,7 +14,7 @@ import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import ChatMarkdown, { roleColor } from './ChatMarkdown';
 import PostCard from './PostCard';
-import Embed, { embedImageUrl } from './Embed';
+import Embed, { embedImageUrl, EmbedPlaceholder } from './Embed';
 import { openImageViewer, ImageViewerHost } from './ImageViewer';
 import SpecialMessage from './perks/SpecialMessage';
 import { openChatUserCard } from './UserCard';
@@ -26,6 +26,11 @@ import Avatar from './Avatar';
 const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches;
 
 const GROUP_MS = 7 * 60 * 1000;
+// A link the server may preview (utils/chat/unfurl.js); how long to show the
+// placeholder before giving up on one arriving. "<https://…>" opts out of a
+// preview, as on Discord.
+const PREVIEW_LINK_RE = /(^|[^<])https?:\/\/[^\s<>]+/i;
+const PREVIEW_WAIT_MS = 5000;
 
 const nameColor = (a) => (a?.color ? roleColor(a.color) : '#F2F3F5');
 const fmtTime = (d) => format(new Date(d), 'h:mm a');
@@ -178,6 +183,13 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   };
   // Animate only messages that arrive while you're watching, not history pages.
   const fresh = useRef(m.pending || Date.now() - new Date(m.createdAt).getTime() < 8000).current;
+  // Your just-sent link: a quiet placeholder until its preview lands (or not).
+  const [previewWait, setPreviewWait] = useState(() => fresh && mine && !m.source && !m.editedAt && PREVIEW_LINK_RE.test(m.content || ''));
+  useEffect(() => {
+    if (!previewWait) return undefined;
+    const t = setTimeout(() => setPreviewWait(false), PREVIEW_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [previewWait]);
   const pinged = !mine && (m.mentions?.includes(me?.id) || m.mentionEveryone || m.mentionRoles?.some((r) => me?.roleIds?.includes(r)));
 
   useEffect(() => { if (ctx.editRequest === m.id) { setDraft(m.content); setEditing(true); ctx.clearEditRequest(); } }, [ctx.editRequest]); // eslint-disable-line
@@ -389,6 +401,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
 
       {m.post && <PostCard post={m.post} onVote={actions.votePoll} onError={onError} />}
       {m.embeds?.length > 0 && m.embeds.map((e, i) => <Embed key={i} e={e} ctx={ctx} onOpenImage={openImage} />)}
+      {previewWait && !m.embeds?.length && !m.pending && !m.failed && !m.held && !m.special && !m.editedAt && <EmbedPlaceholder />}
       {images.length > 0 && <div className="mt-1"><ImageGallery images={images} onOpen={openImage} /></div>}
       {otherFiles.length > 0 && (
         <div className="mt-1 flex flex-col gap-1">{otherFiles.map((a) => <Attachment key={a.url} a={a} />)}</div>

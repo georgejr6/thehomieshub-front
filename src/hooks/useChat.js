@@ -33,11 +33,21 @@ const liveShoutouts = (list) => list.filter((m) => m.special?.pinnedUntil && new
 const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
 const cmpId = (a, b) => (a < b ? -1 : a > b ? 1 : 0); // ObjectId hex sorts by time
 
-function upsertMessage(list, msg) {
+// Link previews arrive later as message.updated, which is authoritative
+// (it also clears previews after an edit removes the link). The send ack /
+// REST reply / a late message.created can land after it and carry no embeds
+// — those must not wipe the preview unless they're a newer edit.
+function keepEmbeds(prev, msg) {
+  if (!prev?.embeds?.length || msg.embeds?.length || msg.deletedAt || msg.deleted) return msg;
+  if ((msg.editedAt || null) !== (prev.editedAt || null)) return msg;
+  return { ...msg, embeds: prev.embeds };
+}
+
+export function upsertMessage(list, msg, { authoritative = false } = {}) {
   const i = list.findIndex((m) => m.id === msg.id || (msg.nonce && m.nonce === msg.nonce && m.pending));
   if (i >= 0) {
     const next = list.slice();
-    next[i] = { ...msg, pending: false, failed: false };
+    next[i] = { ...(authoritative ? msg : keepEmbeds(list[i], msg)), pending: false, failed: false };
     return next;
   }
   const next = [...list, msg];
@@ -86,7 +96,7 @@ function reducer(state, a) {
     case 'message': {
       const m = a.live && a.message.special ? { ...a.message, live: true } : a.message;
       const cur = state.messages[m.channelId];
-      const messages = cur ? { ...state.messages, [m.channelId]: { ...cur, list: upsertMessage(cur.list, m) } } : state.messages;
+      const messages = cur ? { ...state.messages, [m.channelId]: { ...cur, list: upsertMessage(cur.list, m, { authoritative: !!a.authoritative }) } } : state.messages;
       let channels = state.channels;
       if (a.live && !m.pending) {
         channels = state.channels.map((c) => {
@@ -304,7 +314,7 @@ export function useChat({ enabled, activeChannelId }) {
           break;
         }
         case 'message.updated':
-          dispatch({ type: 'message', message: d });
+          dispatch({ type: 'message', message: d, authoritative: true });
           break;
         case 'message.deleted':
           dispatch({ type: 'removeMessages', channelId: d.channelId, ids: [d.id] });

@@ -1,12 +1,11 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { PlusCircle, X, FileText, Loader2, Upload, BarChart3, CalendarDays, Gift, Megaphone, Coins, Sparkles, Banknote, Smile } from 'lucide-react';
+import React, { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { PlusCircle, X, FileText, Film, Loader2, Upload, BarChart3, CalendarDays, Gift, Megaphone, Coins, Sparkles, Banknote, Smile } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import { PollDialog, EventDialog } from './CreateDialogs';
 import EmojiPicker from './EmojiPicker';
+import { fileKind, formatBytes, renamePasted, validateFiles } from './attachments';
 
-const MAX_FILES = 10;
-const DEFAULT_MAX_BYTES = 20 * 1024 * 1024; // server sends me.uploadMaxBytes (null = no cap)
 const SHORTCODES = {
   fire: '🔥', joy: '😂', heart: '❤️', '100': '💯', pray: '🙏', skull: '💀', eyes: '👀', tada: '🎉', thumbsup: '👍', '+1': '👍',
   sob: '😭', smile: '😄', wave: '👋', clap: '👏', rofl: '🤣', thinking: '🤔', muscle: '💪', crown: '👑', money: '💰', cap: '🧢',
@@ -25,13 +24,27 @@ const COMMANDS = [
 // keystroke while a file was attached.
 function FileThumb({ file }) {
   const [url, setUrl] = useState(null);
+  const kind = fileKind(file);
   useEffect(() => {
+    if (kind !== 'image' && kind !== 'video') return undefined;
     const u = URL.createObjectURL(file);
     setUrl(u);
     return () => URL.revokeObjectURL(u);
-  }, [file]);
+  }, [file, kind]);
+  if (kind === 'video') {
+    return (
+      <span className="relative flex max-h-[80px] max-w-full items-center justify-center">
+        {url && <video src={url} muted playsInline preload="metadata" className="max-h-[80px] max-w-full rounded object-contain" />}
+        <Film className="absolute h-6 w-6 text-white drop-shadow" />
+      </span>
+    );
+  }
+  if (kind !== 'image') return <FileText className="h-10 w-10 text-[#B5BAC1]" />;
   return url ? <img src={url} alt="" className="max-h-[80px] max-w-full rounded object-contain" /> : null;
 }
+
+let entrySeq = 0;
+const toEntries = (list) => list.map((file) => ({ id: `f${(entrySeq += 1)}`, file }));
 
 // Draft highlighting: a mention that will REALLY ping gets the pill it'll
 // have once sent (ChatMarkdown) and flashes once as it becomes valid, so you
@@ -92,13 +105,13 @@ function typingText(names) {
   return 'Several people are typing…';
 }
 
-export default function Composer({ channel, state, actions, replyTo, clearReply, onError, onEditLast, canCreatePosts, onOpenPerks, onSendMoney }) {
+const Composer = forwardRef(function Composer({ channel, state, actions, replyTo, clearReply, onError, onEditLast, canCreatePosts, onOpenPerks, onSendMoney }, ref) {
   const [text, setText] = useState('');
   const [emojiAt, setEmojiAt] = useState(null); // emoji picker anchor
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState([]); // [{ id, file }]
   const [progress, setProgress] = useState(null);
   const [mention, setMention] = useState(null); // { query, start, results, index }
-  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(0); // files in the current upload
   const [plusMenu, setPlusMenu] = useState(false);
   const [dialog, setDialog] = useState(null); // 'poll' | 'event'
   const [cmdIndex, setCmdIndex] = useState(0);
@@ -145,13 +158,43 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     el.style.height = `${Math.min(el.scrollHeight, window.innerHeight * 0.5)}px`;
   }, [text]);
 
+  // Drop (anywhere in the channel), paste and the file picker all land here.
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const channelIdRef = useRef(channel?.id);
+  channelIdRef.current = channel?.id;
   const addFiles = (list) => {
-    if (!can.attach) return onError('You can\'t upload files in this channel.');
-    const incoming = [...list];
-    const max = state.me?.uploadMaxBytes === null ? Infinity : (state.me?.uploadMaxBytes || DEFAULT_MAX_BYTES);
-    const tooBig = incoming.find((f) => f.size > max);
-    if (tooBig) return onError(`${tooBig.name} is over ${Math.round(max / 1024 / 1024)} MB.`);
-    setFiles((cur) => [...cur, ...incoming].slice(0, MAX_FILES));
+    if (disabled || !can.attach) return onError('You can\'t upload files in this channel.');
+    const { accepted, error } = validateFiles(Array.from(list || []), {
+      current: filesRef.current.length,
+      maxBytes: state.me?.uploadMaxBytes === null ? null : state.me?.uploadMaxBytes,
+    });
+    if (error) onError(error);
+    if (!accepted.length) return undefined;
+    const next = [...filesRef.current, ...toEntries(accepted)];
+    filesRef.current = next;
+    setFiles(next);
+    if (window.matchMedia?.('(hover: hover)').matches) input.current?.focus();
+    return undefined;
+  };
+  useImperativeHandle(ref, () => ({ addFiles }));
+  const removeFile = (id) => {
+    setFiles((cur) => cur.filter((e) => e.id !== id));
+    input.current?.focus();
+  };
+
+  // Ctrl+V a screenshot / copied image. Plain text (even when the clipboard
+  // also carries a file icon, e.g. from Office) pastes as text.
+  const onPaste = (e) => {
+    const dt = e.clipboardData;
+    if (!dt) return;
+    let pasted = Array.from(dt.files || []);
+    if (!pasted.length && dt.items) pasted = Array.from(dt.items).filter((it) => it.kind === 'file').map((it) => it.getAsFile()).filter(Boolean);
+    if (!pasted.length) return;
+    const types = Array.from(dt.types || []);
+    if (types.includes('text/plain') && dt.getData('text/plain')) return;
+    e.preventDefault();
+    addFiles(pasted.map((f) => renamePasted(f)));
   };
 
   // A typed "@name" (not picked from the list) still counts once it matches a
@@ -300,6 +343,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     }
     content = content.replace(/:([\w+]+):/g, (all, code) => SHORTCODES[code] || all);
     const toUpload = files;
+    const sentFrom = channel.id;
     const reply = replyTo;
     mentionReq.current += 1;
     setMention(null);
@@ -311,15 +355,19 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
     if (toUpload.length) {
       try {
         setProgress(0);
-        attachments = await actions.uploadFiles(channel.id, toUpload, setProgress);
+        setUploading(toUpload.length);
+        attachments = await actions.uploadFiles(channel.id, toUpload.map((e) => e.file), setProgress);
       } catch (err) {
         setProgress(null);
+        setUploading(0);
         setText(text);
         resolveTyped(text); // the mention map was cleared for the send
-        setFiles(toUpload);
+        // Back into the tray — unless you've moved to another channel since.
+        if (channelIdRef.current === sentFrom) setFiles((cur) => [...toUpload, ...cur].slice(0, 10));
         return onError(err.response?.data?.message || 'Upload failed.');
       }
       setProgress(null);
+      setUploading(0);
     }
     const res = await actions.sendMessage({ channelId: channel.id, content, attachments, replyTo: reply });
     if (res.error) onError(res.error.message);
@@ -375,17 +423,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
       : `Message ${channel.type === 'thread' ? '' : '#'}${channel.name}`;
 
   return (
-    <div
-      className="relative shrink-0 px-4 pb-6"
-      onDragOver={(e) => { if (can.attach && e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
-    >
-      {dragging && (
-        <div className="chat-fade-in pointer-events-none absolute inset-x-4 bottom-6 top-0 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-[#5865F2] bg-[#5865F2]/20 text-white">
-          Drop to upload to #{channel.name}
-        </div>
-      )}
+    <div className="relative shrink-0 px-4 pb-6">
 
       {cmdOptions.length > 0 && (
         <div className="chat-fade-up absolute bottom-full left-4 right-4 z-30 mb-1 overflow-hidden rounded-lg border border-[#1E1F22] bg-[#2B2D31] py-1 shadow-xl">
@@ -441,21 +479,19 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
 
       <div className={cn('rounded-lg bg-[#383A40]', replyTo && 'rounded-t-none')}>
         {files.length > 0 && (
-          <div className="flex gap-3 overflow-x-auto border-b border-[#2B2D31] p-3">
-            {files.map((f, i) => (
-              <div key={`${f.name}-${f.size}-${f.lastModified}`} className="chat-pop relative flex h-[120px] w-[120px] shrink-0 flex-col items-center justify-center rounded bg-[#2B2D31] p-2">
-                {f.type.startsWith('image/') ? (
-                  <FileThumb file={f} />
-                ) : (
-                  <FileText className="h-10 w-10 text-[#B5BAC1]" />
-                )}
-                <div className="mt-1 w-full truncate text-center text-xs text-[#DBDEE1]">{f.name}</div>
-                <button onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label="Remove file" className="absolute -right-2 -top-2 rounded bg-[#2B2D31] p-1.5 text-[#F23F43] shadow hover:bg-[#404249]">
+          <ul aria-label="Attachments" className="flex gap-3 overflow-x-auto border-b border-[#2B2D31] p-3 pt-4">
+            {files.map(({ id, file: f }) => (
+              <li key={id} className="chat-pop relative flex h-[120px] w-[120px] shrink-0 flex-col items-center justify-center rounded bg-[#2B2D31] p-2">
+                <FileThumb file={f} />
+                <div className="mt-1 w-full truncate text-center text-xs text-[#DBDEE1]" title={f.name}>{f.name}</div>
+                <div className="text-[10px] text-[#949BA4]">{formatBytes(f.size)}</div>
+                <button type="button" onClick={() => removeFile(id)} aria-label={`Remove ${f.name}`} title="Remove"
+                  className="absolute -right-2 -top-2 rounded bg-[#2B2D31] p-1.5 text-[#F23F43] shadow hover:bg-[#404249] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5865F2]">
                   <X className="h-4 w-4" />
                 </button>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
         <div className="flex items-start">
           {plusMenu && (
@@ -505,7 +541,7 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
             disabled={disabled}
             onChange={onChange}
             onKeyDown={onKeyDown}
-            onPaste={(e) => { if (e.clipboardData.files?.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
+            onPaste={onPaste}
             placeholder={placeholder}
             rows={1}
             maxLength={4000}
@@ -543,7 +579,10 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
           )}
         </div>
         {progress !== null && (
-          <div className="h-1 overflow-hidden rounded-b-lg bg-[#2B2D31]"><div className="h-full bg-[#5865F2] transition-[width] duration-200 ease-out" style={{ width: `${Math.round(progress * 100)}%` }} /></div>
+          <div role="progressbar" aria-label={`Uploading ${uploading} file${uploading === 1 ? '' : 's'}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
+            <div className="px-4 pb-1 text-xs text-[#B5BAC1]">Uploading {uploading} file{uploading === 1 ? '' : 's'}… {Math.round(progress * 100)}%</div>
+            <div className="h-1 overflow-hidden rounded-b-lg bg-[#2B2D31]"><div className="h-full bg-[#5865F2] transition-[width] duration-200 ease-out" style={{ width: `${Math.round(progress * 100)}%` }} /></div>
+          </div>
         )}
       </div>
       {dialog === 'poll' && <PollDialog onClose={() => setDialog(null)} onCreate={createAndShare('poll')} />}
@@ -558,4 +597,6 @@ export default function Composer({ channel, state, actions, replyTo, clearReply,
       </div>
     </div>
   );
-}
+});
+
+export default Composer;

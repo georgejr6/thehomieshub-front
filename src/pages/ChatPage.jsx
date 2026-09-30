@@ -7,6 +7,7 @@ import { useChat } from '@/hooks/useChat';
 import ChannelSidebar from '@/components/chat/ChannelSidebar';
 import MessageList from '@/components/chat/MessageList';
 import Composer from '@/components/chat/Composer';
+import DropZone from '@/components/chat/DropZone';
 import MemberList from '@/components/chat/MemberList';
 import MemberSearch from '@/components/chat/MemberSearch';
 import ChatSettings from '@/components/chat/ChatSettings';
@@ -87,6 +88,7 @@ export default function ChatPage({ onLoginRequest }) {
   const railExpanded = railOpen && wide;
   const [showMembers, setShowMembers] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
+  const composerRef = useRef(null);
   const [toast, setToast] = useState(null);
   const [editRequest, setEditRequest] = useState(null);
   const [newSince, setNewSince] = useState({}); // channelId -> lastReadId when opened
@@ -338,7 +340,14 @@ export default function ChatPage({ onLoginRequest }) {
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             {channel ? (
-              <>
+              <DropZone
+                className="flex min-h-0 flex-1 flex-col"
+                enabled={!!(channel.can?.attach && channel.can?.send) && !(state.me?.mutedUntil && new Date(state.me.mutedUntil) > new Date())}
+                label={`Drop to upload to ${channel.type === 'thread' ? '' : '#'}${channel.name}`}
+                disabledLabel="You can't upload files here"
+                onFiles={(files) => composerRef.current?.addFiles(files)}
+                onRejected={(msg) => setToast(msg || 'You can\'t upload files here right now.')}
+              >
                 <ShoutoutTicker
                   shoutouts={state.shoutouts[channel.id]}
                   onExpire={() => actions.expireShoutouts(channel.id)}
@@ -358,6 +367,7 @@ export default function ChatPage({ onLoginRequest }) {
                 />
                 </div>
                 <Composer
+                  ref={composerRef}
                   channel={channel}
                   state={state}
                   actions={actions}
@@ -369,7 +379,7 @@ export default function ChatPage({ onLoginRequest }) {
                   onOpenPerks={openPerks}
                   onSendMoney={() => setSendMoney(true)}
                 />
-              </>
+              </DropZone>
             ) : (
               <div className="flex flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#949BA4]" /></div>
             )}

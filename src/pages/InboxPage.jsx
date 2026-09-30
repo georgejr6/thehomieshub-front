@@ -249,9 +249,17 @@ const InboxPage = () => {
     setMediaType(null);
   };
 
-  const handleFileSelect = async (e) => {
-    const file = e.target.files[0];
+  const handleFileSelect = (e) => uploadMedia(e.target.files[0]);
+
+  // One image/video per DM: from the picker, a drag from the desktop, or a
+  // pasted screenshot.
+  const uploadMedia = async (file) => {
     if (!file) return;
+    if (!/^(image|video)\//.test(file.type || '') || file.type === 'image/svg+xml') {
+      toast({ title: 'Images and videos only', description: `${file.name || 'That file'} can't be sent here.`, variant: 'destructive' });
+      return;
+    }
+    if (!activeThread || isUploading) return;
     setIsUploading(true);
     try {
       const fd = new FormData();
@@ -387,8 +395,25 @@ const InboxPage = () => {
     </DropdownMenu>
   );
 
+  const pickDropped = (e) => {
+    if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+    e.preventDefault();
+    const file = Array.from(e.dataTransfer.files || [])[0];
+    if (file) uploadMedia(file);
+  };
+  const pastedMedia = (e) => {
+    const file = Array.from(e.clipboardData?.files || [])[0];
+    if (!file || (e.clipboardData.getData('text/plain') || '').trim()) return;
+    e.preventDefault();
+    uploadMedia(file);
+  };
+
   const ChatInput = ({ mobile = false }) => (
-    <div className={cn('border-t border-border bg-background', mobile ? 'p-3' : 'p-4')}>
+    <div
+      className={cn('border-t border-border bg-background', mobile ? 'p-3' : 'p-4')}
+      onDragOver={(e) => { if (Array.from(e.dataTransfer?.types || []).includes('Files')) e.preventDefault(); }}
+      onDrop={pickDropped}
+    >
       {selectedMedia && (
         <div className="mb-2 flex items-center gap-3 bg-muted/30 rounded-xl px-3 py-2">
           <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-black/50 shrink-0">
@@ -415,6 +440,7 @@ const InboxPage = () => {
           <Input
             value={messageInput}
             onChange={e => setMessageInput(e.target.value)}
+            onPaste={pastedMedia}
             placeholder={isUploading ? 'Uploading...' : isRecording ? 'Recording...' : 'Type a message...'}
             className="rounded-full bg-muted/50 border-transparent focus:bg-background focus:border-input"
             disabled={isUploading || isRecording}
