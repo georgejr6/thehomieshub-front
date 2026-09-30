@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils';
 import api from '@/api/homieshub';
 import { formatDistanceToNow } from 'date-fns';
 import { CampaignComposer, CampaignHistory } from './PushCampaigns';
-import { listCampaigns, createCampaign, cancelCampaign, isApiMissing } from '@/lib/pushCampaigns';
+import { listCampaigns, createCampaign, cancelCampaign, isApiMissing, canPushCampaigns, campaignErrorMessage } from '@/lib/pushCampaigns';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ── Pre-built notification templates ─────────────────────────────────────────
 const TEMPLATES = [
@@ -99,6 +100,10 @@ function HistoryRow({ entry }) {
 // ── Main component ────────────────────────────────────────────────────────────
 const AdminPushNotifications = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  // Campaigns are owner-only on the server (requireOwnerAdmin); other admins
+  // get the original broadcast / targeted forms without probing.
+  const ownerCampaigns = canPushCampaigns(user);
 
   const [stats, setStats]       = useState(null);
   const [history, setHistory]   = useState([]);
@@ -124,6 +129,7 @@ const AdminPushNotifications = () => {
   const [campaignsLoading, setCampaignsLoading] = useState(false);
 
   const loadCampaigns = async () => {
+    if (!ownerCampaigns) { setCampaignMode('off'); return; }
     setCampaignsLoading(true);
     try {
       setCampaigns(await listCampaigns());
@@ -174,7 +180,7 @@ const AdminPushNotifications = () => {
       await cancelCampaign(id);
       toast({ title: 'Campaign cancelled' });
     } catch (err) {
-      toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
+      toast({ title: 'Failed', description: campaignErrorMessage(err, "Couldn't cancel the campaign."), variant: 'destructive' });
     }
     loadCampaigns();
   };

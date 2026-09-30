@@ -20,6 +20,7 @@ import Leaderboard from '@/components/chat/perks/Leaderboard';
 import SendMoneySheet from '@/components/chat/SendMoneySheet';
 import NowPlayingPill from '@/components/chat/NowPlayingPill';
 import SendAsPushDialog from '@/components/chat/SendAsPushDialog';
+import { canPushCampaigns } from '@/lib/pushCampaigns';
 import Header from '@/components/Header';
 import ChatAppRail, { readRailOpen, saveRailOpen } from '@/components/ChatAppRail';
 import api from '@/api/homieshub';
@@ -31,7 +32,7 @@ import { UserMenuHost } from '@/components/chat/ContextMenu';
 // list), backed by /api/chat + the /ws/chat realtime gateway.
 export default function ChatPage({ onLoginRequest }) {
   const { user, loading } = useAuth();
-  const { channelId } = useParams();
+  const { channelId, messageId } = useParams();
   const navigate = useNavigate();
   const { state, actions } = useChat({ enabled: !!user, activeChannelId: channelId });
   const [drawer, setDrawer] = useState(false);
@@ -113,6 +114,22 @@ export default function ChatPage({ onLoginRequest }) {
     const def = state.channels.find((c) => c.id === state.server?.defaultChannelId) || state.channels.find((c) => c.can?.send) || state.channels[0];
     if (def) navigate(`/chat/${def.id}`, { replace: true });
   }, [state.channels, channel, state.server, navigate]);
+
+  // /chat/<channel>/<message> (push + share links, backend chatUrl): once the
+  // channel's messages are in, bring that message into view, then drop it
+  // from the URL so later renders don't keep jumping back to it.
+  const loadedList = state.messages[channelId]?.list;
+  useEffect(() => {
+    if (!messageId || !channelId) return undefined;
+    const done = () => navigate(`/chat/${channelId}`, { replace: true });
+    if (document.getElementById(`msg-${messageId}`)) {
+      const t = setTimeout(() => { document.getElementById(`msg-${messageId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); done(); }, 300);
+      return () => clearTimeout(t);
+    }
+    // Not loaded (older than the first page, deleted, can't see it): just the channel.
+    const t = setTimeout(done, loadedList ? 4000 : 10000);
+    return () => clearTimeout(t);
+  }, [messageId, channelId, loadedList, navigate]);
 
   // Remember where "NEW" starts at the moment a channel is opened.
   useEffect(() => {
@@ -200,9 +217,10 @@ export default function ChatPage({ onLoginRequest }) {
   }, [navigate, open]);
   // Polls/events use the app's post endpoints, which need a paid membership (or admin).
   const canCreatePosts = !!(user?.isAdmin || ['homie', 'nomad'].includes(state.me?.tier));
-  // "Send as push" on a message: chat staff who are also site admins (the
-  // /admin/push API is admin-only, so plain moderators never see it).
-  const canSendPush = !!(state.me?.isStaff && user?.isAdmin);
+  // "Send as push" on a message: the owner accounts only — the backend's
+  // /admin/push/campaigns + /from-chat routes are requireOwnerAdmin, so other
+  // admins and moderators would only get a 403 (lib/pushCampaigns canPushCampaigns).
+  const canSendPush = canPushCampaigns(user);
   const toggleDiscoverable = async (value) => {
     try {
       await actions.setChatDiscoverable(value);

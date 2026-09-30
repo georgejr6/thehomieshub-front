@@ -28,8 +28,10 @@ describe('SendAsPushDialog', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Send now' }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/push/campaigns', {
       title: 'Mwosa in #general', body: 'Stream at 9', url: 'https://thehomies.app/chat/c1',
-      category: 'announcement', audience: { type: 'all' }, sourceMessageId: 'm9',
+      category: 'announcement', audience: { type: 'all' }, sourceMessageId: 'm9', expectedCount: 7,
     }));
+    // The preview carries the message too, so the count matches the send's channel-visibility filter.
+    expect(api.post).toHaveBeenCalledWith('/admin/push/campaigns/preview', { audience: { type: 'all' }, category: 'announcement', sourceMessageId: 'm9' });
     expect(onDone).toHaveBeenCalledWith('Push sent to 7 people.');
     expect(onClose).toHaveBeenCalled();
   });
@@ -39,5 +41,32 @@ describe('SendAsPushDialog', () => {
     render(<SendAsPushDialog message={{ id: 'm9', content: 'Hello all', author: { username: 'mwosa' } }} onClose={vi.fn()} onDone={vi.fn()} />);
     expect(await screen.findByDisplayValue('Hello all')).toBeInTheDocument();
     expect(screen.getByText("Push campaigns aren't available on the server yet.")).toBeInTheDocument();
+  });
+
+  it('409 count_changed: shows the new count, stays on confirm, and resends with it', async () => {
+    let creates = 0;
+    api.post.mockImplementation((url) => {
+      if (url === '/admin/push/campaigns/preview') return Promise.resolve({ data: { result: { count: 7 } } });
+      creates += 1;
+      if (creates === 1) {
+        return Promise.reject({ response: { status: 409, data: { status: false, code: 'count_changed', message: 'Audience is now 40 people (you previewed 7). Check and send again.', result: { count: 40 } } } });
+      }
+      return Promise.resolve({ data: { result: { campaign: { id: 'c' }, count: 40 } } });
+    });
+    const onDone = vi.fn();
+    render(<SendAsPushDialog message={{ id: 'm9', content: 'x' }} onClose={vi.fn()} onDone={onDone} />);
+    await waitFor(() => expect(screen.getByText('7 people will get this')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Send now' }));
+    expect(await screen.findByText(/Audience is now 40 people/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Send now' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Push sent to 40 people.'));
+    expect(api.post).toHaveBeenLastCalledWith('/admin/push/campaigns', expect.objectContaining({ expectedCount: 40 }));
+  });
+
+  it("a deleted message's 404 says so instead of 'not on the server'", async () => {
+    api.get.mockRejectedValue({ response: { status: 404, data: { status: false, code: 'not_found', message: 'Message not found.' } } });
+    render(<SendAsPushDialog message={{ id: 'm9', content: 'Hello all' }} onClose={vi.fn()} onDone={vi.fn()} />);
+    expect(await screen.findByText(/That message is gone/)).toBeInTheDocument();
   });
 });

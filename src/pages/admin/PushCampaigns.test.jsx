@@ -33,6 +33,7 @@ describe('CampaignComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send now' }));
     await waitFor(() => expect(onCreate).toHaveBeenCalledWith({
       title: 'Drop day', body: 'New merch is live', url: '/shop', category: 'promo', audience: { type: 'inactive', days: 14 },
+      expectedCount: 42, // count-before-send: the server 409s if the audience moved
     }));
   });
 
@@ -48,10 +49,12 @@ describe('CampaignComposer', () => {
     fireEvent.change(screen.getByLabelText('Send at'), { target: { value: SOON } });
     fireEvent.click(screen.getByRole('button', { name: /Review & schedule/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Schedule' , hidden: false }));
-    await waitFor(() => expect(onCreate).toHaveBeenCalledWith({
+    // expectedCount rides along only if the debounced preview already answered.
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Later', body: 'Body', category: 'announcement', audience: { type: 'all' },
       scheduledAt: new Date(SOON).toISOString(),
-    }));
+    })));
+    expect(Object.keys(onCreate.mock.calls[0][0]).filter((k) => k !== 'expectedCount').sort()).toEqual(['audience', 'body', 'category', 'scheduledAt', 'title']);
   });
 
   it('shows "unavailable" when the preview API 404s', async () => {

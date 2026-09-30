@@ -3,7 +3,7 @@ import { Loader2, BellRing } from 'lucide-react';
 import { Shell, inputCls, labelCls } from './CreateDialogs';
 import {
   AUDIENCES, TITLE_MAX, BODY_MAX, emptyCampaignForm, buildAudience, buildCampaignPayload, validateCampaign,
-  DAYS_MAX, useRecipientCount, draftFromChat, createCampaign, isApiMissing, isNotFound,
+  DAYS_MAX, useRecipientCount, draftFromChat, createCampaign, isApiMissing, isNotFound, changedCount, campaignErrorMessage,
 } from '@/lib/pushCampaigns';
 
 // Admins: "Send as push" from a chat message's menu. The server drafts the
@@ -38,7 +38,12 @@ export default function SendAsPushDialog({ message, onClose, onDone }) {
   }, [message.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const audience = useMemo(() => buildAudience(form), [form.audienceType, form.days, form.usernames]); // eslint-disable-line react-hooks/exhaustive-deps
-  const count = useRecipientCount(audience, 'announcement');
+  // sourceMessageId: count only people who can see the message's channel (same filter as the send).
+  const liveCount = useRecipientCount(audience, 'announcement', { sourceMessageId: message.id });
+  // After a 409 count_changed: the server's new number, until the audience changes.
+  const [moved, setMoved] = useState(null);
+  useEffect(() => { setMoved(null); }, [liveCount.count, liveCount.status]);
+  const count = moved !== null ? { status: 'ready', count: moved } : liveCount;
   const def = AUDIENCES.find((a) => a.id === form.audienceType);
   const problem = validateCampaign({ ...form, when: 'now' });
 
@@ -46,13 +51,17 @@ export default function SendAsPushDialog({ message, onClose, onDone }) {
     setBusy(true);
     setErr('');
     try {
-      await createCampaign(buildCampaignPayload({ ...form, category: 'announcement', when: 'now' }, { sourceMessageId: message.id }));
+      const expectedCount = count.status === 'ready' && count.count != null ? count.count : undefined;
+      await createCampaign(buildCampaignPayload({ ...form, category: 'announcement', when: 'now' }, { sourceMessageId: message.id, expectedCount }));
       onDone?.(`Push sent${count.status === 'ready' && count.count != null ? ` to ${count.count.toLocaleString()} ${count.count === 1 ? 'person' : 'people'}` : ''}.`);
       onClose();
     } catch (e) {
-      setErr(isApiMissing(e) ? UNAVAILABLE : e.response?.data?.message || "Couldn't send the push.");
+      // 409 count_changed: show the new number and stay on the confirm step (next send carries it).
+      const n = changedCount(e);
+      if (n !== null) setMoved(n);
+      setErr(isApiMissing(e) ? UNAVAILABLE : campaignErrorMessage(e));
       setBusy(false);
-      setStep('edit');
+      setStep(n !== null ? 'confirm' : 'edit');
     }
   };
 

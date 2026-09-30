@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import api from '@/api/homieshub';
 
 // Admin push campaigns (backend routes/admin push campaigns):
-//   POST /admin/push/campaigns/preview { audience, category } → { count }
-//   POST /admin/push/campaigns { title, body, url?, category, audience, scheduledAt?, sourceMessageId? }
+//   POST /admin/push/campaigns/preview { audience, category, sourceMessageId? } → { count }
+//   POST /admin/push/campaigns { title, body, url?, category, audience, scheduledAt?, sourceMessageId?, expectedCount? }
+//        → { campaign, count }; 409 count_changed { result: { count } } when the audience moved since the preview
 //   GET  /admin/push/campaigns → history
 //   POST /admin/push/campaigns/:id/cancel
 //   GET  /admin/push/from-chat/:messageId/draft → { title, body, url }
@@ -50,11 +51,30 @@ export function parseUsernames(text) {
   return out;
 }
 
-/** Same rule as the server's cleanUrl: an in-app path ("/points") or an https link. */
+/**
+ * Same rule as the server's cleanUrl (utils/pushCampaigns.js): an in-app path
+ * ("/points") or an https link; printable ASCII only, no backslash, never
+ * protocol-relative ("//host", "/\\host").
+ */
 export function isValidPushUrl(url) {
   const u = String(url || '').trim();
   if (!u || u.length > URL_MAX) return false;
-  return /^\/(?!\/)[^\s]*$/.test(u) || /^https:\/\/[a-z0-9.-]+(:\d+)?(\/[^\s]*)?$/i.test(u);
+  return /^\/(?![/\\])[\x21-\x5b\x5d-\x7e]*$/.test(u) || /^https:\/\/[a-z0-9.-]+(:\d+)?([/?#][\x21-\x5b\x5d-\x7e]*)?$/i.test(u);
+}
+
+// Owner accounts (backend utils/owner.js). The server's requireOwnerAdmin
+// guards every /admin/push/campaigns* and /admin/push/from-chat/* route.
+const OWNER_USERNAMES = ['thehomies', 'mwosa', 'mwosa_1'];
+
+/**
+ * Show campaign / "Send as push" UI? Same rule as requireOwnerAdmin: /auth/me's
+ * isOwner is the server's own isOwnerUser (admin + OWNER_USER_IDS); a user
+ * object without it (older cache) falls back to admin + an owner username.
+ */
+export function canPushCampaigns(user) {
+  if (user?.isAdmin !== true) return false;
+  if (typeof user.isOwner === 'boolean') return user.isOwner;
+  return OWNER_USERNAMES.includes(String(user.username || '').toLowerCase());
 }
 
 /** The API's audience object for the form's picker. */
@@ -88,7 +108,7 @@ export function validateCampaign(form, now = Date.now()) {
 }
 
 /** POST /admin/push/campaigns body. Only sends optional fields when set. */
-export function buildCampaignPayload(form, { sourceMessageId } = {}) {
+export function buildCampaignPayload(form, { sourceMessageId, expectedCount } = {}) {
   const payload = {
     title: form.title.trim(),
     body: form.body.trim(),
@@ -99,16 +119,46 @@ export function buildCampaignPayload(form, { sourceMessageId } = {}) {
   if (url) payload.url = url;
   if (form.when === 'schedule' && form.scheduledAt) payload.scheduledAt = new Date(form.scheduledAt).toISOString();
   if (sourceMessageId) payload.sourceMessageId = String(sourceMessageId);
+  // Count-before-send: the server refuses (409 count_changed) if the live
+  // audience moved by more than max(5, 10%) from what the admin confirmed.
+  if (typeof expectedCount === 'number' && Number.isFinite(expectedCount)) payload.expectedCount = expectedCount;
   return payload;
+}
+
+/** 409 count_changed → the server's current count, else null. */
+export function changedCount(err) {
+  const d = err?.response?.data;
+  if (err?.response?.status !== 409 || d?.code !== 'count_changed') return null;
+  const n = Number(d?.result?.count);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * A failed campaign request → a message for the admin. Campaign errors are
+ * { status:false, code, message } (bad_url, too_long, bad_audience,
+ * empty_audience, count_changed, rate_limited, disabled, not_found…);
+ * requireAdmin's 401/403 are { error } with no message.
+ */
+export function campaignErrorMessage(err, fallback = "Couldn't send the push.") {
+  const status = err?.response?.status;
+  const data = err?.response?.data || {};
+  if (data.code === 'owner_only') return 'Only the owner accounts can send push campaigns.';
+  if (data.code && data.message) return data.message;
+  if (status === 401 || status === 403) return 'Only admins can send pushes — sign in again with an admin account.';
+  if (status === 429) return 'Too many pushes right now. Wait a few minutes and try again.';
+  if (status === 503) return 'Push campaigns are turned off on the server right now.';
+  return data.message || err?.message || fallback;
 }
 
 const result = (res) => res?.data?.result ?? res?.data ?? {};
 export const isNotFound = (err) => err?.response?.status === 404;
-/** 404 because the server doesn't have the campaigns API yet (not a campaign/message "not_found"). */
-export const isApiMissing = (err) => isNotFound(err) && err?.response?.data?.code !== 'not_found';
+/** 403 owner_only: this admin isn't one of the owner accounts. */
+export const isOwnerOnly = (err) => err?.response?.status === 403 && err?.response?.data?.code === 'owner_only';
+/** 404 because the server doesn't have the campaigns API yet — campaign 404s (not_found, bad_source) carry a code. */
+export const isApiMissing = (err) => isNotFound(err) && !err?.response?.data?.code;
 
-export async function previewCampaign(audience, category) {
-  const r = result(await api.post('/admin/push/campaigns/preview', { audience, category }));
+export async function previewCampaign(audience, category, sourceMessageId) {
+  const r = result(await api.post('/admin/push/campaigns/preview', { audience, category, ...(sourceMessageId ? { sourceMessageId: String(sourceMessageId) } : {}) }));
   const n = Number(r.count);
   return Number.isFinite(n) ? n : null;
 }
@@ -156,12 +206,14 @@ export function audienceLabel(a) {
 }
 
 /**
- * Live recipient count for an audience + category (debounced).
+ * Live recipient count for an audience + category (debounced). Pass the
+ * sourceMessageId for a chat-sourced push: the server then only counts people
+ * who can see that channel, the same filter the send applies.
  * status: 'idle' | 'loading' | 'ready' | 'unavailable' (404) | 'error'
  */
-export function useRecipientCount(audience, category, { enabled = true, delay = 400 } = {}) {
+export function useRecipientCount(audience, category, { enabled = true, delay = 400, sourceMessageId } = {}) {
   const [state, setState] = useState({ status: 'idle', count: null });
-  const key = enabled ? JSON.stringify([audience, category]) : '';
+  const key = enabled ? JSON.stringify([audience, category, sourceMessageId || null]) : '';
   const seq = useRef(0);
   useEffect(() => {
     seq.current += 1;
@@ -170,7 +222,7 @@ export function useRecipientCount(audience, category, { enabled = true, delay = 
     const my = seq.current;
     setState((s) => ({ status: 'loading', count: s.count }));
     const t = setTimeout(() => {
-      previewCampaign(audience, category)
+      previewCampaign(audience, category, sourceMessageId)
         .then((count) => { if (seq.current === my) setState({ status: 'ready', count }); })
         .catch((err) => { if (seq.current === my) setState({ status: isApiMissing(err) ? 'unavailable' : 'error', count: null }); });
     }, delay);

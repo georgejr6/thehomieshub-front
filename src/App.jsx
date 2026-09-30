@@ -480,7 +480,7 @@ const AppContent = React.memo(() => {
 
             {/* --- Homies Chat (Discord-style community chat, full-screen) ---
                  /discord and /community are friendly aliases. */}
-            <Route path="/chat/:channelId?" element={<LocationGate><Suspense fallback={<RouteFallback full dark />}><ChatPage onLoginRequest={(tab, { auto = false } = {}) => { try { localStorage.setItem('post_auth_redirect', location.pathname); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState((prev) => (auto && prev.isOpen ? prev : { isOpen: true, view: 'main', tab: tab === 'signup' ? 'signup' : 'signin' })); }} /></Suspense></LocationGate>} />
+            <Route path="/chat/:channelId?/:messageId?" element={<LocationGate><Suspense fallback={<RouteFallback full dark />}><ChatPage onLoginRequest={(tab, { auto = false } = {}) => { try { localStorage.setItem('post_auth_redirect', location.pathname); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState((prev) => (auto && prev.isOpen ? prev : { isOpen: true, view: 'main', tab: tab === 'signup' ? 'signup' : 'signin' })); }} /></Suspense></LocationGate>} />
             {/* --- /live: watch the stream (YouTube/Kick embed) + live chat. Open to
                  logged-out visitors (owner decision 2026-09-25), no location gate. --- */}
             <Route path="/live" element={<Suspense fallback={<RouteFallback full dark />}><LiveWatchPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', '/live'); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />

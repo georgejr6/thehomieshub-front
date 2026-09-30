@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   emptyCampaignForm, parseUsernames, buildAudience, validateCampaign, buildCampaignPayload, campaignCounts, audienceLabel,
+  changedCount, campaignErrorMessage, isApiMissing, isValidPushUrl, canPushCampaigns,
 } from './pushCampaigns';
 
 const form = (patch = {}) => ({ ...emptyCampaignForm(), title: 'Hi', body: 'There', ...patch });
@@ -93,5 +94,55 @@ describe('history helpers', () => {
     expect(audienceLabel({ type: 'all' })).toBe('Everyone');
     expect(audienceLabel({ type: 'usernames', usernames: ['a'] })).toBe('1 user');
     expect(audienceLabel(null)).toBe('—');
+  });
+});
+
+describe('errors (backend { status:false, code, message })', () => {
+  it('expectedCount goes out only when known', () => {
+    expect(buildCampaignPayload(form(), { expectedCount: 12 }).expectedCount).toBe(12);
+    expect(buildCampaignPayload(form(), {})).not.toHaveProperty('expectedCount');
+  });
+  it('reads 409 count_changed', () => {
+    expect(changedCount({ response: { status: 409, data: { code: 'count_changed', result: { count: 40 } } } })).toBe(40);
+    expect(changedCount({ response: { status: 409, data: { code: 'not_cancelable' } } })).toBeNull();
+  });
+  it('tells a missing API from a campaign 404', () => {
+    expect(isApiMissing({ response: { status: 404 } })).toBe(true);
+    expect(isApiMissing({ response: { status: 404, data: { error: 'Not found' } } })).toBe(true);
+    expect(isApiMissing({ response: { status: 404, data: { code: 'not_found' } } })).toBe(false);
+    expect(isApiMissing({ response: { status: 404, data: { code: 'bad_source' } } })).toBe(false);
+  });
+  it('shows the server message for campaign errors, plain copy for auth/limits', () => {
+    for (const code of ['bad_url', 'too_long', 'bad_audience', 'empty_audience', 'rate_limited', 'disabled']) {
+      expect(campaignErrorMessage({ response: { status: 400, data: { code, message: `msg ${code}` } } })).toBe(`msg ${code}`);
+    }
+    expect(campaignErrorMessage({ response: { status: 403, data: { error: 'admin_required' } } })).toMatch(/Only admins/);
+    expect(campaignErrorMessage({ response: { status: 401, data: { error: 'authentication_required' } } })).toMatch(/Only admins/);
+    expect(campaignErrorMessage({ response: { status: 429 } })).toMatch(/Too many/);
+    expect(campaignErrorMessage({ response: { status: 503 } })).toMatch(/turned off/);
+    expect(campaignErrorMessage(new Error('Network Error'))).toBe('Network Error');
+  });
+});
+
+describe('owner-only campaigns (backend requireOwnerAdmin)', () => {
+  it("uses /auth/me's isOwner, else admin + an owner username", () => {
+    expect(canPushCampaigns({ isAdmin: true, isOwner: true, username: 'thehomies' })).toBe(true);
+    expect(canPushCampaigns({ isAdmin: true, isOwner: false, username: 'mwosa' })).toBe(false);
+    expect(canPushCampaigns({ isAdmin: true, isOwner: false, username: 'otheradmin' })).toBe(false);
+    expect(canPushCampaigns({ isAdmin: true, username: 'Mwosa_1' })).toBe(true);
+    expect(canPushCampaigns({ isAdmin: true, username: 'otheradmin' })).toBe(false);
+    expect(canPushCampaigns({ isOwner: true, username: 'thehomies' })).toBe(false);
+    expect(canPushCampaigns(null)).toBe(false);
+  });
+  it('explains owner_only and duplicate', () => {
+    expect(campaignErrorMessage({ response: { status: 403, data: { status: false, code: 'owner_only', message: 'Only the owner can do this.' } } })).toMatch(/owner accounts/);
+    expect(campaignErrorMessage({ response: { status: 409, data: { status: false, code: 'duplicate', message: 'That same push was just sent or scheduled. Change it or wait 10 minutes.' } } })).toMatch(/same push/);
+  });
+});
+
+describe('isValidPushUrl mirrors the server cleanUrl', () => {
+  it('accepts app paths and https links, rejects protocol-relative / backslash / control chars', () => {
+    for (const ok of ['/points', '/chat/c1/m1', '/memberships?utm_source=x', 'https://www.thehomies.app/live', 'https://x.com?y=1']) expect(isValidPushUrl(ok)).toBe(true);
+    for (const bad of ['//evil.com', '/\\evil.com', '/a\\b', '/points\u0000', 'http://x.com', 'points', 'https://x.com/a b']) expect(isValidPushUrl(bad)).toBe(false);
   });
 });

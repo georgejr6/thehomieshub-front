@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, Send, Clock, Loader2, Users, Megaphone, CalendarClock, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
   AUDIENCES, CATEGORIES, TITLE_MAX, BODY_MAX, DAYS_MAX, emptyCampaignForm, buildAudience, buildCampaignPayload,
-  validateCampaign, useRecipientCount, audienceLabel, campaignCounts,
+  validateCampaign, useRecipientCount, audienceLabel, campaignCounts, changedCount, campaignErrorMessage,
 } from '@/lib/pushCampaigns';
 
 // Admin → Push Notifications, campaign mode (backend /admin/push/campaigns).
@@ -32,7 +32,11 @@ export function CampaignComposer({ templates = [], onCreate }) {
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   const audience = useMemo(() => buildAudience(form), [form.audienceType, form.days, form.usernames]); // eslint-disable-line react-hooks/exhaustive-deps
-  const count = useRecipientCount(audience, form.category);
+  const liveCount = useRecipientCount(audience, form.category);
+  // After a 409 count_changed: the server's new number, until the audience changes.
+  const [moved, setMoved] = useState(null);
+  useEffect(() => { setMoved(null); }, [liveCount.count, liveCount.status]);
+  const count = moved !== null ? { status: 'ready', count: moved } : liveCount;
   const def = AUDIENCES.find((a) => a.id === form.audienceType);
   const problem = validateCampaign(form);
   const scheduled = form.when === 'schedule';
@@ -49,11 +53,16 @@ export function CampaignComposer({ templates = [], onCreate }) {
     setSending(true);
     setError('');
     try {
-      await onCreate(buildCampaignPayload(form));
+      const expectedCount = count.status === 'ready' && count.count != null ? count.count : undefined;
+      await onCreate(buildCampaignPayload(form, { expectedCount }));
       setForm(emptyCampaignForm());
+      setMoved(null);
       setConfirming(false);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Couldn't create the campaign.");
+      // 409 count_changed: the dialog stays open with the new number; confirming again sends it.
+      const n = changedCount(err);
+      if (n !== null) setMoved(n);
+      setError(campaignErrorMessage(err, "Couldn't create the campaign."));
     } finally {
       setSending(false);
     }
@@ -90,7 +99,7 @@ export function CampaignComposer({ templates = [], onCreate }) {
           </div>
           <div>
             <label htmlFor="pc-url" className={labelCls}>Link (optional)</label>
-            <Input id="pc-url" value={form.url} onChange={(e) => set({ url: e.target.value })} placeholder="e.g. https://thehomies.app/chat or /song/123" />
+            <Input id="pc-url" value={form.url} onChange={(e) => set({ url: e.target.value })} placeholder="e.g. /points, /chat/<channel>, /live or https://…" />
           </div>
 
           <div>
