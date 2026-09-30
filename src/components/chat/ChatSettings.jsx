@@ -13,6 +13,7 @@ import {
 //    phone push + email per event, and Homies updates & offers opt-outs
 //    (PATCH /profile/me/notifications, channel push | email | marketing)
 //  - Privacy & Data: discoverable posts, delete my messages
+const NEW_PUSH_KEYS = ['chatReplies', 'chatReactions', 'announcements', 'dailyRecap'];
 const USERNAME_RE = /^[a-z0-9_.]{2,32}$/;
 
 function Toggle({ on, onChange, disabled, label }) {
@@ -134,11 +135,17 @@ export default function ChatSettings({ open, onClose, state, actions, onToast, o
     }
   };
 
-  const setPref = async (channel, key, value) => {
+  const setPref = async (channel, key, rawValue) => {
+    const value = rawValue === true; // booleans only — never a stray string
     setPrefs((p) => ({ ...p, [channel]: { ...p[channel], [key]: value } }));
     try {
       const { data } = await api.patch('/profile/me/notifications', { channel, [key]: value });
       const r = data?.result || {};
+      // Newer push categories (unset = on): a server that doesn't store the key
+      // yet echoes it back unchanged — say so instead of silently flipping back.
+      if (channel === 'push' && NEW_PUSH_KEYS.includes(key) && r.pushNotifications && (r.pushNotifications[key] !== false) !== value) {
+        onToast?.("Couldn't save that setting.");
+      }
       setPrefs((p) => {
         const next = { push: r.pushNotifications || p.push, email: r.emailNotifications || p.email, marketing: r.marketing || p.marketing };
         saved.current = next;
@@ -296,6 +303,10 @@ export default function ChatSettings({ open, onClose, state, actions, onToast, o
                 <Row icon={Smartphone} title="Mentions"><Toggle label="Push mentions" on={onOff(push.mentions)} onChange={(v) => setPref('push', 'mentions', v)} /></Row>
                 <Row title="Direct messages"><Toggle label="Push DMs" on={onOff(push.dms)} onChange={(v) => setPref('push', 'dms', v)} /></Row>
                 <Row title="Going live" desc="When the Homies go live."><Toggle label="Push live streams" on={onOff(push.liveStreams)} onChange={(v) => setPref('push', 'liveStreams', v)} /></Row>
+                <Row title="Chat replies"><Toggle label="Push chat replies" on={onOff(push.chatReplies)} onChange={(v) => setPref('push', 'chatReplies', v)} /></Row>
+                <Row title="Chat reactions"><Toggle label="Push chat reactions" on={onOff(push.chatReactions)} onChange={(v) => setPref('push', 'chatReactions', v)} /></Row>
+                <Row title="Announcements"><Toggle label="Push announcements" on={onOff(push.announcements)} onChange={(v) => setPref('push', 'announcements', v)} /></Row>
+                <Row title="Daily points recap"><Toggle label="Push daily points recap" on={onOff(push.dailyRecap)} onChange={(v) => setPref('push', 'dailyRecap', v)} /></Row>
               </Section>
               <Section title="Email">
                 <Row icon={Mail} title="Direct messages" desc="Only when you haven't been on for a day."><Toggle label="Email DMs" on={onOff(email.dms)} onChange={(v) => setPref('email', 'dms', v)} /></Row>

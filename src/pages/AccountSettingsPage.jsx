@@ -16,6 +16,14 @@ import BundleSegment from '@/components/BundleSegment';
 import api from '@/api/homieshub';
 import BillingSection from '@/components/Billing/BillingSection';
 
+// Push (Homies app) categories shown as switches; missing = on.
+const PUSH_TOGGLES = [
+  { key: 'chatReplies', label: 'Chat replies' },
+  { key: 'chatReactions', label: 'Chat reactions' },
+  { key: 'announcements', label: 'Announcements' },
+  { key: 'dailyRecap', label: 'Daily points recap' },
+];
+
 const TABS = [
   { key: 'account',       label: 'Account',       icon: User },
   { key: 'notifications', label: 'Notifications',  icon: Bell },
@@ -60,6 +68,26 @@ const AccountSettingsPage = () => {
     wallet:    user?.emailNotifications?.wallet    ?? true,
     wagers:    user?.emailNotifications?.wagers    ?? true,
   });
+
+  // Push categories — on unless turned off (unset = on, server default).
+  const [pushPrefs, setPushPrefs] = useState(() => Object.fromEntries(
+    PUSH_TOGGLES.map(({ key }) => [key, user?.pushNotifications?.[key] !== false])
+  ));
+  const handlePushToggle = async (key) => {
+    const next = pushPrefs[key] !== true; // booleans only
+    setPushPrefs(prev => ({ ...prev, [key]: next }));
+    try {
+      const { data } = await api.patch('/profile/me/notifications', { channel: 'push', [key]: next });
+      // A server that doesn't store this key yet echoes it back unset (= on).
+      const echoed = data?.result?.pushNotifications;
+      if (echoed && (echoed[key] !== false) !== next) throw new Error('not saved');
+      toast({ title: 'Settings Updated', description: `${PUSH_TOGGLES.find(t => t.key === key)?.label} push ${next ? 'enabled' : 'disabled'}.` });
+      if (refreshMe) refreshMe();
+    } catch {
+      setPushPrefs(prev => ({ ...prev, [key]: !next }));
+      toast({ title: 'Error', description: 'Failed to update notification preference.', variant: 'destructive' });
+    }
+  };
 
   // Promotional push is opt-in (server utils/marketingPush.js).
   const [marketingPush, setMarketingPush] = useState(user?.pushNotifications?.marketing === true && user?.marketing?.push !== false);
@@ -398,6 +426,17 @@ const AccountSettingsPage = () => {
           ))}
           <div className="border-t pt-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Push (Homies app)</p>
+            {PUSH_TOGGLES.map((item) => (
+              <div key={item.key} className="mb-4 flex items-center justify-between space-x-2">
+                <Label htmlFor={`push-${item.key}`} className="flex-1">{item.label}</Label>
+                <Switch
+                  id={`push-${item.key}`}
+                  checked={pushPrefs[item.key]}
+                  onCheckedChange={() => handlePushToggle(item.key)}
+                  className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
+                />
+              </div>
+            ))}
             <div className="flex items-center justify-between space-x-2">
               <Label htmlFor="marketing-push" className="flex-1">
                 Marketing & promotions push
