@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { SmilePlus, Reply, Pencil, Trash2, Pin, Flag, FileText, Download, CornerUpLeft, Loader2, AlertCircle, ArrowDown, MoreHorizontal, Globe, Lock, Copy, ExternalLink, Clock, UserX, Ban } from 'lucide-react';
+import { SmilePlus, Reply, Pencil, Trash2, Pin, Flag, FileText, Download, CornerUpLeft, Loader2, AlertCircle, ArrowDown, MoreHorizontal, Globe, Lock, Copy, ExternalLink, Clock, UserX, Ban, BellRing } from 'lucide-react';
 
 // What happened on the real Discord, for the mod toast.
 const discordNote = (r) => {
@@ -140,7 +140,7 @@ function MessageSkeleton() {
 
 const narrowScreen = () => typeof window !== 'undefined' && window.innerWidth < 640;
 
-function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onError, highlight }) {
+function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onError, highlight, onSendAsPush }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.content);
   const [picker, setPicker] = useState(null); // full emoji picker: anchor rect / point
@@ -321,6 +321,11 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
       { label: 'Ban', icon: Ban, danger: true, onClick: () => moderate('ban') },
       { note: 'Applies here and on the real Discord.' },
     ] : []),
+    // Admins: turn this message into a push notification (admin/push campaigns).
+    ...(onSendAsPush && !m.special && !m.pending ? [
+      { divider: true },
+      { label: 'Send as push', icon: BellRing, onClick: () => onSendAsPush(m) },
+    ] : []),
     { divider: true },
     !mine && { label: 'Report Message', icon: Flag, danger: true, onClick: report },
     (mine || can.manageMessages) && { label: 'Delete Message', icon: Trash2, danger: true, onClick: remove },
@@ -481,7 +486,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   );
 }
 
-export default function MessageList({ channel, data, state, ctx, actions, onReply, onError, newSinceId }) {
+export default function MessageList({ channel, data, state, ctx, actions, onReply, onError, newSinceId, onSendAsPush }) {
   const scroller = useRef(null);
   const atBottom = useRef(true);
   const prevHeight = useRef(0);
@@ -622,6 +627,7 @@ export default function MessageList({ channel, data, state, ctx, actions, onRepl
               actions={actions}
               onError={onError}
               highlight={highlightId === r.m.id}
+              onSendAsPush={onSendAsPush}
             />
           )
         )}

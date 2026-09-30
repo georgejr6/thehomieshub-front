@@ -18,6 +18,8 @@ import ShoutoutTicker from '@/components/chat/perks/ShoutoutTicker';
 import Celebration from '@/components/chat/perks/Celebration';
 import Leaderboard from '@/components/chat/perks/Leaderboard';
 import SendMoneySheet from '@/components/chat/SendMoneySheet';
+import NowPlayingPill from '@/components/chat/NowPlayingPill';
+import SendAsPushDialog from '@/components/chat/SendAsPushDialog';
 import Header from '@/components/Header';
 import ChatAppRail, { readRailOpen, saveRailOpen } from '@/components/ChatAppRail';
 import api from '@/api/homieshub';
@@ -94,6 +96,7 @@ export default function ChatPage({ onLoginRequest }) {
   const [newSince, setNewSince] = useState({}); // channelId -> lastReadId when opened
   const [perks, setPerks] = useState({ open: false, initial: null });
   const [sendMoney, setSendMoney] = useState(false);
+  const [pushFrom, setPushFrom] = useState(null); // message → "Send as push" (admins)
   const [params, setParams] = useSearchParams();
   const openPerks = useCallback((initial) => setPerks({ open: true, initial: initial || null }), []);
   const closePerks = useCallback(() => setPerks((p) => ({ ...p, open: false })), []);
@@ -197,6 +200,9 @@ export default function ChatPage({ onLoginRequest }) {
   }, [navigate, open]);
   // Polls/events use the app's post endpoints, which need a paid membership (or admin).
   const canCreatePosts = !!(user?.isAdmin || ['homie', 'nomad'].includes(state.me?.tier));
+  // "Send as push" on a message: chat staff who are also site admins (the
+  // /admin/push API is admin-only, so plain moderators never see it).
+  const canSendPush = !!(state.me?.isStaff && user?.isAdmin);
   const toggleDiscoverable = async (value) => {
     try {
       await actions.setChatDiscoverable(value);
@@ -321,6 +327,7 @@ export default function ChatPage({ onLoginRequest }) {
           )}
           {channel?.topic && <><div className="mx-2 hidden h-6 w-px bg-[#3F4147] sm:block" /><span className="hidden truncate text-sm text-[#B5BAC1] sm:block">{channel.topic}</span></>}
           <div className="ml-auto flex items-center gap-3">
+            <NowPlayingPill variant="header" />
             {state.status !== 'connected' && state.status !== 'idle' && (
               <span className="chat-fade-in flex items-center gap-1 text-xs text-[#F0B232]"><Loader2 className="h-3 w-3 animate-spin" /> {state.status === 'connecting' ? 'Connecting' : 'Reconnecting'}</span>
             )}
@@ -336,6 +343,8 @@ export default function ChatPage({ onLoginRequest }) {
           </div>
         </div>
 
+        {/* Phones: the header has no room, so the now-playing controls get a slim row under it. */}
+        <NowPlayingPill variant="bar" />
         <ClaimNameBar me={state.me} onSaved={(name) => { setToast(`You're now @${name} — everyone sees your new name.`); actions.reload(); }} />
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
@@ -364,6 +373,7 @@ export default function ChatPage({ onLoginRequest }) {
                   onReply={setReplyTo}
                   onError={setToast}
                   newSinceId={newSince[channel.id]}
+                  onSendAsPush={canSendPush ? setPushFrom : undefined}
                 />
                 </div>
                 <Composer
@@ -391,6 +401,7 @@ export default function ChatPage({ onLoginRequest }) {
       <ChatSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} state={state} actions={actions} onToast={setToast}
         onToggleDiscoverable={toggleDiscoverable} onDeleteHistory={deleteHistory} activeChannel={channel ? { id: channel.id, name: channel.name } : null} />
       {board.available && <Leaderboard open={board.open} onClose={closeBoard} actions={actions} meId={state.me?.id} initial={board.initial} />}
+      {pushFrom && <SendAsPushDialog message={pushFrom} onClose={() => setPushFrom(null)} onDone={setToast} />}
       <SendMoneySheet open={sendMoney} channel={channel} onClose={() => setSendMoney(false)} onDone={setToast} onPoints={() => openPerks({ tab: 'shoutout' })} />
       <PerksSheet open={perks.open} initial={perks.initial} onClose={closePerks} state={state} actions={actions} channel={channel} onToast={setToast} />
 

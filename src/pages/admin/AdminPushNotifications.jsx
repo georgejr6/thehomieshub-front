@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import api from '@/api/homieshub';
 import { formatDistanceToNow } from 'date-fns';
+import { CampaignComposer, CampaignHistory } from './PushCampaigns';
+import { listCampaigns, createCampaign, cancelCampaign, isApiMissing } from '@/lib/pushCampaigns';
 
 // ── Pre-built notification templates ─────────────────────────────────────────
 const TEMPLATES = [
@@ -115,7 +117,28 @@ const AdminPushNotifications = () => {
   const [tgUsers, setTgUsers]   = useState('');
   const [tgSending, setTgSending] = useState(false);
 
+  // Campaigns (new backend API). 'off' = server has no campaigns yet (404) →
+  // the original broadcast / targeted forms below keep working as before.
+  const [campaignMode, setCampaignMode] = useState('probing'); // 'probing' | 'on' | 'off'
+  const [campaigns, setCampaigns] = useState([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+
+  const loadCampaigns = async () => {
+    setCampaignsLoading(true);
+    try {
+      setCampaigns(await listCampaigns());
+      setCampaignMode('on');
+    } catch (err) {
+      // Only a missing API switches to the old forms; other errors keep what we had.
+      if (isApiMissing(err)) setCampaignMode('off');
+      else setCampaignMode((m) => (m === 'probing' ? 'off' : m));
+    } finally {
+      setCampaignsLoading(false);
+    }
+  };
+
   const loadData = async () => {
+    const campaignsP = loadCampaigns();
     try {
       const [statsRes, historyRes] = await Promise.all([
         api.get('/admin/push/stats'),
@@ -124,10 +147,39 @@ const AdminPushNotifications = () => {
       setStats(statsRes.data?.result);
       setHistory(historyRes.data?.result?.history || []);
     } catch {}
+    await campaignsP;
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  const onCreateCampaign = async (payload) => {
+    let created;
+    try {
+      created = await createCampaign(payload);
+    } catch (err) {
+      if (isApiMissing(err)) {
+        setCampaignMode('off');
+        toast({ title: 'Campaigns unavailable', description: "The server doesn't support campaigns yet — use the broadcast form instead.", variant: 'destructive' });
+        return;
+      }
+      throw err;
+    }
+    // The server sends right away when the time is under ~30 s out — trust its status.
+    const scheduled = created?.status ? created.status === 'scheduled' : !!payload.scheduledAt;
+    toast({ title: scheduled ? 'Campaign scheduled' : 'Campaign sending!', description: payload.title });
+    loadCampaigns();
+  };
+
+  const onCancelCampaign = async (id) => {
+    try {
+      await cancelCampaign(id);
+      toast({ title: 'Campaign cancelled' });
+    } catch (err) {
+      toast({ title: 'Failed', description: err.response?.data?.message || err.message, variant: 'destructive' });
+    }
+    loadCampaigns();
+  };
+
+  useEffect(() => { loadData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyTemplate = (tpl, target) => {
     if (target === 'broadcast') { setBcTitle(tpl.title); setBcBody(tpl.body); }
@@ -192,6 +244,12 @@ const AdminPushNotifications = () => {
         <StatCard icon={Bell} label="Total Registered Devices" value={stats?.totalTokens?.toLocaleString()} sub="Some users have multiple devices" />
       </div>
 
+      {campaignMode === 'on' && <>
+        <CampaignComposer templates={TEMPLATES} onCreate={onCreateCampaign} />
+        <CampaignHistory campaigns={campaigns} loading={campaignsLoading} onRefresh={loadCampaigns} onCancel={onCancelCampaign} />
+      </>}
+
+      {campaignMode !== 'on' && <>
       {/* Composer */}
       <Tabs defaultValue="broadcast">
         <TabsList>
@@ -402,6 +460,7 @@ const AdminPushNotifications = () => {
           )}
         </CardContent>
       </Card>
+      </>}
     </div>
   );
 };

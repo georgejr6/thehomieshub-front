@@ -11,7 +11,7 @@ const DURATIONS = [
   { label: '24 hours', h: 24 }, { label: '3 days', h: 72 }, { label: '1 week', h: 168 },
 ];
 
-function Shell({ title, onClose, children, footer }) {
+export function Shell({ title, onClose, children, footer }) {
   return (
     <div className="chat-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={onClose}>
       <div onMouseDown={(e) => e.stopPropagation()} className="chat-fade-up w-full max-w-[480px] overflow-hidden rounded-xl bg-[#313338] shadow-2xl">
@@ -26,8 +26,8 @@ function Shell({ title, onClose, children, footer }) {
   );
 }
 
-const inputCls = 'w-full rounded bg-[#1E1F22] px-3 py-2.5 text-[15px] text-[#DBDEE1] placeholder-[#6D6F78] outline-none ring-[#5865F2] transition-shadow focus:ring-2';
-const labelCls = 'mb-2 mt-4 block text-xs font-bold uppercase tracking-wide text-[#B5BAC1]';
+export const inputCls = 'w-full rounded bg-[#1E1F22] px-3 py-2.5 text-[15px] text-[#DBDEE1] placeholder-[#6D6F78] outline-none ring-[#5865F2] transition-shadow focus:ring-2';
+export const labelCls = 'mb-2 mt-4 block text-xs font-bold uppercase tracking-wide text-[#B5BAC1]';
 
 export function PollDialog({ onClose, onCreate }) {
   const [question, setQuestion] = useState('');
