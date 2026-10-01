@@ -186,6 +186,7 @@ const InboxPage = () => {
   const messagesEndRef = useRef(null);
 
   const activeUserParam = searchParams.get('user');
+  const activeThreadParam = searchParams.get('thread'); // exact thread from a deep link
   const [activeThread, setActiveThread] = useState(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -210,12 +211,12 @@ const InboxPage = () => {
     }
     const other = t.participants.find((p) => p !== user.username);
     if (requests.some((r) => r.id === t.id)) setActiveTab('requests');
-    navigate(other ? `/inbox?user=${encodeURIComponent(other)}` : '/inbox', { replace: true });
+    navigate(other ? `/inbox?user=${encodeURIComponent(other)}&thread=${encodeURIComponent(t.id)}` : '/inbox', { replace: true });
   }, [threadIdParam, hasLoaded, threads, requests]);
 
   useEffect(() => {
     if (activeUserParam) {
-      const thread = getThread(activeUserParam) || createThread(activeUserParam);
+      const thread = getThread(activeUserParam, activeThreadParam) || createThread(activeUserParam);
       setActiveThread(thread);
       if (thread.id && thread.id !== 'temp') {
         markAsRead(thread.id);
@@ -225,7 +226,16 @@ const InboxPage = () => {
     } else {
       setActiveThread(null);
     }
-  }, [activeUserParam, threads, requests]);
+  }, [activeUserParam, activeThreadParam, threads, requests]);
+
+  // Live DM into the open conversation: show it now, not on the next 5s poll.
+  useEffect(() => {
+    const id = activeThread?.id;
+    if (!id || id === 'temp') return;
+    const onDm = (e) => { if (String(e.detail?.threadId) === String(id)) loadMessages(id); };
+    window.addEventListener('hh:dm-created', onDm);
+    return () => window.removeEventListener('hh:dm-created', onDm);
+  }, [activeThread?.id]);
 
   // The open thread's messages come straight from the context, so a fetch
   // (poll or live dm.created) shows up immediately — not on the next thread-list

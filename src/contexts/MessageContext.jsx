@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import api from '@/api/homieshub';
 
@@ -73,14 +73,22 @@ export const MessageProvider = ({ children }) => {
       if (data.status) {
         setThreads((data.result.threads || []).map((t) => normalizeThread(t, user.username)));
         setRequests((data.result.requests || []).map((t) => normalizeThread(t, user.username)));
+        setHasLoaded(true);
       }
     } catch (err) {
       console.error('Failed to load threads', err);
     } finally {
       setIsLoading(false);
-      setHasLoaded(true);
     }
   }, [user]);
+
+  // A different account (or signed out): drop the previous one's inbox.
+  useEffect(() => {
+    setThreads([]);
+    setRequests([]);
+    setMessagesByThread({});
+    setHasLoaded(false);
+  }, [user?._id, user?.username]);
 
   useEffect(() => {
     loadThreads();
@@ -98,16 +106,13 @@ export const MessageProvider = ({ children }) => {
   // instead of waiting for the next poll.
   useEffect(() => {
     if (!user) return;
-    const onDm = (e) => {
-      loadThreads();
-      const threadId = e.detail?.threadId;
-      if (threadId) loadMessagesRef.current?.(threadId);
-    };
+    // Only the list here — fetching a thread's messages marks it read on the
+    // server, so InboxPage reloads messages only for the thread that's open.
+    const onDm = () => { loadThreads(); };
     window.addEventListener('hh:dm-created', onDm);
     return () => window.removeEventListener('hh:dm-created', onDm);
   }, [user, loadThreads]);
 
-  const loadMessagesRef = useRef(null);
   const loadMessages = useCallback(async (threadId) => {
     if (!threadId || threadId === 'temp') return [];
     try {
@@ -163,8 +168,12 @@ export const MessageProvider = ({ children }) => {
 
   // Message requests (from people you don't follow) are real threads too —
   // a link to one must open it, not a blank new chat.
-  const getThread = (username) => {
-    const thread = threads.find((t) => t.participants?.includes(username))
+  const getThread = (username, threadId) => {
+    const byId = threadId
+      ? threads.find((t) => String(t.id) === String(threadId)) || requests.find((t) => String(t.id) === String(threadId))
+      : null;
+    const thread = byId
+      || threads.find((t) => t.participants?.includes(username))
       || requests.find((t) => t.participants?.includes(username));
     if (!thread) return null;
     return { ...thread, isRequest: !threads.includes(thread), messages: messagesByThread[thread.id] || [] };
@@ -208,7 +217,7 @@ export const MessageProvider = ({ children }) => {
     if (!threadId || threadId === 'temp') return;
     try {
       await api.post(`/messages/${threadId}/read`);
-      setThreads((prev) =>
+      const markOne = (prev) =>
         prev.map((t) =>
           t.id === threadId
             ? {
@@ -217,8 +226,9 @@ export const MessageProvider = ({ children }) => {
                 lastMessage: t.lastMessage ? { ...t.lastMessage, read: true } : null,
               }
             : t
-        )
-      );
+        );
+      setThreads(markOne);
+      setRequests(markOne);
     } catch (err) {
       console.error('Failed to mark as read', err);
     }
@@ -264,8 +274,6 @@ export const MessageProvider = ({ children }) => {
       return [];
     }
   };
-
-  loadMessagesRef.current = loadMessages;
 
   const pollMessages = useCallback((threadId) => {
     if (!threadId || threadId === 'temp') return () => {};

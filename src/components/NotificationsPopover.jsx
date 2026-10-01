@@ -36,9 +36,15 @@ const NOTIFICATION_ICONS = {
 };
 const ALERT_TYPES = new Set(['system', 'campaign']);
 
+// App-only screens a notification may point at → their web page.
+const WEB_EQUIVALENT = { '/points': '/wallet' };
+
 export function notificationHref(n) {
   const d = n?.data || {};
-  if (typeof d.url === 'string' && d.url) return d.url;
+  if (typeof d.url === 'string' && d.url) {
+    const path = d.url.split(/[?#]/)[0];
+    return WEB_EQUIVALENT[path] || d.url;
+  }
   if (typeof d.deepLink === 'string' && d.deepLink) return d.deepLink;
   if (d.cta === 'upgrade') return '/memberships';
   if (n?.type === 'follow' && d.actor) return `/profile/${d.actor}`;
