@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import api from '@/api/homieshub';
 
@@ -60,6 +60,9 @@ export const MessageProvider = ({ children }) => {
   const [threads, setThreads] = useState([]);
   const [requests, setRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  // True once the first /messages fetch finished — lets a /messages/<id> deep
+  // link tell "not loaded yet" apart from "no such thread".
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [messagesByThread, setMessagesByThread] = useState({});
 
   const loadThreads = useCallback(async () => {
@@ -75,6 +78,7 @@ export const MessageProvider = ({ children }) => {
       console.error('Failed to load threads', err);
     } finally {
       setIsLoading(false);
+      setHasLoaded(true);
     }
   }, [user]);
 
@@ -89,6 +93,21 @@ export const MessageProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [user, loadThreads]);
 
+  // Live DMs: useChat forwards the chat socket's dm.created as a window event
+  // (when a chat socket is open); refresh the list and that thread at once
+  // instead of waiting for the next poll.
+  useEffect(() => {
+    if (!user) return;
+    const onDm = (e) => {
+      loadThreads();
+      const threadId = e.detail?.threadId;
+      if (threadId) loadMessagesRef.current?.(threadId);
+    };
+    window.addEventListener('hh:dm-created', onDm);
+    return () => window.removeEventListener('hh:dm-created', onDm);
+  }, [user, loadThreads]);
+
+  const loadMessagesRef = useRef(null);
   const loadMessages = useCallback(async (threadId) => {
     if (!threadId || threadId === 'temp') return [];
     try {
@@ -142,11 +161,19 @@ export const MessageProvider = ({ children }) => {
     return null;
   };
 
+  // Message requests (from people you don't follow) are real threads too —
+  // a link to one must open it, not a blank new chat.
   const getThread = (username) => {
-    const thread = threads.find((t) => t.participants?.includes(username));
+    const thread = threads.find((t) => t.participants?.includes(username))
+      || requests.find((t) => t.participants?.includes(username));
     if (!thread) return null;
-    return { ...thread, messages: messagesByThread[thread.id] || [] };
+    return { ...thread, isRequest: !threads.includes(thread), messages: messagesByThread[thread.id] || [] };
   };
+
+  const getThreadById = (threadId) =>
+    threads.find((t) => String(t.id) === String(threadId))
+    || requests.find((t) => String(t.id) === String(threadId))
+    || null;
 
   const createThread = (username) => {
     const existing = getThread(username);
@@ -238,6 +265,8 @@ export const MessageProvider = ({ children }) => {
     }
   };
 
+  loadMessagesRef.current = loadMessages;
+
   const pollMessages = useCallback((threadId) => {
     if (!threadId || threadId === 'temp') return () => {};
     const interval = setInterval(() => loadMessages(threadId), 5000);
@@ -248,6 +277,9 @@ export const MessageProvider = ({ children }) => {
     threads,
     requests,
     isLoading,
+    hasLoaded,
+    getThreadById,
+    messagesByThread,
     sendMessage,
     getThread,
     createThread,

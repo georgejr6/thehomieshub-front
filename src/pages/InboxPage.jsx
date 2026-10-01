@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { useMessages } from '@/contexts/MessageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -176,7 +176,8 @@ const InboxPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { threads, requests, sendMessage, getThread, createThread, acceptRequest, archiveRequest, searchUsers, markAsRead, muteThread, archiveThread, deleteThread, loadMessages, pollMessages } = useMessages();
+  const { threads, requests, hasLoaded, getThreadById, messagesByThread, sendMessage, getThread, createThread, acceptRequest, archiveRequest, searchUsers, markAsRead, muteThread, archiveThread, deleteThread, loadMessages, pollMessages } = useMessages();
+  const { threadId: threadIdParam } = useParams();
 
   const isMobile = useMediaQuery('(max-width: 768px)');
   const fileInputRef = useRef(null);
@@ -197,6 +198,21 @@ const InboxPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
 
+  // /messages/<threadId> (DM email / push / Discord nudge links): once the
+  // thread list has loaded, open that conversation — requests included.
+  useEffect(() => {
+    if (!threadIdParam || !hasLoaded) return;
+    const t = getThreadById(threadIdParam);
+    if (!t) {
+      toast({ title: 'Conversation not found', description: 'It may have been deleted.' });
+      navigate('/inbox', { replace: true });
+      return;
+    }
+    const other = t.participants.find((p) => p !== user.username);
+    if (requests.some((r) => r.id === t.id)) setActiveTab('requests');
+    navigate(other ? `/inbox?user=${encodeURIComponent(other)}` : '/inbox', { replace: true });
+  }, [threadIdParam, hasLoaded, threads, requests]);
+
   useEffect(() => {
     if (activeUserParam) {
       const thread = getThread(activeUserParam) || createThread(activeUserParam);
@@ -209,11 +225,17 @@ const InboxPage = () => {
     } else {
       setActiveThread(null);
     }
-  }, [activeUserParam, threads]);
+  }, [activeUserParam, threads, requests]);
 
+  // The open thread's messages come straight from the context, so a fetch
+  // (poll or live dm.created) shows up immediately — not on the next thread-list
+  // refresh. Scroll only when the count changes, not on every poll.
+  const activeMessages = activeThread
+    ? (messagesByThread[activeThread.id] || activeThread.messages || [])
+    : [];
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeThread?.messages]);
+  }, [activeThread?.id, activeMessages.length]);
 
   const getRecipient = () =>
     activeThread?.participants.find(p => p !== user.username) || activeUserParam;
@@ -454,6 +476,16 @@ const InboxPage = () => {
     </div>
   );
 
+  // A message request (sender you don't follow) opens read-only-ish: the
+  // conversation shows, with Accept / Archive above the input.
+  const RequestBar = () => activeThread?.isRequest ? (
+    <div className="flex items-center gap-2 px-4 py-2 border-t border-border bg-muted/30 text-sm">
+      <span className="flex-1 text-muted-foreground">@{getOtherParticipant(activeThread).username} wants to message you.</span>
+      <Button size="sm" className="h-8 text-xs" onClick={() => acceptRequest(activeThread.id)}><Check className="w-3 h-3 mr-1" /> Accept</Button>
+      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { archiveRequest(activeThread.id); setSearchParams({}); }}><Archive className="w-3 h-3 mr-1" /> Archive</Button>
+    </div>
+  ) : null;
+
   // ── Mobile view ────────────────────────────────────────────────────────────
   if (isMobile && activeThread) {
     const other = getOtherParticipant(activeThread);
@@ -471,15 +503,16 @@ const InboxPage = () => {
         </div>
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-3">
-            {activeThread.messages?.map(msg => (
+            {activeMessages.map(msg => (
               <MessageBubble key={msg.id} msg={msg} isMe={msg.sender === user.username} />
             ))}
-            {(!activeThread.messages || activeThread.messages.length === 0) && (
+            {activeMessages.length === 0 && (
               <p className="text-center text-muted-foreground mt-10 text-sm">Start the conversation!</p>
             )}
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
+        <RequestBar />
         <ChatInput mobile />
       </div>
     );
@@ -560,7 +593,7 @@ const InboxPage = () => {
                 {requests.map(req => (
                   <Card key={req.id} className="overflow-hidden">
                     <CardContent className="p-3">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2 cursor-pointer" onClick={() => setSearchParams({ user: req.participants[0] })}>
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={`https://avatar.vercel.sh/${req.participants[0]}.png`} />
                           <AvatarFallback>{req.participants[0]?.charAt(0)}</AvatarFallback>
@@ -603,10 +636,10 @@ const InboxPage = () => {
 
             <ScrollArea className="flex-1 p-6">
               <div className="space-y-3 max-w-3xl mx-auto">
-                {activeThread.messages?.map(msg => (
+                {activeMessages.map(msg => (
                   <MessageBubble key={msg.id} msg={msg} isMe={msg.sender === user.username} />
                 ))}
-                {(!activeThread.messages || activeThread.messages.length === 0) && (
+                {activeMessages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                     <MessageSquarePlus className="h-12 w-12 mb-2 opacity-20" />
                     <p>Start the conversation with @{activeUserParam}</p>
@@ -616,6 +649,7 @@ const InboxPage = () => {
               </div>
             </ScrollArea>
 
+            <RequestBar />
             <ChatInput />
           </>
         ) : (

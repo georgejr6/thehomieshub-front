@@ -592,11 +592,15 @@ const AppContent = React.memo(() => {
                     </FeatureGuard>
                 } />
                 
-                <Route path="/inbox" element={
+                {/* /messages/<threadId> is the DM email + push deep link; signed-out
+                    visitors sign in first and land back on the same thread. */}
+                {['/inbox', '/messages', '/messages/:threadId'].map((path) => (
+                  <Route key={path} path={path} element={
                     <FeatureGuard feature="messaging">
-                        {user ? <InboxPage /> : <Navigate to="/" />}
+                        {user ? <InboxPage /> : <Navigate to={`/?openAuth=1&tab=signin&redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />}
                     </FeatureGuard>
-                } />
+                  } />
+                ))}
                 
                 <Route path="/profile/:username" element={<UserProfilePage />} />
                 <Route path="/post/:postId" element={<HomePage onLoginRequest={handleLoginRequest} />} /> 

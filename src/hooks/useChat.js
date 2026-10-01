@@ -300,6 +300,7 @@ export function useChat({ enabled, activeChannelId }) {
         }
         case 'dm.created': {
           // Same DM system as /inbox; pop a desktop notification for it.
+          window.dispatchEvent(new CustomEvent('hh:dm-created', { detail: { threadId: d.threadId } }));
           const msg = d.message || {};
           const sender = msg.sender || {};
           const blocked = stateRef.current.me?.blockedUserIds?.includes(String(sender._id));
