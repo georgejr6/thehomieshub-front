@@ -217,8 +217,12 @@ export const MessageProvider = ({ children }) => {
     if (!threadId || threadId === 'temp') return;
     try {
       await api.post(`/messages/${threadId}/read`);
+      // Same array back when nothing changed: a new array re-runs InboxPage's
+      // thread effect, which marks read again — an endless request loop.
       const markOne = (prev) =>
-        prev.map((t) =>
+        !prev.some((t) => t.id === threadId && (t.unreadCount || (t.lastMessage && !t.lastMessage.read)))
+          ? prev
+          : prev.map((t) =>
           t.id === threadId
             ? {
                 ...t,

@@ -219,7 +219,7 @@ const InboxPage = () => {
       const thread = getThread(activeUserParam, activeThreadParam) || createThread(activeUserParam);
       setActiveThread(thread);
       if (thread.id && thread.id !== 'temp') {
-        markAsRead(thread.id);
+        if (thread.unreadCount || (thread.lastMessage && !thread.lastMessage.read)) markAsRead(thread.id);
         loadMessages(thread.id);
         return pollMessages(thread.id);
       }
