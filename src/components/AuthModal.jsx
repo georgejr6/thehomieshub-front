@@ -669,7 +669,9 @@ const AuthModal = ({ isOpen, onOpenChange, initialView = 'main', initialTab = 's
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChangeProp}>
-      <DialogContent className="sm:max-w-md w-[90%] rounded-lg">
+      {/* Capped + scrollable: the sign-up form is taller than a phone screen,
+          and a fixed, centered dialog otherwise can't be scrolled to its button. */}
+      <DialogContent className="sm:max-w-md w-[90%] rounded-lg max-h-[90vh] max-h-[90dvh] overflow-y-auto overscroll-contain">
         <div className="flex flex-col items-center justify-center pt-6 space-y-2">
           <div className="mx-auto bg-primary text-primary-foreground p-3 rounded-full w-fit mb-2">
             <Clapperboard className="h-8 w-8" />
