@@ -77,7 +77,7 @@ Think of Algorand like the payment rails — like Visa or ACH — but open and a
 
 Download it free from the App Store or Google Play. Create a new wallet — write down your 25-word recovery phrase and keep it somewhere safe (not a screenshot).`,
     walletLinks: [
-      { label: 'App Store (iPhone)', url: 'https://apps.apple.com/app/pera-algo-wallet/id1459898369' },
+      { label: 'App Store (iPhone)', url: 'https://apps.apple.com/us/app/pera-algo-wallet/id1459898525' },
       { label: 'Google Play (Android)', url: 'https://play.google.com/store/apps/details?id=com.algorand.android' },
     ],
     note: 'Your 25-word phrase = your money. Anyone who has it can access your funds. Never share it.',

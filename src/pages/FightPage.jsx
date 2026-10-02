@@ -50,7 +50,7 @@ const regularValue = (t) => (t?.months ? t.months * HOMIES_MONTHLY * 100 : 0);
 
 const STEPS = ['Pick', 'Details', 'Account', 'Wallet', 'Add funds', 'Pay', 'Done'];
 const DRAFT_KEY = 'fight_support_draft';
-const PERA_IOS = 'https://apps.apple.com/app/pera-algo-wallet/id1459898369';
+const PERA_IOS = 'https://apps.apple.com/us/app/pera-algo-wallet/id1459898525';
 const PERA_ANDROID = 'https://play.google.com/store/apps/details?id=com.algorand.android';
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 .'_-]{0,19}$/;
 
