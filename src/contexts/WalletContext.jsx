@@ -116,7 +116,9 @@ export const WalletProvider = ({ children }) => {
    */
   const signTransactions = useCallback(async (txnGroups) => {
     if (peraAddress) {
-      return await peraRef.current.signTransaction(txnGroups);
+      // Pass the signer so Pera skips items whose signers don't include it
+      // (e.g. an x402 facilitator's fee-payer transaction).
+      return await peraRef.current.signTransaction(txnGroups, peraAddress);
     }
     const flatItems     = txnGroups.flat();
     const allTxns       = flatItems.map((item) => item.txn);

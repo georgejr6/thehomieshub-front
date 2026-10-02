@@ -10,7 +10,7 @@ import { APPEAL_PATH, safeAppealUrl } from '@/lib/apiErrors';
 // the friendly face of that — every path leads to /memberships.
 
 // Pages a non-member can still use: pay, join, account, legal, chat (its own gate).
-const OPEN_PREFIXES = ['/live', '/memberships', '/join', '/settings', '/wallet', '/chat', '/appeal', '/pay', '/auth', '/admin', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
+const OPEN_PREFIXES = ['/live', '/memberships', '/join', '/settings', '/wallet', '/chat', '/appeal', '/pay', '/fight', '/auth', '/admin', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
 const isOpenPath = (path) => path === '/' || OPEN_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 
 // Logged-out visitors see only these (everything else → sign-in screen).
@@ -18,7 +18,7 @@ const isOpenPath = (path) => path === '/' || OPEN_PREFIXES.some((p) => path === 
 // server only ever sends them previews (8s videos, 30s songs) and each one
 // ends in the sign-up sheet (SignupPrompt.jsx).
 const BROWSE_PREFIXES = ['/browse', '/watch', '/post', '/media', '/music', '/song', '/track', '/profile', '/explore', '/reels'];
-const PUBLIC_PREFIXES = [...BROWSE_PREFIXES, '/live', '/join', '/memberships', '/chat', '/auth', '/admin/login', '/pay', '/appeal', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
+const PUBLIC_PREFIXES = [...BROWSE_PREFIXES, '/live', '/join', '/memberships', '/chat', '/auth', '/admin/login', '/pay', '/fight', '/appeal', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support'];
 const isPublicPath = (path) => path === '/' || PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 
 // Joining goes through /join (Discord or Google sign-in → verify → Homies Chat).

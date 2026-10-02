@@ -77,6 +77,7 @@ import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
 const PayPage = lazyWithReload(() => import('@/pages/PayPage'));
+const FightPage = lazyWithReload(() => import('@/pages/FightPage'));
 import api from '@/api/homieshub';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -328,7 +329,7 @@ const AppContent = React.memo(() => {
     if (user) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (cancelled || location.pathname === '/join' || location.pathname === '/live') return; // /live has its own sign-in prompts
+      if (cancelled || location.pathname === '/join' || location.pathname === '/live' || location.pathname === '/fight') return; // /live has its own sign-in prompts
       if (!isLocationVerified()) return;
       try {
         const last = Number(localStorage.getItem(JOIN_INVITE_KEY) || 0);
@@ -520,6 +521,8 @@ const AppContent = React.memo(() => {
                 web app's own session, and mobile opens this in a fresh browser
                 context with no session of its own yet. */}
             <Route path="/pay" element={<PayPage />} />
+            {/* Fight support (Oct 29): fans back Mwosa in USDC via the DIGITVL x402 gateway. */}
+            <Route path="/fight" element={<FightPage />} />
 
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />

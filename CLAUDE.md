@@ -362,6 +362,10 @@ Consolidated onto ONE capture pipeline instead of two competing ones — see rou
 
 ---
 
+## Fight support page (2026-10-01)
+- `/fight` (`src/pages/FightPage.jsx`, public; in MembershipWall OPEN + PUBLIC prefixes): 6-step swipe onboarding to back Mwosa's Oct 29 fight in USDC — tier/custom amount → wall + hoodie name → sign in (`?openAuth=1&redirect=/fight`) → connect Pera → add funds (polls algonode balance) → pay → done (polls `/api/fight/intent/:id`). Tiers must match backend `utils/fightSupport.js`.
+- `src/lib/x402Pay.js`: x402 v2 client (`@x402/core` + `@x402/avm`, algokit-utils 10.0.0-alpha.46 pinned) paying the DIGITVL gateway `/support` from the fan's own wallet. The x402 client's default cap is $1 → spendControls raised to $500; validity window 100 rounds. `WalletContext.signTransactions` now passes the Pera address so Pera skips the facilitator's fee-payer txn. Never pay x402 from a platform wallet/card (challenge self-payment rule).
+
 ## Environment / Deploy Notes
 
 - Frontend deploys on **Vercel** (see `vercel.json`)
