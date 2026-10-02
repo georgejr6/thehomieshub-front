@@ -96,7 +96,20 @@ export default function FightPage() {
   }, []);
   useEffect(() => { loadWall(); }, [loadWall]);
 
-  const go = (to) => { setDir(to > step ? 1 : -1); setStep(to); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  // Every step is a browser history entry, so the phone's back gesture / the
+  // back button walks back through the steps instead of leaving the page.
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const [maxStep, setMaxStep] = useState(step);
+  const go = (to, { push = true } = {}) => {
+    setDir(to > stepRef.current ? 1 : -1);
+    setStep(to);
+    setMaxStep((m) => Math.max(m, to));
+    if (push) {
+      try { window.history.pushState({ ...(window.history.state || {}), fightStep: to }, ''); } catch { /* ignore */ }
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Next step, skipping the ones already done.
   const next = () => {
@@ -200,13 +213,35 @@ export default function FightPage() {
 
   const customValid = (v) => /^\d{1,3}(\.\d{1,2})?$/.test(v) && Number(v) >= 1 && Number(v) <= 500;
   const detailsValid = (!wallName || NAME_RE.test(wallName.trim())) && (!hoodieName || NAME_RE.test(hoodieName.trim()));
-  const canNext = [!!tier && (!custom || customValid(custom)), detailsValid, !!user, !!connectedWallet, !!funded, false, false][step];
+  const done = [!!tier && (!custom || customValid(custom)), detailsValid, !!user, !!connectedWallet, !!funded];
+  const canNext = [...done, false, false][step];
+  // A step can be opened if every step before it is complete (and, going
+  // forward, they've been there before). Never back into the flow once paid.
+  const reachable = (i) => step < 6 && !paying && i <= 5 && (i <= step || i <= maxStep) && done.slice(0, i).every(Boolean);
+  const reachableRef = useRef(reachable);
+  reachableRef.current = reachable;
+
+  useEffect(() => {
+    try { window.history.replaceState({ ...(window.history.state || {}), fightStep: stepRef.current }, ''); } catch { /* ignore */ }
+    const onPop = (e) => {
+      const cur = stepRef.current;
+      const want = Number.isInteger(e.state?.fightStep) ? e.state.fightStep : Math.max(0, cur - 1);
+      // Paid, or mid-payment: stay put (re-add the entry the back gesture removed).
+      if (cur >= 6 || paying) {
+        try { window.history.pushState({ ...(window.history.state || {}), fightStep: cur }, ''); } catch { /* ignore */ }
+        return;
+      }
+      if (want !== cur && reachableRef.current(want)) go(want, { push: false });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [paying]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen bg-[#07070a] text-white">
       <div className="mx-auto w-full max-w-xl px-4 pb-28 pt-6 sm:pt-10">
         <Header wall={wall} />
-        {step < 6 && <Progress step={step} />}
+        {step < 6 && <Progress step={step} reachable={reachable} onJump={(i) => go(i)} />}
 
         <div className="relative mt-5">
           <AnimatePresence mode="wait" custom={dir} initial={false}>
@@ -266,22 +301,28 @@ export default function FightPage() {
         {wall?.wall?.length > 0 && step === 0 && <Wall wall={wall} />}
       </div>
 
-      {step < 5 && (
+      {step < 6 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#07070a]/95 backdrop-blur">
           <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
             {step > 0 && (
-              <Button variant="ghost" size="icon" className="text-white/70 hover:bg-white/10 hover:text-white" onClick={() => go(step - 1)} aria-label="Back">
-                <ArrowLeft className="h-5 w-5" />
+              <Button
+                variant="ghost"
+                className={cn('h-12 text-white/70 hover:bg-white/10 hover:text-white', step === 5 ? 'flex-1 rounded-xl border border-white/15' : 'w-12 px-0')}
+                onClick={() => go(step - 1)}
+                disabled={paying}
+                aria-label="Back"
+              >
+                <ArrowLeft className="h-5 w-5" />{step === 5 && <span className="ml-2 font-semibold">Back</span>}
               </Button>
             )}
-            <Button
+            {step < 5 && <Button
               className="h-12 flex-1 rounded-xl bg-[#ff2d55] text-base font-bold text-white hover:bg-[#ff4d6d] disabled:opacity-40"
               disabled={!canNext}
               onClick={next}
             >
               {step === 0 ? (canNext ? `Back him with ${usd(cents)}` : 'Enter an amount') : step === 4 && !funded ? 'Waiting for USDC…' : 'Continue'}
               <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            </Button>}
           </div>
         </div>
       )}
@@ -311,17 +352,30 @@ function Header({ wall }) {
   );
 }
 
-function Progress({ step }) {
+// Tap a segment to jump to any step you've already reached.
+function Progress({ step, reachable, onJump }) {
   return (
     <div className="mt-6">
       <div className="flex gap-1.5">
-        {STEPS.slice(0, 6).map((s, i) => (
-          <div key={s} className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-            <motion.div className="h-full bg-[#ff2d55]" initial={false} animate={{ width: i <= step ? '100%' : '0%' }} transition={{ duration: 0.3 }} />
-          </div>
-        ))}
+        {STEPS.slice(0, 6).map((s, i) => {
+          const can = i !== step && reachable(i);
+          return (
+            <button
+              key={s}
+              type="button"
+              disabled={!can}
+              onClick={() => onJump(i)}
+              aria-label={`Step ${i + 1}: ${s}`}
+              className={cn('flex-1 py-2', can ? 'cursor-pointer' : 'cursor-default')}
+            >
+              <span className="block h-1.5 overflow-hidden rounded-full bg-white/10">
+                <motion.span className="block h-full bg-[#ff2d55]" initial={false} animate={{ width: i <= step ? '100%' : '0%' }} transition={{ duration: 0.3 }} />
+              </span>
+            </button>
+          );
+        })}
       </div>
-      <div className="mt-2 text-xs font-medium uppercase tracking-wider text-white/40">Step {step + 1} of 6 · {STEPS[step]}</div>
+      <div className="mt-1 text-xs font-medium uppercase tracking-wider text-white/40">Step {step + 1} of 6 · {STEPS[step]}</div>
     </div>
   );
 }
