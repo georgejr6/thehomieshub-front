@@ -116,6 +116,8 @@ export default function FightPage() {
     let to = step + 1;
     if (to === 2 && user) to = 3;
     if (to === 3 && connectedWallet) to = 4;
+    // Already holding enough USDC: skip funding, straight to the payment.
+    if (to === 4 && funded) to = 5;
     go(to);
   };
 
@@ -126,7 +128,10 @@ export default function FightPage() {
     setChecking(false);
   }, [connectedWallet?.address]);
 
-  useEffect(() => { if (step === 4) checkFunds(); }, [step, checkFunds]);
+  // Never carry one wallet's balance over to another.
+  useEffect(() => { setFunds(null); }, [connectedWallet?.address]);
+  // Check whenever a wallet is connected, so a funded wallet can skip step 4.
+  useEffect(() => { if (step < 6) checkFunds(); }, [step, checkFunds]);
   // While they're off buying USDC in Pera, keep checking.
   useEffect(() => {
     if (step !== 4) return undefined;
@@ -143,12 +148,15 @@ export default function FightPage() {
   useEffect(() => {
     if (step !== 4) { waitedRef.current = false; return; }
     if (funds && !funded) waitedRef.current = true;
-    else if (funded && waitedRef.current) { waitedRef.current = false; go(5); }
+    // Also move on if they arrived going forward and the wallet turns out funded.
+    else if (funded && (waitedRef.current || dir > 0)) { waitedRef.current = false; go(5); }
   }, [step, funds, funded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pay = async () => {
     setPayError('');
     if (!connectedWallet?.address) { go(3); return; }
+    // Known to be short on USDC: send them to the funding step, no intent created.
+    if (funds && !funded) { go(4); return; }
     setPaying(true);
     try {
       const { data: intent } = await api.post('/fight/intent', {
@@ -167,7 +175,7 @@ export default function FightPage() {
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Payment failed';
       setPayError(msg);
-      if (err?.code === 'funds' || err?.code === 'optin') { checkFunds(); }
+      if (err?.code === 'funds' || err?.code === 'optin') { checkFunds(); go(4); }
     } finally {
       setPaying(false);
     }
@@ -288,7 +296,7 @@ export default function FightPage() {
                   }}
                 />
               )}
-              {step === 4 && <FundStep funds={funds} cents={cents} needUsdc={needUsdc} checking={checking} onCheck={checkFunds} address={connectedWallet?.address} />}
+              {step === 4 && <FundStep funds={funds} cents={cents} needUsdc={needUsdc} checking={checking} onCheck={checkFunds} address={connectedWallet?.address} onSkip={() => go(5)} />}
               {step === 5 && (
                 <PayStep tier={tier} cents={cents} paying={paying} error={payError} onPay={pay} onBack={() => go(0)}
                   hoodieName={tier?.hoodie && hoodieOpen ? hoodieName.trim() : ''} address={connectedWallet?.address} />
@@ -614,7 +622,7 @@ function WalletStep({ connectedWallet, isConnecting, onConnect }) {
   );
 }
 
-function FundStep({ funds, cents, needUsdc, checking, onCheck, address }) {
+function FundStep({ funds, cents, needUsdc, checking, onCheck, address, onSkip }) {
   const amount = cents / 100;
   const ready = funds && funds.optedIn && needUsdc === 0;
   const lowAlgo = funds && funds.algo < 0.3;
@@ -661,14 +669,19 @@ function FundStep({ funds, cents, needUsdc, checking, onCheck, address }) {
             <li className="flex gap-3">
               <Num n={3} done={false} />
               <div>
-                <div className="font-semibold">Come back here</div>
-                <div className="text-sm text-white/60">This page checks your wallet every few seconds and moves on when the USDC lands.</div>
+                <div className="font-semibold">Come back here and pay</div>
+                <div className="text-sm text-white/60">This page checks your wallet every few seconds. When the USDC lands it opens the payment screen, where you approve the {usd(cents)} in Pera.</div>
               </div>
             </li>
           </ol>
         )}
         {!ready && lowAlgo && funds?.optedIn && <p className="mt-3 text-xs text-[#ffb3c1]">Keep at least 0.3 ALGO in the wallet so it can hold USDC.</p>}
       </Card>
+      {!funds && (
+        <button type="button" onClick={onSkip} className="w-full rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 hover:text-white">
+          Already have USDC? Go straight to payment <ArrowRight className="ml-1 inline h-4 w-4" />
+        </button>
+      )}
       {address && (
         <button type="button" onClick={copy} className="w-full truncate px-1 text-center text-xs text-white/35 hover:text-white/60">
           Your wallet: {address} (tap to copy)
