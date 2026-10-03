@@ -18,7 +18,7 @@ const FEATURES = [
   { icon: Compass,       name: 'Explore',          desc: 'Discover trending content and find new people in the community.' },
   { icon: Radio,         name: 'Live Streaming',   desc: 'Watch live streams in real time or go live yourself from Creator Studio.' },
   { icon: BookOpen,      name: 'Library',          desc: 'Your personal collection of saved videos and premium content.' },
-  { icon: Trophy,        name: 'Wagers',           desc: 'Create challenges, make bets, and compete with the community.' },
+  { icon: Trophy,        name: 'Pools',            desc: 'Call the result of a fight or event. Winners split the pot.' },
   { icon: Clapperboard,  name: 'Creator Studio',   desc: 'Upload videos, post reels, and stream live to your followers.' },
   { icon: Wallet,        name: 'Wallet',           desc: 'Earn points, send gifts to other homies, and track your balance.' },
   { icon: MessageSquare, name: 'Inbox',            desc: 'Direct message the homies and keep your conversations going.' },

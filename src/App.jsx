@@ -77,7 +77,12 @@ import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
 const PayPage = lazyWithReload(() => import('@/pages/PayPage'));
-const FightPage = lazyWithReload(() => import('@/pages/FightPage'));
+const SponsorPage = lazyWithReload(() => import('@/pages/SponsorPage'));
+const FightPoolPage = lazyWithReload(() => import('@/pages/FightPoolPage'));
+const BetsPage = lazyWithReload(() => import('@/pages/BetsPage'));
+const ProposePoolPage = lazyWithReload(() => import('@/pages/ProposePoolPage'));
+const JudgePoolPage = lazyWithReload(() => import('@/pages/JudgePoolPage'));
+const AdminPools = lazyWithReload(() => import('@/pages/admin/AdminPools'));
 import api from '@/api/homieshub';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -329,7 +334,7 @@ const AppContent = React.memo(() => {
     if (user) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (cancelled || location.pathname === '/join' || location.pathname === '/live' || location.pathname === '/fight') return; // /live has its own sign-in prompts
+      if (cancelled || location.pathname === '/join' || location.pathname === '/live' || location.pathname === '/fight' || location.pathname === '/sponsor' || location.pathname.startsWith('/bets')) return; // /live has its own sign-in prompts
       if (!isLocationVerified()) return;
       try {
         const last = Number(localStorage.getItem(JOIN_INVITE_KEY) || 0);
@@ -521,8 +526,14 @@ const AppContent = React.memo(() => {
                 web app's own session, and mobile opens this in a fresh browser
                 context with no session of its own yet. */}
             <Route path="/pay" element={<PayPage />} />
-            {/* Fight support (Oct 29): fans back Mwosa in USDC via the DIGITVL x402 gateway. */}
-            <Route path="/fight" element={<FightPage />} />
+            {/* Fight sponsorship (Oct 29): fans back Mwosa in USDC via the DIGITVL x402 gateway (was /fight). */}
+            <Route path="/sponsor" element={<SponsorPage />} />
+            {/* Fight Pools: pari-mutuel USDC pools held by the HomiesPools contract, bets via x402 /bet. */}
+            <Route path="/fight" element={<FightPoolPage />} />
+            <Route path="/bets" element={<BetsPage />} />
+            <Route path="/bets/new" element={<ProposePoolPage />} />
+            <Route path="/bets/:id" element={<FightPoolPage />} />
+            <Route path="/bets/:id/judge" element={<JudgePoolPage />} />
 
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
@@ -543,6 +554,7 @@ const AppContent = React.memo(() => {
             <Route path="/admin/music" element={user?.isAdmin ? <AdminRouteWrapper><AdminMusicManager /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/push" element={user?.isAdmin ? <AdminRouteWrapper><AdminPushNotifications /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/banners" element={user?.isAdmin ? <AdminRouteWrapper><AdminBanners /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
+            <Route path="/admin/pools" element={user?.isAdmin ? <AdminRouteWrapper><AdminPools /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
 
             {/* --- Main App Routes --- */}
             <Route element={<MainLayout 

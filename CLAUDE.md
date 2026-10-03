@@ -362,8 +362,14 @@ Consolidated onto ONE capture pipeline instead of two competing ones — see rou
 
 ---
 
-## Fight support page (2026-10-01)
-- `/fight` (`src/pages/FightPage.jsx`, public; in MembershipWall OPEN + PUBLIC prefixes): 6-step swipe onboarding to back Mwosa's Oct 29 fight in USDC — tier/custom amount → wall + hoodie name → sign in (`?openAuth=1&redirect=/fight`) → connect Pera → add funds (polls algonode balance) → pay → done (polls `/api/fight/intent/:id`). Tiers must match backend `utils/fightSupport.js`.
+## Fight Pools (2026-10-03, branch feat/fight-pool)
+- `/fight` = `pages/FightPoolPage.jsx`: 8-step flow (how it works + 18+/responsible-play ack → pick → amount → account → wallet → add funds → bet → receipt + My bets) for the fight pool (`?pool=`, else `VITE_FIGHT_POOL_ID`, else first live house pool). `/bets/:id` renders the same page for any pool (generic header). `/bets` list, `/bets/new` propose (1–3 judges + threshold), `/bets/:id/judge` judges vote from their wallet, `/admin/pools` approve/reject proposals, change judges (until first bet) and fee wallet (while open).
+- `lib/pools/poolPay.js`: x402 scheme client for gateway `GET /bet` building [facilitator fee-payer, axfer bettor→app, appcall bet(axfer,pool,outcome) with boxes p+id / b+id+bettor]; wallet signs only [1],[2]. Test `poolPay.test.js` runs the real @x402/avm facilitator verify on the group. `lib/pools/chain.js` (ABI from `HomiesPools.arc56.json`, box decode, vote txn), `lib/pools/api.js` (backend `/api/pools`, see homieshub-backend docs/POOLS_API.md).
+- Shared step components in `components/onchain/` (FundStep, WalletStep, AccountStep, StepProgress/Card/Num).
+- Env (optional): `VITE_FIGHT_POOL_ID`, `VITE_POOLS_APP_ID`, `VITE_X402_GATEWAY_URL`.
+
+## Fight support page (2026-10-01) — moved to /sponsor on 2026-10-03
+- `/sponsor` (`src/pages/SponsorPage.jsx`, was FightPage at `/fight`; draft key unchanged, public; in MembershipWall OPEN + PUBLIC prefixes): 6-step swipe onboarding to back Mwosa's Oct 29 fight in USDC — tier/custom amount → wall + hoodie name → sign in (`?openAuth=1&redirect=/sponsor`) → connect Pera → add funds (polls algonode balance) → pay → done (polls `/api/fight/intent/:id`). Tiers must match backend `utils/fightSupport.js`.
 - `src/lib/x402Pay.js`: x402 v2 client (`@x402/core` + `@x402/avm`, algokit-utils 10.0.0-alpha.46 pinned) paying the DIGITVL gateway `/support` from the fan's own wallet. The x402 client's default cap is $1 → spendControls raised to $500; validity window 100 rounds. `WalletContext.signTransactions` now passes the Pera address so Pera skips the facilitator's fee-payer txn. Never pay x402 from a platform wallet/card (challenge self-payment rule).
 
 ## Environment / Deploy Notes

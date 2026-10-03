@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Crown, ExternalLink, Flame, Loader2,
-  RefreshCw, Shirt, Share2, Smartphone, Sparkles, Trophy, Wallet, Zap,
+  Shirt, Share2, Sparkles, Trophy, Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,8 +12,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import api from '@/api/homieshub';
 import { payX402, walletStatus } from '@/lib/x402Pay';
+import { Card, StepProgress, usd } from '@/components/onchain/ui';
+import FundStep from '@/components/onchain/FundStep';
+import WalletStep from '@/components/onchain/WalletStep';
+import AccountStep from '@/components/onchain/AccountStep';
 
-// thehomies.app/fight — back Mwosa's Oct 29 fight + the platform. Fans pay in
+// thehomies.app/sponsor (was /fight until the fight pools took that URL) — back Mwosa's Oct 29 fight + the platform. Fans pay in
 // USDC from their own Algorand wallet through the DIGITVL x402 gateway; the
 // backend (routes/fight.js) grants the perks once the payment settles.
 // Membership days per tier must match homieshub-backend utils/fightSupport.js.
@@ -45,20 +49,17 @@ const TIERS = [
   },
 ];
 const tierFor = (cents) => [...TIERS].reverse().find((t) => cents >= t.cents) || null;
-const usd = (cents) => `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
 const regularValue = (t) => (t?.months ? t.months * HOMIES_MONTHLY * 100 : 0);
 
 const STEPS = ['Pick', 'Details', 'Account', 'Wallet', 'Add funds', 'Pay', 'Done'];
 const DRAFT_KEY = 'fight_support_draft';
-const PERA_IOS = 'https://apps.apple.com/us/app/pera-algo-wallet/id1459898525';
-const PERA_ANDROID = 'https://play.google.com/store/apps/details?id=com.algorand.android';
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 .'_-]{0,19}$/;
 
 function loadDraft() {
   try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
 }
 
-export default function FightPage() {
+export default function SponsorPage() {
   const { user } = useAuth();
   const { connectedWallet, connectWallet, signTransactions, isConnecting } = useWallet();
   const { toast } = useToast();
@@ -207,12 +208,12 @@ export default function FightPage() {
   // App.jsx opens the auth modal from ?openAuth=1; the nonce makes a second tap
   // (after closing the modal) change the URL so it opens again.
   const openSignIn = () => {
-    navigate(`/fight?openAuth=1&tab=signup&redirect=/fight&t=${Date.now()}`, { replace: true });
+    navigate(`/sponsor?openAuth=1&tab=signup&redirect=/sponsor&t=${Date.now()}`, { replace: true });
   };
 
   const share = async () => {
     const text = `I'm backing Mwosa's ${FIGHT_DATE} fight. Get in his corner:`;
-    const url = 'https://www.thehomies.app/fight';
+    const url = 'https://www.thehomies.app/sponsor';
     try {
       if (navigator.share) await navigator.share({ title: 'Back Mwosa', text, url });
       else { await navigator.clipboard.writeText(`${text} ${url}`); toast({ title: 'Link copied' }); }
@@ -249,7 +250,7 @@ export default function FightPage() {
     <div className="min-h-screen bg-[#07070a] text-white">
       <div className="mx-auto w-full max-w-xl px-4 pb-28 pt-6 sm:pt-10">
         <Header wall={wall} />
-        {step < 6 && <Progress step={step} reachable={reachable} onJump={(i) => go(i)} />}
+        {step < 6 && <StepProgress steps={STEPS.slice(0, 6)} step={step} reachable={reachable} onJump={(i) => go(i)} />}
 
         <div className="relative mt-5">
           <AnimatePresence mode="wait" custom={dir} initial={false}>
@@ -286,7 +287,7 @@ export default function FightPage() {
                   defaultName={user?.displayName || user?.username || ''}
                 />
               )}
-              {step === 2 && <AccountStep user={user} onSignIn={openSignIn} />}
+              {step === 2 && <AccountStep user={user} onSignIn={openSignIn} body="Your membership and perks land on this account the moment your payment goes through. Takes 20 seconds." />}
               {step === 3 && (
                 <WalletStep connectedWallet={connectedWallet} isConnecting={isConnecting}
                   onConnect={async () => {
@@ -358,38 +359,6 @@ function Header({ wall }) {
       )}
     </div>
   );
-}
-
-// Tap a segment to jump to any step you've already reached.
-function Progress({ step, reachable, onJump }) {
-  return (
-    <div className="mt-6">
-      <div className="flex gap-1.5">
-        {STEPS.slice(0, 6).map((s, i) => {
-          const can = i !== step && reachable(i);
-          return (
-            <button
-              key={s}
-              type="button"
-              disabled={!can}
-              onClick={() => onJump(i)}
-              aria-label={`Step ${i + 1}: ${s}`}
-              className={cn('flex-1 py-2', can ? 'cursor-pointer' : 'cursor-default')}
-            >
-              <span className="block h-1.5 overflow-hidden rounded-full bg-white/10">
-                <motion.span className="block h-full bg-[#ff2d55]" initial={false} animate={{ width: i <= step ? '100%' : '0%' }} transition={{ duration: 0.3 }} />
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="mt-1 text-xs font-medium uppercase tracking-wider text-white/40">Step {step + 1} of 6 · {STEPS[step]}</div>
-    </div>
-  );
-}
-
-function Card({ children, className }) {
-  return <div className={cn('rounded-2xl border border-white/10 bg-white/[0.04] p-5', className)}>{children}</div>;
 }
 
 function PickStep({ cents, setCents, custom, setCustom, customValid, wall }) {
@@ -521,7 +490,7 @@ function DetailsStep({ tier, cents, hoodieOpen, showOnWall, setShowOnWall, wallN
         <label className="flex items-center justify-between gap-3">
           <span>
             <span className="block text-base font-bold">Show me on the supporter wall</span>
-            <span className="text-sm text-white/50">Your name on thehomies.app/fight</span>
+            <span className="text-sm text-white/50">Your name on thehomies.app/sponsor</span>
           </span>
           <input type="checkbox" checked={showOnWall} onChange={(e) => setShowOnWall(e.target.checked)} className="h-6 w-6 accent-[#ff2d55]" />
         </label>
@@ -546,147 +515,6 @@ function DetailsStep({ tier, cents, hoodieOpen, showOnWall, setShowOnWall, wallN
         )}
         {(bad(wallName) || bad(hoodieName)) && <p className="mt-2 text-xs text-[#ff8099]">Names: letters, numbers, spaces and . &apos; _ - only.</p>}
       </Card>
-    </div>
-  );
-}
-
-function AccountStep({ user, onSignIn }) {
-  return (
-    <Card className="text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#ff2d55]/15"><Sparkles className="h-7 w-7 text-[#ff2d55]" /></div>
-      <h2 className="mt-4 text-2xl font-black">Your Homies account</h2>
-      <p className="mt-2 text-sm leading-relaxed text-white/60">Your membership and perks land on this account the moment your payment goes through. Takes 20 seconds.</p>
-      {user ? (
-        <p className="mt-5 inline-flex items-center gap-2 font-semibold text-emerald-400"><CheckCircle2 className="h-5 w-5" /> Signed in as @{user.username}</p>
-      ) : (
-        <Button onClick={onSignIn} className="mt-6 h-12 w-full rounded-xl bg-white text-base font-bold text-black hover:bg-white/90">Sign up or sign in</Button>
-      )}
-    </Card>
-  );
-}
-
-function Num({ n, done }) {
-  return (
-    <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold', done ? 'bg-emerald-500 text-black' : 'bg-white/10 text-white')}>
-      {done ? <Check className="h-4 w-4" /> : n}
-    </span>
-  );
-}
-
-function WalletStep({ connectedWallet, isConnecting, onConnect }) {
-  return (
-    <div className="space-y-4">
-      <Card>
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#ff2d55]/15"><Wallet className="h-6 w-6 text-[#ff2d55]" /></div>
-          <div>
-            <h2 className="text-xl font-black">Get your wallet</h2>
-            <p className="text-sm text-white/60">Pera is a free app that holds your digital dollars.</p>
-          </div>
-        </div>
-        <ol className="mt-5 space-y-4">
-          <li className="flex gap-3">
-            <Num n={1} done={!!connectedWallet} />
-            <div className="flex-1">
-              <div className="font-semibold">Download Pera Wallet</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <a href={PERA_IOS} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/15"><Smartphone className="h-4 w-4" /> iPhone</a>
-                <a href={PERA_ANDROID} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/15"><Smartphone className="h-4 w-4" /> Android</a>
-              </div>
-            </div>
-          </li>
-          <li className="flex gap-3">
-            <Num n={2} done={!!connectedWallet} />
-            <div>
-              <div className="font-semibold">Create a wallet</div>
-              <div className="text-sm text-white/60">Tap “Create a new wallet”. Write your 25 recovery words on paper and keep them safe — nobody, including us, can recover them for you.</div>
-            </div>
-          </li>
-          <li className="flex gap-3">
-            <Num n={3} done={!!connectedWallet} />
-            <div className="flex-1">
-              <div className="font-semibold">Connect it here</div>
-              {connectedWallet ? (
-                <div className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-emerald-400"><CheckCircle2 className="h-4 w-4" /> Connected {connectedWallet.address.slice(0, 6)}…{connectedWallet.address.slice(-4)}</div>
-              ) : (
-                <Button onClick={onConnect} disabled={isConnecting} className="mt-2 h-11 w-full rounded-xl bg-[#ffee58] font-bold text-black hover:bg-[#fff176]">
-                  {isConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Connect Pera Wallet
-                </Button>
-              )}
-            </div>
-          </li>
-        </ol>
-      </Card>
-      <p className="px-1 text-center text-xs text-white/40">Already use Pera? Just tap Connect.</p>
-    </div>
-  );
-}
-
-function FundStep({ funds, cents, needUsdc, checking, onCheck, address, onSkip }) {
-  const amount = cents / 100;
-  const ready = funds && funds.optedIn && needUsdc === 0;
-  const lowAlgo = funds && funds.algo < 0.3;
-  const copy = async () => { try { await navigator.clipboard.writeText(address); } catch { /* ignore */ } };
-  return (
-    <div className="space-y-4">
-      <Card>
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-black">Add {usd(cents)} in USDC</h2>
-          <button type="button" onClick={onCheck} className="inline-flex items-center gap-1 text-xs font-semibold text-white/60 hover:text-white">
-            <RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} /> Check
-          </button>
-        </div>
-
-        {funds && (
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            <div className="rounded-xl bg-black/40 p-3"><div className="text-white/50">USDC</div><div className="text-lg font-black">${funds.usdc.toFixed(2)}</div></div>
-            <div className="rounded-xl bg-black/40 p-3"><div className="text-white/50">ALGO (fees)</div><div className="text-lg font-black">{funds.algo.toFixed(2)}</div></div>
-          </div>
-        )}
-
-        {ready ? (
-          <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-500/15 p-3 font-semibold text-emerald-400"><CheckCircle2 className="h-5 w-5" /> You&apos;re ready. Tap Continue.</div>
-        ) : (
-          <ol className="mt-5 space-y-4">
-            <li className="flex gap-3">
-              <Num n={1} done={funds && funds.algo >= 0.3} />
-              <div>
-                <div className="font-semibold">In Pera, tap <span className="text-[#ffee58]">Buy</span> and buy ALGO with your card</div>
-                <div className="text-sm text-white/60">
-                  Buy about <b>${Math.ceil(amount + 3)}</b> — enough for your {usd(cents)} plus a few dollars of ALGO your wallet keeps for network fees. The card provider may ask for ID the first time.
-                </div>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Num n={2} done={funds && funds.optedIn && needUsdc === 0} />
-              <div>
-                <div className="font-semibold">Tap <span className="text-[#ffee58]">Swap</span>: ALGO → USDC</div>
-                <div className="text-sm text-white/60">
-                  Swap at least <b>{needUsdc != null ? `$${(Math.ceil(needUsdc * 100) / 100).toFixed(2)}` : usd(cents)}</b> worth into USDC. Pera adds USDC to your wallet automatically. Keep a little ALGO left over.
-                </div>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Num n={3} done={false} />
-              <div>
-                <div className="font-semibold">Come back here and pay</div>
-                <div className="text-sm text-white/60">This page checks your wallet every few seconds. When the USDC lands it opens the payment screen, where you approve the {usd(cents)} in Pera.</div>
-              </div>
-            </li>
-          </ol>
-        )}
-        {!ready && lowAlgo && funds?.optedIn && <p className="mt-3 text-xs text-[#ffb3c1]">Keep at least 0.3 ALGO in the wallet so it can hold USDC.</p>}
-      </Card>
-      {!funds && (
-        <button type="button" onClick={onSkip} className="w-full rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 hover:text-white">
-          Already have USDC? Go straight to payment <ArrowRight className="ml-1 inline h-4 w-4" />
-        </button>
-      )}
-      {address && (
-        <button type="button" onClick={copy} className="w-full truncate px-1 text-center text-xs text-white/35 hover:text-white/60">
-          Your wallet: {address} (tap to copy)
-        </button>
-      )}
     </div>
   );
 }
