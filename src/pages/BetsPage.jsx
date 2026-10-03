@@ -13,7 +13,7 @@ export default function BetsPage() {
     let alive = true;
     const load = () => fetchPools()
       .then((p) => { if (alive) { setPools(p); setError(''); } })
-      .catch(() => { if (alive) setError('Couldn’t load pools.'); });
+      .catch((err) => { if (alive) setError(err?.response?.status === 503 ? 'Pools open soon. Check back shortly.' : 'Couldn’t load pools.'); });
     load();
     const t = setInterval(load, 20000);
     return () => { alive = false; clearInterval(t); };

@@ -93,7 +93,8 @@ export default function FightPoolPage() {
       setPool(await fetchPool(id));
       setPoolError('');
     } catch (err) {
-      setPoolError(err?.response?.status === 404 ? 'The fight pool isn’t open yet. Check back soon.' : 'Couldn’t load the pool. Pull to refresh.');
+      const st = err?.response?.status;
+      setPoolError(st === 404 || st === 503 ? 'The fight pool isn’t open yet. Check back soon.' : 'Couldn’t load the pool. Pull to refresh.');
     }
   }, []);
   useEffect(() => {
@@ -578,6 +579,7 @@ function BetStep({ pool, outcome, cents, paying, error, onBet, onChange, address
         {paying ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Approve in Pera…</> : <>Place {usd(cents)} bet</>}
       </Button>
       {paying && <p className="text-center text-sm text-white/60">Open Pera and tap <b>Confirm</b>. It shows two parts: your USDC going into the pool contract, and the bet itself. Network fees are covered.</p>}
+      {!open && !paying && <p className="rounded-xl bg-white/5 p-3 text-center text-sm text-white/70">Betting is closed for this pool.</p>}
       {error && <p className="rounded-xl bg-[#ff2d55]/15 p-3 text-center text-sm text-[#ffb3c1]">{error}</p>}
       <p className="text-center text-xs text-white/40">
         From {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : 'your wallet'}. Bets can&apos;t be taken back, but you&apos;re refunded automatically if there&apos;s no result.

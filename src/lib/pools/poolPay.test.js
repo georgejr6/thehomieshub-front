@@ -83,3 +83,38 @@ describe('PoolBetScheme', () => {
     await expect(s2.createPaymentPayload(2, { ...req, payTo: facil.addr.toString() })).rejects.toThrow(/pool contract/);
   });
 });
+
+describe('pool chain helpers', async () => {
+  const { buildVoteTxn, estimatePayoutMicro, CANCEL_VOTE, suggestedParams } = await import('./chain');
+  const params = await suggestedParams(); // mocked above: no network
+
+  it('vote(uint64,uint8) references the pool box, USDC and the fee receiver, and covers the inner fee', async () => {
+    const judge = algosdk.generateAccount().addr.toString();
+    const feeReceiver = algosdk.generateAccount().addr.toString();
+    const house = algosdk.generateAccount().addr.toString();
+    const txn = await buildVoteTxn({ appId: 99, poolId: 3, choice: 1, signer: judge, feeReceiver, house, params });
+    const ac = txn.applicationCall;
+    expect(ac.appArgs[0]).toEqual(algosdk.ABIMethod.fromSignature('vote(uint64,uint8)void').getSelector());
+    expect(ac.appArgs[1]).toEqual(algosdk.encodeUint64(3n));
+    expect(ac.appArgs[2]).toEqual(new Uint8Array([1]));
+    expect(ac.boxes.map((b) => algosdk.bytesToBase64(b.name))).toEqual([algosdk.bytesToBase64(poolBoxName(3))]);
+    expect(ac.foreignAssets).toEqual([BigInt(USDC_ASA)]);
+    expect(ac.accounts.map(String)).toEqual([feeReceiver, house]);
+    expect(txn.fee).toBe(2000n);
+    const cancel = await buildVoteTxn({ appId: 99, poolId: 3, choice: CANCEL_VOTE, signer: judge, params });
+    expect(cancel.applicationCall.appArgs[2]).toEqual(new Uint8Array([200]));
+  });
+
+  it('payout estimate matches the contract integer math (10% fee, pro-rata, floor)', () => {
+    // pot 1000, 200 on outcome 0: $10 on it pays 10 * 900 / 200 = 45
+    expect(estimatePayoutMicro([200e6, 800e6], 0, 10e6, 0)).toBe(45e6);
+    // adding a new $10 bet: total 1010, fee 101, net 909, on pick 210 -> floor(10e6*909e6/210e6)
+    expect(estimatePayoutMicro([200e6, 800e6], 0, 10e6)).toBe(Number((10_000_000n * 909_000_000n) / 210_000_000n));
+    // fee floors: total 7 micro -> fee 0
+    expect(estimatePayoutMicro([3, 4], 0, 3, 0)).toBe(7);
+    // big pot, exact
+    expect(estimatePayoutMicro([123_456_789_012, 987_654_321_098], 1, 500_000_000, 0))
+      .toBe(Number((500_000_000n * (1_111_111_110_110n - 111_111_111_011n)) / 987_654_321_098n));
+    expect(estimatePayoutMicro([0, 5e6], 0, 0, 0)).toBe(0);
+  });
+});

@@ -37,7 +37,8 @@ export function normalizePool(p) {
     appId: p.appId || chain.appId || ENV_APP_ID,
     totals,
     total,
-    fee: num(p.feeMicro ?? chain.fee ?? p.fee),
+    // PublicPool has no fee field; the contract takes floor(total * 10%) only on a resolved pool.
+    fee: num(p.feeMicro ?? chain.fee ?? p.fee ?? (p.status === 'resolved' ? Math.floor((total * 1000) / 10000) : 0)),
     bettingOpen: p.bettingOpen ?? null,
     rejectReason: p.rejectReason || '',
     winner: chain.winner ?? p.winner ?? null,
@@ -75,7 +76,9 @@ export async function fetchMyBets(id) {
     bettor: b.bettor,
     claimed: !!b.claimed,
     claimTxId: b.claimTxId || null,
-    payoutMicro: b.payoutMicro != null ? num(b.payoutMicro) : null,
+    // The API always sends a string here ("0" until paid), so only trust it
+    // once the bet is claimed and a real amount was recorded; else estimate.
+    payoutMicro: b.claimed && num(b.payoutMicro) > 0 ? num(b.payoutMicro) : null,
     createdAt: b.at || b.createdAt ? new Date(b.at || b.createdAt) : null,
   }));
 }
@@ -103,7 +106,13 @@ export const usdFromMicro = (m) => {
   return `$${v.toFixed(2).replace(/\.00$/, '')}`;
 };
 
-export const apiError = (err, fallback = 'Something went wrong') => err?.response?.data?.error || err?.message || fallback;
+export const apiError = (err, fallback = 'Something went wrong') => {
+  const d = err?.response?.data;
+  if (d?.error === 'pools_disabled') return 'Pools aren’t open yet. Check back soon.';
+  return d?.message || d?.error || err?.message || fallback;
+};
+// Whole /api/pools router answers 503 pools_disabled until the contract is live.
+export const poolsDisabled = (err) => err?.response?.status === 503;
 
 // Human status for a pool.
 export function poolPhase(pool) {

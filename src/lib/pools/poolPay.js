@@ -47,6 +47,9 @@ export class PoolBetScheme {
     if (this.expect.appId && appId !== this.expect.appId) throw new X402Error('Pool contract mismatch. Refresh and try again.', 'bad_request');
     if (poolId !== this.expect.poolId || outcome !== this.expect.outcome) throw new X402Error('Pool or pick mismatch. Refresh and try again.', 'bad_request');
     if (amount !== this.expect.amountMicro) throw new X402Error('Amount mismatch. Refresh and try again.', 'bad_request');
+    // Same bounds as the page and the gateway ($1..$500); the stock AVM client's
+    // spend cap isn't applied to a custom scheme, so enforce it here.
+    if (amount < 1_000_000n || amount > 500_000_000n) throw new X402Error('Bets are $1 to $500.', 'limit');
     if (String(req.asset) !== String(USDC_ASA)) throw new X402Error('Unexpected payment asset.', 'bad_request');
     const appAddr = appAddress(appId);
     if (req.payTo !== appAddr) throw new X402Error('Payment must go to the pool contract.', 'bad_request');

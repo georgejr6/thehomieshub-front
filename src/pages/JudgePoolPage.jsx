@@ -6,7 +6,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, shortAddr } from '@/components/onchain/ui';
 import { apiError, fetchPool, phaseLabel, poolPhase, usdFromMicro } from '@/lib/pools/api';
-import { CANCEL_VOTE, buildVoteTxn, explorerApp, explorerTx, readPoolBox, sendSigned } from '@/lib/pools/chain';
+import { CANCEL_VOTE, buildVoteTxn, explorerApp, explorerTx, readHouse, readPoolBox, sendSigned } from '@/lib/pools/chain';
 import { cn } from '@/lib/utils';
 
 // thehomies.app/bets/:id/judge — a pool's judges confirm the result here by
@@ -21,6 +21,7 @@ export default function JudgePoolPage() {
   const { toast } = useToast();
   const [pool, setPool] = useState(null);
   const [chainVotes, setChainVotes] = useState(null);
+  const [chainBox, setChainBox] = useState(null);
   const [error, setError] = useState('');
   const [pick, setPick] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -34,6 +35,7 @@ export default function JudgePoolPage() {
       if (p.appId && p.onChainId != null) {
         const box = await readPoolBox(p.appId, p.onChainId);
         if (box?.votes) setChainVotes(Array.from(box.votes, Number));
+        if (box) setChainBox(box);
       }
     } catch (err) {
       setError(apiError(err, 'Couldn’t load this pool'));
@@ -50,7 +52,10 @@ export default function JudgePoolPage() {
   const now = Date.now();
   const afterClose = pool?.closeAt ? now >= pool.closeAt.getTime() : false;
   const beforeDeadline = pool?.resolveBy ? now <= pool.resolveBy.getTime() : true;
-  const canVote = isSigner && pool?.onChainId != null && ['open', 'closed'].includes(phase) && beforeDeadline;
+  // The chain is the truth: the backend syncs every couple of minutes, so a
+  // pool can already be settled on-chain while it still reads 'live' here.
+  const chainOpen = chainBox ? Number(chainBox.status) === 0 : true;
+  const canVote = isSigner && pool?.onChainId != null && ['open', 'closed'].includes(phase) && chainOpen && beforeDeadline;
 
   const choiceLabel = (v) => (v === CANCEL_VOTE ? 'Cancel / no contest' : pool?.outcomes?.[v] ?? `Outcome ${v + 1}`);
 
@@ -58,7 +63,11 @@ export default function JudgePoolPage() {
     if (pick == null || !canVote) return;
     setBusy(true);
     try {
-      const txn = await buildVoteTxn({ appId: pool.appId, poolId: pool.onChainId, choice: pick, signer: me });
+      // Fee receiver from the pool box (what the contract pays), else the backend's copy.
+      const feeReceiver = chainBox?.fee_receiver ? String(chainBox.fee_receiver) : pool.feeReceiver;
+      if (pick !== CANCEL_VOTE && !feeReceiver) throw new Error('Couldn’t read this pool from the chain. Refresh and try again.');
+      const house = pick !== CANCEL_VOTE ? await readHouse(pool.appId) : null;
+      const txn = await buildVoteTxn({ appId: pool.appId, poolId: pool.onChainId, choice: pick, signer: me, feeReceiver, house });
       const signed = await signTransactions([[{ txn, signers: [me] }]]);
       const txId = await sendSigned(signed || []);
       setLastTx(txId);
@@ -130,7 +139,7 @@ export default function JudgePoolPage() {
               </Card>
             ) : !canVote ? (
               <Card className="mt-4 text-center text-sm text-white/70">
-                {['resolved', 'cancelled', 'swept'].includes(phase) ? 'This pool is settled. Nothing left to do.' : !beforeDeadline ? 'The judging deadline has passed. Bettors will be refunded.' : 'Voting isn’t available for this pool yet.'}
+                {['resolved', 'cancelled', 'swept'].includes(phase) || !chainOpen ? 'This pool is settled. Nothing left to do.' : !beforeDeadline ? 'The judging deadline has passed. Bettors will be refunded.' : 'Voting isn’t available for this pool yet.'}
               </Card>
             ) : (
               <Card className="mt-4">

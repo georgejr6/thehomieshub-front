@@ -67,11 +67,16 @@ export async function suggestedParams(rounds = 100) {
 }
 
 // The judge's vote: one app call from the signer, who pays the fee. A deciding
-// vote sends the house fee as an inner transaction, so cover one inner fee too.
-export async function buildVoteTxn({ appId, poolId, choice, signer }) {
-  const sp = await suggestedParams();
+// vote on a winner sends the 10% fee to the pool's fee_receiver as an inner USDC
+// transfer (or to the house if the fee_receiver opted out of USDC), so the call
+// must reference the USDC asset and both accounts (a single txn has no group
+// resource sharing) and cover one inner fee too.
+export async function buildVoteTxn({ appId, poolId, choice, signer, feeReceiver, house, params }) {
+  const sp = params || await suggestedParams();
   const method = abiMethod('vote');
   const minFee = BigInt(sp.minFee ?? 1000n);
+  const accounts = [...new Set([feeReceiver, house])].filter((a) => a && algosdk.isValidAddress(a)
+    && a !== signer && a !== algosdk.ALGORAND_ZERO_ADDRESS_STRING);
   return algosdk.makeApplicationNoOpTxnFromObject({
     sender: signer,
     appIndex: BigInt(appId),
@@ -80,6 +85,8 @@ export async function buildVoteTxn({ appId, poolId, choice, signer }) {
       algosdk.ABIType.from('uint64').encode(BigInt(poolId)),
       algosdk.ABIType.from('uint8').encode(choice),
     ],
+    foreignAssets: [USDC_ASA],
+    accounts,
     boxes: [{ appIndex: BigInt(appId), name: poolBoxName(poolId) }],
     suggestedParams: { ...sp, flatFee: true, fee: minFee * 2n },
   });
@@ -91,6 +98,17 @@ export async function sendSigned(signedBlobs) {
   const { txid } = await algod().sendRawTransaction(blobs).do();
   await algosdk.waitForConfirmation(algod(), txid, 12);
   return txid;
+}
+
+// The contract's house address (global state "house").
+export async function readHouse(appId) {
+  try {
+    const app = await algod().getApplicationByID(BigInt(appId)).do();
+    const kv = (app.params.globalState || []).find((g) => new TextDecoder().decode(g.key) === 'house');
+    return kv?.value?.bytes?.length === 32 ? algosdk.encodeAddress(kv.value.bytes) : null;
+  } catch {
+    return null;
+  }
 }
 
 // Read the pool box straight from the chain (for the judge page's vote count).
@@ -112,12 +130,17 @@ export async function readPoolBox(appId, poolId) {
 }
 
 // What a winning stake would pay right now (pari-mutuel, 10% house fee).
-// totals: micro-USDC per outcome; adding `addMicro` on `outcome` first.
+// Same integer math as the contract: fee = floor(total * 1000 / 10000),
+// payout = floor(stake * (total - fee) / totals[winner]). BigInt so large pots
+// don't lose precision. totals: micro-USDC per outcome; `addMicro` is added to
+// `outcome` (and the pot) first.
 export function estimatePayoutMicro(totals, outcome, stakeMicro, addMicro = stakeMicro) {
-  const t = totals.map((x) => Number(x || 0));
-  const total = t.reduce((a, b) => a + b, 0) + addMicro;
-  const onPick = (t[outcome] || 0) + addMicro;
-  if (!onPick) return 0;
-  const net = total - Math.floor((total * FEE_BPS) / 10000);
-  return Math.floor((stakeMicro * net) / onPick);
+  const big = (x) => BigInt(Math.max(0, Math.floor(Number(x || 0))));
+  const t = totals.map(big);
+  const add = big(addMicro);
+  const total = t.reduce((a, b) => a + b, 0n) + add;
+  const onPick = (t[outcome] || 0n) + add;
+  if (onPick === 0n) return 0;
+  const net = total - (total * BigInt(FEE_BPS)) / 10000n;
+  return Number((big(stakeMicro) * net) / onPick);
 }
