@@ -15,6 +15,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import BundleSegment from '@/components/BundleSegment';
 import api from '@/api/homieshub';
 import BillingSection from '@/components/Billing/BillingSection';
+import WalletConnectModal from '@/components/WalletConnectModal';
 
 // Push (Homies app) categories shown as switches; missing = on.
 const PUSH_TOGGLES = [
@@ -34,7 +35,9 @@ const TABS = [
 
 const AccountSettingsPage = () => {
   const { user, refreshMe } = useAuth();
-  const { walletMode, exitWalletMode } = useWallet();
+  const { walletMode, exitWalletMode, connectedWallet, linkedAddress, linkToAccount, disconnectWallet } = useWallet();
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [walletBusy, setWalletBusy] = useState(false);
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
@@ -236,12 +239,30 @@ const AccountSettingsPage = () => {
     }
   };
 
-  const handleDisconnectWallet = () => {
-      toast({
-          title: "Wallet Disconnected",
-          description: "Your wallet has been disconnected from your account."
-      })
-  }
+  const shortAddr = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-6)}` : '');
+
+  // Unlink the saved wallet from the account (and end the session if it's the same one).
+  const handleDisconnectWallet = async () => {
+    setWalletBusy(true);
+    try {
+      if (connectedWallet?.address === linkedAddress) await disconnectWallet();
+      const ok = await linkToAccount(null);
+      toast(ok
+        ? { title: 'Wallet unlinked', description: 'Your wallet is no longer linked to your Homies account.' }
+        : { title: 'Could not unlink', description: 'Try again in a moment.', variant: 'destructive' });
+    } finally { setWalletBusy(false); }
+  };
+
+  // Use the wallet that's connected right now as the account's wallet.
+  const handleUseConnectedWallet = async () => {
+    setWalletBusy(true);
+    try {
+      const ok = await linkToAccount(connectedWallet.address);
+      toast(ok
+        ? { title: 'Wallet linked', description: 'This wallet is now linked to your Homies account.' }
+        : { title: 'Could not link', description: 'Try again in a moment.', variant: 'destructive' });
+    } finally { setWalletBusy(false); }
+  };
 
   const handleConnectDiscord = async () => {
     setDiscordLoading(true);
@@ -525,16 +546,37 @@ const AccountSettingsPage = () => {
             <Wallet className="w-5 h-5 text-primary" />
             <CardTitle>Wallet Preferences</CardTitle>
           </div>
-          <CardDescription>Manage your connected Web3 wallet.</CardDescription>
+          <CardDescription>Link your Algorand wallet (Pera) to your Homies account for crypto payments and payouts.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-            <div className="p-4 bg-secondary/50 rounded-lg flex items-center justify-between overflow-hidden">
+            {linkedAddress ? (
+              <div className="p-4 bg-secondary/50 rounded-lg flex items-center justify-between overflow-hidden">
                 <div className="flex flex-col overflow-hidden mr-4">
-                    <span className="text-xs text-muted-foreground uppercase font-semibold">Connected Address</span>
-                    <span className="font-mono text-sm truncate">0x71C...9A23</span>
+                    <span className="text-xs text-muted-foreground uppercase font-semibold">Linked wallet</span>
+                    <span className="font-mono text-sm truncate" title={linkedAddress}>{shortAddr(linkedAddress)}</span>
+                    {connectedWallet?.address === linkedAddress && (
+                      <span className="mt-1 inline-flex items-center gap-1 text-xs text-green-500"><CheckCircle2 className="w-3 h-3" /> Connected on this device</span>
+                    )}
                 </div>
-                <Button variant="outline" size="sm" onClick={handleDisconnectWallet}>Disconnect</Button>
-            </div>
+                <Button variant="outline" size="sm" onClick={handleDisconnectWallet} disabled={walletBusy}>
+                  {walletBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Unlink'}
+                </Button>
+              </div>
+            ) : (
+              <div className="p-4 bg-secondary/50 rounded-lg text-sm text-muted-foreground">No wallet linked yet.</div>
+            )}
+
+            {connectedWallet && connectedWallet.address !== linkedAddress ? (
+              <Button className="w-full" onClick={handleUseConnectedWallet} disabled={walletBusy}>
+                {walletBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                {linkedAddress ? 'Use' : 'Link'} connected wallet {shortAddr(connectedWallet.address)}{linkedAddress ? ' instead' : ''}
+              </Button>
+            ) : !connectedWallet && (
+              <Button className="w-full" onClick={() => setWalletModalOpen(true)}>
+                <Wallet className="w-4 h-4 mr-2" /> {linkedAddress ? 'Connect on this device' : 'Connect wallet'}
+              </Button>
+            )}
+            <WalletConnectModal isOpen={walletModalOpen} onOpenChange={setWalletModalOpen} />
             
             <Link to="/wallet" className="block">
                 <Button variant="secondary" className="w-full justify-between group">

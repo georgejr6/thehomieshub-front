@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useWallet as useAlgoWallet } from '@txnlab/use-wallet-react';
 import { PeraWalletConnect } from '@perawallet/connect';
 import api from '@/api/homieshub';
+import { useAuth } from '@/contexts/AuthContext';
 
 const WC_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '7703ab56cc3bc2f4eaf6fac95ffff4e6';
 
@@ -34,6 +35,21 @@ export const WalletProvider = ({ children }) => {
   const peraRef = useRef(getPeraWallet());
 
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // The wallet saved on the Homies account (used for payouts and the mobile app).
+  const { user, refreshMe } = useAuth();
+  const linkedAddress = user?.algorandAddress || null;
+  const userRef = useRef(user);
+  userRef.current = user;
+
+  const linkToAccount = useCallback(async (address) => {
+    if (!userRef.current) return false;
+    try {
+      await api.patch('/user/algo-wallet', { address });
+      await refreshMe();
+      return true;
+    } catch (_) { return false; }
+  }, [refreshMe]);
 
   const navigate  = useNavigate();
   const location  = useLocation();
@@ -81,8 +97,9 @@ export const WalletProvider = ({ children }) => {
         const accounts = await pera.connect();
         if (!accounts?.length) throw new Error('No accounts returned from Pera');
         setPeraAddress(accounts[0]);
-        // Persist to backend so mobile app can read it
-        api.patch('/user/algo-wallet', { address: accounts[0] }).catch(() => {});
+        // First wallet on the account: save it (payouts + mobile app use it).
+        // A different saved wallet is only replaced from Settings.
+        if (!userRef.current?.algorandAddress) linkToAccount(accounts[0]);
         return { type: 'Pera Wallet', address: accounts[0] };
       }
 
@@ -93,22 +110,30 @@ export const WalletProvider = ({ children }) => {
       if (!wallet) throw new Error(`Wallet "${walletIdOrName}" is not available`);
       const accounts = await wallet.connect();
       wallet.setActive();
+      if (!userRef.current?.algorandAddress) linkToAccount(accounts[0].address);
       return { type: wallet.metadata.name, address: accounts[0].address };
     } finally {
       setIsConnecting(false);
     }
-  }, [algoWallets]);
+  }, [algoWallets, linkToAccount]);
 
   const disconnectWallet = useCallback(async () => {
     if (peraAddress) {
       try { await peraRef.current.disconnect(); } catch (_) {}
       setPeraAddress(null);
-      // Clear from backend
-      api.patch('/user/algo-wallet', { address: null }).catch(() => {});
+      // Ending the session leaves the account's saved wallet alone (Settings → Unlink).
     } else if (algoActiveWallet) {
       await algoActiveWallet.disconnect();
     }
-  }, [peraAddress, algoActiveWallet]);
+  }, [peraAddress, algoActiveWallet, linkToAccount]);
+
+  // Signing out ends the wallet session, so the next account on this browser
+  // doesn't inherit it.
+  const prevUserRef = useRef(user?._id);
+  React.useEffect(() => {
+    if (prevUserRef.current && !user) disconnectWallet().catch(() => {});
+    prevUserRef.current = user?._id;
+  }, [user?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Sign transactions — Pera v2 uses its own signTransaction.
@@ -133,6 +158,8 @@ export const WalletProvider = ({ children }) => {
     wallets:         algoWallets,
     peraWallet:      peraRef.current,
     connectedWallet,
+    linkedAddress,
+    linkToAccount,
     connectWallet,
     disconnectWallet,
     signTransactions,
@@ -148,6 +175,8 @@ export const WalletProvider = ({ children }) => {
   }), [
     algoWallets,
     connectedWallet,
+    linkedAddress,
+    linkToAccount,
     connectWallet,
     disconnectWallet,
     signTransactions,
