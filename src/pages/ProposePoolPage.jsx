@@ -38,6 +38,7 @@ export default function ProposePoolPage() {
   if (cleanOutcomes.length < 2) problems.push('Add at least 2 outcomes.');
   if (new Set(cleanOutcomes.map((o) => o.toLowerCase())).size !== cleanOutcomes.length) problems.push('Outcomes must be different.');
   if (!closeTs || closeTs < Date.now() + 60 * 60 * 1000) problems.push('Betting must close at least an hour from now.');
+  else if (closeTs > Date.now() + 365 * 24 * 60 * 60 * 1000) problems.push('Betting must close within a year.');
   if (judgeAddrs.some((a) => !a) || judgeAddrs.some(badAddr)) problems.push('Every judge needs a valid Algorand wallet address.');
   if (dupAddr) problems.push('Each judge needs a different wallet.');
   if (judges.some((j) => !j.name.trim())) problems.push('Name every judge.');
@@ -107,9 +108,9 @@ export default function ProposePoolPage() {
               <div className="mt-2 space-y-2">
                 {outcomes.map((o, i) => (
                   <div key={i} className="flex gap-2">
-                    <input value={o} maxLength={40} onChange={(e) => setOutcomes((os) => os.map((x, n) => (n === i ? e.target.value : x)))} placeholder={`Outcome ${i + 1}`} className={inputCls} />
+                    <input value={o} maxLength={40} onChange={(e) => setOutcomes((os) => os.map((x, n) => (n === i ? e.target.value : x)))} placeholder={`Outcome ${i + 1}`} aria-label={`Outcome ${i + 1}`} className={inputCls} />
                     {outcomes.length > 2 && (
-                      <button type="button" aria-label="Remove outcome" onClick={() => setOutcomes((os) => os.filter((_, n) => n !== i))} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/15 text-white/60 hover:bg-white/10"><X className="h-4 w-4" /></button>
+                      <button type="button" aria-label={`Remove outcome ${i + 1}`} onClick={() => setOutcomes((os) => os.filter((_, n) => n !== i))} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/15 text-white/60 hover:bg-white/10"><X className="h-4 w-4" /></button>
                     )}
                   </div>
                 ))}
@@ -131,15 +132,15 @@ export default function ProposePoolPage() {
                 <div className="text-sm font-semibold text-white/80">Judges</div>
                 <div className="flex gap-1">
                   {[1, 2, 3].map((n) => (
-                    <button key={n} type="button" onClick={() => setJudgeCount(n)} className={cn('h-9 w-9 rounded-lg border text-sm font-bold', judges.length === n ? 'border-[#ff2d55] bg-[#ff2d55]/15' : 'border-white/15 text-white/70 hover:bg-white/10')}>{n}</button>
+                    <button key={n} type="button" onClick={() => setJudgeCount(n)} aria-label={`${n} ${n === 1 ? 'judge' : 'judges'}`} aria-pressed={judges.length === n} className={cn('h-9 w-9 rounded-lg border text-sm font-bold', judges.length === n ? 'border-[#ff2d55] bg-[#ff2d55]/15' : 'border-white/15 text-white/70 hover:bg-white/10')}>{n}</button>
                   ))}
                 </div>
               </div>
               <div className="mt-3 space-y-3">
                 {judges.map((j, i) => (
                   <div key={i} className="space-y-2 rounded-xl bg-black/30 p-3">
-                    <input value={j.name} maxLength={40} onChange={(e) => setJudge(i, 'name', e.target.value)} placeholder={`Judge ${i + 1} name`} className={inputCls} />
-                    <input value={j.address} onChange={(e) => setJudge(i, 'address', e.target.value.trim())} placeholder="Their Algorand wallet address" spellCheck={false} autoCapitalize="characters"
+                    <input value={j.name} maxLength={40} onChange={(e) => setJudge(i, 'name', e.target.value)} placeholder={`Judge ${i + 1} name`} aria-label={`Judge ${i + 1} name`} className={inputCls} />
+                    <input value={j.address} onChange={(e) => setJudge(i, 'address', e.target.value.trim())} placeholder="Their Algorand wallet address" aria-label={`Judge ${i + 1} wallet address`} spellCheck={false} autoCapitalize="characters"
                       className={cn(inputCls, 'font-mono text-xs', badAddr(j.address.trim()) && 'border-[#ff8099]')} />
                   </div>
                 ))}
@@ -149,7 +150,7 @@ export default function ProposePoolPage() {
                   <div className="text-sm font-semibold text-white/80">How many must agree?</div>
                   <div className="mt-2 flex gap-2">
                     {Array.from({ length: judges.length }, (_, k) => k + 1).map((n) => (
-                      <button key={n} type="button" onClick={() => setThreshold(n)} className={cn('h-10 flex-1 rounded-lg border text-sm font-bold', threshold === n ? 'border-[#ff2d55] bg-[#ff2d55]/15' : 'border-white/15 text-white/70 hover:bg-white/10')}>{n} of {judges.length}</button>
+                      <button key={n} type="button" onClick={() => setThreshold(n)} aria-pressed={threshold === n} className={cn('h-10 flex-1 rounded-lg border text-sm font-bold', threshold === n ? 'border-[#ff2d55] bg-[#ff2d55]/15' : 'border-white/15 text-white/70 hover:bg-white/10')}>{n} of {judges.length}</button>
                     ))}
                   </div>
                 </div>

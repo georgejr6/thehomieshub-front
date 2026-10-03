@@ -19,7 +19,8 @@ import { USDC_ASA, abiMethod, appAddress, betBoxName, poolBoxName, suggestedPara
 // non-facilitator txns in the group, checks the axfer at paymentIndex, signs
 // its fee payer (fee cap 5000 µALGO × group size) and simulates the group.
 
-const NETWORK = 'algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=';
+// CAIP-2 network id; mainnet unless VITE_POOLS_NETWORK says otherwise (testnet: algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=).
+const NETWORK = import.meta.env.VITE_POOLS_NETWORK || 'algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=';
 
 const b64 = (bytes) => algosdk.bytesToBase64(bytes);
 

@@ -10,9 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
-import { walletStatus } from '@/lib/x402Pay';
 import { payPoolBet } from '@/lib/pools/poolPay';
-import { estimatePayoutMicro, explorerApp, explorerTx, MIN_BET_MICRO } from '@/lib/pools/chain';
+import { estimatePayoutMicro, explorerApp, explorerTx, MIN_BET_MICRO, walletStatus } from '@/lib/pools/chain';
 import {
   DEFAULT_GATEWAY, apiError, createIntent, fetchMyBets, fetchPool, fetchPools, judgesLine, phaseLabel, poolPhase, usdFromMicro,
 } from '@/lib/pools/api';
@@ -58,7 +57,9 @@ export default function FightPoolPage() {
   const draft = useMemo(() => { const d = loadDraft(); return d && (d.pool || '') === (poolParam || '') ? d : null; }, [poolParam]);
   const ackedBefore = useMemo(loadAck, []);
   const [ack, setAck] = useState(ackedBefore || !!draft?.ack);
-  const firstStep = draft?.step && draft.step < BET && user ? Math.min(draft.step, 4) : (ackedBefore ? 1 : 0);
+  // A refresh mid-flow lands back where you were: up to the Account step when
+  // signed out (nothing before it needs an account), up to Wallet when signed in.
+  const firstStep = draft?.step && draft.step < BET && draft.ack ? Math.min(draft.step, user ? 4 : 3) : (ackedBefore ? 1 : 0);
   const [step, setStep] = useState(firstStep);
   const [dir, setDir] = useState(1);
   const [outcome, setOutcome] = useState(Number.isInteger(draft?.outcome) ? draft.outcome : null);
@@ -78,14 +79,18 @@ export default function FightPoolPage() {
     try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ pool: poolParam || '', step, outcome, cents, custom, ack })); } catch { /* private mode */ }
   }, [step, outcome, cents, custom, ack]);
 
-  // The pool: ?pool=<id>, else VITE_FIGHT_POOL_ID, else the first live house pool.
+  // The pool: ?pool=<id>, else VITE_FIGHT_POOL_ID, else the first live house pool
+  // (else the most recent finished house pool).
   const poolIdRef = useRef(poolParam || null);
   const loadPool = useCallback(async () => {
     try {
       let id = poolIdRef.current;
       if (!id) {
         const pools = await fetchPools();
-        const pick = pools.find((p) => p.kind === 'house' && p.status === 'live') || pools.find((p) => p.status === 'live');
+        // Live first; once the fight is settled, keep showing the latest house
+        // pool so fans can see the result and their payout status here.
+        const pick = pools.find((p) => p.kind === 'house' && p.status === 'live') || pools.find((p) => p.status === 'live')
+          || pools.find((p) => p.kind === 'house' && ['resolved', 'cancelled', 'swept'].includes(p.status));
         if (!pick) { setPoolError('The fight pool isn’t open yet. Check back soon.'); return; }
         id = pick.id;
         poolIdRef.current = id;
@@ -94,9 +99,10 @@ export default function FightPoolPage() {
       setPoolError('');
     } catch (err) {
       const st = err?.response?.status;
-      setPoolError(st === 404 || st === 503 ? 'The fight pool isn’t open yet. Check back soon.' : 'Couldn’t load the pool. Pull to refresh.');
+      const missing = generic ? 'This pool doesn’t exist or isn’t open yet.' : 'The fight pool isn’t open yet. Check back soon.';
+      setPoolError(st === 404 || st === 503 ? missing : 'Couldn’t load the pool. Pull to refresh.');
     }
-  }, []);
+  }, [generic]);
   useEffect(() => {
     loadPool();
     const t = setInterval(loadPool, 15000);
@@ -157,7 +163,7 @@ export default function FightPoolPage() {
   useEffect(() => {
     if (step !== FUND) { waitedRef.current = false; return; }
     if (funds && !funded) waitedRef.current = true;
-    else if (funded && (waitedRef.current || dir > 0)) { waitedRef.current = false; go(BET); }
+    else if (funded && (waitedRef.current || dir > 0)) { waitedRef.current = false; setPayError(''); go(BET); }
   }, [step, funds, funded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const acknowledge = (v) => {
@@ -247,7 +253,7 @@ export default function FightPoolPage() {
 
   const nextLabel = () => {
     if (step === 0) return ack ? 'Got it — pick a result' : 'Tick the box to continue';
-    if (step === 1) return !bettingOpen ? (phase === 'loading' ? 'Loading…' : 'Betting is closed') : outcome == null ? 'Pick a result' : 'Continue';
+    if (step === 1) return !bettingOpen ? (phase === 'loading' ? (poolError ? 'Not open yet' : 'Loading…') : 'Betting is closed') : outcome == null ? 'Pick a result' : 'Continue';
     if (step === 2) return amountOk ? `Bet ${usd(cents)}` : 'Enter $1 to $500';
     if (step === FUND && !funded) return 'Waiting for USDC…';
     return 'Continue';
@@ -279,7 +285,7 @@ export default function FightPoolPage() {
               }}
             >
               {step === 0 && <ExplainStep pool={pool} ack={ack} setAck={acknowledge} />}
-              {step === 1 && <PickStep pool={pool} phase={phase} outcome={outcome} setOutcome={setOutcome} />}
+              {step === 1 && <PickStep pool={pool} phase={phase} outcome={outcome} setOutcome={setOutcome} unavailable={!!poolError && !pool} />}
               {step === 2 && (
                 <AmountStep pool={pool} outcome={outcome} cents={cents} setCents={setCents} custom={custom} setCustom={setCustom} customValid={customValid} />
               )}
@@ -293,7 +299,7 @@ export default function FightPoolPage() {
                   }}
                 />
               )}
-              {step === FUND && <FundStep funds={funds} cents={cents} needUsdc={needUsdc} checking={checking} onCheck={checkFunds} address={connectedWallet?.address} onSkip={() => go(BET)} actionWord="place your bet" />}
+              {step === FUND && <FundStep funds={funds} cents={cents} needUsdc={needUsdc} checking={checking} onCheck={checkFunds} address={connectedWallet?.address} onSkip={() => go(BET)} actionWord="place your bet" error={payError} />}
               {step === BET && (
                 <BetStep pool={pool} outcome={outcome} cents={cents} paying={paying} error={payError} onBet={placeBet}
                   onChange={() => go(1)} address={connectedWallet?.address} open={bettingOpen} isJudge={isJudge} />
@@ -454,7 +460,8 @@ function ExplainStep({ pool, ack, setAck }) {
   );
 }
 
-function PickStep({ pool, phase, outcome, setOutcome }) {
+function PickStep({ pool, phase, outcome, setOutcome, unavailable }) {
+  if (!pool && unavailable) return null; // the reason is shown above the steps
   if (!pool) return <Card className="flex items-center justify-center gap-2 text-white/60"><Loader2 className="h-4 w-4 animate-spin" /> Loading the pool…</Card>;
   const open = phase === 'open';
   return (
@@ -463,7 +470,7 @@ function PickStep({ pool, phase, outcome, setOutcome }) {
       {pool.outcomes.map((label, i) => {
         const active = outcome === i;
         const share = pool.total ? (pool.totals[i] / pool.total) * 100 : 0;
-        const perDollar = estimatePayoutMicro(pool.totals, i, 1e6) / 1e6;
+        const perDollar = Math.floor(estimatePayoutMicro(pool.totals, i, 1e6) / 1e4) / 100; // floored, like the contract
         const winner = phase === 'resolved' && Number(pool.winner) === i;
         return (
           <button
@@ -643,10 +650,10 @@ export function MyBets({ pool, bets }) {
             status = b.claimed ? 'Paid ✔' : 'Closed'; amount = b.payoutMicro;
           } else {
             amount = pool ? estimatePayoutMicro(pool.totals, b.outcome, b.amountMicro, 0) : null;
-            status = phase === 'closed' ? 'Waiting for the result' : 'Open';
+            status = b.status === 'processing' ? 'Confirming on Algorand…' : phase === 'closed' ? 'Waiting for the result' : 'Open';
           }
           return (
-            <div key={b.txId} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
+            <div key={b.id || b.txId} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold">{pool?.outcomes?.[b.outcome] ?? `Outcome ${b.outcome + 1}`} · {usdFromMicro(b.amountMicro)}</div>
                 <div className={cn('text-xs', tone)}>{status}</div>

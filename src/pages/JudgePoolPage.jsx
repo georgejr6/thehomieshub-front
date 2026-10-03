@@ -64,9 +64,10 @@ export default function JudgePoolPage() {
     setBusy(true);
     try {
       // Fee receiver from the pool box (what the contract pays), else the backend's copy.
-      const feeReceiver = chainBox?.fee_receiver ? String(chainBox.fee_receiver) : pool.feeReceiver;
-      if (pick !== CANCEL_VOTE && !feeReceiver) throw new Error('Couldn’t read this pool from the chain. Refresh and try again.');
+      // No fee wallet set on the pool (null) means the house gets the fee.
       const house = pick !== CANCEL_VOTE ? await readHouse(pool.appId) : null;
+      const feeReceiver = chainBox?.fee_receiver ? String(chainBox.fee_receiver) : (pool.feeReceiver || house);
+      if (pick !== CANCEL_VOTE && !feeReceiver) throw new Error('Couldn’t read this pool from the chain. Refresh and try again.');
       const txn = await buildVoteTxn({ appId: pool.appId, poolId: pool.onChainId, choice: pick, signer: me, feeReceiver, house });
       const signed = await signTransactions([[{ txn, signers: [me] }]]);
       const txId = await sendSigned(signed || []);

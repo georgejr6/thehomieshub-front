@@ -5,11 +5,13 @@ import algosdk from 'algosdk';
 // contract's ARC-56 JSON when it's present next to this file; otherwise the
 // method signature strings from the spec are used (selectors are identical).
 
-export const USDC_ASA = 31566704;
+// Mainnet by default; a testnet build sets VITE_POOLS_USDC_ASA_ID / VITE_POOLS_ALGOD_URL
+// (and VITE_POOLS_NETWORK in poolPay.js) instead of changing code.
+export const USDC_ASA = Number(import.meta.env.VITE_POOLS_USDC_ASA_ID) || 31566704;
 export const CANCEL_VOTE = 200;
 export const FEE_BPS = 1000;
 export const MIN_BET_MICRO = 1_000_000;
-export const ALGOD_URL = 'https://mainnet-api.algonode.cloud';
+export const ALGOD_URL = import.meta.env.VITE_POOLS_ALGOD_URL || 'https://mainnet-api.algonode.cloud';
 export const EXPLORER = 'https://allo.info';
 
 export const explorerTx = (txId) => `${EXPLORER}/tx/${txId}`;
@@ -143,4 +145,14 @@ export function estimatePayoutMicro(totals, outcome, stakeMicro, addMicro = stak
   if (onPick === 0n) return 0;
   const net = total - (total * BigInt(FEE_BPS)) / 10000n;
   return Number((big(stakeMicro) * net) / onPick);
+}
+
+// USDC + ALGO balance for the /fight funding step, on the pools network
+// (same shape as x402Pay.walletStatus, which is fixed to mainnet for /sponsor).
+export async function walletStatus(address) {
+  const r = await fetch(`${ALGOD_URL}/v2/accounts/${address}`);
+  if (!r.ok) throw new Error('Could not read wallet');
+  const a = await r.json();
+  const usdc = (a.assets || []).find((x) => x['asset-id'] === USDC_ASA);
+  return { algo: (a.amount || 0) / 1e6, optedIn: !!usdc, usdc: usdc ? usdc.amount / 1e6 : 0 };
 }

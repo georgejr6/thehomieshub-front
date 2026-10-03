@@ -501,6 +501,7 @@ function DetailsStep({ tier, cents, hoodieOpen, showOnWall, setShowOnWall, wallN
               maxLength={20}
               onChange={(e) => setWallName(e.target.value)}
               placeholder={defaultName || 'Name to show'}
+              aria-label="Name to show on the supporter wall"
               className={cn('mt-3 h-11 w-full rounded-xl border bg-black/40 px-3 text-white outline-none placeholder:text-white/30', bad(wallName) ? 'border-[#ff8099]' : 'border-white/15 focus:border-[#ff2d55]')}
             />
             <textarea
@@ -508,6 +509,7 @@ function DetailsStep({ tier, cents, hoodieOpen, showOnWall, setShowOnWall, wallN
               maxLength={140}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="A message for Mwosa (optional)"
+              aria-label="A message for Mwosa (optional)"
               rows={2}
               className="mt-2 w-full resize-none rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-[#ff2d55]"
             />

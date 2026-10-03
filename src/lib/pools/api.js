@@ -101,8 +101,10 @@ export const rejectProposal = (id, reason) => api.post(`/pools/admin/${id}/rejec
 export const updateFeeReceiver = (id, feeReceiver) => api.post(`/pools/admin/${id}/fee-receiver`, { feeReceiver }).then((r) => r.data);
 export const updateSigners = (id, signers, threshold) => api.post(`/pools/admin/${id}/signers`, { signers, threshold }).then((r) => r.data);
 
+// Rounds DOWN to the cent: the contract floors payouts, so a display that
+// rounded up (e.g. $12.47 for 12.4693) would promise a cent nobody gets.
 export const usdFromMicro = (m) => {
-  const v = Number(m || 0) / 1e6;
+  const v = Math.floor(Number(m || 0) / 1e4) / 100;
   return `$${v.toFixed(2).replace(/\.00$/, '')}`;
 };
 

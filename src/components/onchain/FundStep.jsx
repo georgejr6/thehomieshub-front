@@ -7,13 +7,15 @@ import { Card, Num, usd } from './ui';
 // ALGO in Pera and swapping it to USDC. The parent polls walletStatus() and
 // passes the result in as `funds`.
 // actionWord: what they do once funded ("pay", "place your bet").
-export default function FundStep({ funds, cents, needUsdc, checking, onCheck, address, onSkip, actionWord = 'pay' }) {
+// error: optional message from a failed payment that bounced the fan back here.
+export default function FundStep({ funds, cents, needUsdc, checking, onCheck, address, onSkip, actionWord = 'pay', error = '' }) {
   const amount = cents / 100;
   const ready = funds && funds.optedIn && needUsdc === 0;
   const lowAlgo = funds && funds.algo < 0.3;
   const copy = async () => { try { await navigator.clipboard.writeText(address); } catch { /* ignore */ } };
   return (
     <div className="space-y-4">
+      {error && <p role="alert" className="rounded-xl bg-[#ff2d55]/15 p-3 text-center text-sm text-[#ffb3c1]">{error}</p>}
       <Card>
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-black">Add {usd(cents)} in USDC</h2>
@@ -55,7 +57,7 @@ export default function FundStep({ funds, cents, needUsdc, checking, onCheck, ad
               <Num n={3} done={false} />
               <div>
                 <div className="font-semibold">Come back here and {actionWord}</div>
-                <div className="text-sm text-white/60">This page checks your wallet every few seconds. When the USDC lands it opens the next screen, where you approve the {usd(cents)} in Pera.</div>
+                <div className="text-sm text-white/60">This page checks your wallet every few seconds. When the USDC lands it opens the {actionWord === 'pay' ? 'payment' : 'next'} screen, where you approve the {usd(cents)} in Pera.</div>
               </div>
             </li>
           </ol>

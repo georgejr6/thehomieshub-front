@@ -135,7 +135,7 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold"><Gavel className="h-4 w-4" /> Judges · {pool.threshold} of {pool.signers.length || judges.length} must agree</div>
           {judgesLocked ? (
-            <span className="inline-flex items-center gap-1 text-xs text-white/45"><Lock className="h-3.5 w-3.5" /> Locked (bets placed)</span>
+            <span className="inline-flex items-center gap-1 text-xs text-white/45"><Lock className="h-3.5 w-3.5" /> {pool.signersLocked || pool.total > 0 ? 'Locked (bets placed)' : 'Locked (betting closed)'}</span>
           ) : !proposal && !editJudges ? (
             <Button size="sm" variant="ghost" onClick={() => setEditJudges(true)}>Change</Button>
           ) : null}
@@ -144,10 +144,10 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
           <div className="mt-3 space-y-2">
             {judges.map((j, i) => (
               <div key={i} className="flex flex-col gap-2 sm:flex-row">
-                <Input value={j.name} placeholder="Name" className="sm:w-40" onChange={(e) => setJudges((js) => js.map((x, n) => (n === i ? { ...x, name: e.target.value } : x)))} />
-                <Input value={j.address} placeholder="Wallet address" className={`font-mono text-xs ${j.address && !validAddr(j.address) ? 'border-rose-500' : ''}`}
+                <Input value={j.name} placeholder="Name" aria-label={`Judge ${i + 1} name`} className="sm:w-40" onChange={(e) => setJudges((js) => js.map((x, n) => (n === i ? { ...x, name: e.target.value } : x)))} />
+                <Input value={j.address} placeholder="Wallet address" aria-label={`Judge ${i + 1} wallet address`} className={`font-mono text-xs ${j.address && !validAddr(j.address) ? 'border-rose-500' : ''}`}
                   onChange={(e) => setJudges((js) => js.map((x, n) => (n === i ? { ...x, address: e.target.value.trim() } : x)))} />
-                {judges.length > 1 && <Button size="sm" variant="ghost" onClick={() => { setJudges((js) => js.filter((_, n) => n !== i)); setThreshold((t) => Math.min(t, judges.length - 1)); }}><X className="h-4 w-4" /></Button>}
+                {judges.length > 1 && <Button size="sm" variant="ghost" aria-label={`Remove judge ${i + 1}`} onClick={() => { setJudges((js) => js.filter((_, n) => n !== i)); setThreshold((t) => Math.min(t, judges.length - 1)); }}><X className="h-4 w-4" /></Button>}
               </div>
             ))}
             <div className="flex flex-wrap items-center gap-2">
@@ -184,9 +184,9 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
         <div className="flex items-center gap-2 text-sm font-semibold"><Wallet className="h-4 w-4" /> Fee wallet <span className="font-normal text-white/45">(receives the 10% fee; empty = house; must hold USDC)</span></div>
         {feeEditable ? (
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <Input value={feeWallet} placeholder="House wallet (default)" className={`font-mono text-xs ${feeWallet && !validAddr(feeWallet) ? 'border-rose-500' : ''}`} onChange={(e) => setFeeWallet(e.target.value.trim())} />
+            <Input value={feeWallet} placeholder="House wallet (default)" aria-label="Fee wallet address" className={`font-mono text-xs ${feeWallet && !validAddr(feeWallet) ? 'border-rose-500' : ''}`} onChange={(e) => setFeeWallet(e.target.value.trim())} />
             {!proposal && (
-              <Button size="sm" disabled={!!busy || !validAddr(feeWallet) || feeWallet === pool.feeReceiver}
+              <Button size="sm" aria-label="Save fee wallet" disabled={!!busy || !validAddr(feeWallet) || feeWallet === pool.feeReceiver}
                 onClick={() => run('fee', () => updateFeeReceiver(pool.id, feeWallet), 'Fee wallet updated')}>
                 {busy === 'fee' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null} Save
               </Button>
@@ -198,7 +198,7 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
       </div>
 
       {proposal && (
-        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason if rejecting (optional, shown to the proposer)" className="mt-3" />
+        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason if rejecting (optional, shown to the proposer)" aria-label="Reason if rejecting" className="mt-3" />
       )}
     </GlassPanel>
   );
