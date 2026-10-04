@@ -47,7 +47,12 @@ export const appAddress = (appId) => algosdk.getApplicationAddress(BigInt(appId)
 
 let _algod;
 export function algod() {
-  if (!_algod) _algod = new algosdk.Algodv2('', ALGOD_URL, '');
+  if (!_algod) {
+    // Keep any port in the URL (algosdk otherwise defaults to 80/443).
+    const u = new URL(ALGOD_URL);
+    const base = `${u.protocol}//${u.hostname}`;
+    _algod = new algosdk.Algodv2(import.meta.env?.VITE_POOLS_ALGOD_TOKEN || '', base, u.port || '');
+  }
   return _algod;
 }
 
