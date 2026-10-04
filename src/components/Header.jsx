@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Bell, Menu, User, LogIn, Wallet, DollarSign, Sparkles, Settings, GraduationCap, CreditCard, Store, ShoppingBag, Smartphone, MessagesSquare } from 'lucide-react';
+import { Search, Bell, Menu, User, LogIn, Wallet, DollarSign, Sparkles, Settings, GraduationCap, CreditCard, Store, ShoppingBag, Smartphone, MessagesSquare, HelpCircle } from 'lucide-react';
 import StoreBadges from '@/components/StoreBadges';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -278,6 +278,10 @@ const Header = ({
                 <DropdownMenuItem onClick={startTutorial}>
                   <GraduationCap className="mr-2 h-4 w-4" />
                   <span>Tutorial</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('homies:open-help'))}>
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  <span>Help & navigate</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={signOut}>
