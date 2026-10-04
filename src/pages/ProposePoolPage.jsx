@@ -111,7 +111,7 @@ export default function ProposePoolPage() {
 
             <Card>
               <div className="flex items-center gap-2 text-sm font-semibold text-white/80"><Gavel className="h-4 w-4" /> Judges</div>
-              <p className="mt-1.5 text-sm text-white/60">Homies assigns neutral judges when approving your bet. They confirm the result from their wallet, and they can&apos;t bet in the pool they judge. If no result is confirmed in time, everyone is refunded.</p>
+              <p className="mt-1.5 text-sm text-white/60">Homies assigns neutral judges when they approve your pool. They confirm the result from their wallet, and they can&apos;t bet in the pool they judge. If no result is confirmed in time, everyone is refunded.</p>
             </Card>
 
             {error && <p className="rounded-xl bg-[#ff2d55]/15 p-3 text-center text-sm text-[#ffb3c1]">{error}</p>}

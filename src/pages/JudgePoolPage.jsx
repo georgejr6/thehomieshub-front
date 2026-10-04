@@ -56,7 +56,7 @@ export default function JudgePoolPage() {
   const now = Date.now();
   // close_now can move close_ts earlier than the backend's copy: prefer the chain.
   const closeMs = chainBox?.close_ts != null ? Number(chainBox.close_ts) * 1000 : pool?.closeAt?.getTime();
-  const afterClose = closeMs ? now >= closeMs : false;
+  const afterClose = pool?.bettingOpen === false || phase === 'closed' || (closeMs ? now >= closeMs : false);
   const beforeDeadline = pool?.resolveBy ? now <= pool.resolveBy.getTime() : true;
   // The chain is the truth: the backend syncs every couple of minutes, so a
   // pool can already be settled on-chain while it still reads 'live' here.
@@ -124,7 +124,7 @@ export default function JudgePoolPage() {
             <Card className="mt-5">
               <div className="flex items-baseline justify-between gap-3">
                 <div className="text-sm text-white/60">Status</div>
-                <div className="font-bold">{phaseLabel(phase)}</div>
+                <div className="font-bold">{phaseLabel(phase === 'open' && afterClose ? 'closed' : phase)}</div>
               </div>
               <div className="mt-2 flex items-baseline justify-between gap-3">
                 <div className="text-sm text-white/60">Votes in</div>

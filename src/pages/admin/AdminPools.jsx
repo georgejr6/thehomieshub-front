@@ -40,7 +40,12 @@ export default function AdminPools() {
   useEffect(() => { if (appId) readHouse(appId).then(setHouse); }, [appId]);
 
   const done = (title) => { toast({ title }); load(); };
-  const fail = (err) => toast({ title: 'Failed', description: apiError(err), variant: 'destructive' });
+  // A 409 means the pool moved on under us (a bet landed, betting already closed):
+  // reload so the card shows the lock / closed state instead of a stale form.
+  const fail = (err) => {
+    toast({ title: 'Failed', description: apiError(err), variant: 'destructive' });
+    if (err?.response?.status === 409) load();
+  };
 
   return (
     <div className="space-y-8">
@@ -114,7 +119,7 @@ function PoolAdminCard({ pool, proposal = false, house = null, onDone, onFail })
           </div>
           {!proposal && (
             <div className="mt-1 text-xs text-white/50">
-              Pot {usdFromMicro(pool.total)} · fee {usdFromMicro(pool.fee)}
+              Pot {usdFromMicro(pool.total)} · fee {usdFromMicro(pool.fee)}{pool.fee > 0 && (pool.feePaid ? ' (paid out)' : ' (not paid out yet)')}
               {pool.onChainId != null && ` · pool #${pool.onChainId}`}
               {pool.appId && <> · <a href={explorerApp(pool.appId)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">contract <ExternalLink className="h-3 w-3" /></a></>}
             </div>

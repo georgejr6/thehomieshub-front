@@ -40,6 +40,8 @@ export function normalizePool(p) {
     // PublicPool has no fee field; the contract takes floor(total * 10%) only on a resolved pool.
     fee: num(p.feeMicro ?? chain.fee ?? p.fee ?? (p.status === 'resolved' ? Math.floor((total * 1000) / 10000) : 0)),
     bettingOpen: p.bettingOpen ?? null,
+    // The 10% fee has been withdrawn to the fee receiver (worker calls withdraw_fee after the result).
+    feePaid: !!(p.feePaid ?? chain.feePaid),
     rejectReason: p.rejectReason || '',
     winner: chain.winner ?? p.winner ?? null,
     chainStatus: chain.status ?? null,
@@ -102,7 +104,7 @@ export async function fetchProposals() {
 // Approve now REQUIRES the judges: { signers: [{address,name}] (1..3), threshold, feeReceiver?, capUsd? }.
 export const approveProposal = (id, body) => api.post(`/pools/admin/${id}/approve`, body).then((r) => r.data);
 // House ends betting now (close_now on-chain).
-export const closePoolNow = (id) => api.post(`/pools/admin/${id}/close-now`).then((r) => r.data);
+export const closePoolNow = (id) => api.post(`/pools/admin/${id}/close-now`, {}).then((r) => r.data);
 export const rejectProposal = (id, reason) => api.post(`/pools/admin/${id}/reject`, { reason }).then((r) => r.data);
 export const updateFeeReceiver = (id, feeReceiver) => api.post(`/pools/admin/${id}/fee-receiver`, { feeReceiver }).then((r) => r.data);
 export const updateSigners = (id, signers, threshold) => api.post(`/pools/admin/${id}/signers`, { signers, threshold }).then((r) => r.data);
