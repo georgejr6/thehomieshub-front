@@ -85,24 +85,68 @@ describe('PoolBetScheme', () => {
 });
 
 describe('pool chain helpers', async () => {
-  const { buildVoteTxn, estimatePayoutMicro, CANCEL_VOTE, suggestedParams } = await import('./chain');
+  const {
+    buildVoteTxn, buildCloseNowTxn, decodePoolBox, estimatePayoutMicro, CANCEL_VOTE, POOL_BOX_SIZE, suggestedParams,
+  } = await import('./chain');
   const params = await suggestedParams(); // mocked above: no network
 
-  it('vote(uint64,uint8) references the pool box, USDC and the fee receiver, and covers the inner fee', async () => {
+  it('vote(uint64,uint8) (v2) references only the pool box: no USDC/accounts, no inner fee', async () => {
     const judge = algosdk.generateAccount().addr.toString();
-    const feeReceiver = algosdk.generateAccount().addr.toString();
-    const house = algosdk.generateAccount().addr.toString();
-    const txn = await buildVoteTxn({ appId: 99, poolId: 3, choice: 1, signer: judge, feeReceiver, house, params });
+    const txn = await buildVoteTxn({ appId: 99, poolId: 3, choice: 1, signer: judge, params });
     const ac = txn.applicationCall;
     expect(ac.appArgs[0]).toEqual(algosdk.ABIMethod.fromSignature('vote(uint64,uint8)void').getSelector());
     expect(ac.appArgs[1]).toEqual(algosdk.encodeUint64(3n));
     expect(ac.appArgs[2]).toEqual(new Uint8Array([1]));
     expect(ac.boxes.map((b) => algosdk.bytesToBase64(b.name))).toEqual([algosdk.bytesToBase64(poolBoxName(3))]);
-    expect(ac.foreignAssets).toEqual([BigInt(USDC_ASA)]);
-    expect(ac.accounts.map(String)).toEqual([feeReceiver, house]);
-    expect(txn.fee).toBe(2000n);
+    expect(ac.foreignAssets).toEqual([]);
+    expect(ac.accounts).toEqual([]);
+    expect(txn.fee).toBe(1000n);
     const cancel = await buildVoteTxn({ appId: 99, poolId: 3, choice: CANCEL_VOTE, signer: judge, params });
     expect(cancel.applicationCall.appArgs[2]).toEqual(new Uint8Array([200]));
+  });
+
+  it('close_now(uint64) references the pool box and pays one min fee', async () => {
+    const judge = algosdk.generateAccount().addr.toString();
+    const txn = await buildCloseNowTxn({ appId: 99, poolId: 5, signer: judge, params });
+    const ac = txn.applicationCall;
+    expect(txn.sender.toString()).toBe(judge);
+    expect(ac.appIndex).toBe(99n);
+    expect(ac.appArgs).toHaveLength(2);
+    expect(ac.appArgs[0]).toEqual(algosdk.ABIMethod.fromSignature('close_now(uint64)void').getSelector());
+    expect(ac.appArgs[1]).toEqual(algosdk.encodeUint64(5n));
+    expect(ac.boxes.map((b) => algosdk.bytesToBase64(b.name))).toEqual([algosdk.bytesToBase64(poolBoxName(5))]);
+    expect(ac.foreignAssets).toEqual([]);
+    expect(txn.fee).toBe(1000n);
+  });
+
+  it('decodes the v2 289-byte Pool box (fee_receiver, fee_paid appended)', () => {
+    const s = [1, 2, 3].map(() => algosdk.generateAccount().addr.toString());
+    const fr = algosdk.generateAccount().addr.toString();
+    const zero = algosdk.ALGORAND_ZERO_ADDRESS_STRING;
+    const t = algosdk.ABIType.from('(uint8,uint8,uint8,uint64,uint64,uint64,uint64,uint64,uint64,uint64,uint64[8],address[3],uint8[3],byte[32],uint8,uint8,address,uint8)');
+    const meta = new Uint8Array(32).fill(7);
+    const bytes = t.encode([3, 1, 2, 1700000000n, 1700600000n, 1700100000n, 0n, 30_000_000n, 3_000_000n, 1_000_000n,
+      [10_000_000n, 5_000_000n, 15_000_000n, 0n, 0n, 0n, 0n, 0n], [s[0], s[1], zero], [2, 2, 255], meta, 2, 2, fr, 1]);
+    expect(bytes.length).toBe(289);
+    expect(POOL_BOX_SIZE).toBe(289);
+    const p = decodePoolBox(bytes);
+    expect(p.num_outcomes).toBe(3);
+    expect(p.status).toBe(1);
+    expect(p.winner).toBe(2);
+    expect(p.close_ts).toBe(1700000000n);
+    expect(p.total).toBe(30_000_000n);
+    expect(p.fee).toBe(3_000_000n);
+    expect(p.paid_out).toBe(1_000_000n);
+    expect(p.totals.slice(0, 3)).toEqual([10_000_000n, 5_000_000n, 15_000_000n]);
+    expect(p.signers).toEqual([s[0], s[1], zero]);
+    expect(p.votes).toEqual([2, 2, 255]);
+    expect(Array.from(p.meta_hash)).toEqual(Array.from(meta));
+    expect(p.num_signers).toBe(2);
+    expect(p.threshold).toBe(2);
+    expect(p.fee_receiver).toBe(fr);
+    expect(p.fee_paid).toBe(true);
+    // A v1 (288-byte) box is refused rather than misread.
+    expect(() => decodePoolBox(bytes.slice(0, 288))).toThrow(/288 bytes/);
   });
 
   it('payout estimate matches the contract integer math (10% fee, pro-rata, floor)', () => {
@@ -116,5 +160,27 @@ describe('pool chain helpers', async () => {
     expect(estimatePayoutMicro([123_456_789_012, 987_654_321_098], 1, 500_000_000, 0))
       .toBe(Number((500_000_000n * (1_111_111_110_110n - 111_111_111_011n)) / 987_654_321_098n));
     expect(estimatePayoutMicro([0, 5e6], 0, 0, 0)).toBe(0);
+  });
+});
+
+describe('judge validation (approve / set_signers)', async () => {
+  const { judgeProblems } = await import('./judges');
+  const [a, b, c, h, f] = Array.from({ length: 5 }, () => algosdk.generateAccount().addr.toString());
+  const j = (address, name = 'J') => ({ address, name });
+
+  it('accepts 1..3 distinct named judges with a valid threshold', () => {
+    expect(judgeProblems([j(a)], 1, { house: h })).toEqual([]);
+    expect(judgeProblems([j(a), j(b), j(c)], 2, { house: h, feeWallet: f })).toEqual([]);
+  });
+  it('rejects bad sets', () => {
+    expect(judgeProblems([], 1)).not.toEqual([]);
+    expect(judgeProblems([j(a), j(b), j(c), j(f)], 2)).not.toEqual([]);
+    expect(judgeProblems([j('NOTANADDRESS')], 1)[0]).toMatch(/valid Algorand/);
+    expect(judgeProblems([j(a), j(a)], 1)[0]).toMatch(/different wallet/);
+    expect(judgeProblems([j(a, ' ')], 1)[0]).toMatch(/Name/);
+    expect(judgeProblems([j(a), j(h)], 1, { house: h })[0]).toMatch(/house/);
+    expect(judgeProblems([j(a), j(f)], 1, { house: h, feeWallet: f })[0]).toMatch(/fee wallet/);
+    expect(judgeProblems([j(a), j(b)], 3)[0]).toMatch(/how many/);
+    expect(judgeProblems([j(a)], 0)[0]).toMatch(/how many/);
   });
 });

@@ -3,6 +3,7 @@
 module.exports = {
   root: true,
   extends: ['react-app'],
+  env: { es2020: true }, // BigInt (pools chain code)
   ignorePatterns: ['dist/', 'node_modules/', 'plugins/', 'tools/', 'api/', 'contracts/'],
   rules: {
     'import/first': 'warn',

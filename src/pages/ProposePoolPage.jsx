@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import algosdk from 'algosdk';
-import { ArrowLeft, CheckCircle2, Loader2, Plus, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Gavel, Loader2, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/onchain/ui';
@@ -12,7 +11,6 @@ import { cn } from '@/lib/utils';
 // /admin/pools and, if approved, creates it on-chain.
 
 const inputCls = 'h-11 w-full rounded-xl border border-white/15 bg-black/40 px-3 text-white outline-none placeholder:text-white/30 focus:border-[#ff2d55]';
-const emptyJudge = () => ({ address: '', name: '' });
 
 export default function ProposePoolPage() {
   const { user } = useAuth();
@@ -21,16 +19,11 @@ export default function ProposePoolPage() {
   const [description, setDescription] = useState('');
   const [outcomes, setOutcomes] = useState(['', '']);
   const [closeAt, setCloseAt] = useState('');
-  const [judges, setJudges] = useState([emptyJudge()]);
-  const [threshold, setThreshold] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
   const cleanOutcomes = outcomes.map((o) => o.trim()).filter(Boolean);
-  const judgeAddrs = judges.map((j) => j.address.trim());
-  const badAddr = (a) => a && !algosdk.isValidAddress(a);
-  const dupAddr = new Set(judgeAddrs.filter(Boolean)).size !== judgeAddrs.filter(Boolean).length;
   const closeTs = closeAt ? new Date(closeAt).getTime() : 0;
 
   const problems = [];
@@ -39,9 +32,6 @@ export default function ProposePoolPage() {
   if (new Set(cleanOutcomes.map((o) => o.toLowerCase())).size !== cleanOutcomes.length) problems.push('Outcomes must be different.');
   if (!closeTs || closeTs < Date.now() + 60 * 60 * 1000) problems.push('Betting must close at least an hour from now.');
   else if (closeTs > Date.now() + 365 * 24 * 60 * 60 * 1000) problems.push('Betting must close within a year.');
-  if (judgeAddrs.some((a) => !a) || judgeAddrs.some(badAddr)) problems.push('Every judge needs a valid Algorand wallet address.');
-  if (dupAddr) problems.push('Each judge needs a different wallet.');
-  if (judges.some((j) => !j.name.trim())) problems.push('Name every judge.');
   const valid = problems.length === 0;
 
   const submit = async () => {
@@ -54,8 +44,6 @@ export default function ProposePoolPage() {
         description: description.trim(),
         outcomes: cleanOutcomes,
         closeAt: new Date(closeAt).toISOString(),
-        signers: judges.map((j) => ({ address: j.address.trim(), name: j.name.trim() })),
-        threshold,
       });
       setDone(true);
     } catch (err) {
@@ -65,19 +53,13 @@ export default function ProposePoolPage() {
     }
   };
 
-  const setJudge = (i, k, v) => setJudges((js) => js.map((j, n) => (n === i ? { ...j, [k]: v } : j)));
-  const setJudgeCount = (n) => {
-    setJudges((js) => (n > js.length ? [...js, ...Array.from({ length: n - js.length }, emptyJudge)] : js.slice(0, n)));
-    setThreshold((t) => Math.min(t, n) || 1);
-  };
-
   return (
     <div className="min-h-screen bg-[#07070a] text-white">
       <div className="mx-auto w-full max-w-xl px-4 pb-20 pt-6 sm:pt-10">
         <Link to="/bets" className="inline-flex items-center gap-1 text-sm font-semibold text-white/60 hover:text-white"><ArrowLeft className="h-4 w-4" /> All pools</Link>
         <h1 className="mt-4 font-black uppercase leading-[0.95] tracking-tight" style={{ fontFamily: 'Anton, Impact, "Arial Black", sans-serif', fontSize: 'clamp(2rem, 8vw, 3rem)' }}>Propose a pool</h1>
         <p className="mt-2 text-sm leading-relaxed text-white/60">
-          Suggest something people can bet on. The Homies team reviews every proposal before it goes live. You pick the judges: people you trust to confirm the result. Judges can&apos;t bet in the pool they judge.
+          Suggest something people can bet on. The Homies team reviews every proposal before it goes live.
         </p>
 
         {!user ? (
@@ -128,34 +110,8 @@ export default function ProposePoolPage() {
             </Card>
 
             <Card>
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-white/80">Judges</div>
-                <div className="flex gap-1">
-                  {[1, 2, 3].map((n) => (
-                    <button key={n} type="button" onClick={() => setJudgeCount(n)} aria-label={`${n} ${n === 1 ? 'judge' : 'judges'}`} aria-pressed={judges.length === n} className={cn('h-9 w-9 rounded-lg border text-sm font-bold', judges.length === n ? 'border-[#ff2d55] bg-[#ff2d55]/15' : 'border-white/15 text-white/70 hover:bg-white/10')}>{n}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-3 space-y-3">
-                {judges.map((j, i) => (
-                  <div key={i} className="space-y-2 rounded-xl bg-black/30 p-3">
-                    <input value={j.name} maxLength={40} onChange={(e) => setJudge(i, 'name', e.target.value)} placeholder={`Judge ${i + 1} name`} aria-label={`Judge ${i + 1} name`} className={inputCls} />
-                    <input value={j.address} onChange={(e) => setJudge(i, 'address', e.target.value.trim())} placeholder="Their Algorand wallet address" aria-label={`Judge ${i + 1} wallet address`} spellCheck={false} autoCapitalize="characters"
-                      className={cn(inputCls, 'font-mono text-xs', badAddr(j.address.trim()) && 'border-[#ff8099]')} />
-                  </div>
-                ))}
-              </div>
-              {judges.length > 1 && (
-                <div className="mt-3">
-                  <div className="text-sm font-semibold text-white/80">How many must agree?</div>
-                  <div className="mt-2 flex gap-2">
-                    {Array.from({ length: judges.length }, (_, k) => k + 1).map((n) => (
-                      <button key={n} type="button" onClick={() => setThreshold(n)} aria-pressed={threshold === n} className={cn('h-10 flex-1 rounded-lg border text-sm font-bold', threshold === n ? 'border-[#ff2d55] bg-[#ff2d55]/15' : 'border-white/15 text-white/70 hover:bg-white/10')}>{n} of {judges.length}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <p className="mt-3 text-xs text-white/45">Judges confirm the result from their wallet on the judge page. If no result is confirmed in time, everyone is refunded.</p>
+              <div className="flex items-center gap-2 text-sm font-semibold text-white/80"><Gavel className="h-4 w-4" /> Judges</div>
+              <p className="mt-1.5 text-sm text-white/60">Homies assigns neutral judges when approving your bet. They confirm the result from their wallet, and they can&apos;t bet in the pool they judge. If no result is confirmed in time, everyone is refunded.</p>
             </Card>
 
             {error && <p className="rounded-xl bg-[#ff2d55]/15 p-3 text-center text-sm text-[#ffb3c1]">{error}</p>}

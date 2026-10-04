@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, CheckCircle2, ExternalLink, Gavel, Loader2, Wallet } from 'lucide-react';
+import { ArrowLeft, Ban, CheckCircle2, ExternalLink, Gavel, Loader2, TimerOff, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWallet } from '@/contexts/WalletContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, shortAddr } from '@/components/onchain/ui';
 import { apiError, fetchPool, phaseLabel, poolPhase, usdFromMicro } from '@/lib/pools/api';
-import { CANCEL_VOTE, buildVoteTxn, explorerApp, explorerTx, readHouse, readPoolBox, sendSigned } from '@/lib/pools/chain';
+import { CANCEL_VOTE, buildCloseNowTxn, buildVoteTxn, explorerApp, explorerTx, readPoolBox, sendSigned } from '@/lib/pools/chain';
+import ConfirmDialog from '@/components/onchain/ConfirmDialog';
 import { cn } from '@/lib/utils';
 
 // thehomies.app/bets/:id/judge — a pool's judges confirm the result here by
@@ -26,6 +27,9 @@ export default function JudgePoolPage() {
   const [pick, setPick] = useState(null);
   const [busy, setBusy] = useState(false);
   const [lastTx, setLastTx] = useState(null);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [closeTx, setCloseTx] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -50,7 +54,9 @@ export default function JudgePoolPage() {
   const votes = (chainVotes || pool?.votes || []).map(Number);
   const cast = votes.slice(0, pool?.signers?.length || 0).filter((v) => v !== NO_VOTE && !Number.isNaN(v)).length;
   const now = Date.now();
-  const afterClose = pool?.closeAt ? now >= pool.closeAt.getTime() : false;
+  // close_now can move close_ts earlier than the backend's copy: prefer the chain.
+  const closeMs = chainBox?.close_ts != null ? Number(chainBox.close_ts) * 1000 : pool?.closeAt?.getTime();
+  const afterClose = closeMs ? now >= closeMs : false;
   const beforeDeadline = pool?.resolveBy ? now <= pool.resolveBy.getTime() : true;
   // The chain is the truth: the backend syncs every couple of minutes, so a
   // pool can already be settled on-chain while it still reads 'live' here.
@@ -63,12 +69,7 @@ export default function JudgePoolPage() {
     if (pick == null || !canVote) return;
     setBusy(true);
     try {
-      // Fee receiver from the pool box (what the contract pays), else the backend's copy.
-      // No fee wallet set on the pool (null) means the house gets the fee.
-      const house = pick !== CANCEL_VOTE ? await readHouse(pool.appId) : null;
-      const feeReceiver = chainBox?.fee_receiver ? String(chainBox.fee_receiver) : (pool.feeReceiver || house);
-      if (pick !== CANCEL_VOTE && !feeReceiver) throw new Error('Couldn’t read this pool from the chain. Refresh and try again.');
-      const txn = await buildVoteTxn({ appId: pool.appId, poolId: pool.onChainId, choice: pick, signer: me, feeReceiver, house });
+      const txn = await buildVoteTxn({ appId: pool.appId, poolId: pool.onChainId, choice: pick, signer: me });
       const signed = await signTransactions([[{ txn, signers: [me] }]]);
       const txId = await sendSigned(signed || []);
       setLastTx(txId);
@@ -80,6 +81,28 @@ export default function JudgePoolPage() {
       if (!/reject|cancel|closed/i.test(msg)) toast({ title: 'Vote failed', description: /balance|below min/i.test(msg) ? 'Your wallet needs a little ALGO for the network fee.' : msg.slice(0, 200), variant: 'destructive' });
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Any active judge may end betting early (close_now), while betting is still open.
+  const canCloseNow = canVote && !afterClose;
+  const closeNow = async () => {
+    if (!canCloseNow) return;
+    setClosing(true);
+    try {
+      const txn = await buildCloseNowTxn({ appId: pool.appId, poolId: pool.onChainId, signer: me });
+      const signed = await signTransactions([[{ txn, signers: [me] }]]);
+      const txId = await sendSigned(signed || []);
+      setCloseTx(txId);
+      setConfirmClose(false);
+      toast({ title: 'Betting closed', description: 'You can confirm the result now.' });
+      load();
+    } catch (err) {
+      const msg = String(err?.message || err);
+      if (/already closed/i.test(msg)) { setConfirmClose(false); load(); }
+      else if (!/reject|cancel/i.test(msg)) toast({ title: 'Couldn’t close betting', description: /balance|below min/i.test(msg) ? 'Your wallet needs a little ALGO for the network fee.' : msg.slice(0, 200), variant: 'destructive' });
+    } finally {
+      setClosing(false);
     }
   };
 
@@ -168,6 +191,16 @@ export default function JudgePoolPage() {
                   {busy ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Approve in your wallet…</> : pick == null ? 'Pick one' : `Vote: ${choiceLabel(pick)}`}
                 </Button>
                 <p className="mt-2 text-center text-xs text-white/45">Your wallet pays a tiny ALGO network fee (under $0.01).</p>
+                {canCloseNow && (
+                  <Button variant="outline" onClick={() => setConfirmClose(true)} disabled={busy || closing} className="mt-3 h-11 w-full rounded-xl border-white/20 bg-transparent font-bold text-white hover:bg-white/10">
+                    <TimerOff className="mr-2 h-4 w-4" /> Close betting now
+                  </Button>
+                )}
+                {closeTx && (
+                  <a href={explorerTx(closeTx)} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-center gap-1 text-xs text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Betting closed on Algorand <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
                 {lastTx && (
                   <a href={explorerTx(lastTx)} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-center gap-1 text-xs text-emerald-400">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Vote on Algorand <ExternalLink className="h-3 w-3" />
@@ -178,6 +211,16 @@ export default function JudgePoolPage() {
           </>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmClose}
+        onOpenChange={setConfirmClose}
+        busy={closing}
+        title="Close betting now?"
+        description="No one can bet after this, and it can’t be undone. Then the judges can confirm the result right away."
+        confirmLabel={closing ? 'Approve in your wallet…' : 'Close betting'}
+        onConfirm={closeNow}
+        className="border-white/10 bg-[#111116] text-white"
+      />
     </div>
   );
 }

@@ -47,6 +47,8 @@ export function normalizePool(p) {
     bettors: p.bettors ?? p.betCount ?? null,
     hasBets: !!(p.hasBets ?? (total > 0)),
     signersLocked: p.signersLocked ?? (total > 0),
+    // set_fee_receiver only before the first bet (contract v2); 409 after.
+    feeReceiverLocked: p.feeReceiverLocked ?? (total > 0),
     gatewayUrl: p.gatewayUrl || null,
     createdAt: p.createdAt ? new Date(p.createdAt) : null,
     syncedAt: chain.syncedAt || p.syncedAt || null,
@@ -89,6 +91,7 @@ export async function createIntent(id, { outcome, amountUsd, wallet }) {
   return data;
 }
 
+// { title, description?, outcomes, closeAt, resolveBy? } — judges are assigned by Homies at approval.
 export const proposePool = (body) => api.post('/pools/propose', body).then((r) => r.data);
 export const requestClaim = (id) => api.post(`/pools/${id}/claim`).then((r) => r.data);
 
@@ -96,7 +99,10 @@ export async function fetchProposals() {
   const { data } = await api.get('/pools/admin/proposals', { params: { status: 'proposed' } });
   return list(data, 'proposals').map(normalizePool);
 }
-export const approveProposal = (id, body = {}) => api.post(`/pools/admin/${id}/approve`, body).then((r) => r.data);
+// Approve now REQUIRES the judges: { signers: [{address,name}] (1..3), threshold, feeReceiver?, capUsd? }.
+export const approveProposal = (id, body) => api.post(`/pools/admin/${id}/approve`, body).then((r) => r.data);
+// House ends betting now (close_now on-chain).
+export const closePoolNow = (id) => api.post(`/pools/admin/${id}/close-now`).then((r) => r.data);
 export const rejectProposal = (id, reason) => api.post(`/pools/admin/${id}/reject`, { reason }).then((r) => r.data);
 export const updateFeeReceiver = (id, feeReceiver) => api.post(`/pools/admin/${id}/fee-receiver`, { feeReceiver }).then((r) => r.data);
 export const updateSigners = (id, signers, threshold) => api.post(`/pools/admin/${id}/signers`, { signers, threshold }).then((r) => r.data);

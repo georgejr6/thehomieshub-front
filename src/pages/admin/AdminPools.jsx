@@ -1,19 +1,22 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import algosdk from 'algosdk';
-import { Check, ExternalLink, Gavel, Loader2, Lock, RefreshCw, Trophy, Wallet, X } from 'lucide-react';
+import { Check, ExternalLink, Gavel, Loader2, Lock, RefreshCw, TimerOff, Trophy, Wallet, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { GlassPanel, SectionTitle } from '@/components/admin/glass';
 import {
-  apiError, approveProposal, fetchPools, fetchProposals, phaseLabel, poolPhase, rejectProposal,
+  ENV_APP_ID, apiError, approveProposal, closePoolNow, fetchPools, fetchProposals, phaseLabel, poolPhase, rejectProposal,
   updateFeeReceiver, updateSigners, usdFromMicro,
 } from '@/lib/pools/api';
-import { explorerAccount, explorerApp } from '@/lib/pools/chain';
+import { explorerAccount, explorerApp, readHouse } from '@/lib/pools/chain';
+import { judgeProblems } from '@/lib/pools/judges';
+import ConfirmDialog from '@/components/onchain/ConfirmDialog';
 
 // /admin/pools — review proposed pools (approve = the house key creates the pool
-// on-chain), and manage live pools: judges (until the first bet) and the wallet
-// that receives the 10% fee (while the pool is open).
+// on-chain with the judges picked here; proposers don't pick judges), and manage
+// live pools: judges and the wallet that receives the 10% fee (both only until
+// the first bet), and "Close betting now" (close_now).
 
 const shortAddr = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
 const fmt = (d) => (d ? d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
@@ -23,6 +26,7 @@ export default function AdminPools() {
   const [proposals, setProposals] = useState(null);
   const [pools, setPools] = useState(null);
   const [error, setError] = useState('');
+  const [house, setHouse] = useState(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -31,6 +35,9 @@ export default function AdminPools() {
     if (pl.status === 'fulfilled') setPools(pl.value.filter((p) => !['proposed', 'rejected'].includes(p.status))); else setPools([]);
   }, []);
   useEffect(() => { load(); }, [load]);
+  // House wallet (contract global state) so judges can't be set to it.
+  const appId = ENV_APP_ID || pools?.find((p) => p.appId)?.appId || proposals?.find((p) => p.appId)?.appId;
+  useEffect(() => { if (appId) readHouse(appId).then(setHouse); }, [appId]);
 
   const done = (title) => { toast({ title }); load(); };
   const fail = (err) => toast({ title: 'Failed', description: apiError(err), variant: 'destructive' });
@@ -38,7 +45,7 @@ export default function AdminPools() {
   return (
     <div className="space-y-8">
       <SectionTitle
-        sub="Approving creates the pool on Algorand with the house key. Judges can be changed until the first bet; the fee wallet can be changed while the pool is open."
+        sub="Approving creates the pool on Algorand with the house key and the judges you pick. Judges and the fee wallet can be changed only until the first bet."
         right={<Button variant="outline" size="sm" onClick={load}><RefreshCw className="mr-1.5 h-4 w-4" /> Refresh</Button>}
       >
         Pools
@@ -49,20 +56,20 @@ export default function AdminPools() {
         <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-white/40">Proposals</h3>
         {!proposals ? <Loader2 className="h-5 w-5 animate-spin text-white/50" />
           : proposals.length === 0 ? <p className="text-sm text-white/50">No proposals waiting.</p>
-            : <div className="space-y-4">{proposals.map((p) => <PoolAdminCard key={p.id} pool={p} proposal onDone={done} onFail={fail} />)}</div>}
+            : <div className="space-y-4">{proposals.map((p) => <PoolAdminCard key={p.id} pool={p} proposal house={house} onDone={done} onFail={fail} />)}</div>}
       </div>
 
       <div>
         <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-white/40">On-chain pools</h3>
         {!pools ? <Loader2 className="h-5 w-5 animate-spin text-white/50" />
           : pools.length === 0 ? <p className="text-sm text-white/50">None yet.</p>
-            : <div className="space-y-4">{pools.map((p) => <PoolAdminCard key={p.id} pool={p} onDone={done} onFail={fail} />)}</div>}
+            : <div className="space-y-4">{pools.map((p) => <PoolAdminCard key={p.id} pool={p} house={house} onDone={done} onFail={fail} />)}</div>}
       </div>
     </div>
   );
 }
 
-function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
+function PoolAdminCard({ pool, proposal = false, house = null, onDone, onFail }) {
   const phase = poolPhase(pool);
   const [busy, setBusy] = useState('');
   const [editJudges, setEditJudges] = useState(false);
@@ -70,14 +77,16 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
   const [threshold, setThreshold] = useState(pool.threshold || 1);
   const [feeWallet, setFeeWallet] = useState(pool.feeReceiver || '');
   const [reason, setReason] = useState('');
+  const [confirmClose, setConfirmClose] = useState(false);
 
-  const judgesLocked = !proposal && (pool.signersLocked || pool.total > 0 || phase !== 'open');
-  const feeEditable = proposal || phase === 'open';
+  const hasBets = pool.signersLocked || pool.total > 0;
+  const judgesLocked = !proposal && (hasBets || phase !== 'open');
+  const feeLocked = !proposal && (pool.feeReceiverLocked || pool.total > 0 || phase !== 'open');
   const validAddr = (a) => algosdk.isValidAddress(a || '');
-  const judgesValid = judges.length >= 1 && judges.length <= 3
-    && judges.every((j) => validAddr(j.address) && j.name.trim())
-    && new Set(judges.map((j) => j.address)).size === judges.length
-    && threshold >= 1 && threshold <= judges.length;
+  const problems = judgeProblems(judges, threshold, { house, feeWallet: feeWallet || pool.feeReceiver || '' });
+  const judgesValid = problems.length === 0;
+  const feeIsJudge = !!feeWallet && pool.signers.some((s) => s.address === feeWallet);
+  const cleanJudges = () => judges.map((j) => ({ address: j.address.trim(), name: j.name.trim() }));
 
   const run = async (key, fn, msg) => {
     setBusy(key);
@@ -114,17 +123,22 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
         {proposal && (
           <div className="flex shrink-0 gap-2">
             <Button size="sm" disabled={!!busy || !judgesValid || (feeWallet && !validAddr(feeWallet))}
-              onClick={() => run('approve', async () => {
-                // Judges edited here are saved first; approve then creates the pool on-chain with them.
-                const edited = JSON.stringify(judges.map((j) => [j.address.trim(), j.name.trim()])) !== JSON.stringify(pool.signers.map((j) => [j.address, j.name]))
-                  || threshold !== pool.threshold;
-                if (edited) await updateSigners(pool.id, judges.map((j) => ({ address: j.address.trim(), name: j.name.trim() })), threshold);
-                await approveProposal(pool.id, feeWallet ? { feeReceiver: feeWallet.trim() } : {});
-              }, 'Approved — pool created on-chain')}>
+              onClick={() => run('approve', () => approveProposal(pool.id, {
+                signers: cleanJudges(),
+                threshold,
+                ...(feeWallet ? { feeReceiver: feeWallet.trim() } : {}),
+              }), 'Approved — pool created on-chain')}>
               {busy === 'approve' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Check className="mr-1.5 h-4 w-4" />} Approve
             </Button>
             <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run('reject', () => rejectProposal(pool.id, reason.trim()), 'Rejected')}>
               {busy === 'reject' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <X className="mr-1.5 h-4 w-4" />} Reject
+            </Button>
+          </div>
+        )}
+        {!proposal && phase === 'open' && pool.onChainId != null && (
+          <div className="flex shrink-0 gap-2">
+            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setConfirmClose(true)}>
+              <TimerOff className="mr-1.5 h-4 w-4" /> Close betting now
             </Button>
           </div>
         )}
@@ -133,9 +147,9 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
       {/* Judges */}
       <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm font-semibold"><Gavel className="h-4 w-4" /> Judges · {pool.threshold} of {pool.signers.length || judges.length} must agree</div>
+          <div className="flex items-center gap-2 text-sm font-semibold"><Gavel className="h-4 w-4" /> Judges · {proposal ? threshold : pool.threshold} of {proposal ? judges.length : pool.signers.length || judges.length} must agree</div>
           {judgesLocked ? (
-            <span className="inline-flex items-center gap-1 text-xs text-white/45"><Lock className="h-3.5 w-3.5" /> {pool.signersLocked || pool.total > 0 ? 'Locked (bets placed)' : 'Locked (betting closed)'}</span>
+            <span className="inline-flex items-center gap-1 text-xs text-white/45"><Lock className="h-3.5 w-3.5" /> {hasBets ? 'Locked (bets placed)' : 'Locked (betting closed)'}</span>
           ) : !proposal && !editJudges ? (
             <Button size="sm" variant="ghost" onClick={() => setEditJudges(true)}>Change</Button>
           ) : null}
@@ -158,14 +172,15 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
               ))}
               {!proposal && (
                 <>
-                  <Button size="sm" disabled={!judgesValid || !!busy} onClick={() => run('signers', () => updateSigners(pool.id, judges.map((j) => ({ address: j.address.trim(), name: j.name.trim() })), threshold), 'Judges updated').then((ok) => ok && setEditJudges(false))}>
+                  <Button size="sm" disabled={!judgesValid || !!busy} onClick={() => run('signers', () => updateSigners(pool.id, cleanJudges(), threshold), 'Judges updated').then((ok) => ok && setEditJudges(false))}>
                     {busy === 'signers' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null} Save judges
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => { setEditJudges(false); setJudges(pool.signers); setThreshold(pool.threshold); }}>Cancel</Button>
                 </>
               )}
             </div>
-            {!judgesValid && <p className="text-xs text-amber-400">1–3 judges, each with a name and a different valid wallet.</p>}
+            {proposal && <p className="text-xs text-white/45">Pick 1–3 neutral judges (the proposer doesn&apos;t choose them). Not the house wallet or the fee wallet.</p>}
+            {!judgesValid && <p className="text-xs text-amber-400">{problems[0]}</p>}
           </div>
         ) : (
           <ul className="mt-2 space-y-1 text-sm">
@@ -181,12 +196,15 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
 
       {/* Fee wallet */}
       <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-        <div className="flex items-center gap-2 text-sm font-semibold"><Wallet className="h-4 w-4" /> Fee wallet <span className="font-normal text-white/45">(receives the 10% fee; empty = house; must hold USDC)</span></div>
-        {feeEditable ? (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-semibold"><Wallet className="h-4 w-4" /> Fee wallet <span className="font-normal text-white/45">(receives the 10% fee; empty = house; must hold USDC)</span></div>
+          {feeLocked && <span className="inline-flex shrink-0 items-center gap-1 text-xs text-white/45"><Lock className="h-3.5 w-3.5" /> {hasBets ? 'Locked (bets placed)' : 'Locked (betting closed)'}</span>}
+        </div>
+        {!feeLocked ? (
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <Input value={feeWallet} placeholder="House wallet (default)" aria-label="Fee wallet address" className={`font-mono text-xs ${feeWallet && !validAddr(feeWallet) ? 'border-rose-500' : ''}`} onChange={(e) => setFeeWallet(e.target.value.trim())} />
             {!proposal && (
-              <Button size="sm" aria-label="Save fee wallet" disabled={!!busy || !validAddr(feeWallet) || feeWallet === pool.feeReceiver}
+              <Button size="sm" aria-label="Save fee wallet" disabled={!!busy || !validAddr(feeWallet) || feeWallet === pool.feeReceiver || feeIsJudge}
                 onClick={() => run('fee', () => updateFeeReceiver(pool.id, feeWallet), 'Fee wallet updated')}>
                 {busy === 'fee' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null} Save
               </Button>
@@ -195,7 +213,19 @@ function PoolAdminCard({ pool, proposal = false, onDone, onFail }) {
         ) : (
           <div className="mt-1 font-mono text-xs text-white/55">{pool.feeReceiver || 'House wallet'}</div>
         )}
+        {!feeLocked && !proposal && <p className="mt-1.5 text-xs text-white/45">Can only be changed before the first bet.</p>}
+        {!feeLocked && feeIsJudge && <p className="mt-1 text-xs text-amber-400">A judge can&apos;t be the fee wallet.</p>}
       </div>
+
+      <ConfirmDialog
+        open={confirmClose}
+        onOpenChange={setConfirmClose}
+        busy={busy === 'close'}
+        title="Close betting now?"
+        description={`"${pool.title}" stops taking bets immediately and the judges can confirm the result right away. This can't be undone.`}
+        confirmLabel="Close betting"
+        onConfirm={() => run('close', () => closePoolNow(pool.id), 'Betting closed').then(() => setConfirmClose(false))}
+      />
 
       {proposal && (
         <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason if rejecting (optional, shown to the proposer)" aria-label="Reason if rejecting" className="mt-3" />

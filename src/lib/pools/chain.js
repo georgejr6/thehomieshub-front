@@ -28,6 +28,7 @@ const SIGNATURES = {
   vote: 'vote(uint64,uint8)void',
   claim: 'claim(uint64,address)void',
   expire: 'expire(uint64)void',
+  close_now: 'close_now(uint64)void',
 };
 
 function arcMethod(name) {
@@ -68,17 +69,14 @@ export async function suggestedParams(rounds = 100) {
   return { ...sp, lastValid: BigInt(sp.firstValid) + BigInt(rounds) };
 }
 
-// The judge's vote: one app call from the signer, who pays the fee. A deciding
-// vote on a winner sends the 10% fee to the pool's fee_receiver as an inner USDC
-// transfer (or to the house if the fee_receiver opted out of USDC), so the call
-// must reference the USDC asset and both accounts (a single txn has no group
-// resource sharing) and cover one inner fee too.
-export async function buildVoteTxn({ appId, poolId, choice, signer, feeReceiver, house, params }) {
+// The judge's vote: one app call from the signer, who pays the fee. Since
+// contract v2 the deciding vote only records the 10% fee (the backend pulls it
+// later with withdraw_fee), so vote has no inner txn: no USDC/account refs and
+// no extra fee — just the pool box.
+export async function buildVoteTxn({ appId, poolId, choice, signer, params }) {
   const sp = params || await suggestedParams();
   const method = abiMethod('vote');
   const minFee = BigInt(sp.minFee ?? 1000n);
-  const accounts = [...new Set([feeReceiver, house])].filter((a) => a && algosdk.isValidAddress(a)
-    && a !== signer && a !== algosdk.ALGORAND_ZERO_ADDRESS_STRING);
   return algosdk.makeApplicationNoOpTxnFromObject({
     sender: signer,
     appIndex: BigInt(appId),
@@ -87,10 +85,23 @@ export async function buildVoteTxn({ appId, poolId, choice, signer, feeReceiver,
       algosdk.ABIType.from('uint64').encode(BigInt(poolId)),
       algosdk.ABIType.from('uint8').encode(choice),
     ],
-    foreignAssets: [USDC_ASA],
-    accounts,
     boxes: [{ appIndex: BigInt(appId), name: poolBoxName(poolId) }],
-    suggestedParams: { ...sp, flatFee: true, fee: minFee * 2n },
+    suggestedParams: { ...sp, flatFee: true, fee: minFee },
+  });
+}
+
+// close_now(pool_id): the house or an active judge ends betting right away
+// (close_ts = now). Only while the pool is OPEN and before close_ts. No inner txn.
+export async function buildCloseNowTxn({ appId, poolId, signer, params }) {
+  const sp = params || await suggestedParams();
+  const method = abiMethod('close_now');
+  const minFee = BigInt(sp.minFee ?? 1000n);
+  return algosdk.makeApplicationNoOpTxnFromObject({
+    sender: signer,
+    appIndex: BigInt(appId),
+    appArgs: [method.getSelector(), algosdk.ABIType.from('uint64').encode(BigInt(poolId))],
+    boxes: [{ appIndex: BigInt(appId), name: poolBoxName(poolId) }],
+    suggestedParams: { ...sp, flatFee: true, fee: minFee },
   });
 }
 
@@ -113,19 +124,50 @@ export async function readHouse(appId) {
   }
 }
 
-// Read the pool box straight from the chain (for the judge page's vote count).
-// Only decodes when the ARC-56 struct definition is available; the backend's
-// copy of the numbers is the fallback.
+// Pool struct (contract v2, 289 bytes), field order = box layout. The ARC-56
+// JSON's struct is used when present; this is the fallback and the size check.
+export const POOL_FIELDS = [
+  ['num_outcomes', 'uint8'], ['status', 'uint8'], ['winner', 'uint8'],
+  ['close_ts', 'uint64'], ['resolve_by_ts', 'uint64'], ['finalized_ts', 'uint64'],
+  ['cap', 'uint64'], ['total', 'uint64'], ['fee', 'uint64'], ['paid_out', 'uint64'],
+  ['totals', 'uint64[8]'], ['signers', 'address[3]'], ['votes', 'uint8[3]'], ['meta_hash', 'byte[32]'],
+  ['num_signers', 'uint8'], ['threshold', 'uint8'], ['fee_receiver', 'address'], ['fee_paid', 'uint8'],
+].map(([name, type]) => ({ name, type }));
+export const POOL_BOX_SIZE = 289;
+
+const poolFields = () => ARC56?.structs?.Pool || POOL_FIELDS;
+const addrStr = (a) => (typeof a === 'string' ? a : a?.toString?.() ?? String(a));
+
+// Decode the raw pool box. Numbers: uint8 -> Number, uint64 -> BigInt;
+// addresses -> strings; fee_paid -> boolean. Throws on a wrong-size box
+// (e.g. a v1 contract's 288-byte struct) instead of misreading it.
+export function decodePoolBox(bytes) {
+  const fields = poolFields();
+  const tupleType = algosdk.ABIType.from(`(${fields.map((f) => f.type).join(',')})`);
+  if (bytes.length !== tupleType.byteLen()) throw new Error(`Pool box is ${bytes.length} bytes, expected ${tupleType.byteLen()}`);
+  const values = tupleType.decode(bytes);
+  const out = {};
+  fields.forEach((f, i) => {
+    let v = values[i];
+    if (f.type === 'address') v = addrStr(v);
+    else if (f.type === 'address[3]') v = Array.from(v, addrStr);
+    else if (f.type === 'uint8') v = Number(v);
+    else if (f.type === 'uint8[3]') v = Array.from(v, Number);
+    else if (f.type === 'uint64') v = BigInt(v);
+    else if (f.type === 'uint64[8]') v = Array.from(v, BigInt);
+    out[f.name] = v;
+  });
+  out.fee_paid = !!out.fee_paid;
+  return out;
+}
+
+// Read the pool box straight from the chain (judge page: vote count, status,
+// close time). The backend's copy of the numbers is the fallback.
 export async function readPoolBox(appId, poolId) {
-  const fields = ARC56?.structs?.Pool;
-  if (!fields || !appId) return null;
+  if (!appId) return null;
   try {
     const box = await algod().getApplicationBoxByName(BigInt(appId), poolBoxName(poolId)).do();
-    const tupleType = algosdk.ABIType.from(`(${fields.map((f) => f.type).join(',')})`);
-    const values = tupleType.decode(box.value);
-    const out = {};
-    fields.forEach((f, i) => { out[f.name] = values[i]; });
-    return out;
+    return decodePoolBox(box.value);
   } catch {
     return null;
   }
