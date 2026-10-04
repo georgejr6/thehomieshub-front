@@ -261,7 +261,7 @@ export default function FightPoolPage() {
 
   return (
     <div className="min-h-screen bg-[#07070a] text-white">
-      <div className="mx-auto w-full max-w-xl px-4 pb-28 pt-6 sm:pt-10">
+      <div className="mx-auto w-full max-w-xl px-4 pb-44 pt-6 sm:pt-10 md:pb-8">
         {generic ? <PoolHeader pool={pool} phase={phase} /> : <Header pool={pool} phase={phase} />}
         {poolError && <p className="mt-4 rounded-xl bg-white/5 p-3 text-center text-sm text-white/70">{poolError}</p>}
         {step < LAST && <StepProgress steps={STEPS.slice(0, LAST)} step={step} reachable={reachable} onJump={(i) => go(i)} />}
@@ -320,7 +320,7 @@ export default function FightPoolPage() {
       </div>
 
       {step < LAST && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#07070a]/95 backdrop-blur">
+        <div className="fixed inset-x-0 bottom-16 z-40 border-t border-white/10 bg-[#07070a]/95 backdrop-blur md:sticky md:bottom-0">
           <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
             {step > 0 && (
               <Button

@@ -526,14 +526,6 @@ const AppContent = React.memo(() => {
                 web app's own session, and mobile opens this in a fresh browser
                 context with no session of its own yet. */}
             <Route path="/pay" element={<PayPage />} />
-            {/* Fight sponsorship (Oct 29): fans back Mwosa in USDC via the DIGITVL x402 gateway (was /fight). */}
-            <Route path="/sponsor" element={<SponsorPage />} />
-            {/* Fight Pools: pari-mutuel USDC pools held by the HomiesPools contract, bets via x402 /bet. */}
-            <Route path="/fight" element={<FightPoolPage />} />
-            <Route path="/bets" element={<BetsPage />} />
-            <Route path="/bets/new" element={<ProposePoolPage />} />
-            <Route path="/bets/:id" element={<FightPoolPage />} />
-            <Route path="/bets/:id/judge" element={<JudgePoolPage />} />
 
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
@@ -570,6 +562,14 @@ const AppContent = React.memo(() => {
                 handleOpenPostModal={handleOpenPostModal}
             />}>
                 <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
+                {/* Inside MainLayout so the header/sidebar stay available. Fight sponsorship (Oct 29): fans back Mwosa in USDC via the DIGITVL x402 gateway (was /fight). */}
+                <Route path="/sponsor" element={<SponsorPage />} />
+                {/* Fight Pools: pari-mutuel USDC pools held by the HomiesPools contract, bets via x402 /bet. */}
+                <Route path="/fight" element={<FightPoolPage />} />
+                <Route path="/bets" element={<BetsPage />} />
+                <Route path="/bets/new" element={<ProposePoolPage />} />
+                <Route path="/bets/:id" element={<FightPoolPage />} />
+                <Route path="/bets/:id/judge" element={<JudgePoolPage />} />
                 <Route path="/browse" element={<HomePage onLoginRequest={handleLoginRequest} isImmersiveMode={isImmersiveMode} toggleImmersiveMode={() => setIsImmersiveMode(!isImmersiveMode)} />} />
                 <Route path="/memberships" element={<MembershipsPage />} />
                 <Route path="/consultation" element={<ConsultationPage />} />
