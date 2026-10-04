@@ -13,9 +13,12 @@
           { "/": "/chat/*" },
           { "/": "/points" },
           { "/": "/profile/*" },
-          { "/": "/u/*" }
+          { "/": "/u/*" },
+          { "/": "/shop/thanks", "exclude": true, "comment": "Stripe success page stays on the web" },
+          { "/": "/shop", "comment": "merch" },
+          { "/": "/shop/*" }
         ],
-        "paths": ["/join", "/join/*", "/live-stream/*", "/chat", "/chat/*", "/points", "/profile/*", "/u/*"]
+        "paths": ["/join", "/join/*", "/live-stream/*", "/chat", "/chat/*", "/points", "/profile/*", "/u/*", "NOT /shop/thanks", "/shop", "/shop/*"]
       }
     ]
   },

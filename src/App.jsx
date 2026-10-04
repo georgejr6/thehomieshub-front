@@ -83,6 +83,10 @@ const BetsPage = lazyWithReload(() => import('@/pages/BetsPage'));
 const ProposePoolPage = lazyWithReload(() => import('@/pages/ProposePoolPage'));
 const JudgePoolPage = lazyWithReload(() => import('@/pages/JudgePoolPage'));
 const AdminPools = lazyWithReload(() => import('@/pages/admin/AdminPools'));
+const AdminMerch = lazyWithReload(() => import('@/pages/admin/AdminMerch'));
+const ShopPage = lazyWithReload(() => import('@/pages/ShopPage'));
+const ShopProductPage = lazyWithReload(() => import('@/pages/ShopProductPage'));
+const ShopThanksPage = lazyWithReload(() => import('@/pages/ShopThanksPage'));
 import api from '@/api/homieshub';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -547,6 +551,7 @@ const AppContent = React.memo(() => {
             <Route path="/admin/push" element={user?.isAdmin ? <AdminRouteWrapper><AdminPushNotifications /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/banners" element={user?.isAdmin ? <AdminRouteWrapper><AdminBanners /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
             <Route path="/admin/pools" element={user?.isAdmin ? <AdminRouteWrapper><AdminPools /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
+            <Route path="/admin/merch" element={user?.isAdmin ? <AdminRouteWrapper><AdminMerch /></AdminRouteWrapper> : <Navigate to="/admin/dashboard" />} />
 
             {/* --- Main App Routes --- */}
             <Route element={<MainLayout 
@@ -575,6 +580,10 @@ const AppContent = React.memo(() => {
                 <Route path="/consultation" element={<ConsultationPage />} />
                 <Route path="/billing" element={user ? <BillingPage /> : <Navigate to="/?openAuth=1&tab=signin" />} />
                 <Route path="/marketplace" element={<MarketplacePage />} />
+                {/* Homies merch (Printful) — public, signed out too; lib/merch.js */}
+                <Route path="/shop" element={<ShopPage />} />
+                <Route path="/shop/thanks" element={<ShopThanksPage />} />
+                <Route path="/shop/:slug" element={<ShopProductPage />} />
                 <Route path="/purchases" element={user ? <PurchasesPage /> : <Navigate to="/" />} />
                 <Route path="/clips" element={user ? <MyClipsPage /> : <Navigate to="/" />} />
                 <Route path="/clips/:id" element={user ? <MyClipsPage /> : <Navigate to="/" />} />

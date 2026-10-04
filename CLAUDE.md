@@ -132,10 +132,21 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 | `/wagers` | `WagersPage.jsx` | Betting/wager system |
 | `/wallet/*` | `WalletIsolationMode.jsx` | Wallet mode (points balance, purchase, transactions). `pages/WalletPage.jsx` is NOT routed |
 | `/live` | `LivePage.jsx` | Live streaming |
+| `/shop`, `/shop/:slug`, `/shop/thanks` | `ShopPage.jsx`, `ShopProductPage.jsx`, `ShopThanksPage.jsx` | Homies merch (Printful) |
 
 ---
 
 ## Recent Changes Log
+
+### 2026-10-04 — Homies merch shop (/shop) + /admin/merch
+- Backend: homieshub-backend `routes/merch.js` + `utils/merch/` (Homies Hub Printful store, Stripe Checkout, order → Printful automatically, Printful webhook → tracking email).
+- `lib/merch.js`: API calls, cart (localStorage `hh_merch_cart_v1` via a tiny `useSyncExternalStore` store, try/catch on storage; holds variant id + qty + display snapshot only — the server re-prices at checkout), variant helpers (`optionsFor`/`findVariant`/`sizeAvailable`), `useMerchAvailable()` (one cached `GET /merch/products` per session: true only when enabled AND ≥1 product). Tests `lib/merch.test.js`.
+- Pages: `/shop` (`ShopPage.jsx`: grid, sold-out badge, "My orders" tab for signed-in via `GET /merch/orders/mine`, "coming soon" when the shop is off), `/shop/:slug` (`ShopProductPage.jsx`: gallery follows the picked variant, color/size pickers with unavailable combos disabled, qty, Buy now / Add to cart, Share = navigator.share or copy link `https://www.thehomies.app/shop/<slug>`), `/shop/thanks?session=` (`ShopThanksPage.jsx`: clears the cart, polls `GET /merch/orders/by-session/:id` every 2 s for 30 s). Cart drawer `components/merch/CartSheet.jsx`; a 409 at checkout reloads products.
+- `/shop` is public: added to MembershipWall OPEN + PUBLIC prefixes (signed out and non-members can buy). LocationGate unchanged (accounts verify once, like everywhere).
+- Nav: "Merch" in the Sidebar primary group (also the phone Menu drawer), only when `useMerchAvailable()`. MobileNav bottom bar unchanged (5 slots full).
+- `/admin/merch` (`pages/admin/AdminMerch.jsx`, AdminLayout Business → Merch): sync from Printful, hide/show + shop order per product, orders with status / Printful error / tracking, Retry for paid/failed, Register Printful webhook. Prices/variants are edited in Printful.
+- `public/.well-known/apple-app-site-association`: iOS app claims `/shop` + `/shop/*` (excluding `/shop/thanks`, the Stripe return page, which stays on the web).
+- vercel.json: `/shop/thanks` → SPA; `/shop/:slug` → backend `/og/shop/:slug` (SPA shell with product OG tags, same as `/music/:a/:s`), `?_direct=1` bypass.
 
 ### 2026-09-30 (night) — Chat now-playing pill, new push toggles, admin push campaigns, "Send as push"
 - **Now-playing pill** (`chat/NowPlayingPill.jsx`, logic in `lib/nowPlaying.js`) in the /chat header on sm+ (`variant="header"`), and as a slim row under the header on phones (`variant="bar"`, the phone header has no room): /chat renders outside the layouts that mount `<MusicPlayer/>`, so music kept playing with no controls. Shows only for a track actually loaded into the shared `<audio>` (`hasEnteredMediaMode` + audio `src`; the catalog's pre-selected first track doesn't count) and no video playing. ♪ Title · Artist (tap → `/song/:id`, which doesn't restart the current track), play/pause, ✕ hides it until a different track starts (sessionStorage `hh_chat_np_dismissed`).
