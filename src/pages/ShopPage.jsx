@@ -24,11 +24,14 @@ export function CartButton({ onClick }) {
   );
 }
 
-export default function ShopPage() {
+export default function ShopPage({ initialTab = 'shop', openCart = false }) {
   const { user } = useAuth();
   const [shop, setShop] = useState(null); // { enabled, products }
   const [error, setError] = useState(false);
-  const [cartOpen, setCartOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(openCart);
+  const [tab, setTab] = useState(initialTab);
+  useEffect(() => { setTab(initialTab); }, [initialTab]);
+  useEffect(() => { if (openCart) setCartOpen(true); }, [openCart]);
 
   const load = useCallback(() => {
     setError(false);
@@ -56,7 +59,7 @@ export default function ShopPage() {
         ) : !shop.enabled ? (
           <ComingSoon />
         ) : (
-          <Tabs defaultValue="shop">
+          <Tabs value={user ? tab : 'shop'} onValueChange={setTab}>
             {user && (
               <TabsList className="mb-6">
                 <TabsTrigger value="shop">Shop</TabsTrigger>

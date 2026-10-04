@@ -8,6 +8,8 @@
     { "source": "/song/:id",  "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
     { "source": "/music/:artist/:song", "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
     { "source": "/shop/thanks", "destination": "/index.html" },
+    { "source": "/shop/orders", "destination": "/index.html" },
+    { "source": "/shop/cart", "destination": "/index.html" },
     { "source": "/shop/:slug", "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
     { "source": "/watch/:id", "destination": "https://backend.thehomies.app/og/watch/:id" },
     { "source": "/post/:id",  "destination": "https://backend.thehomies.app/og/post/:id"  },

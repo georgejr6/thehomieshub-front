@@ -583,6 +583,8 @@ const AppContent = React.memo(() => {
                 {/* Homies merch (Printful) — public, signed out too; lib/merch.js */}
                 <Route path="/shop" element={<ShopPage />} />
                 <Route path="/shop/thanks" element={<ShopThanksPage />} />
+                <Route path="/shop/orders" element={<ShopPage initialTab="orders" />} />
+                <Route path="/shop/cart" element={<ShopPage openCart />} />
                 <Route path="/shop/:slug" element={<ShopProductPage />} />
                 <Route path="/purchases" element={user ? <PurchasesPage /> : <Navigate to="/" />} />
                 <Route path="/clips" element={user ? <MyClipsPage /> : <Navigate to="/" />} />

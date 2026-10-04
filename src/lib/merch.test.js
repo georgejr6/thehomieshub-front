@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   sanitizeCart, addLine, setLineQty, cartCount, cartSubtotal, checkoutItems, optionsFor, findVariant, sizeAvailable,
-  defaultVariant, variantLabel, usd, MAX_LINES, MAX_QTY,
+  defaultVariant, variantLabel, usd, MAX_LINES, MAX_QTY, pruneUnavailable, isStripeCheckoutUrl,
+  markCartCheckout, hasCartCheckoutMarker, clearCartCheckoutMarker,
 } from './merch';
 
 const line = (variantId, quantity = 1, extra = {}) => ({ variantId, quantity, name: `Item ${variantId}`, priceCents: 5500, ...extra });
@@ -75,5 +76,31 @@ describe('variants', () => {
     expect(variantLabel({ color: 'Black', size: 'L' })).toBe('Black / L');
     expect(variantLabel({ color: '', size: 'L' })).toBe('L');
     expect(usd(5500)).toBe('$55.00');
+  });
+});
+
+describe('checkout safety', () => {
+  it('pruneUnavailable keeps only variants that are still buyable', () => {
+    const products = [{ variants: [{ id: 1, available: true }, { id: 2, available: false }] }];
+    const { kept, removed } = pruneUnavailable([line(1), line(2), line(3)], products);
+    expect(kept.map((l) => l.variantId)).toEqual([1]);
+    expect(removed.map((l) => l.variantId)).toEqual([2, 3]);
+  });
+
+  it('only Stripe Checkout URLs are followed', () => {
+    expect(isStripeCheckoutUrl('https://checkout.stripe.com/c/pay/cs_test_x')).toBe(true);
+    expect(isStripeCheckoutUrl('https://evil.example/checkout.stripe.com/')).toBe(false);
+    expect(isStripeCheckoutUrl('https://checkout.stripe.com.evil.example/')).toBe(false);
+    expect(isStripeCheckoutUrl(undefined)).toBe(false);
+  });
+
+  it('cart-checkout marker is set, expires after a day, and clears', () => {
+    clearCartCheckoutMarker();
+    expect(hasCartCheckoutMarker()).toBe(false);
+    markCartCheckout();
+    expect(hasCartCheckoutMarker()).toBe(true);
+    expect(hasCartCheckoutMarker(Date.now() + 25 * 60 * 60 * 1000)).toBe(false);
+    clearCartCheckoutMarker();
+    expect(hasCartCheckoutMarker()).toBe(false);
   });
 });

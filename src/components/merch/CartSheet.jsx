@@ -4,23 +4,47 @@ import { Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { useMerchCart, usd, startCheckout, checkoutItems, merchError, MAX_QTY } from '@/lib/merch';
+import {
+  useMerchCart, usd, startCheckout, checkoutItems, merchError, MAX_QTY, fetchShop, pruneUnavailable,
+  markCartCheckout, clearCartCheckoutMarker,
+} from '@/lib/merch';
 
 // Merch cart drawer. Checkout = POST /merch/checkout → Stripe; the server
 // re-prices every line, so the subtotal here is only an estimate.
 export default function CartSheet({ open, onOpenChange, onUnavailable }) {
-  const { cart, subtotal, setQty, remove } = useMerchCart();
+  const { cart, subtotal, setQty, remove, replace } = useMerchCart();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
+  // 409 = something sold out or changed: take those lines out and say which.
+  const dropUnavailable = async () => {
+    try {
+      const shop = await fetchShop();
+      const { kept, removed } = pruneUnavailable(cart, shop?.products);
+      if (removed.length) {
+        replace(kept);
+        const names = removed.map((l) => `${l.name}${l.variant ? ` (${l.variant})` : ''}`).join(', ');
+        toast({ title: 'Removed from your cart', description: `No longer available: ${names}. Check out again when you're ready.`, variant: 'destructive' });
+        return;
+      }
+    } catch { /* fall through */ }
+    toast({ title: 'Checkout failed', description: 'Something in your cart changed. Refresh and try again.', variant: 'destructive' });
+  };
+
   const checkout = async () => {
     setBusy(true);
+    markCartCheckout();
     try {
       await startCheckout(checkoutItems(cart));
     } catch (err) {
+      clearCartCheckoutMarker();
       setBusy(false);
+      if (err?.response?.status === 409) {
+        await dropUnavailable();
+        onUnavailable?.();
+        return;
+      }
       toast({ title: 'Checkout failed', description: merchError(err, 'Could not start checkout. Try again.'), variant: 'destructive' });
-      if (err?.response?.status === 409) onUnavailable?.();
     }
   };
 

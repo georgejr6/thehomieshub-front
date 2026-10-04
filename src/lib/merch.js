@@ -9,6 +9,9 @@ export const SHOP_URL = 'https://www.thehomies.app/shop';
 export const MAX_LINES = 10;
 export const MAX_QTY = 10;
 
+export const SESSION_RE = /^cs_(test|live)_[A-Za-z0-9]{10,200}$/;
+export const isStripeCheckoutUrl = (u) => typeof u === 'string' && /^https:\/\/checkout\.stripe\.com\//.test(u);
+
 export const usd = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
 export const variantLabel = (v) => [v?.color, v?.size].filter(Boolean).join(' / ');
 export const merchError = (err, fallback = 'Something went wrong. Try again.') =>
@@ -89,6 +92,30 @@ export const cartCount = (cart) => cart.reduce((n, l) => n + l.quantity, 0);
 export const cartSubtotal = (cart) => cart.reduce((n, l) => n + l.quantity * (l.priceCents || 0), 0);
 export const checkoutItems = (cart) => cart.map(({ variantId, quantity }) => ({ variantId, quantity }));
 
+/** Splits cart lines into still-buyable and gone, given the current shop products. */
+export function pruneUnavailable(cart, products = []) {
+  const ok = new Set();
+  for (const p of products) for (const v of p.variants || []) if (v.available) ok.add(v.id);
+  return { kept: cart.filter((l) => ok.has(l.variantId)), removed: cart.filter((l) => !ok.has(l.variantId)) };
+}
+
+// Set when checkout starts from the CART (not Buy now): the thanks page clears
+// the cart only when this marker exists and the order is confirmed.
+const PENDING_KEY = 'hh_merch_cart_checkout';
+const PENDING_MAX_MS = 24 * 60 * 60 * 1000;
+export function markCartCheckout() {
+  try { localStorage.setItem(PENDING_KEY, String(Date.now())); } catch { /* private mode */ }
+}
+export function clearCartCheckoutMarker() {
+  try { localStorage.removeItem(PENDING_KEY); } catch { /* private mode */ }
+}
+export function hasCartCheckoutMarker(now = Date.now()) {
+  try {
+    const t = Number(localStorage.getItem(PENDING_KEY));
+    return Number.isFinite(t) && t > 0 && now - t < PENDING_MAX_MS;
+  } catch { return false; }
+}
+
 function readStored() {
   try { return sanitizeCart(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { return []; }
 }
@@ -116,6 +143,7 @@ export function useMerchCart() {
     add: (line) => { const r = addLine(getCart(), line); if (!r.error) writeCart(r.cart); return r.error; },
     setQty: (variantId, q) => writeCart(setLineQty(getCart(), variantId, q)),
     remove: (variantId) => writeCart(getCart().filter((l) => l.variantId !== variantId)),
+    replace: (next) => writeCart(sanitizeCart(next)),
     clear: () => writeCart([]),
   };
 }
@@ -127,7 +155,7 @@ export const fetchOrderBySession = (id) => api.get(`/merch/orders/by-session/${e
 export const fetchMyOrders = () => api.get('/merch/orders/mine').then((r) => r.data?.orders || []);
 export async function startCheckout(items) {
   const { data } = await api.post('/merch/checkout', { items });
-  if (!data?.url || !/^https:\/\//.test(data.url)) throw new Error('no checkout url');
+  if (!isStripeCheckoutUrl(data?.url)) throw new Error('no checkout url');
   window.location.href = data.url;
 }
 
