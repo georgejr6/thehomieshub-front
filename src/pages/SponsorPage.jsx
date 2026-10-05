@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Crown, ExternalLink, Flame, Loader2,
-  Shirt, Share2, Sparkles, Trophy, Zap,
+  Lock, Shirt, Share2, Sparkles, Trophy, Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,7 +17,10 @@ import FundStep from '@/components/onchain/FundStep';
 import WalletStep from '@/components/onchain/WalletStep';
 import AccountStep from '@/components/onchain/AccountStep';
 
-// thehomies.app/sponsor (was /fight until the fight pools took that URL) — back Mwosa's Oct 29 fight + the platform. Fans pay in
+// thehomies.app/sponsor (was /fight until the fight pools took that URL) — the fight purse for Mwosa's Oct 29 fight + the platform.
+// One pot with goals that unlock for everyone (backend FIGHT_PURSE_GOALS) and a
+// top-backers board. Separate from the fight pools: bets never feed it. Pool
+// winners may land here from an optional link (?amount=&src=pool). Fans pay in
 // USDC from their own Algorand wallet through the DIGITVL x402 gateway; the
 // backend (routes/fight.js) grants the perks once the payment settles.
 // Membership days per tier must match homieshub-backend utils/fightSupport.js.
@@ -65,11 +68,24 @@ export default function SponsorPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const draft = useMemo(loadDraft, []);
+  const [params] = useSearchParams();
+  // From the "send some of your winnings" link on a won fight bet.
+  const linked = useMemo(() => {
+    const a = params.get('amount') || '';
+    const ok = /^\d{1,3}(\.\d{1,2})?$/.test(a) && Number(a) >= 1 && Number(a) <= 500;
+    return { amount: ok ? a : '', source: params.get('src') === 'pool' ? 'pool_win' : '' };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const draft = useMemo(() => (linked.amount ? null : loadDraft()), [linked.amount]);
   const [step, setStep] = useState(draft?.step && draft.step < 6 && user ? Math.min(draft.step, 3) : 0);
   const [dir, setDir] = useState(1);
-  const [cents, setCents] = useState(draft?.cents || 2500);
-  const [custom, setCustom] = useState(draft?.custom || '');
+  const [cents, setCents] = useState(linked.amount ? Math.round(Number(linked.amount) * 100) : draft?.cents || 2500);
+  const [custom, setCustom] = useState(linked.amount || draft?.custom || '');
+  // A saved pool-win label only carries over mid-flow (sent off to sign in).
+  const [source] = useState(linked.source || (draft?.step >= 2 && draft?.source) || 'sponsor');
+  // Drop ?amount/&src once read, so a reload resumes from the draft instead.
+  useEffect(() => {
+    if (linked.amount || linked.source) navigate('/sponsor', { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [showOnWall, setShowOnWall] = useState(draft?.showOnWall ?? true);
   const [wallName, setWallName] = useState(draft?.wallName || '');
   const [hoodieName, setHoodieName] = useState(draft?.hoodieName || '');
@@ -88,9 +104,9 @@ export default function SponsorPage() {
     // Paid: never write the draft back (a reload would offer to pay again).
     if (step >= 6) return;
     try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ step, cents, custom, showOnWall, wallName, hoodieName, message }));
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ step, cents, custom, showOnWall, wallName, hoodieName, message, source }));
     } catch { /* private mode */ }
-  }, [step, cents, custom, showOnWall, wallName, hoodieName, message]);
+  }, [step, cents, custom, showOnWall, wallName, hoodieName, message, source]);
 
   const loadWall = useCallback(() => {
     api.get('/fight/wall').then((r) => setWall(r.data)).catch(() => {});
@@ -167,6 +183,7 @@ export default function SponsorPage() {
         wallName: wallName.trim(),
         hoodieName: tier?.hoodie && hoodieOpen ? hoodieName.trim() : '',
         message: message.trim(),
+        source,
       });
       const url = `${intent.gatewayUrl}/support?amount=${(cents / 100).toFixed(2)}&ref=${encodeURIComponent(intent.ref)}`;
       const { txId } = await payX402(url, { address: connectedWallet.address, signTransactions });
@@ -212,7 +229,7 @@ export default function SponsorPage() {
   };
 
   const share = async () => {
-    const text = `I'm backing Mwosa's ${FIGHT_DATE} fight. Get in his corner:`;
+    const text = `I just chipped in to Mwosa's ${FIGHT_DATE} fight purse. Get in his corner:`;
     const url = 'https://www.thehomies.app/sponsor';
     try {
       if (navigator.share) await navigator.share({ title: 'Back Mwosa', text, url });
@@ -250,6 +267,12 @@ export default function SponsorPage() {
     <div className="min-h-screen bg-[#07070a] text-white">
       <div className="mx-auto w-full max-w-xl px-4 pb-44 pt-6 sm:pt-10 md:pb-8">
         <Header wall={wall} />
+        {wall?.goals?.length > 0 && step === 0 && <Purse wall={wall} />}
+        {source === 'pool_win' && step === 0 && (
+          <p className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center text-sm text-emerald-300">
+            Congrats on the win. Sending some to the purse is optional and separate from your bet.
+          </p>
+        )}
         {step < 6 && <StepProgress steps={STEPS.slice(0, 6)} step={step} reachable={reachable} onJump={(i) => go(i)} />}
 
         <div className="relative mt-5">
@@ -307,6 +330,7 @@ export default function SponsorPage() {
           </AnimatePresence>
         </div>
 
+        {wall?.top?.length > 0 && step === 0 && <TopBackers top={wall.top} />}
         {wall?.wall?.length > 0 && step === 0 && <Wall wall={wall} />}
       </div>
 
@@ -349,12 +373,12 @@ function Header({ wall }) {
         Get in Mwosa&apos;s corner
       </h1>
       <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-white/70">
-        Back the fight and the platform behind it. Every supporter gets exclusive Homies access at a major discount — and the bigger tiers put your name on fight night.
+        Chip in to the fight purse. Every supporter gets exclusive Homies access at a major discount, the bigger tiers put your name on fight night, and every goal the purse hits unlocks something for everyone.
       </p>
       {wall && wall.payments > 0 && (
         <div className="mt-4 flex justify-center gap-6 text-sm">
           <div><span className="text-xl font-black text-white">{wall.supporters}</span> <span className="text-white/50">in his corner</span></div>
-          <div><span className="text-xl font-black text-white">${Math.round(wall.totalUsd)}</span> <span className="text-white/50">raised</span></div>
+          <div><span className="text-xl font-black text-white">${Math.round(wall.totalUsd)}</span> <span className="text-white/50">in the purse</span></div>
         </div>
       )}
     </div>
@@ -595,6 +619,58 @@ function DoneStep({ result, tier, cents, onShare, onHome }) {
 
       <Button onClick={onShare} className="h-12 w-full rounded-xl bg-white text-base font-bold text-black hover:bg-white/90"><Share2 className="mr-2 h-5 w-5" /> Bring your people</Button>
       <Button onClick={onHome} variant="ghost" className="h-12 w-full rounded-xl text-white/70 hover:bg-white/10 hover:text-white">Go to The Homies</Button>
+    </div>
+  );
+}
+
+// Purse progress toward the next goal, plus every goal and whether it's unlocked.
+function Purse({ wall }) {
+  const goals = wall.goals;
+  const nextGoal = goals.find((g) => !g.unlocked);
+  const prev = [...goals].reverse().find((g) => g.unlocked);
+  const from = prev?.usd || 0;
+  const to = nextGoal?.usd || from;
+  const pct = nextGoal ? Math.min(100, Math.max(0, ((wall.totalUsd - from) / (to - from)) * 100)) : 100;
+  return (
+    <Card className="mt-5 p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-bold uppercase tracking-wider text-white/50">Fight purse</span>
+        <span className="text-sm text-white/60">
+          <span className="text-lg font-black text-white">${Math.round(wall.totalUsd)}</span>
+          {nextGoal ? <> / ${nextGoal.usd}</> : ' · every goal hit'}
+        </span>
+      </div>
+      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+        <div className="h-full rounded-full bg-[#ff2d55] transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      {nextGoal && <p className="mt-2 text-xs text-white/60">${Math.max(0, Math.ceil(nextGoal.usd - wall.totalUsd))} more unlocks: <span className="font-semibold text-white">{nextGoal.label}</span></p>}
+      <ul className="mt-3 space-y-1.5">
+        {goals.map((g) => (
+          <li key={`${g.usd}-${g.label}`} className={cn('flex items-center gap-2 text-sm', g.unlocked ? 'text-white' : 'text-white/55')}>
+            {g.unlocked ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" /> : <Lock className="h-4 w-4 shrink-0 text-white/30" />}
+            <span className="w-14 shrink-0 font-bold">${g.usd}</span>
+            <span className="min-w-0">{g.label}</span>
+          </li>
+        ))}
+      </ul>
+      {wall.fromWinningsUsd > 0 && <p className="mt-3 text-xs text-white/40">${Math.round(wall.fromWinningsUsd)} of it sent by fight-pool winners.</p>}
+    </Card>
+  );
+}
+
+function TopBackers({ top }) {
+  return (
+    <div className="mt-10">
+      <h3 className="text-sm font-bold uppercase tracking-wider text-white/50">Top backers</h3>
+      <ol className="mt-3 space-y-1.5">
+        {top.map((t, i) => (
+          <li key={t.username} className="flex items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2">
+            <span className={cn('w-6 shrink-0 text-center text-sm font-black', i === 0 ? 'text-[#ffee58]' : 'text-white/40')}>{i + 1}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t.name}</span>
+            <span className="shrink-0 text-sm font-bold">${t.totalUsd % 1 ? t.totalUsd.toFixed(2) : t.totalUsd}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

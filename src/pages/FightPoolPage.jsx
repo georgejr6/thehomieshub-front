@@ -312,9 +312,9 @@ export default function FightPoolPage() {
           </AnimatePresence>
         </div>
 
-        {step < LAST && step <= 2 && user && myBets.length > 0 && <MyBets pool={pool} bets={myBets} />}
+        {step < LAST && step <= 2 && user && myBets.length > 0 && <MyBets pool={pool} bets={myBets} fight={!generic} />}
         <p className="mt-10 text-center text-xs text-white/35">
-          {!generic && <>Want to back the fight without betting? <Link to="/sponsor" className="underline hover:text-white/60">Sponsor Mwosa</Link>{' · '}</>}
+          {!generic && <>Want to back the fight without betting? <Link to="/sponsor" className="underline hover:text-white/60">Chip in to the fight purse</Link>{' · '}</>}
           <Link to="/bets" className="underline hover:text-white/60">All pools</Link>
         </p>
       </div>
@@ -630,7 +630,7 @@ function Row({ k, v }) {
 }
 
 // The signed-in user's bets on this pool with their payout status.
-export function MyBets({ pool, bets }) {
+export function MyBets({ pool, bets, fight = false }) {
   const phase = poolPhase(pool);
   return (
     <div className="mt-8">
@@ -671,7 +671,34 @@ export function MyBets({ pool, bets }) {
         })}
       </div>
       {phase === 'resolved' && <p className="mt-2 flex items-center gap-1 text-xs text-white/40"><ShieldCheck className="h-3.5 w-3.5" /> Payouts are sent by the contract automatically.</p>}
+      {fight && <PurseNudge pool={pool} bets={bets} phase={phase} />}
       {phase === 'cancelled' && <p className="mt-2 flex items-center gap-1 text-xs text-white/40"><Ban className="h-3.5 w-3.5" /> No result — everyone gets their full bet back.</p>}
     </div>
+  );
+}
+
+// After a win has been paid out: an optional link to send some of the winnings
+// to the fight purse. It's a separate payment on /sponsor. The pool contract
+// and payouts never touch the purse, and giving changes nothing about a bet.
+function PurseNudge({ pool, bets, phase }) {
+  if (phase !== 'resolved' && phase !== 'swept') return null;
+  // Net across all their bets: paid-out wins minus everything they put in.
+  // The API sends micro amounts as strings.
+  const confirmed = bets.filter((b) => b.status === 'confirmed');
+  const paid = confirmed.filter((b) => b.claimed && Number(pool.winner) === b.outcome);
+  if (!paid.length) return null;
+  const profitMicro = paid.reduce((sum, b) => sum + Number(b.payoutMicro || 0), 0)
+    - confirmed.reduce((sum, b) => sum + Number(b.amountMicro || 0), 0);
+  if (profitMicro < 2_000_000) return null; // up less than $2: don't ask
+  // 10% of what they won on top of their bet, whole dollars, $1 to $500.
+  const usdAmount = Math.min(500, Math.max(1, Math.round(profitMicro / 10_000_000)));
+  return (
+    <Card className="mt-4 p-4">
+      <div className="text-sm font-bold">You&apos;re up {usdFromMicro(profitMicro)} on this fight</div>
+      <p className="mt-1 text-sm text-white/60">Want to send some of it to Mwosa&apos;s fight purse? Totally optional, and it&apos;s a separate payment from the pool.</p>
+      <Link to={`/sponsor?amount=${usdAmount}&src=pool`} className="mt-3 inline-flex h-10 items-center rounded-xl bg-[#ff2d55] px-4 text-sm font-bold text-white hover:bg-[#ff2d55]/90">
+        Send ${usdAmount} to the purse
+      </Link>
+    </Card>
   );
 }
