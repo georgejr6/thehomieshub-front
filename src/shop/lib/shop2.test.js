@@ -127,3 +127,35 @@ describe('fonts + add-on sizes', async () => {
     expect(checkoutItems([line])[0].addons[0]).toMatchObject({ key: 'back', fontSize: 480 });
   });
 });
+
+describe('review round: print correctness', async () => {
+  const { clampToArea, rotatedBounds, validateDoc, fontsForPlacement, registerFonts, allFonts } = await import('@/shop/studio/model');
+  const { addonFontSize, embroideryMinFontSize, toCartAddons } = await import('@/shop/components/AddonsPanel');
+  const area = { width: 1800, height: 2400, dpi: 150 };
+  test('rotation-aware clamp keeps the rotated box inside the print area', () => {
+    const l = clampToArea({ id: 'r', type: 'image', x: 1500, y: 100, width: 600, height: 200, rotation: 45 }, area);
+    const b = rotatedBounds(l);
+    expect(b.minX).toBeGreaterThanOrEqual(-0.01); expect(b.maxX).toBeLessThanOrEqual(1800.01);
+    expect(b.minY).toBeGreaterThanOrEqual(-0.01); expect(b.maxY).toBeLessThanOrEqual(2400.01);
+    const big = clampToArea({ id: 'b', type: 'image', x: 0, y: 0, width: 3000, height: 3000, rotation: 30 }, area);
+    const bb = rotatedBounds(big);
+    expect(bb.maxX - bb.minX).toBeLessThanOrEqual(1800.5);
+  });
+  test('validateDoc flags a rotated layer poking out of the area', () => {
+    const blank = { placements: [{ key: 'front', label: 'Front', area }] };
+    const doc = { layers: { front: [{ id: 'x', type: 'image', x: 1650, y: 100, width: 300, height: 300, rotation: 45 }] } };
+    expect(validateDoc(doc, blank).join(' ')).toMatch(/outside the print area/);
+  });
+  test('embroidery: stitchable min size, safe fonts only, Medium sent by default', () => {
+    const emb = { key: 'embroidery_back', technique: 'EMBROIDERY', area: { width: 600, height: 300, dpi: 300 } };
+    expect(embroideryMinFontSize(emb.area)).toBe(105);
+    expect(addonFontSize(emb, 's', 'HI')).toBe(105);
+    registerFonts([{ key: 'pacifico', label: 'Pacifico', category: 'script', cssFamily: "'Pacifico', cursive", googleFamily: 'Pacifico', embroiderySafe: false }, { key: 'archivo', embroiderySafe: true, cssFamily: "'Archivo Black'" }]);
+    expect(fontsForPlacement(allFonts(), true).map((f) => f.key)).toEqual(['archivo']);
+    expect(fontsForPlacement(allFonts(), false).length).toBeGreaterThan(1);
+    registerFonts([]);
+    const back = { key: 'back', label: 'Back', technique: 'DTG', area: { width: 1800, height: 2400, dpi: 150 }, priceCents: 900 };
+    const r = toCartAddons([back], { back: { on: true, text: 'HI', color: '#FFFFFF' } }, []);
+    expect(r.addons[0].fontSize).toBe(addonFontSize(back, 'm', 'HI'));
+  });
+});

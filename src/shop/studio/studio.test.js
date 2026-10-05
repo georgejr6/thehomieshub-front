@@ -79,11 +79,13 @@ describe('studio model', () => {
     const out = serverLayers({
       front: [{ id: 'a', type: 'image', src: 'https://x/a.png', x: 1.4, y: 2.6, width: 100, height: 50, rotation: 0, naturalWidth: 2000, naturalHeight: 1000, name: 'a.png', junk: 1 }],
       back: [],
-      sleeve_left: [{ id: 'b', type: 'text', text: 'hi', font: 'bowlby', color: '#ffcc00', x: 0, y: 0, width: 10, height: 10, rotation: 12.345, fontSize: 40 }],
+      sleeve_left: [{ id: 'b', type: 'text', text: 'hi', font: 'marker', color: '#ffcc00', x: 0, y: 0, width: 10, height: 10, rotation: 12.345, fontSize: 40, align: 'left', letterSpacing: 6.4 }],
     });
     expect(Object.keys(out)).toEqual(['front', 'sleeve_left']);
     expect(out.front[0]).toEqual({ id: 'a', type: 'image', src: 'https://x/a.png', x: 1, y: 3, width: 100, height: 50, rotation: 0, naturalWidth: 2000, naturalHeight: 1000, name: 'a.png' });
-    expect(out.sleeve_left[0]).toMatchObject({ font: 'anton', color: '#FFCC00', rotation: 12.35, fontSize: 40 });
+    expect(out.sleeve_left[0]).toMatchObject({ font: 'marker', color: '#FFCC00', rotation: 12.35, fontSize: 40, align: 'left', letterSpacing: 6 });
+    // an unknown font is never swapped silently
+    expect(() => serverLayers({ front: [{ id: 'c', type: 'text', text: 'x', font: 'not_a_font', color: '#FFFFFF', x: 0, y: 0, width: 5, height: 5 }] })).toThrow(/Unknown font/);
   });
   test('embroidered and printed spots never mix', () => {
     const text = makeTextLayer(hoodie.placements[0], { text: 'HI', color: '#FFFFFF' });

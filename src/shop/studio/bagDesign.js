@@ -1,6 +1,7 @@
 import { usedPlacements, placementOf, serverLayers } from '@/shop/studio/model';
 import { exportPlacement, exportPreview } from '@/shop/studio/exporter';
 import { resolveTemplate } from '@/shop/studio/template';
+import { ensureFontRegistry } from '@/shop/studio/fonts';
 import { createDesign, updateDesign, uploadImage, savePrintfiles } from '@/shop/lib/api';
 
 // Everything "Add to bag" does for a custom design, shared by the Studio and
@@ -42,6 +43,7 @@ export async function makePreview(blank, color, doc) {
  * Returns the cart line (kind custom) to add. `originalId` also gets the preview.
  */
 export async function bagDesign({ blank, color, size, variant, doc, name, priceCents, originalId, onStep = () => {} }) {
+  await ensureFontRegistry(); // never let an unloaded font list turn a design's font into something else
   const frozen = { ...doc, layers: JSON.parse(JSON.stringify(doc.layers)) };
   const label = name && name !== 'Untitled design' ? name : `Custom ${blank.name}`;
   onStep('Saving your design');

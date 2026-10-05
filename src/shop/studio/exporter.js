@@ -17,7 +17,8 @@ export function registerLocalImage(remoteUrl, localUrl) {
 // DO Spaces and Printful's CDN send no CORS headers, so canvas loads go through
 // same-origin proxies (vercel.json + vite.config.js) to keep the canvas exportable.
 const SPACES_RE = /^https:\/\/homieshub-media\.nyc3\.(?:cdn\.)?digitaloceanspaces\.com\/merch\//;
-const PRINTFUL_RE = /^https:\/\/files\.cdn\.printful\.com\//;
+// Only the Printful paths templates/catalog images use are proxied (vercel.json /pf-cdn/m/*, /pf-cdn/products/*).
+const PRINTFUL_RE = /^https:\/\/files\.cdn\.printful\.com\/(?=(?:m|products)\/)/;
 export const canvasSrc = (src) => {
   const s = src || '';
   if (SPACES_RE.test(s)) return s.replace(SPACES_RE, '/merch-cdn/');
@@ -36,13 +37,22 @@ export function getImage(src) {
 export { loadFontCss } from '@/shop/lib/fontCss';
 export const fontSpec = (f, px = 64) => `${f.style === 'italic' ? 'italic' : 'normal'} ${weightOf(f)} ${px}px "${f.family}"`;
 
+/**
+ * Make sure every text layer's font is really loaded: stylesheet onload →
+ * document.fonts.load(spec) → document.fonts.check(spec). Throws a readable
+ * error instead of letting the canvas draw (or print!) with a fallback font.
+ */
 export async function ensureFonts(layers = []) {
   if (typeof document === 'undefined' || !document.fonts?.load) return;
   const keys = new Set(layers.filter((l) => l.type === 'text').map((l) => l.font));
-  await Promise.all([...keys].map((k) => {
+  await Promise.all([...keys].map(async (k) => {
     const f = fontByKey(k);
-    loadFontCssLocal(f.cssUrl);
-    return document.fonts.load(fontSpec(f)).catch(() => {});
+    const spec = fontSpec(f);
+    try {
+      await loadFontCssLocal(f.cssUrl);
+      await document.fonts.load(spec);
+    } catch { /* checked below */ }
+    if (!document.fonts.check(spec)) throw new Error(`The “${f.label}” font didn't load. Check your connection and try again.`);
   }));
 }
 

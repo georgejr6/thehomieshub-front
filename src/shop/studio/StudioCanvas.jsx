@@ -1,8 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Stage, Layer, Group, Rect, Line, Text, Path, Image as KImage, Transformer } from 'react-konva';
+import Konva from 'konva';
 import { Minus, Plus, Maximize2 } from 'lucide-react';
 import { textConfig, getImage, ensureFonts } from '@/shop/studio/exporter';
-import { clampToArea, isEmbroidery, clampText, fontByKey, weightOf } from '@/shop/studio/model';
+import { clampToArea, isEmbroidery, clampText, fontByKey, weightOf, resizeText } from '@/shop/studio/model';
 import { artScale } from '@/shop/studio/template';
 
 // The garment is the canvas: the template (Printful template image, the hat
@@ -13,6 +14,8 @@ import { artScale } from '@/shop/studio/template';
 // to zoom, drag the garment to pan when zoomed.
 
 const COARSE = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+// Keep hit-testing on while dragging, so a second finger (pinch) is seen mid-drag.
+Konva.hitOnDragEnabled = true;
 
 function useSize(ref) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -44,7 +47,8 @@ function ImageNode({ layer, common }) {
 function TextNode({ layer, common, onMeasure }) {
   const ref = useRef(null);
   const [fontsReady, setFontsReady] = useState(0);
-  useEffect(() => { ensureFonts([layer]).then(() => setFontsReady((n) => n + 1)); }, [layer.font]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Re-render (and re-measure) once the font is really loaded; a font that fails stays on the fallback until export refuses it.
+  useEffect(() => { ensureFonts([layer]).catch(() => {}).then(() => setFontsReady((n) => n + 1)); }, [layer.font]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const n = ref.current;
     if (!n) return;
@@ -153,8 +157,10 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
     const sx = n.scaleX(); const sy = n.scaleY();
     n.scale({ x: 1, y: 1 });
     if (l.type === 'text') {
-      const fontSize = Math.max(12, Math.round(l.fontSize * Math.max(sx, sy)));
-      update(l.id, { x: Math.round(n.x()), y: Math.round(n.y()), rotation: Math.round(n.rotation()), fontSize }, true);
+      // Same rules as the size slider: embroidery minimum, never bigger than the print area, kept inside it.
+      const k = Math.max(sx, sy);
+      const scaled = { ...l, x: n.x(), y: n.y(), rotation: Math.round(n.rotation()), width: l.width * k, height: l.height * k, fontSize: l.fontSize * k };
+      update(l.id, { ...resizeText(scaled, scaled.fontSize, pf, emb), rotation: scaled.rotation }, true);
     } else {
       const w = Math.max(20, Math.round(l.width * sx)); const h = Math.max(20, Math.round(l.height * sy));
       const c = clampToArea({ ...l, x: n.x(), y: n.y(), width: w, height: h }, pf);
@@ -176,25 +182,36 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
     const p = stageRef.current.getPointerPosition();
     zoomAt(e.evt.deltaY < 0 ? 1.1 : 1 / 1.1, p.x, p.y);
   };
+  // Pinch: move the stage directly (no React render per frame), commit the view on touchend.
   const onTouchMove = (e) => {
     const ts = e.evt.touches;
     if (ts.length !== 2) return;
     e.evt.preventDefault();
+    const stage = stageRef.current;
     const [a, b] = [ts[0], ts[1]];
     const rect = wrap.current.getBoundingClientRect();
     const c = { x: (a.clientX + b.clientX) / 2 - rect.left, y: (a.clientY + b.clientY) / 2 - rect.top };
     const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    Object.values(nodes.current).forEach((n) => n.isDragging?.() && n.stopDrag());
-    if (!pinch.current) { pinch.current = { d, c }; return; }
-    const factor = d / pinch.current.d;
+    if (!pinch.current) {
+      Object.values(nodes.current).forEach((n) => n.isDragging?.() && n.stopDrag());
+      if (stage.isDragging()) stage.stopDrag();
+      pinch.current = { d, c, view: { zoom: stage.scaleX(), x: stage.x(), y: stage.y() } };
+      return;
+    }
+    const v = pinch.current.view;
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * (d / pinch.current.d)));
+    const k = zoom / v.zoom;
     const dx = c.x - pinch.current.c.x; const dy = c.y - pinch.current.c.y;
-    pinch.current = { d, c };
-    setView((v) => {
-      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * factor));
-      if (zoom === MIN_ZOOM) return { zoom, x: 0, y: 0 };
-      const k = zoom / v.zoom;
-      return { zoom, x: c.x - (c.x - v.x) * k + dx, y: c.y - (c.y - v.y) * k + dy };
-    });
+    const next = zoom === MIN_ZOOM ? { zoom, x: 0, y: 0 } : { zoom, x: c.x - (c.x - v.x) * k + dx, y: c.y - (c.y - v.y) * k + dy };
+    pinch.current = { d, c, view: next };
+    stage.scale({ x: next.zoom, y: next.zoom });
+    stage.position({ x: next.x, y: next.y });
+    stage.batchDraw();
+  };
+  const onTouchEnd = () => {
+    const p = pinch.current;
+    if (p?.view) setView(p.view);
+    setTimeout(() => { pinch.current = null; }, 60);
   };
   // Tap on the garment: deselect, or (nothing selected) add text right where you tapped.
   const onBackgroundTap = (e) => {
@@ -210,7 +227,7 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
   const lineColor = darkGarment ? '#ffffff' : '#111111';
   const anchor = COARSE ? 18 : 11;
   return (
-    <div ref={wrap} className="relative h-full w-full touch-none select-none overflow-hidden" aria-label={`${placement.label} — design on the garment`} role="application">
+    <div ref={wrap} className="relative h-full w-full touch-none select-none overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f0b94d]/60" aria-label={`${placement.label} — design on the garment. Arrow keys move the selected layer.`} role="group" tabIndex={0}>
       {fit > 0 && (
         <Stage ref={stageRef} width={width} height={height}
           scaleX={view.zoom} scaleY={view.zoom} x={view.x} y={view.y}
@@ -218,7 +235,7 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
           onDragEnd={(e) => { if (e.target === e.target.getStage()) setView((v) => ({ ...v, x: e.target.x(), y: e.target.y() })); }}
           onWheel={onWheel}
           onTouchMove={onTouchMove}
-          onTouchEnd={() => { setTimeout(() => { pinch.current = null; }, 60); }}
+          onTouchEnd={onTouchEnd}
           onClick={onBackgroundTap} onTap={onBackgroundTap}>
           <Layer>
             <Group x={ox} y={oy} scaleX={fit} scaleY={fit}>
@@ -269,16 +286,17 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
               rotationSnapTolerance={4}
               keepRatio
               enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
-              anchorSize={anchor / view.zoom}
+              anchorSize={anchor}
               anchorCornerRadius={anchor}
               anchorStroke="#f0b94d"
               anchorStrokeWidth={1.5}
               anchorFill="#0a0a0b"
-              rotateAnchorOffset={(COARSE ? 28 : 22) / view.zoom}
+              rotateAnchorOffset={COARSE ? 28 : 22}
+              anchorStyleFunc={COARSE ? (an) => { an.hitStrokeWidth(24); } : undefined}
               borderStroke="#f0b94d"
               borderStrokeWidth={1.2}
               borderDash={[4, 3]}
-              padding={4 / view.zoom}
+              padding={4}
               ignoreStroke
               boundBoxFunc={(oldBox, newBox) => (Math.abs(newBox.width) < 14 || Math.abs(newBox.height) < 14 ? oldBox : newBox)}
             />

@@ -29,16 +29,34 @@ export const firstFamily = (stack) => String(stack || '').split(',')[0].trim().r
 export const googleCssUrl = (spec) => `https://fonts.googleapis.com/css2?family=${String(spec).trim().replace(/ /g, '+')}&display=swap`;
 /** Register server fonts: [{ key, label, category, cssFamily, googleFamily, weight, style }]. */
 export function registerFonts(list = []) {
+  noteEmbroiderySafe(list);
   const known = new Set(STUDIO_FONTS.map((f) => f.key));
   extraFonts = (Array.isArray(list) ? list : [])
     .map((f) => ({ ...f, family: f?.family || firstFamily(f?.cssFamily) || String(f?.googleFamily || '').split(':')[0] }))
     .filter((f) => f && FONT_KEY_RE.test(f.key || '') && f.family && !known.has(f.key))
     .map((f) => ({
       key: f.key, label: f.label || f.family, family: f.family, category: String(f.category || 'display').toLowerCase(),
-      cssUrl: f.cssUrl || googleCssUrl(f.googleFamily || f.family),
+      cssUrl: googleCssUrl(f.googleFamily || f.family),
       weight: f.weight, style: f.style === 'italic' ? 'italic' : undefined, upper: !!f.upper,
+      embroiderySafe: typeof f.embroiderySafe === 'boolean' ? f.embroiderySafe : undefined,
     }));
   return allFonts();
+}
+let serverSafe = null; // keys the server marks embroiderySafe (null = not sent yet)
+const EMB_FALLBACK = ['archivo', 'anton', 'bebas'];
+/** Fonts allowed on an embroidered spot: the server's `embroiderySafe` set, else heavy built-ins. */
+export function fontsForPlacement(fonts, embroidery) {
+  if (!embroidery) return fonts;
+  const flagged = fonts.filter((f) => typeof f.embroiderySafe === 'boolean');
+  const safe = flagged.length ? fonts.filter((f) => f.embroiderySafe === true || (serverSafe && serverSafe.has(f.key))) : fonts.filter((f) => EMB_FALLBACK.includes(f.key));
+  return safe.length ? safe : fonts.filter((f) => f.key === 'archivo');
+}
+export const isEmbroiderySafe = (key) => fontsForPlacement(allFonts(), true).some((f) => f.key === key);
+/** Record the server's embroiderySafe flags for the built-in keys too. */
+export function noteEmbroiderySafe(list = []) {
+  const flagged = (list || []).filter((f) => typeof f?.embroiderySafe === 'boolean');
+  serverSafe = flagged.length ? new Set(flagged.filter((f) => f.embroiderySafe).map((f) => f.key)) : null;
+  STUDIO_FONTS.forEach((f) => { f.embroiderySafe = serverSafe ? serverSafe.has(f.key) : undefined; });
 }
 /** Numeric CSS weight for a font entry ('bold' → 700). */
 export const weightOf = (f) => (f?.weight === 'bold' ? 700 : Number(f?.weight) || 400);
@@ -169,10 +187,29 @@ export function makeImageLayer(placement, { src, naturalWidth, naturalHeight, na
 }
 
 /** Keep a layer's box inside the printable area (unrotated bounds). */
+/** Axis-aligned bounds of a layer rotated about its top-left (Konva's origin). */
+export function rotatedBounds(l) {
+  const r = ((Number(l.rotation) || 0) * Math.PI) / 180;
+  const c = Math.cos(r); const s = Math.sin(r);
+  const pts = [[0, 0], [l.width, 0], [0, l.height], [l.width, l.height]].map(([px, py]) => [l.x + px * c - py * s, l.y + px * s + py * c]);
+  const xs = pts.map((p) => p[0]); const ys = pts.map((p) => p[1]);
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+}
+
+/** Keep a layer (rotation included) inside the printable area: shrink if it can't fit, then shift in. */
 export function clampToArea(layer, area) {
-  const w = Math.min(layer.width, area.width);
-  const h = Math.min(layer.height, area.height);
-  return { ...layer, width: w, height: h, x: Math.min(Math.max(0, layer.x), area.width - w), y: Math.min(Math.max(0, layer.y), area.height - h) };
+  let l = { ...layer };
+  let b = rotatedBounds(l);
+  const k = Math.min(1, area.width / Math.max(1e-6, b.maxX - b.minX), area.height / Math.max(1e-6, b.maxY - b.minY));
+  if (k < 1) {
+    l = { ...l, width: Math.floor(l.width * k), height: Math.floor(l.height * k) };
+    if (l.type === 'text' && l.fontSize > 0) l.fontSize = Math.max(1, Math.floor(l.fontSize * k));
+    b = rotatedBounds(l);
+  }
+  const dx = b.minX < 0 ? -b.minX : b.maxX > area.width ? area.width - b.maxX : 0;
+  const dy = b.minY < 0 ? -b.minY : b.maxY > area.height ? area.height - b.maxY : 0;
+  const round = (v) => Math.round(v * 1000) / 1000;
+  return { ...l, x: round(l.x + dx), y: round(l.y + dy) };
 }
 
 /** Snap a layer's centre to the area's centre lines within `threshold` px; returns { x, y, guides }. */
@@ -215,7 +252,8 @@ export function validateDoc(doc, blank) {
     }
     for (const l of layers) {
       if (l.type === 'text' && !String(l.text || '').trim()) issues.push(`${p.label}: a text layer is empty.`);
-      if (l.x < -1 || l.y < -1 || l.x + l.width > p.area.width + 1 || l.y + l.height > p.area.height + 1) issues.push(`${p.label}: something is outside the print area.`);
+      const b = rotatedBounds(l);
+      if (b.minX < -1 || b.minY < -1 || b.maxX > p.area.width + 1 || b.maxY > p.area.height + 1) issues.push(`${p.label}: something is outside the print area.`);
     }
   }
   return [...new Set(issues)];
@@ -252,8 +290,12 @@ export function serverLayer(l) {
     if (l.naturalWidth > 0 && l.naturalHeight > 0) { out.naturalWidth = num(l.naturalWidth); out.naturalHeight = num(l.naturalHeight); }
     return out;
   }
-  const out = { ...base, text: clampText(l.text), font: isFontKey(l.font) ? l.font : 'anton', color: String(l.color || '#FFFFFF').toUpperCase() };
+  // Never swap a font silently — an unknown key means the font list isn't loaded (or is wrong).
+  if (!isFontKey(l.font)) throw new Error(`Unknown font “${l.font}”. Reload the page and try again.`);
+  const out = { ...base, text: clampText(l.text), font: l.font, color: String(l.color || '#FFFFFF').toUpperCase() };
   if (l.fontSize > 0) out.fontSize = Math.min(5000, Math.max(1, num(l.fontSize)));
+  out.align = TEXT_ALIGNS.includes(l.align) ? l.align : 'center';
+  out.letterSpacing = Math.round(Number(l.letterSpacing) || 0);
   return out;
 }
 export const serverLayers = (layers = {}) => Object.fromEntries(

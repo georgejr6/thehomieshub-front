@@ -32,14 +32,24 @@ export const INK_COLORS = [
 ];
 // Text size for an add-on, as a share of its print area's height (server: fontSize 8–5000 printfile px).
 export const ADDON_SIZES = [{ key: 's', label: 'Small', f: 0.12 }, { key: 'm', label: 'Medium', f: 0.2 }, { key: 'l', label: 'Large', f: 0.3 }];
+/** Embroidered letters must be ≥ ¼" tall (cap height ≈ 0.72 em) → minimum font size in printfile px. */
+export const embroideryMinFontSize = (area) => Math.ceil((0.25 * (Number(area?.dpi) || 300)) / 0.72);
 export function addonFontSize(addon, sizeKey, text = '') {
   const step = ADDON_SIZES.find((x) => x.key === sizeKey);
   const h = Number(addon?.area?.height);
   if (!step || !h) return undefined;
   const lines = Math.max(1, String(text).split('\n').length);
-  return Math.min(5000, Math.max(8, Math.round((h * step.f) / Math.sqrt(lines))));
+  const min = isEmbroidery(addon) ? embroideryMinFontSize(addon.area) : 8;
+  return Math.min(5000, Math.max(min, Math.round((h * step.f) / Math.sqrt(lines))));
 }
 let extraAddonFonts = [];
+let safeKeys = null; // server's embroiderySafe keys (null until it sends the flag)
+const EMB_FALLBACK = ['archivo', 'anton', 'bebas'];
+/** Embroidered add-ons only offer stitch-friendly fonts. */
+export const embroideryFonts = (list) => {
+  const ok = list.filter((f) => (safeKeys ? safeKeys.has(f.key) : EMB_FALLBACK.includes(f.key)));
+  return ok.length ? ok : list.filter((f) => f.key === 'archivo');
+};
 /** The full shared font list (GET /merch/fonts) after the 7 self-hosted ones. */
 function useAddonFonts(active) {
   const [list, setList] = useState(() => [...TEXT_FONTS, ...extraAddonFonts]);
@@ -49,11 +59,12 @@ function useAddonFonts(active) {
     fetchFonts().then((fonts) => {
       if (!alive || !fonts?.length) return;
       const known = new Set(TEXT_FONTS.map((f) => f.key));
+      const flagged = fonts.some((f) => typeof f?.embroiderySafe === 'boolean');
+      safeKeys = flagged ? new Set(fonts.filter((f) => f.embroiderySafe).map((f) => f.key)) : null;
       extraAddonFonts = fonts.filter((f) => f?.key && !known.has(f.key)).map((f) => ({
         key: f.key, label: f.label || firstFamily(f.cssFamily), css: f.cssFamily || `'${firstFamily(f.cssFamily)}'`,
         italic: f.style === 'italic', weight: Number(f.weight) || 400, cssUrl: googleCssUrl(f.googleFamily || firstFamily(f.cssFamily)),
       }));
-      extraAddonFonts.forEach((f) => loadFontCss(f.cssUrl));
       setList([...TEXT_FONTS, ...extraAddonFonts]);
     });
     return () => { alive = false; };
@@ -75,6 +86,11 @@ export function defaultColor(palette, darkGarment) {
 export default function AddonsPanel({ addons = [], value, onChange, threadColors = [], garmentHex = '#f5f5f2', darkGarment = false, highlight = false }) {
   const anyOn = addons.some((a) => value?.[a.key]?.on);
   const fonts = useAddonFonts(anyOn);
+  // Only the fonts actually picked are downloaded (the chips fall back until chosen).
+  const picked = addons.map((a) => (value?.[a.key]?.on ? value[a.key].font : null)).filter(Boolean).join(',');
+  useEffect(() => {
+    picked.split(',').filter(Boolean).forEach((k) => { const f = fonts.find((x) => x.key === k); if (f?.cssUrl) loadFontCss(f.cssUrl).catch(() => {}); });
+  }, [picked, fonts]);
   if (!addons.length) return null;
   const set = (key, patch) => onChange({ ...value, [key]: { ...(value[key] || {}), ...patch } });
   return (
@@ -89,7 +105,8 @@ export default function AddonsPanel({ addons = [], value, onChange, threadColors
         const palette = emb ? threadColors.map((t) => ({ hex: t.hex.toUpperCase(), label: t.name || t.hex })) : INK_COLORS;
         const unavailable = emb && !palette.length;
         const color = v.color || defaultColor(palette, darkGarment);
-        const font = fontOf(v.font || (emb ? 'archivo' : 'anton'), fonts);
+        const choices = emb ? embroideryFonts(fonts) : fonts;
+        const font = fontOf(v.font && choices.some((f) => f.key === v.font) ? v.font : (emb ? 'archivo' : 'anton'), choices);
         return (
           <div key={a.key} className={cn('overflow-hidden rounded-2xl border transition-colors', v.on ? 'border-white/30 bg-white/[0.04]' : 'border-white/10', unavailable && 'opacity-50')}>
             <button type="button" aria-expanded={!!v.on} disabled={unavailable} onClick={() => set(a.key, { on: !v.on, color, font: v.font || (emb ? 'archivo' : 'anton') })}
@@ -126,7 +143,7 @@ export default function AddonsPanel({ addons = [], value, onChange, threadColors
                       <div>
                         <p className="mb-1.5 text-xs font-semibold text-white/60">Font <span className="font-normal text-white/35">· {font.label}</span></p>
                         <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-                          {fonts.map((f) => (
+                          {choices.map((f) => (
                             <button key={f.key} type="button" aria-pressed={font.key === f.key} onClick={() => set(a.key, { font: f.key })}
                               className={cn('h-10 shrink-0 rounded-xl border px-3 text-[15px]', font.key === f.key ? 'border-white bg-white text-black' : 'border-white/12 text-white/80')}
                               style={{ fontFamily: f.css, fontStyle: f.italic ? 'italic' : 'normal', fontWeight: f.weight || 400, textTransform: f.upper ? 'uppercase' : 'none' }}>{f.label}</button>
@@ -184,8 +201,12 @@ export function toCartAddons(addons = [], value = {}, threadColors = [], darkGar
     const palette = emb ? threadColors.map((t) => ({ hex: String(t.hex).toUpperCase() })) : INK_COLORS;
     const color = (v.color || defaultColor(palette, darkGarment) || '').toUpperCase();
     if (!/^#[0-9A-F]{6}$/.test(color)) return { addons: [], error: `Pick a colour for “${a.label}”.` };
-    const fontSize = v.size ? addonFontSize(a, v.size, text) : (Number.isInteger(v.fontSize) ? v.fontSize : undefined);
-    out.push({ key: a.key, label: a.label, text, font: v.font || (emb ? 'archivo' : 'anton'), color, ...(fontSize ? { fontSize } : {}), priceCents: a.priceCents || 0 });
+    // Untouched size = Medium (what the preview shows), so the print matches.
+    const fontSize = addonFontSize(a, v.size || (Number.isInteger(v.fontSize) ? '' : 'm'), text) ?? (Number.isInteger(v.fontSize) ? v.fontSize : undefined);
+    const all = [...TEXT_FONTS, ...extraAddonFonts];
+    const allowed = emb ? embroideryFonts(all) : all;
+    const fontKey = v.font && allowed.some((f) => f.key === v.font) ? v.font : (emb ? 'archivo' : 'anton');
+    out.push({ key: a.key, label: a.label, text, font: fontKey, color, ...(fontSize ? { fontSize } : {}), priceCents: a.priceCents || 0 });
   }
   return { addons: out, error: null };
 }

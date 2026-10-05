@@ -253,7 +253,7 @@ export default defineConfig({
 		proxy: {
 			'/merch-cdn': { target: 'https://homieshub-media.nyc3.cdn.digitaloceanspaces.com', changeOrigin: true, rewrite: (p) => p.replace(/^\/merch-cdn/, '/merch') },
 			// Printful garment templates have no CORS either (Studio canvas + previews).
-			'/pf-cdn': { target: 'https://files.cdn.printful.com', changeOrigin: true, rewrite: (p) => p.replace(/^\/pf-cdn/, '') },
+			'^/pf-cdn/(m|products)/': { target: 'https://files.cdn.printful.com', changeOrigin: true, rewrite: (p) => p.replace(/^\/pf-cdn/, '') },
 		},
 	},
 	resolve: {

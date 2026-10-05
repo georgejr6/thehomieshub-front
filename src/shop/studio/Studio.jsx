@@ -12,7 +12,7 @@ import { ShopButton, Swatch, Pill, Tip, Skeleton, ShopImage, useFocusTrap } from
 import StudioCanvas from '@/shop/studio/StudioCanvas';
 import useHistory from '@/shop/studio/useHistory';
 import {
-  INKS, threadsOf, allFonts, registerFonts, filterFonts, fontByKey, weightOf, FONT_CATEGORIES, newDoc, placementOf, usedPlacements, defaultInk, defaultThread, makeTextLayer, makeImageLayer,
+  INKS, threadsOf, allFonts, fontsForPlacement, filterFonts, fontByKey, weightOf, FONT_CATEGORIES, newDoc, placementOf, usedPlacements, defaultInk, defaultThread, makeTextLayer, makeImageLayer,
   isEmbroidery, validateDoc, clampToArea, clampText, withFontSize, TEXT_MAX, TEXT_MAX_LINES,
   placementAllowed, techniqueOf, serverLayers, resizeText, textSizeRange, twoLines,
 } from '@/shop/studio/model';
@@ -20,11 +20,12 @@ import { registerLocalImage, getImage, canvasSrc, loadFontCss } from '@/shop/stu
 import { resolveTemplate, garmentThumb } from '@/shop/studio/template';
 import GarmentSilhouette from '@/shop/components/GarmentSilhouette';
 import { bagDesign, renderPrintfiles as renderFiles } from '@/shop/studio/bagDesign';
+import { ensureFontRegistry } from '@/shop/studio/fonts';
 import { effectiveDpi, dpiStatus, DPI_COPY, inchesLabel } from '@/shop/lib/dpi';
 import { customPriceCents, placementIncluded, usd, addonDelta } from '@/shop/lib/pricing';
 import { createAutosaver } from '@/shop/lib/autosave';
 import {
-  validateUpload, uploadImage, uploadHouseArt, loadImage, createDesign, updateDesign, fetchDesign, fetchDesignFromProduct, fetchFonts, requestMockup, pollMockup, apiError,
+  validateUpload, uploadImage, uploadHouseArt, loadImage, createDesign, updateDesign, fetchDesign, fetchDesignFromProduct, requestMockup, pollMockup, apiError,
 } from '@/shop/lib/api';
 import { artUrl, lookupSlug, displayName } from '@/shop/lib/catalog';
 import { DESIGNS } from '@/shop/data/designs';
@@ -152,7 +153,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
   const price = customPriceCents(blank, used, variant);
   const allowed = placementAllowed(doc, blank, placement);
   const template = useMemo(() => resolveTemplate(blank, color.name, placement.key), [blank, color.name, placement.key]);
-  useEffect(() => { fetchFonts().then((list) => { if (list?.length) setFonts(registerFonts(list)); }); }, []);
+  useEffect(() => { ensureFontRegistry().then(setFonts); }, []);
 
   // ── autosave: local copy immediately, server after 5 s (only the fields that changed) ──
   const saverRef = useRef(null);
@@ -166,6 +167,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
         else if (st === 'saved' || st === 'dirty') setSaveError('');
       },
       save: async (state) => {
+        await ensureFontRegistry(); // font keys must be known before serverLayers()
         const snap = snapshotOf(state.name, state.doc);
         const id = designIdRef.current;
         if (id) {
@@ -226,6 +228,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
     let alive = true;
     if (id) {
       (async () => {
+        await ensureFontRegistry();
         const d = await fetchDesign(id);
         if (!alive || !d) return;
         const b = blanks.find((x) => x.key === d.blankKey) || blanks[0];
@@ -248,6 +251,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
       })().catch(() => notify("Couldn't open that design.", 'error'));
     } else if (init.product) {
       (async () => {
+        await ensureFontRegistry();
         setBusy({ label: 'Setting up your piece' });
         const server = await fetchDesignFromProduct(init.product, { color: init.color, size: init.size }).catch(() => null);
         if (!alive) return;
@@ -438,6 +442,17 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
   };
   const setColor = (n) => { dirty.current = true; setLive(null); history.commit((s) => ({ ...s, color: n })); };
 
+  // Esc: deselect first (capture phase, so the Studio overlay doesn't close on the same press).
+  useEffect(() => {
+    const onEsc = (e) => {
+      if (e.key !== 'Escape' || !selectedId || isTyping(e.target) || modalOpen()) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      setSelectedId(null);
+    };
+    window.addEventListener('keydown', onEsc, true);
+    return () => window.removeEventListener('keydown', onEsc, true);
+  }, [selectedId]);
+
   // ── keyboard shortcuts (never while typing or with a dialog open) ──
   useEffect(() => {
     const onKey = (e) => {
@@ -448,7 +463,6 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
       if (mod && k === 'y') { e.preventDefault(); setLive(null); history.redo(); return; }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); removeSelected(); }
       if (mod && k === 'd' && selected) { e.preventDefault(); duplicateSelected(); }
-      if (e.key === 'Escape') setSelectedId(null);
       if (selected && e.key.startsWith('Arrow')) {
         e.preventDefault();
         const unit = Math.max(1, Math.round(placement.area.width / 360)); // ≈ 1 screen px
@@ -508,7 +522,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
   const panels = {
     add: <AddPanel onText={() => addText()} onUpload={() => (guardPlacement() ? fileInput.current?.click() : null)} onHomies={() => (guardPlacement() ? setPicker(true) : null)} embroidery={isEmbroidery(placement)} blocked={!allowed} />,
     layers: <LayersPanel layers={layers} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setMobileTab('edit'); }} onMove={moveLayer} onDelete={(id) => { commitLayers((cur) => cur.filter((l) => l.id !== id)); if (id === selectedId) setSelectedId(null); }} />,
-    edit: <EditPanel layer={selected} placement={placement} threads={threads} fonts={fonts} onPatch={patchSelected} onDelete={removeSelected} onDuplicate={duplicateSelected} onCenter={center} />,
+    edit: <EditPanel layer={selected} placement={placement} threads={threads} fonts={fontsForPlacement(fonts, isEmbroidery(placement))} onPatch={patchSelected} onDelete={removeSelected} onDuplicate={duplicateSelected} onCenter={center} />,
     product: <ProductPanel blanks={blanks} blank={blank} color={color} size={size} onBlank={switchBlank} onColor={setColor} onSize={setSize} onMockup={() => setMockupOpen(true)} />,
   };
 

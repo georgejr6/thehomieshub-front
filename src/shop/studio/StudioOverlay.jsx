@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, X, Wand2 } from 'lucide-react';
 import { useShop } from '@/shop/ShopContext';
+import { useFocusTrap } from '@/shop/components/ui';
 
 // Desktop: "Customize" opens the Studio right over the page (no route change,
 // the page and bag stay put). Esc or ✕ closes it; the design autosaves on close.
@@ -14,6 +15,7 @@ export default function StudioOverlay() {
   const { studioOverlay: init, closeStudio, openCart } = useShop();
   const panel = useRef(null);
   const restore = useRef(null);
+  useFocusTrap(!!init, panel);
 
   useEffect(() => {
     if (!init) return undefined;
@@ -27,7 +29,6 @@ export default function StudioOverlay() {
       closeStudio();
     };
     window.addEventListener('keydown', onKey);
-    setTimeout(() => panel.current?.querySelector('[data-autofocus]')?.focus(), 50);
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;

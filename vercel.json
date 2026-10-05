@@ -22,11 +22,26 @@
     { "source": "/music/:artist/:song", "destination": "https://backend.thehomies.app/og/music/:artist/:song" },
     { "source": "/shop/:slug", "destination": "https://backend.thehomies.app/og/shop/:slug" },
     { "source": "/merch-cdn/:path*", "destination": "https://homieshub-media.nyc3.cdn.digitaloceanspaces.com/merch/:path*" },
-    { "source": "/pf-cdn/:path*", "destination": "https://files.cdn.printful.com/:path*" },
+    { "source": "/pf-cdn/m/:path*", "destination": "https://files.cdn.printful.com/m/:path*" },
+    { "source": "/pf-cdn/products/:path*", "destination": "https://files.cdn.printful.com/products/:path*" },
     { "source": "/sitemap.xml", "destination": "https://backend.thehomies.app/og/sitemap.xml" },
     { "source": "/((?!\\.well-known/).*)", "destination": "/index.html" }
   ],
   "headers": [
+    {
+      "source": "/pf-cdn/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Content-Security-Policy", "value": "default-src 'none'; sandbox" }
+      ]
+    },
+    {
+      "source": "/merch-cdn/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Content-Security-Policy", "value": "default-src 'none'; sandbox" }
+      ]
+    },
     {
       "source": "/.well-known/apple-app-site-association",
       "headers": [
