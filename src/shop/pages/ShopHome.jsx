@@ -8,7 +8,7 @@ import { useShop } from '@/shop/ShopContext';
 import { ShopButton, Eyebrow } from '@/shop/components/ui';
 import { FamilyCard, ProductCard, CardSkeleton } from '@/shop/components/ProductCard';
 import GarmentSilhouette from '@/shop/components/GarmentSilhouette';
-import { COLLECTIONS, CUSTOM_FILTERS, families, filterProducts, productImage, kindOf, KINDS, displayColor } from '@/shop/lib/catalog';
+import { COLLECTIONS, CUSTOM_FILTERS, families, hashOf, filterProducts, productImage, kindOf, KINDS, displayColor } from '@/shop/lib/catalog';
 import { resolveTemplate } from '@/shop/studio/template';
 
 const HERO_IDS = ['gringo-go-home', 'colombia-gt-brazil', 'dame-plata-baby', 'i-love-latinas', 'not-a-pookie', 'if-she-thick'];
@@ -109,7 +109,8 @@ function Hero({ fams, loading }) {
     const out = [];
     const order = [...fams.filter((f) => HERO_IDS.includes(f.design?.id)), ...fams.filter((f) => !HERO_IDS.includes(f.design?.id))];
     for (const f of order) {
-      const p = KINDS.map((k) => f.products[k]).find((x) => x && productImage(x));
+      const ready = KINDS.map((k) => f.products[k]).filter((x) => x && productImage(x));
+      const p = ready[hashOf(f.key) % Math.max(1, ready.length)];
       if (p) out.push({ key: f.key, phrase: f.phrase, slug: p.slug, src: productImage(p, kindOf(p) === 'hat' ? '' : displayColor(p)) });
       if (out.length >= 6) break;
     }

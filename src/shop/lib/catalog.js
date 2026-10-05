@@ -73,11 +73,24 @@ export function productImage(product, color) {
   return cands.find(lasting) || cands.find(good) || '';
 }
 
-/** Default colour to show a product in: White/Black if they have a render, else the first colour with one. */
+/** Stable small hash of a string, so a card always picks the same look. */
+export function hashOf(str) {
+  let h = 0;
+  for (const ch of String(str || '')) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(h);
+}
+
+/** Default colour to show a product in: varies across the shop (about half dark,
+ *  half light) but is stable per product; only colours with their own render. */
 export function displayColor(product) {
   const vs = product?.variants || [];
-  for (const c of ['White', 'Black']) if (vs.some((v) => v.color === c && good(v.image))) return c;
-  return vs.find((v) => good(v.image))?.color || vs[0]?.color || '';
+  const colors = [...new Set(vs.filter((v) => good(v.image)).map((v) => v.color))];
+  if (!colors.length) return vs[0]?.color || '';
+  const h = hashOf(product?.slug || product?.name);
+  const dark = colors.filter((c) => !isLightColor(c));
+  const light = colors.filter((c) => isLightColor(c));
+  const pool = (h % 2 ? dark : light).length ? (h % 2 ? dark : light) : colors;
+  return pool[Math.floor(h / 2) % pool.length];
 }
 
 /** The opposite colourway's own image (hover swap), or ''. */

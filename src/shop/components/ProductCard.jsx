@@ -4,7 +4,7 @@ import { PenLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ShopImage } from '@/shop/components/ui';
 import {
-  KIND_LABEL, KINDS, productImage, productAltImage, displayName, kindOf, colorHex, displayColor, customizeKeys, CUSTOM_LABEL,
+  KIND_LABEL, KINDS, hashOf, productImage, productAltImage, displayName, kindOf, colorHex, displayColor, customizeKeys, CUSTOM_LABEL,
 } from '@/shop/lib/catalog';
 import { usd } from '@/shop/lib/pricing';
 import { useShop } from '@/shop/ShopContext';
@@ -61,7 +61,9 @@ function CardShell({ to, studio, img, alt, altImg, fallback, title, sub, price, 
 /** A design family (tee / hoodie / hat of one phrase). Leads with the first garment whose render is ready. */
 export function FamilyCard({ family, className, priority = false }) {
   const list = KINDS.map((k) => family.products[k]).filter(Boolean);
-  const lead = list.find((p) => productImage(p)) || list[0];
+  // lead garment rotates per design so the grid mixes tees, hoodies and hats
+  const ready = list.filter((p) => productImage(p));
+  const lead = ready.length ? ready[hashOf(family.key) % ready.length] : list[0];
   const kind = kindOf(lead);
   const color = kind === 'hat' ? '' : displayColor(lead);
   const keys = [...new Set(list.flatMap(customizeKeys))];
