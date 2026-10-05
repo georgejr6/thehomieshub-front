@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { fetchProduct } from '@/lib/merch';
 import AddonsPanel, { toCartAddons, fromCartAddons } from '@/shop/components/AddonsPanel';
 import { kindOf, colorHex, isLightColor } from '@/shop/lib/catalog';
-import { ArrowLeft, ArrowRight, Check, Lock, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Lock, ShieldCheck, Sparkles, Eye, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { markCartCheckout, clearCartCheckoutMarker } from '@/lib/merch';
 import { useShop } from '@/shop/ShopContext';
@@ -13,17 +13,23 @@ import { ShopButton, Tip, ShopImage, useFocusTrap } from '@/shop/components/ui';
 import CartLine from '@/shop/components/CartLine';
 import { subtotalCents, lineTotalCents, usd } from '@/shop/lib/pricing';
 import { needsApproval, checkoutItems, pruneUnavailable, cartCount, MAX_ORDER_ITEMS } from '@/shop/lib/cart';
-import { startCheckout, apiError } from '@/shop/lib/api';
+import { startCheckout, apiError, fetchOffers } from '@/shop/lib/api';
+import DesignPreviewDialog from '@/shop/components/DesignPreviewDialog';
+import CompleteTheLook from '@/shop/components/CompleteTheLook';
 
 const STEPS = [{ key: 'cart', label: 'Bag' }, { key: 'review', label: 'Review' }, { key: 'pay', label: 'Pay' }];
 
 export default function ShopCart() {
-  const { cart, notify, reload } = useShop();
+  const { cart, notify, reload, signedIn } = useShop();
   const [params, setParams] = useSearchParams();
   const step = params.get('step') === 'review' && cart.cart.length ? 'review' : 'cart';
   const [agree, setAgree] = useState(false);
   const [paying, setPaying] = useState(false);
   const [editing, setEditing] = useState(null); // cart line whose add-ons are being edited
+  const [previewing, setPreviewing] = useState(null); // custom line shown big ("Your design")
+  const [offer, setOffer] = useState(null); // { discountCents, pointsCost, bundleMinItems, points }
+  const [usePoints, setUsePoints] = useState(false);
+  useEffect(() => { fetchOffers().then(setOffer).catch(() => setOffer(null)); }, [signedIn]);
   // A marker left by an earlier, abandoned checkout must not empty the bag later.
   useEffect(() => { clearCartCheckoutMarker(); }, []);
   // The final-sale confirmation is for exactly this bag: any change resets it.
@@ -31,6 +37,10 @@ export default function ShopCart() {
   useEffect(() => { setAgree(false); }, [bagSig]);
   const custom = needsApproval(cart.cart);
   const subtotal = subtotalCents(cart.cart);
+  // one $5 offer per order: same rule as the server (utils/merch/checkout.js offerFor), which has the final say
+  const bundle = !!offer?.discountCents && cart.count >= offer.bundleMinItems;
+  const canUsePoints = !bundle && !!offer?.discountCents && offer.points != null && offer.points >= offer.pointsCost;
+  const discount = bundle || (canUsePoints && usePoints) ? offer.discountCents : 0;
   const go = (s) => { setParams(s === 'cart' ? {} : { step: s }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
   const pay = async () => {
@@ -39,7 +49,7 @@ export default function ShopCart() {
     setPaying(true);
     markCartCheckout();
     try {
-      await startCheckout(checkoutItems(cart.cart));
+      await startCheckout(checkoutItems(cart.cart), { usePoints: canUsePoints && usePoints });
     } catch (e) {
       clearCartCheckoutMarker();
       setPaying(false);
@@ -78,8 +88,9 @@ export default function ShopCart() {
                 <motion.div key="cart" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
                   <h1 className="font-display text-5xl sm:text-6xl">Your bag</h1>
                   <ul className="mt-6 divide-y divide-white/[0.07] border-y border-white/[0.07]">
-                    {cart.cart.map((l) => <li key={l.key} className="py-6"><CartLine line={l} onEdit={(line) => setEditing(line)} /></li>)}
+                    {cart.cart.map((l) => <li key={l.key} className="py-6"><CartLine line={l} onEdit={(line) => setEditing(line)} onPreview={setPreviewing} /></li>)}
                   </ul>
+                  <CompleteTheLook offer={offer} className="mt-10" />
                   <SavedForLater />
                 </motion.div>
               ) : (
@@ -90,12 +101,20 @@ export default function ShopCart() {
                   <ul className="mt-6 space-y-3">
                     {cart.cart.map((l) => (
                       <li key={l.key} className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-[#111113] p-3">
-                        <ShopImage src={l.image} alt="" className="h-20 w-16 shrink-0 rounded-xl" />
+                        {l.kind === 'custom' ? (
+                          <button type="button" onClick={() => setPreviewing(l)} aria-label={`Preview your design: ${l.name}`} className="shrink-0 overflow-hidden rounded-xl">
+                            <ShopImage src={l.image} alt="" className="h-20 w-16" />
+                          </button>
+                        ) : <ShopImage src={l.image} alt="" className="h-20 w-16 shrink-0 rounded-xl" />}
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-semibold">{l.name}</p>
                           <p className="text-xs text-white/50">{l.variant} · Qty {l.quantity}</p>
                           {l.addons?.length > 0 && <p className="mt-1 truncate text-xs text-[#f0b94d]">+ {l.addons.map((a) => (a.text ? `${a.label} “${a.text}”` : a.label)).join(', ')}</p>}
-                          {l.kind === 'custom' && <p className="mt-1 text-xs text-[#f0b94d]">Your design</p>}
+                          {l.kind === 'custom' && (
+                            <button type="button" onClick={() => setPreviewing(l)} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#f0b94d] underline-offset-4 hover:underline">
+                              <Eye className="h-3.5 w-3.5" /> Your design · Preview
+                            </button>
+                          )}
                         </div>
                         <p className="shrink-0 font-semibold">{usd(lineTotalCents(l))}</p>
                       </li>
@@ -115,6 +134,7 @@ export default function ShopCart() {
                       </label>
                     </div>
                   )}
+                  <CompleteTheLook offer={offer} className="mt-10" />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -126,8 +146,21 @@ export default function ShopCart() {
               <dl className="mt-5 space-y-2.5 text-sm">
                 <div className="flex justify-between"><dt className="text-white/60">Items ({cart.count})</dt><dd>{usd(subtotal)}</dd></div>
                 <div className="flex justify-between"><dt className="text-white/60">Shipping</dt><dd className="text-white/60">At checkout</dd></div>
-                <div className="flex justify-between border-t border-white/10 pt-3 text-base font-semibold"><dt>Subtotal</dt><dd>{usd(subtotal)}</dd></div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-[#7be0a5]"><dt>{bundle ? `Bundle discount (${offer.bundleMinItems}+ items)` : 'Homies Points discount'}</dt><dd>−{usd(discount)}</dd></div>
+                )}
+                <div className="flex justify-between border-t border-white/10 pt-3 text-base font-semibold"><dt>Subtotal</dt><dd>{usd(subtotal - discount)}</dd></div>
               </dl>
+              {canUsePoints && (
+                <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#f0b94d]/30 bg-[#f0b94d]/[0.06] p-3 text-sm">
+                  <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#f0b94d]" />
+                  <span><span className="inline-flex items-center gap-1 font-semibold text-[#f6d48f]"><Coins className="h-4 w-4" /> Use {offer.pointsCost.toLocaleString('en-US')} points for {usd(offer.discountCents)} off</span>
+                    <span className="block text-xs text-white/55">You have {offer.points.toLocaleString('en-US')} points. They're only used if you complete payment.</span></span>
+                </label>
+              )}
+              {!bundle && !!offer?.discountCents && cart.count < offer.bundleMinItems && (
+                <p className="mt-4 text-xs text-white/55">Add {offer.bundleMinItems - cart.count === 1 ? 'one more item' : `${offer.bundleMinItems - cart.count} more items`} and get {usd(offer.discountCents)} off{canUsePoints ? ', and keep your points' : ''}.</p>
+              )}
               {step === 'cart' ? (
                 <ShopButton size="lg" className="mt-6 w-full" onClick={() => go('review')}>Review order <ArrowRight className="h-4 w-4" /></ShopButton>
               ) : (
@@ -142,6 +175,7 @@ export default function ShopCart() {
         </div>
       )}
       <AddonEditDialog line={editing} onClose={() => setEditing(null)} />
+      <DesignPreviewDialog line={previewing} onClose={() => setPreviewing(null)} />
     </div>
   );
 }

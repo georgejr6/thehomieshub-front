@@ -8,7 +8,7 @@ import { MAX_QTY } from '@/shop/lib/cart';
 
 // One cart line (drawer + cart page). Shows the add-on breakdown so people
 // see exactly what they pay for.
-export default function CartLine({ line, saved = false, compact = false, onEdit }) {
+export default function CartLine({ line, saved = false, compact = false, onEdit, onPreview }) {
   const { cart, notify, closeCart } = useShop();
   // Custom lines are frozen bag copies — editing opens the original design (or the library), never the copy.
   const href = line.kind === 'custom' ? (line.sourceId ? `/shop/design?design=${encodeURIComponent(line.sourceId)}` : '/shop/library') : line.slug ? `/shop/${line.slug}` : '/shop';
@@ -21,7 +21,10 @@ export default function CartLine({ line, saved = false, compact = false, onEdit 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <Link to={href} onClick={closeCart} className="block truncate font-semibold leading-tight hover:underline">{line.name || 'The Homies merch'}</Link>
-            <p className="mt-0.5 text-xs text-white/50">{line.variant}{line.kind === 'custom' ? ' · Your design' : ''}</p>
+            <p className="mt-0.5 text-xs text-white/50">{line.variant}</p>
+            {line.kind === 'custom' && (onPreview
+              ? <button type="button" onClick={() => onPreview(line)} className="mt-0.5 text-xs font-semibold text-[#f0b94d] underline-offset-4 hover:underline">Your design · Preview</button>
+              : <p className="mt-0.5 text-xs text-[#f0b94d]">Your design</p>)}
             {line.houseArt && <p className="mt-0.5 text-[11px] text-[#f6d48f]">Includes The Homies design · listed price</p>}
           </div>
           <p className="shrink-0 font-semibold">{usd(saved ? unitCents(line) : lineTotalCents(line))}</p>
