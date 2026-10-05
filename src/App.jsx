@@ -86,6 +86,7 @@ const JudgePoolPage = lazyWithReload(() => import('@/pages/JudgePoolPage'));
 const AdminPools = lazyWithReload(() => import('@/pages/admin/AdminPools'));
 const AdminMerch = lazyWithReload(() => import('@/pages/admin/AdminMerch'));
 // Homies Shop mode (own full-screen layout, like Media Mode) — src/shop/
+import ShopShellFallback from '@/shop/ShopShellFallback';
 const ShopLayout = lazyWithReload(() => import('@/shop/ShopLayout'));
 const ShopHome = lazyWithReload(() => import('@/shop/pages/ShopHome'));
 const ShopCollection = lazyWithReload(() => import('@/shop/pages/ShopCollection'));
@@ -93,7 +94,7 @@ const ShopProduct = lazyWithReload(() => import('@/shop/pages/ShopProduct'));
 const ShopCart = lazyWithReload(() => import('@/shop/pages/ShopCart'));
 const ShopThanks = lazyWithReload(() => import('@/shop/pages/ShopThanks'));
 const ShopOrders = lazyWithReload(() => import('@/shop/pages/ShopOrders'));
-const ShopDesigns = lazyWithReload(() => import('@/shop/pages/ShopDesigns'));
+const ShopLibrary = lazyWithReload(() => import('@/shop/pages/ShopLibrary'));
 const ShopStudio = lazyWithReload(() => import('@/shop/studio/Studio'));
 import api from '@/api/homieshub';
 
@@ -458,7 +459,7 @@ const AppContent = React.memo(() => {
         <EmailVerifyGate />
 
         {/* Outer boundary for the standalone (non-layout) routes; layouts have their own so their chrome stays up while a page loads. */}
-        <Suspense fallback={<RouteFallback full dark={location.pathname.startsWith('/chat')} />}>
+        <Suspense fallback={location.pathname.startsWith('/shop') ? <ShopShellFallback /> : <RouteFallback full dark={location.pathname.startsWith('/chat')} />}>
         <BannedScreen />
         <MembershipGate full onLoginRequest={handleLoginRequest}>
         <Routes>
@@ -480,7 +481,8 @@ const AppContent = React.memo(() => {
                 <Route index element={<ShopHome />} />
                 <Route path="collections/:key" element={<ShopCollection />} />
                 <Route path="design" element={<ShopStudio />} />
-                <Route path="designs" element={<ShopDesigns />} />
+                <Route path="library" element={<ShopLibrary />} />
+                <Route path="designs" element={<Navigate to="/shop/library" replace />} />
                 <Route path="cart" element={<ShopCart />} />
                 <Route path="thanks" element={<ShopThanks />} />
                 <Route path="orders" element={<ShopOrders />} />

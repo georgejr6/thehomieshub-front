@@ -6,7 +6,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Bell, CheckCheck, MessageCircle, AlertTriangle, Scissors, UserPlus, Heart, MessageSquare, AtSign, Reply, Gift, Coins, Megaphone } from 'lucide-react';
+import { Bell, CheckCheck, MessageCircle, AlertTriangle, Scissors, UserPlus, Heart, MessageSquare, AtSign, Reply, Gift, Coins, Megaphone, ShoppingBag } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -33,6 +33,7 @@ const NOTIFICATION_ICONS = {
   clip_job: Scissors,
   campaign: Megaphone,
   system: Bell,
+  shop: ShoppingBag, // order updates / bag reminders (data.url = /shop/orders, /shop/cart)
 };
 const ALERT_TYPES = new Set(['system', 'campaign']);
 

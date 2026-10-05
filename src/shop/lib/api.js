@@ -99,6 +99,17 @@ export const MOCK_BLANKS = [
 // ── blanks (Studio catalog) ───────────────────────────────────────────────────
 let blanksPromise = null;
 /** Resolves to the blanks array, or null when the backend has no Studio yet. */
+/** Curated Studio fonts (GET /merch/fonts). null until the backend has the route. */
+let fontsPromise = null;
+export function fetchFonts() {
+  if (!fontsPromise) {
+    fontsPromise = api.get('/merch/fonts')
+      .then((r) => (Array.isArray(r.data?.fonts) ? r.data.fonts : Array.isArray(r.data) ? r.data : null))
+      .catch((e) => { if (e?.response?.status !== 404) fontsPromise = null; return null; });
+  }
+  return fontsPromise;
+}
+
 export function fetchBlanks() {
   if (isMockStudio()) return Promise.resolve(MOCK_BLANKS);
   if (!blanksPromise) {
@@ -184,11 +195,33 @@ export async function fetchDesign(id) {
   const { data } = await api.get(`/merch/designs/${encodeURIComponent(id)}`, dev());
   return data?.design || null;
 }
+/** Bag copies ("… (in your bag)", library:false) never show in the library. */
+export const isLibraryDesign = (d) => !!d && d.library !== false && !/\(in your bag\)$/.test(d.name || '');
+const byNewest = (a, b) => (Date.parse(b.updatedAt || b.createdAt || 0) || 0) - (Date.parse(a.updatedAt || a.createdAt || 0) || 0);
+/** The person's library (account, or this device for guests), newest first. */
 export async function fetchMyDesigns() {
-  if (isMockStudio()) return mockList();
+  if (isMockStudio()) return mockList().filter(isLibraryDesign).sort(byNewest);
   await claimed();
-  const { data } = await api.get('/merch/designs/mine', dev());
-  return data?.designs || [];
+  const { data } = await api.get('/merch/designs/mine', { ...dev(), params: { library: 1, page: 1, limit: 60 } });
+  return (data?.designs || []).filter(isLibraryDesign).sort(byNewest);
+}
+/**
+ * A ready-to-edit design for a listed product (garment, colour, size, its art
+ * placed). null when the backend doesn't have the route yet → the Studio
+ * prefills client-side.
+ */
+export async function fetchDesignFromProduct(slug, { color, size } = {}) {
+  if (isMockStudio()) return null;
+  await claimed();
+  try {
+    const { data } = await api.get(`/merch/designs/from-product/${encodeURIComponent(slug)}`, { ...dev(), params: { color: color || undefined, size: size || undefined } });
+    const d = data?.design || null;
+    return d ? { ...d, size: d.size || data?.sizeHint || data?.size || size } : null;
+  } catch (e) {
+    const st = e?.response?.status;
+    if (!st || st === 404 || st === 405 || st === 501) return null;
+    throw e;
+  }
 }
 export async function deleteDesign(id) {
   if (isMockStudio()) { mockWrite(mockList().filter((d) => d.id !== id)); return; }

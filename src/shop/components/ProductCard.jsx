@@ -7,6 +7,8 @@ import {
   KIND_LABEL, KINDS, productImage, productAltImage, displayName, kindOf, colorHex, displayColor, customizeKeys, CUSTOM_LABEL,
 } from '@/shop/lib/catalog';
 import { usd } from '@/shop/lib/pricing';
+import { useShop } from '@/shop/ShopContext';
+import { studioHref, prefetchStudio } from '@/shop/lib/studioLink';
 
 // One card system for the whole shop: image tile (garment render on a soft
 // neutral, silhouette if the render isn't ready), name, price, what you can
@@ -23,8 +25,9 @@ function Badges({ keys }) {
   );
 }
 
-function CardShell({ to, img, alt, altImg, fallback, title, sub, price, badges, flag, soldOut, priority }) {
+function CardShell({ to, studio, img, alt, altImg, fallback, title, sub, price, badges, flag, soldOut, priority }) {
   const [hover, setHover] = useState(false);
+  const { openStudio } = useShop();
   return (
     <div className="group relative" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <Link to={to} className="block" onFocus={() => setHover(true)} onBlur={() => setHover(false)} aria-label={`${title}, ${price}`}>
@@ -45,7 +48,8 @@ function CardShell({ to, img, alt, altImg, fallback, title, sub, price, badges, 
       </Link>
       <div className="px-0.5"><Badges keys={badges} /></div>
       {!soldOut && badges.length > 0 && (
-        <Link to={`${to}?customize=1`} aria-label={`Customize ${title}`}
+        <Link to={studioHref(studio)} aria-label={`Customize ${title} in the Studio`} onMouseEnter={prefetchStudio} onFocus={prefetchStudio}
+          onClick={(e) => { if (openStudio(studio)) e.preventDefault(); }}
           className="absolute right-3 top-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/95 px-3 text-[12px] font-semibold text-black shadow-sm transition md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100">
           <PenLine className="h-3.5 w-3.5" /> Customize
         </Link>
@@ -65,6 +69,7 @@ export function FamilyCard({ family, className, priority = false }) {
     <div className={className}>
       <CardShell
         to={`/shop/${lead.slug}`}
+        studio={{ product: lead.slug, color }}
         img={productImage(lead, color)}
         alt={`${family.phrase} ${KIND_LABEL[kind]}`}
         altImg={kind === 'hat' ? '' : productAltImage(lead, color)}
@@ -89,6 +94,7 @@ export function ProductCard({ product, className, priority = false }) {
     <div className={className}>
       <CardShell
         to={`/shop/${product.slug}`}
+        studio={{ product: product.slug, color }}
         img={productImage(product, color)}
         alt={product.name}
         altImg={kind === 'hat' ? '' : productAltImage(product, color)}

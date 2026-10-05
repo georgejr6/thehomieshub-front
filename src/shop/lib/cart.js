@@ -26,6 +26,7 @@ function cleanAddon(a) {
     text: a.text != null ? str(a.text, 60) : undefined,
     font: a.font ? str(a.font, 40) : undefined,
     color: a.color ? str(a.color, 20) : undefined,
+    fontSize: Number.isInteger(a.fontSize) && a.fontSize >= 8 && a.fontSize <= 5000 ? a.fontSize : undefined,
     designId: a.designId ? str(a.designId, 40) : undefined,
     priceCents: Number.isInteger(a.priceCents) && a.priceCents >= 0 ? a.priceCents : 0,
   };
@@ -34,7 +35,7 @@ function cleanAddon(a) {
 /** Identity of a line: same product + same customisation = same line. */
 export function lineKey(l) {
   if (l.kind === 'custom') return `c:${l.designId}:${l.variantId}`;
-  const addons = (l.addons || []).map((a) => `${a.key}=${a.text || ''}|${a.font || ''}|${a.color || ''}|${a.designId || ''}`).sort().join(',');
+  const addons = (l.addons || []).map((a) => `${a.key}=${a.text || ''}|${a.font || ''}|${a.color || ''}|${a.fontSize || ''}|${a.designId || ''}`).sort().join(',');
   return `l:${l.variantId}:${addons}`;
 }
 
@@ -114,7 +115,7 @@ export const needsApproval = (cart) => cart.some((l) => l.kind === 'custom' || (
 export function checkoutItems(cart) {
   return cart.map((l) => (l.kind === 'custom'
     ? { kind: 'custom', designId: l.designId, variantId: l.variantId, quantity: l.quantity }
-    : { kind: 'listed', variantId: l.variantId, quantity: l.quantity, addons: (l.addons || []).map(({ key, text, font, color, designId }) => ({ key, text, font, color, designId })) }));
+    : { kind: 'listed', variantId: l.variantId, quantity: l.quantity, addons: (l.addons || []).map(({ key, text, font, color, fontSize, designId }) => ({ key, text, font, color, ...(fontSize ? { fontSize } : {}), designId })) }));
 }
 
 /** Split lines into still-buyable vs gone, given current products (listed lines only). */

@@ -14,8 +14,38 @@ export const STUDIO_FONTS = [
   { key: 'marker', label: 'Marker', family: 'HH Marker' },
   { key: 'mono', label: 'Mono', family: 'HH Mono', weight: 'bold' },
 ];
-export const fontByKey = (k) => STUDIO_FONTS.find((f) => f.key === k) || STUDIO_FONTS[0];
+const BASE_CATEGORY = { anton: 'display', archivo: 'sans', bebas: 'display', serif_italic: 'serif', instrument_italic: 'serif', marker: 'handwriting', mono: 'mono' };
+STUDIO_FONTS.forEach((f) => { f.category = BASE_CATEGORY[f.key]; });
+
+// Extra fonts from GET /merch/fonts (curated Google Fonts). Only keys the server
+// lists are ever saved; until it answers, the 7 built-in fonts above are it.
+let extraFonts = [];
+const FONT_KEY_RE = /^[a-z0-9_]{1,40}$/;
+/** Register server fonts: [{ key, family, label?, category?, cssUrl?, weight?, style?, upper? }]. */
+export function registerFonts(list = []) {
+  const known = new Set(STUDIO_FONTS.map((f) => f.key));
+  extraFonts = (Array.isArray(list) ? list : [])
+    .filter((f) => f && FONT_KEY_RE.test(f.key || '') && f.family && !known.has(f.key))
+    .map((f) => ({
+      key: f.key, label: f.label || f.family, family: f.family, category: String(f.category || 'display').toLowerCase(),
+      cssUrl: f.cssUrl || f.css || `https://fonts.googleapis.com/css2?family=${String(f.family).trim().replace(/ /g, '+')}:wght@400;700&display=swap`,
+      weight: f.weight, style: f.style, upper: !!f.upper,
+    }));
+  return allFonts();
+}
+export const allFonts = () => [...STUDIO_FONTS, ...extraFonts];
+export const fontByKey = (k) => allFonts().find((f) => f.key === k) || STUDIO_FONTS[0];
+export const isFontKey = (k) => allFonts().some((f) => f.key === k);
 export const FONT_KEYS = STUDIO_FONTS.map((f) => f.key);
+export const FONT_CATEGORIES = [
+  { key: 'all', label: 'All' }, { key: 'sans', label: 'Sans' }, { key: 'serif', label: 'Serif' },
+  { key: 'display', label: 'Display' }, { key: 'handwriting', label: 'Script' }, { key: 'mono', label: 'Mono' },
+];
+/** Search + category filter for the font picker. */
+export function filterFonts(fonts, { query = '', category = 'all' } = {}) {
+  const q = query.trim().toLowerCase();
+  return fonts.filter((f) => (category === 'all' || f.category === category) && (!q || `${f.label} ${f.family}`.toLowerCase().includes(q)));
+}
 
 export const INKS = ['#FFFFFF', '#111111', '#F0B94D', '#D62828', '#1F6FEB', '#2EA043', '#FF7AC6', '#8B5CF6'];
 /** Embroidery thread palette = the blank's own (Printful's colours, from /blanks). */
@@ -76,6 +106,40 @@ export function withFontSize(layer) {
   if (layer?.type !== 'text' || Number(layer.fontSize) > 0) return layer;
   const lines = Math.max(1, String(layer.text || '').split('\n').length);
   return { ...layer, fontSize: Math.max(12, Math.round((Number(layer.height) || 120) / lines / 1.05)) };
+}
+
+export const TEXT_ALIGNS = ['left', 'center', 'right'];
+
+/** Font-size range for a text layer: stitchable minimum on embroidery, and never bigger than the print area. */
+export function textSizeRange(layer, area, embroidery = false) {
+  const min = embroidery ? minEmbroideryFontSize(area) : 12;
+  const fs = Math.max(1, Number(layer?.fontSize) || 1);
+  const lines = Math.max(1, String(layer?.text || '').split('\n').length);
+  const perW = (Number(layer?.width) || estimateTextBox(layer?.text, fs).width) / fs; // measured width per px of font size
+  const byWidth = perW > 0 ? Math.floor(area.width / perW) : 5000;
+  const byHeight = Math.floor(area.height / (lines * 1.1));
+  return { min, max: Math.max(min, Math.min(5000, byWidth, byHeight)) };
+}
+
+/** Patch for a new font size: keeps the box centred where it was and inside the area. */
+export function resizeText(layer, fontSize, area, embroidery = false) {
+  const { min, max } = textSizeRange(layer, area, embroidery);
+  const fs = Math.round(Math.min(max, Math.max(min, Number(fontSize) || min)));
+  const k = fs / Math.max(1, Number(layer.fontSize) || fs);
+  const width = Math.round((Number(layer.width) || 0) * k);
+  const height = Math.round((Number(layer.height) || 0) * k);
+  const c = clampToArea({ ...layer, width, height, x: layer.x + ((layer.width || 0) - width) / 2, y: layer.y + ((layer.height || 0) - height) / 2 }, area);
+  return { fontSize: fs, width: c.width, height: c.height, x: Math.round(c.x), y: Math.round(c.y) };
+}
+
+/** Split a long phrase over two lines at the space nearest the middle. */
+export function twoLines(text, maxPerLine = 14) {
+  const t = String(text || '').trim();
+  if (t.length <= maxPerLine || !t.includes(' ')) return t;
+  const mid = t.length / 2;
+  let best = -1;
+  for (let i = 0; i < t.length; i++) if (t[i] === ' ' && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i;
+  return `${t.slice(0, best)}\n${t.slice(best + 1)}`;
 }
 
 /** Fit an image into the area: centred, as large as allowed while staying sharp (≥150 dpi) and inside the box. */
@@ -178,7 +242,7 @@ export function serverLayer(l) {
     if (l.naturalWidth > 0 && l.naturalHeight > 0) { out.naturalWidth = num(l.naturalWidth); out.naturalHeight = num(l.naturalHeight); }
     return out;
   }
-  const out = { ...base, text: clampText(l.text), font: FONT_KEYS.includes(l.font) ? l.font : 'anton', color: String(l.color || '#FFFFFF').toUpperCase() };
+  const out = { ...base, text: clampText(l.text), font: isFontKey(l.font) ? l.font : 'anton', color: String(l.color || '#FFFFFF').toUpperCase() };
   if (l.fontSize > 0) out.fontSize = Math.min(5000, Math.max(1, num(l.fontSize)));
   return out;
 }

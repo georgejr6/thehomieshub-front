@@ -1,9 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchShop } from '@/lib/merch';
+import { cachedCatalog, loadCatalog } from '@/shop/lib/catalogCache';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchBlanks, fetchServerCart, pushServerCart, claimDesigns, setClaimPromise, fetchDesign } from '@/shop/lib/api';
 import { displayName, productImage, kindOf, KIND_LABEL } from '@/shop/lib/catalog';
 import { customPriceCents } from '@/shop/lib/pricing';
+import { wantsStudioOverlay, prefetchStudio } from '@/shop/lib/studioLink';
 import { useShopCart, checkoutItems, sanitizeCart, cartSnapshot, replaceCart, lineKey } from '@/shop/lib/cart';
 
 // Shared state for the whole shop mode: catalog, Studio availability, the
@@ -37,21 +38,25 @@ async function rebuildLine(it, products, blanks) {
 
 export function ShopProvider({ children }) {
   const { user } = useAuth() || {};
-  const [catalog, setCatalog] = useState({ loading: true, enabled: false, products: [], error: false });
+  const [catalog, setCatalog] = useState(() => {
+    const c = cachedCatalog(); // render instantly from the last catalog, refresh behind it
+    return c ? { loading: false, enabled: !!c.enabled, products: c.products || [], error: false } : { loading: true, enabled: false, products: [], error: false };
+  });
   const [blanks, setBlanks] = useState(undefined); // undefined = loading, null = Studio not available
   const [cartOpen, setCartOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [studioOverlay, setStudioOverlay] = useState(null); // init for the desktop Studio overlay
   const toastTimer = useRef(null);
   const cartApi = useShopCart();
 
-  const reload = useCallback(() => {
-    setCatalog((c) => ({ ...c, loading: true, error: false }));
-    return fetchShop()
+  const reload = useCallback(({ force = true } = {}) => {
+    setCatalog((c) => (c.products.length ? c : { ...c, loading: true, error: false }));
+    return loadCatalog({ force })
       .then((d) => { setCatalog({ loading: false, enabled: !!d?.enabled, products: d?.products || [], error: false }); return d?.products || []; })
-      .catch(() => { setCatalog((c) => ({ ...c, loading: false, error: true })); return []; });
+      .catch(() => { setCatalog((c) => ({ ...c, loading: false, error: !c.products.length })); return []; });
   }, []);
 
-  useEffect(() => { reload(); fetchBlanks().then(setBlanks); }, [reload]);
+  useEffect(() => { reload({ force: false }); fetchBlanks().then(setBlanks); }, [reload]);
 
   const notify = useCallback((message, tone = 'default') => {
     clearTimeout(toastTimer.current);
@@ -107,9 +112,13 @@ export function ShopProvider({ children }) {
     closeCart: () => setCartOpen(false),
     notify,
     toast,
+    studioOverlay,
+    /** Desktop: open the Studio over the page and return true. Phones: return false (follow the link). */
+    openStudio: (init) => { if (!wantsStudioOverlay()) return false; prefetchStudio(); setStudioOverlay({ ...init, at: Date.now() }); return true; },
+    closeStudio: () => setStudioOverlay(null),
     signedIn,
     user,
-  }), [catalog, reload, blanks, cartApi, cartOpen, notify, toast, signedIn, user]);
+  }), [catalog, reload, blanks, cartApi, cartOpen, notify, toast, studioOverlay, signedIn, user]);
 
   return <ShopCtx.Provider value={value}>{children}</ShopCtx.Provider>;
 }

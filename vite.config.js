@@ -252,6 +252,8 @@ export default defineConfig({
 		// shop Studio canvas can export them; vercel.json does the same in prod.
 		proxy: {
 			'/merch-cdn': { target: 'https://homieshub-media.nyc3.cdn.digitaloceanspaces.com', changeOrigin: true, rewrite: (p) => p.replace(/^\/merch-cdn/, '/merch') },
+			// Printful garment templates have no CORS either (Studio canvas + previews).
+			'/pf-cdn': { target: 'https://files.cdn.printful.com', changeOrigin: true, rewrite: (p) => p.replace(/^\/pf-cdn/, '') },
 		},
 	},
 	resolve: {

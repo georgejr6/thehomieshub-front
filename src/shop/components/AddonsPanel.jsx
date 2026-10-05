@@ -16,7 +16,8 @@ export const TEXT_FONTS = [
   { key: 'anton', label: 'Block', css: "'HH Anton', Impact, sans-serif", upper: true },
   { key: 'archivo', label: 'Heavy', css: "'HH Archivo', sans-serif", upper: true },
   { key: 'bebas', label: 'Condensed', css: "'HH Bebas', sans-serif", upper: true },
-  { key: 'serif_italic', label: 'Script serif', css: "'HH Serif', Georgia, serif" },
+  { key: 'serif_italic', label: 'Script serif', css: "'HH Serif', Georgia, serif", italic: true },
+  { key: 'instrument_italic', label: 'Fine serif', css: "'HH Instrument', Georgia, serif", italic: true },
   { key: 'marker', label: 'Marker', css: "'HH Marker', cursive" },
   { key: 'mono', label: 'Mono', css: "'HH Mono', monospace" },
 ];
@@ -26,6 +27,15 @@ export const INK_COLORS = [
   { hex: '#F0B94D', label: 'Gold' },
   { hex: '#D62828', label: 'Red' },
 ];
+// Text size for an add-on, as a share of its print area's height (server: fontSize 8–5000 printfile px).
+export const ADDON_SIZES = [{ key: 's', label: 'Small', f: 0.12 }, { key: 'm', label: 'Medium', f: 0.2 }, { key: 'l', label: 'Large', f: 0.3 }];
+export function addonFontSize(addon, sizeKey, text = '') {
+  const step = ADDON_SIZES.find((x) => x.key === sizeKey);
+  const h = Number(addon?.area?.height);
+  if (!step || !h) return undefined;
+  const lines = Math.max(1, String(text).split('\n').length);
+  return Math.min(5000, Math.max(8, Math.round((h * step.f) / Math.sqrt(lines))));
+}
 const fontOf = (k) => TEXT_FONTS.find((f) => f.key === k) || TEXT_FONTS[0];
 export const isEmbroidery = (addon) => /embroid/i.test(`${addon?.technique || ''} ${addon?.key || ''}`);
 export const clampAddonText = (t) => String(t ?? '').split('\n').slice(0, ADDON_MAX_LINES).join('\n').slice(0, ADDON_TEXT_MAX);
@@ -79,6 +89,12 @@ export default function AddonsPanel({ addons = [], value, onChange, threadColors
                           className="w-full resize-none rounded-xl border border-white/12 bg-black/40 px-3.5 py-2.5 pr-14 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none" />
                         <span className="absolute bottom-2.5 right-3 text-[11px] tabular-nums text-white/35">{(v.text || '').length}/{ADDON_TEXT_MAX}</span>
                       </div>
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-white/35">{(v.text || '').split('\n').length}/{ADDON_MAX_LINES} lines · Enter for a new line</span>
+                        <button type="button" disabled={(v.text || '').split('\n').length >= ADDON_MAX_LINES || !(v.text || '').trim()}
+                          onClick={() => set(a.key, { text: clampAddonText(`${v.text || ''}\n`) })}
+                          className="h-8 rounded-full border border-white/12 px-3 text-[11px] font-semibold text-white/70 hover:border-white/35 disabled:opacity-30">+ Line break</button>
+                      </div>
                     </div>
                     {!emb && (
                       <div>
@@ -87,7 +103,18 @@ export default function AddonsPanel({ addons = [], value, onChange, threadColors
                           {TEXT_FONTS.map((f) => (
                             <button key={f.key} type="button" aria-pressed={(v.font || 'anton') === f.key} onClick={() => set(a.key, { font: f.key })}
                               className={cn('h-10 shrink-0 rounded-xl border px-3 text-sm', (v.font || 'anton') === f.key ? 'border-white bg-white text-black' : 'border-white/12 text-white/80')}
-                              style={{ fontFamily: f.css }}>{f.label}</button>
+                              style={{ fontFamily: f.css, fontStyle: f.italic ? 'italic' : 'normal', textTransform: f.upper ? 'uppercase' : 'none' }}>{f.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {a.area?.height > 0 && (
+                      <div>
+                        <p className="mb-1.5 text-xs font-semibold text-white/60">Size</p>
+                        <div className="flex gap-2" role="group" aria-label="Text size">
+                          {ADDON_SIZES.map((z) => (
+                            <button key={z.key} type="button" aria-pressed={(v.size || 'm') === z.key} onClick={() => set(a.key, { size: z.key })}
+                              className={cn('h-10 rounded-xl border px-4 text-sm', (v.size || 'm') === z.key ? 'border-white bg-white text-black' : 'border-white/12 text-white/80')}>{z.label}</button>
                           ))}
                         </div>
                       </div>
@@ -103,7 +130,7 @@ export default function AddonsPanel({ addons = [], value, onChange, threadColors
                     </div>
                     <div className="flex min-h-[96px] items-center justify-center overflow-hidden rounded-xl px-4 py-3" style={{ background: garmentHex }} aria-label="Preview">
                       <span className="max-w-full whitespace-pre-line break-words text-center text-3xl leading-[1.05]"
-                        style={{ fontFamily: font.css, color, textTransform: font.upper ? 'uppercase' : 'none' }}>
+                        style={{ fontFamily: font.css, fontStyle: font.italic ? 'italic' : 'normal', color, textTransform: font.upper ? 'uppercase' : 'none', fontSize: { s: 22, m: 30, l: 40 }[v.size || 'm'] }}>
                         {(v.text || '').trim() || (emb ? 'YOUR NAME' : 'Your text')}
                       </span>
                     </div>
@@ -131,10 +158,11 @@ export function toCartAddons(addons = [], value = {}, threadColors = [], darkGar
     const palette = emb ? threadColors.map((t) => ({ hex: String(t.hex).toUpperCase() })) : INK_COLORS;
     const color = (v.color || defaultColor(palette, darkGarment) || '').toUpperCase();
     if (!/^#[0-9A-F]{6}$/.test(color)) return { addons: [], error: `Pick a colour for “${a.label}”.` };
-    out.push({ key: a.key, label: a.label, text, font: emb ? 'archivo' : (v.font || 'anton'), color, priceCents: a.priceCents || 0 });
+    const fontSize = v.size ? addonFontSize(a, v.size, text) : (Number.isInteger(v.fontSize) ? v.fontSize : undefined);
+    out.push({ key: a.key, label: a.label, text, font: emb ? 'archivo' : (v.font || 'anton'), color, ...(fontSize ? { fontSize } : {}), priceCents: a.priceCents || 0 });
   }
   return { addons: out, error: null };
 }
 
 /** Cart add-ons → panel state (edit in place). */
-export const fromCartAddons = (cartAddons = []) => Object.fromEntries(cartAddons.map((a) => [a.key, { on: true, text: a.text || '', font: a.font, color: a.color }]));
+export const fromCartAddons = (cartAddons = []) => Object.fromEntries(cartAddons.map((a) => [a.key, { on: true, text: a.text || '', font: a.font, color: a.color, fontSize: a.fontSize }]));

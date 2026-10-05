@@ -1,12 +1,14 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useOutlet, useSearchParams } from 'react-router-dom';
 import { MotionConfig, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowLeft, Search, ShoppingBag, X, Package, Wand2, Store, Loader2 } from 'lucide-react';
+import { ArrowLeft, Search, ShoppingBag, X, Package, Wand2, Store } from 'lucide-react';
 import { Helmet } from 'react-helmet';
 import { cn } from '@/lib/utils';
 import { ShopProvider, useShop } from '@/shop/ShopContext';
 import CartDrawer from '@/shop/components/CartDrawer';
 import { Toast, useFocusTrap } from '@/shop/components/ui';
+import ShopShellFallback from '@/shop/ShopShellFallback';
+import StudioOverlay from '@/shop/studio/StudioOverlay';
 import '@/shop/shop.css';
 
 // The Homies Shop is its own app (like Media Mode / Homies Chat): own header,
@@ -36,18 +38,18 @@ function ShopShell() {
     return () => document.body.classList.remove('hh-shop-open');
   }, []);
   return (
-    <div className="hh-shop min-h-[100dvh]">
+    <motion.div className="hh-shop min-h-[100dvh]" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.16 } }}>
       <Helmet><meta name="theme-color" content="#0a0a0b" /></Helmet>
       <a href="#shop-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[90] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-black">Skip to content</a>
       <ShopHeader studio={studio} />
       <main id="shop-main" className={cn(!studio && 'min-h-[70vh] pb-24 md:pb-0')}>
-        <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-white/40" /></div>}>
+        <Suspense fallback={<ShopShellFallback bare />}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={pathname}
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
-              exit={reduce ? undefined : { opacity: 0, transition: { duration: 0.12 } }}
+              initial={reduce ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } }}
+              exit={reduce ? undefined : { opacity: 0, transition: { duration: 0.1 } }}
             >
               {outlet}
             </motion.div>
@@ -56,9 +58,10 @@ function ShopShell() {
       </main>
       {!studio && <ShopFooter />}
       {!studio && <TabBar />}
+      <StudioOverlay />
       <CartDrawer />
       <Toast toast={toast} />
-    </div>
+    </motion.div>
   );
 }
 
@@ -89,7 +92,7 @@ function ShopHeader({ studio }) {
         <nav className="mx-auto hidden items-center gap-1 md:flex" aria-label="Shop">
           <NavLink to="/shop" end className={navCls}>Shop</NavLink>
           <NavLink to="/shop/design" className={navCls}>Design your own</NavLink>
-          <NavLink to="/shop/designs" className={navCls}>My designs</NavLink>
+          <NavLink to="/shop/library" className={navCls}>Your library</NavLink>
           <NavLink to="/shop/orders" className={navCls}>Orders</NavLink>
         </nav>
         <div className="flex items-center gap-1">
@@ -181,7 +184,7 @@ function ShopFooter() {
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/35">Shop</p>
             <Link to="/shop" className="block text-white/65 hover:text-white">All merch</Link>
             <Link to="/shop/design" className="block text-white/65 hover:text-white">Design your own</Link>
-            <Link to="/shop/designs" className="block text-white/65 hover:text-white">My designs</Link>
+            <Link to="/shop/library" className="block text-white/65 hover:text-white">Your library</Link>
           </div>
           <div className="flex flex-col gap-2.5">
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/35">Help</p>

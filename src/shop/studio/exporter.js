@@ -1,6 +1,6 @@
 import Konva from 'konva';
-import { fontByKey, PREVIEW_BOX } from '@/shop/studio/model';
-import { GARMENT_PATHS } from '@/shop/components/GarmentSilhouette';
+import { fontByKey } from '@/shop/studio/model';
+import { artScale } from '@/shop/studio/template';
 import { loadImage } from '@/shop/lib/api';
 
 // Renders print files at the exact printfile size (offscreen Konva stage, not
@@ -13,10 +13,16 @@ const localCopies = new Map();
 export function registerLocalImage(remoteUrl, localUrl) {
   if (remoteUrl && localUrl) { localCopies.set(remoteUrl, localUrl); imageCache.delete(remoteUrl); }
 }
-// DO Spaces sends no CORS headers, so canvas loads go through the same-origin
-// /merch-cdn proxy (vercel.json + vite.config.js) to keep the canvas exportable.
+// DO Spaces and Printful's CDN send no CORS headers, so canvas loads go through
+// same-origin proxies (vercel.json + vite.config.js) to keep the canvas exportable.
 const SPACES_RE = /^https:\/\/homieshub-media\.nyc3\.(?:cdn\.)?digitaloceanspaces\.com\/merch\//;
-export const canvasSrc = (src) => (SPACES_RE.test(src || '') ? src.replace(SPACES_RE, '/merch-cdn/') : src);
+const PRINTFUL_RE = /^https:\/\/files\.cdn\.printful\.com\//;
+export const canvasSrc = (src) => {
+  const s = src || '';
+  if (SPACES_RE.test(s)) return s.replace(SPACES_RE, '/merch-cdn/');
+  if (PRINTFUL_RE.test(s)) return s.replace(PRINTFUL_RE, '/pf-cdn/');
+  return src;
+};
 
 export function getImage(src) {
   if (!imageCache.has(src)) {
@@ -26,12 +32,25 @@ export function getImage(src) {
   return imageCache.get(src);
 }
 
+// Google Fonts from GET /merch/fonts load through their CSS (once per font).
+const cssLoaded = new Set();
+export function loadFontCss(url) {
+  if (!url || cssLoaded.has(url) || typeof document === 'undefined') return;
+  cssLoaded.add(url);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = url;
+  document.head.appendChild(link);
+}
+export const fontSpec = (f, px = 64) => `${f.style === 'italic' ? 'italic' : 'normal'} ${f.weight === 'bold' ? 'bold' : 'normal'} ${px}px "${f.family}"`;
+
 export async function ensureFonts(layers = []) {
-  if (!document.fonts?.load) return;
-  const fams = new Set(layers.filter((l) => l.type === 'text').map((l) => l.font));
-  await Promise.all([...fams].map((k) => {
+  if (typeof document === 'undefined' || !document.fonts?.load) return;
+  const keys = new Set(layers.filter((l) => l.type === 'text').map((l) => l.font));
+  await Promise.all([...keys].map((k) => {
     const f = fontByKey(k);
-    return document.fonts.load(`${f.style || 'normal'} ${f.weight || 'normal'} 64px "${f.family}"`).catch(() => {});
+    loadFontCss(f.cssUrl);
+    return document.fonts.load(fontSpec(f)).catch(() => {});
   }));
 }
 
@@ -43,39 +62,38 @@ export function textConfig(l) {
     fontStyle: [f.style === 'italic' ? 'italic' : '', f.weight === 'bold' ? 'bold' : ''].filter(Boolean).join(' ') || 'normal',
     fontSize: l.fontSize,
     fill: l.color,
-    align: 'center',
+    align: ['left', 'center', 'right'].includes(l.align) ? l.align : 'center',
+    letterSpacing: Number(l.letterSpacing) || 0,
     lineHeight: 1.05,
   };
 }
 
-async function buildLayer(layers) {
-  const layer = new Konva.Layer();
+async function addLayerNodes(container, layers) {
   await ensureFonts(layers);
-  for (const l of layers) {
+  for (const l of layers || []) {
     if (l.type === 'image') {
       const img = await getImage(l.src);
-      layer.add(new Konva.Image({ image: img, x: l.x, y: l.y, width: l.width, height: l.height, rotation: l.rotation || 0 }));
+      container.add(new Konva.Image({ image: img, x: l.x, y: l.y, width: l.width, height: l.height, rotation: l.rotation || 0 }));
     } else {
-      const t = new Konva.Text({ ...textConfig(l), x: l.x, y: l.y, rotation: l.rotation || 0 });
-      layer.add(t);
+      container.add(new Konva.Text({ ...textConfig(l), x: l.x, y: l.y, rotation: l.rotation || 0 }));
     }
   }
-  return layer;
 }
+
+const toBlob = (stage, mimeType, quality) => new Promise((resolve, reject) => {
+  try { stage.toBlob({ pixelRatio: 1, mimeType, quality, callback: (b) => (b ? resolve(b) : reject(new Error('empty'))) }); } catch (e) { reject(e); }
+});
 
 /** PNG Blob of one placement at exactly area.width × area.height. Throws a readable error on tainted canvases. */
 export async function exportPlacement(layers, area) {
   const container = document.createElement('div');
   const stage = new Konva.Stage({ container, width: area.width, height: area.height });
   try {
-    stage.add(await buildLayer(layers));
+    const layer = new Konva.Layer();
+    await addLayerNodes(layer, layers);
+    stage.add(layer);
     stage.draw();
-    const blob = await new Promise((resolve, reject) => {
-      try {
-        stage.toBlob({ pixelRatio: 1, mimeType: 'image/png', callback: (b) => (b ? resolve(b) : reject(new Error('empty'))) });
-      } catch (e) { reject(e); }
-    });
-    return blob;
+    return await toBlob(stage, 'image/png');
   } catch (e) {
     if (/taint|insecure|security/i.test(String(e?.message || e))) {
       throw new Error("One of your images can't be exported from this browser. Re-upload it and try again.");
@@ -86,44 +104,47 @@ export async function exportPlacement(layers, area) {
   }
 }
 
-/** Small JPEG of the design on a flat garment: the blank's flat/ghost render if
- *  the API gives one, else the garment silhouette in its colour. Never people. */
-export async function exportPreview({ blankKey, garmentSrc, garmentHex, layers, area, size = 560 }) {
-  const W = size; const H = Math.round(size * 1.25);
+/**
+ * Draw a garment template into a Konva container (template px): background,
+ * garment (silhouette or photo underneath), then `art` inside the print area,
+ * then the template image on top when the template asks for it.
+ */
+export async function drawTemplate(root, t, artNodesFn) {
+  if (t.backgroundColor) root.add(new Konva.Rect({ width: t.width, height: t.height, fill: t.backgroundColor }));
+  if (t.backgroundImage) {
+    const bg = await getImage(t.backgroundImage).catch(() => null);
+    if (bg) root.add(new Konva.Image({ image: bg, width: t.width, height: t.height }));
+  }
+  if (t.kind === 'silhouette') {
+    root.add(new Konva.Rect({ width: t.width, height: t.height, fill: '#ebe8e2' }));
+    root.add(new Konva.Path({ data: t.path, scaleX: 10, scaleY: 10, fill: t.hex || '#e9e7e1', fillRule: 'evenodd', shadowColor: 'black', shadowBlur: 40, shadowOpacity: 0.16, shadowOffsetY: 14 }));
+  }
+  const garment = t.image ? await getImage(t.image).catch(() => null) : null;
+  if (garment && !t.imageOnTop) root.add(new Konva.Image({ image: garment, width: t.width, height: t.height }));
+  const s = artScale(t);
+  const art = new Konva.Group({
+    x: t.printArea.left, y: t.printArea.top, scaleX: s.x, scaleY: s.y,
+    clipX: 0, clipY: 0, clipWidth: t.printfile.width, clipHeight: t.printfile.height,
+  });
+  await artNodesFn(art);
+  root.add(art);
+  if (garment && t.imageOnTop) root.add(new Konva.Image({ image: garment, width: t.width, height: t.height, listening: false }));
+}
+
+/** JPEG of the design on the garment (same composite as the Studio canvas). Never people. */
+export async function exportPreview({ template, layers, size = 900 }) {
+  const k = size / Math.max(template.width, template.height);
+  const W = Math.round(template.width * k); const H = Math.round(template.height * k);
   const container = document.createElement('div');
   const stage = new Konva.Stage({ container, width: W, height: H });
   try {
-    const bg = new Konva.Layer();
-    bg.add(new Konva.Rect({ width: W, height: H, fill: '#f1efea' }));
-    const pb = PREVIEW_BOX[blankKey] || PREVIEW_BOX.tee;
-    // garment occupies an inset 100×125 frame
-    const fw = W * 0.88; const fh = fw * 1.25;
-    const fx = (W - fw) / 2; const fy = (H - fh) / 2;
-    let drewPhoto = false;
-    if (garmentSrc) {
-      try {
-        const g = await getImage(garmentSrc);
-        const s = Math.min(fw / g.naturalWidth, fh / g.naturalHeight);
-        bg.add(new Konva.Image({ image: g, x: fx + (fw - g.naturalWidth * s) / 2, y: fy + (fh - g.naturalHeight * s) / 2, width: g.naturalWidth * s, height: g.naturalHeight * s }));
-        drewPhoto = true;
-      } catch { /* fall back to the silhouette */ }
-    }
-    if (!drewPhoto) {
-      const path = GARMENT_PATHS[blankKey] || GARMENT_PATHS.tee;
-      const sc = fw / 100;
-      bg.add(new Konva.Path({ data: path, x: fx, y: fy, scaleX: sc, scaleY: sc, fill: garmentHex || '#e9e7e1', fillRule: 'evenodd', shadowColor: 'black', shadowBlur: 24, shadowOpacity: 0.18, shadowOffsetY: 10 }));
-    }
-    const box = { x: fx + fw * (pb.cx - pb.w / 2), y: fy + fh * pb.top, w: fw * pb.w, h: fh * pb.h };
-    stage.add(bg);
-    const art = await buildLayer(layers);
-    const s = Math.min(box.w / area.width, box.h / area.height);
-    art.scale({ x: s, y: s });
-    art.position({ x: box.x + (box.w - area.width * s) / 2, y: box.y });
-    stage.add(art);
+    const layer = new Konva.Layer();
+    const root = new Konva.Group({ scaleX: k, scaleY: k });
+    await drawTemplate(root, template, (art) => addLayerNodes(art, layers));
+    layer.add(root);
+    stage.add(layer);
     stage.draw();
-    return await new Promise((resolve, reject) => {
-      try { stage.toBlob({ pixelRatio: 1, mimeType: 'image/jpeg', quality: 0.86, callback: (b) => (b ? resolve(b) : reject(new Error('empty'))) }); } catch (e) { reject(e); }
-    });
+    return await toBlob(stage, 'image/jpeg', 0.86);
   } finally {
     stage.destroy();
   }

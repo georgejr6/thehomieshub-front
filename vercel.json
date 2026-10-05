@@ -12,6 +12,7 @@
     { "source": "/shop/cart", "destination": "/index.html" },
     { "source": "/shop/design", "destination": "/index.html" },
     { "source": "/shop/designs", "destination": "/index.html" },
+    { "source": "/shop/library", "destination": "/index.html" },
     { "source": "/shop/:slug", "has": [{"type": "query", "key": "_direct"}], "destination": "/index.html" },
     { "source": "/watch/:id", "destination": "https://backend.thehomies.app/og/watch/:id" },
     { "source": "/post/:id",  "destination": "https://backend.thehomies.app/og/post/:id"  },
@@ -21,6 +22,7 @@
     { "source": "/music/:artist/:song", "destination": "https://backend.thehomies.app/og/music/:artist/:song" },
     { "source": "/shop/:slug", "destination": "https://backend.thehomies.app/og/shop/:slug" },
     { "source": "/merch-cdn/:path*", "destination": "https://homieshub-media.nyc3.cdn.digitaloceanspaces.com/merch/:path*" },
+    { "source": "/pf-cdn/:path*", "destination": "https://files.cdn.printful.com/:path*" },
     { "source": "/sitemap.xml", "destination": "https://backend.thehomies.app/og/sitemap.xml" },
     { "source": "/((?!\\.well-known/).*)", "destination": "/index.html" }
   ],

@@ -13,6 +13,7 @@ import { lookupSlug, kindOf, siblings, families, KIND_LABEL, colorHex, productIm
 import { usd, addonsTotal } from '@/shop/lib/pricing';
 import { MAX_QTY } from '@/shop/lib/cart';
 import { startCheckout, apiError } from '@/shop/lib/api';
+import { studioHref, prefetchStudio } from '@/shop/lib/studioLink';
 
 /** Sensible first pick: White/Black and a middle size, else the first buyable variant. */
 export function preferredVariant(variants = []) {
@@ -28,7 +29,7 @@ export default function ShopProduct() {
   const { slug } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { products, cart, notify, openCart, blanks } = useShop();
+  const { products, cart, notify, openCart, blanks, studioAvailable, openStudio } = useShop();
   const [product, setProduct] = useState(undefined);
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
@@ -88,6 +89,7 @@ export default function ShopProduct() {
   const current = gallery[Math.min(view, gallery.length - 1)];
   const fallback = { kind, hex: colorHex(color || 'White'), phrase: product ? displayName(product) : '' };
 
+  const studioInit = { product: slug, color, size };
   const openCustomize = () => {
     customizeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setHighlight(true);
@@ -183,10 +185,11 @@ export default function ShopProduct() {
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <p className="text-2xl font-semibold">{product ? usd(unit) : '—'}</p>
             {cartAddons.length > 0 && <p className="text-sm text-white/50">incl. {cartAddons.length} add-on{cartAddons.length > 1 ? 's' : ''}</p>}
-            {addons.length > 0 && (
-              <button type="button" onClick={openCustomize} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-full border border-[#f0b94d]/40 px-4 text-sm font-medium text-[#f0b94d] hover:bg-[#f0b94d]/10">
+            {product && studioAvailable && (
+              <Link to={studioHref(studioInit)} onClick={(e) => { if (openStudio(studioInit)) e.preventDefault(); }} onMouseEnter={prefetchStudio} onFocus={prefetchStudio}
+                className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-full bg-[#f0b94d] px-4 text-sm font-semibold text-black hover:brightness-110">
                 <PenLine className="h-4 w-4" /> Customize
-              </button>
+              </Link>
             )}
           </div>
 
@@ -238,8 +241,8 @@ export default function ShopProduct() {
             <ShopButton variant="ghost" size="lg" onClick={share} aria-label="Share"><Share2 className="h-4 w-4" /></ShopButton>
           </div>
 
-          {designId && kind !== 'hat' && (
-            <Link to={`/shop/design?from=${designId}&blank=${kind}&color=${encodeURIComponent(color)}`}
+          {product && studioAvailable && (
+            <Link to={studioHref(studioInit)} onClick={(e) => { if (openStudio(studioInit)) e.preventDefault(); }} onMouseEnter={prefetchStudio}
               className="mt-6 flex items-center gap-4 rounded-2xl border border-dashed border-white/15 p-4 transition hover:border-[#f0b94d]/60">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f0b94d]/15"><Wand2 className="h-5 w-5 text-[#f0b94d]" /></div>
               <div className="flex-1"><p className="text-sm font-medium">Make it your own in the Studio</p><p className="text-xs text-white/50">Move it, resize it, add your own picture or text.</p></div>

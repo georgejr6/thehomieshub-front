@@ -15,6 +15,7 @@ import api from '@/api/homieshub';
 import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 import StoreBadges from '@/components/StoreBadges';
 import { useMerchAvailable } from '@/lib/merch';
+import { prefetchShop, prefetchShopOnIdle } from '@/shop/prefetch';
 
 const GetAppSidebarButton = () => (
   <Popover>
@@ -40,7 +41,7 @@ const GetAppSidebarButton = () => (
   </Popover>
 );
 
-const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot, highlight }) => {
+const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot, highlight, onIntent }) => {
   const location = useLocation();
   const { checkAccess } = useFeatures();
   const [toPath, toQuery] = to ? to.split('?') : [to, ''];
@@ -55,7 +56,7 @@ const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, live
   }
 
   return (
-    <NavLink to={to} onClick={onClick}>
+    <NavLink to={to} onClick={onClick} onMouseEnter={onIntent} onFocus={onIntent} onTouchStart={onIntent}>
       <motion.div
         className={cn(
           "flex items-center w-full h-12 px-4 rounded-lg cursor-pointer transition-colors",
@@ -160,6 +161,8 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
   const [hasActiveLive, setHasActiveLive] = useState(false);
   // Merch shows only once the shop is open with products (lib/merch.js).
   const merchOpen = useMerchAvailable();
+  // Warm the shop (chunks + catalog) while the browser is idle so opening it is instant.
+  useEffect(() => { if (merchOpen) prefetchShopOnIdle(); }, [merchOpen]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   useEffect(() => {
     const check = async () => {
@@ -184,7 +187,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
         { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
         { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },
         { to: '/library', icon: Library, label: 'Library', featureKey: 'library' },
-        ...(merchOpen ? [{ to: '/shop', icon: Shirt, label: 'Merch' }] : []),
+        ...(merchOpen ? [{ to: '/shop', icon: Shirt, label: 'Merch', onIntent: prefetchShop }] : []),
       ],
     },
     {
