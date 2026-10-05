@@ -132,9 +132,6 @@ export function validateDoc(doc, blank) {
   return [...new Set(issues)];
 }
 
-/** Where the front print area sits on Printful's 700×1000 on-model blank photo (for the instant preview). */
-export const PREVIEW_BOX = {
-  tee: { cx: 0.487, top: 0.335, w: 0.33, h: 0.44 },
-  hoodie: { cx: 0.493, top: 0.38, w: 0.30, h: 0.30 },
-  hat: { cx: 0.5, top: 0.33, w: 0.27, h: 0.12 },
-};
+// Where the print area sits on a garment image (fractions). Flat/ghost renders
+// and the silhouette share the same framing (src/shop/components/GarmentSilhouette).
+export { PRINT_BOX as PREVIEW_BOX } from '@/shop/components/GarmentSilhouette';

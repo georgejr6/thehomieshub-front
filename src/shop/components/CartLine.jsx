@@ -19,7 +19,7 @@ export default function CartLine({ line, saved = false, compact = false, onEdit 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <Link to={href} onClick={closeCart} className="shop-block truncate font-semibold leading-tight hover:underline">{line.name || 'Homies merch'}</Link>
+            <Link to={href} onClick={closeCart} className="shop-block truncate font-semibold leading-tight hover:underline">{line.name || 'The Homies merch'}</Link>
             <p className="mt-0.5 text-xs text-white/50">{line.variant}{line.kind === 'custom' ? ' · Your design' : ''}</p>
           </div>
           <p className="shrink-0 font-semibold">{usd(saved ? unitCents(line) : lineTotalCents(line))}</p>

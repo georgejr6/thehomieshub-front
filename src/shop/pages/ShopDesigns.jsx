@@ -34,7 +34,7 @@ export default function ShopDesigns() {
   }
   return (
     <motion.div {...pageMotion} className="mx-auto max-w-[1440px] px-4 pb-24 pt-8 sm:px-6 lg:px-10">
-      <Helmet><title>My designs — Homies Shop</title></Helmet>
+      <Helmet><title>My designs | The Homies</title></Helmet>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-6xl sm:text-7xl">My designs</h1>

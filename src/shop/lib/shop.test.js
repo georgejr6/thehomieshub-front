@@ -3,7 +3,7 @@ import { usd, addonDelta, unitCents, lineTotalCents, subtotalCents, priceFrom, c
 import { sanitizeCart, addLine, setQty, updateAddons, checkoutItems, needsApproval, migrateV1, lineKey, pruneUnavailable, MAX_LINES, MAX_QTY } from '@/shop/lib/cart';
 import { effectiveDpi, dpiStatus, maxWidthForDpi, inchesLabel } from '@/shop/lib/dpi';
 import { createAutosaver } from '@/shop/lib/autosave';
-import { lookupSlug, families, mockupUrl, filterProducts, kindOf } from '@/shop/lib/catalog';
+import { lookupSlug, families, productImage, productAltImage, filterProducts, kindOf } from '@/shop/lib/catalog';
 import { DESIGNS } from '@/shop/data/designs';
 
 describe('pricing display', () => {
@@ -171,9 +171,20 @@ describe('catalog', () => {
     expect(filterProducts(products, { kind: 'hat' })).toHaveLength(1);
     expect(kindOf(products[1])).toBe('hat');
   });
-  test('mockups follow garment colour', () => {
-    expect(mockupUrl('vamos', 'tee', 'Black')).toMatch(/vamos__tee-black\.jpg$/);
-    expect(mockupUrl('vamos', 'tee', 'Ash')).toMatch(/vamos__tee-white\.jpg$/);
-    expect(mockupUrl('vamos', 'hoodie', 'Bone')).toMatch(/hoodie-bone\.jpg$/);
+  test('images come from the API: per-colour variant render, never mockup composites', () => {
+    const p = {
+      thumbnail: 'https://files.cdn.printful.com/',
+      images: ['https://printful-upload.s3-accelerate.amazonaws.com/tmp/x/front.jpg'],
+      variants: [
+        { color: 'White', image: 'https://files.cdn.printful.com/files/aaa/white_preview.png' },
+        { color: 'Black', image: 'https://files.cdn.printful.com/files/bbb/black_preview.png' },
+      ],
+    };
+    expect(productImage(p, 'Black')).toMatch(/black_preview/);
+    expect(productImage(p, 'White')).toMatch(/white_preview/);
+    expect(productAltImage(p, 'White')).toMatch(/black_preview/);
+    expect(productImage({ thumbnail: 'https://files.cdn.printful.com/', variants: [] })).toBe('');
+    expect(productImage({ images: ['https://printful-upload.s3-accelerate.amazonaws.com/tmp/x/a.jpg'], variants: [] })).toMatch(/tmp/);
+    expect(JSON.stringify([productImage(p), productAltImage(p)])).not.toMatch(/merch\/v1\/mockups/);
   });
 });

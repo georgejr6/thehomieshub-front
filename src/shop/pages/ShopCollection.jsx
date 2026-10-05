@@ -15,7 +15,7 @@ export default function ShopCollection() {
   const items = useMemo(() => families(products).filter((f) => f.collections.includes(key)), [products, key]);
   return (
     <motion.div {...pageMotion} className="mx-auto max-w-[1440px] px-4 pt-8 sm:px-6 lg:px-10">
-      <Helmet><title>{col ? `${col.label} — Homies Shop` : 'Homies Shop'}</title></Helmet>
+      <Helmet><title>{col ? `${col.label} | The Homies Shop` : 'The Homies Shop'}</title></Helmet>
       <Link to="/shop" className="shop-block inline-flex items-center gap-1.5 text-sm text-white/55 hover:text-white"><ArrowLeft className="h-4 w-4" /> All merch</Link>
       <div className="mt-6 border-b border-white/[0.07] pb-10">
         <Eyebrow>Collection</Eyebrow>

@@ -312,7 +312,7 @@ function StudioEditor({ blanks }) {
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden lg:flex-row" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      <Helmet><title>Studio — Homies Shop</title></Helmet>
+      <Helmet><title>The Homies Studio | The Homies</title></Helmet>
       <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden" onChange={(e) => { const f = [...(e.target.files || [])]; e.target.value = ''; if (f.length) addFiles(f); }} />
 
       {/* Left rail (desktop) */}
@@ -464,7 +464,7 @@ function AddPanel({ onText, onUpload, onHomies, embroidery }) {
       <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
         <AddBtn icon={Type} title="Text" sub="Your words, your font" onClick={onText} />
         <AddBtn icon={ImagePlus} title="Upload" sub="PNG, JPG, WEBP" onClick={onUpload} disabled={embroidery} />
-        <AddBtn icon={Sparkles} title="Homies art" sub="Use a drop design" onClick={onHomies} disabled={embroidery} />
+        <AddBtn icon={Sparkles} title="The Homies art" sub="Use a drop design" onClick={onHomies} disabled={embroidery} />
       </div>
       {embroidery ? <Tip className="mt-3">This spot is embroidered: text only, up to 2 lines, in thread colours.</Tip>
         : <Tip className="mt-3">Best results: transparent PNGs, at least 2000 px wide. We'll tell you if anything will print blurry.</Tip>}
@@ -594,7 +594,7 @@ function ProductPanel({ blanks, blank, color, size, onBlank, onColor, onSize }) 
           {blanks.map((b) => (
             <button key={b.key} type="button" aria-pressed={b.key === blank.key} onClick={() => onBlank(b)}
               className={cn('shop-block overflow-hidden rounded-xl border text-left transition', b.key === blank.key ? 'border-white' : 'border-white/10 hover:border-white/30')}>
-              <ShopImage src={b.colors[0]?.image} alt="" className="aspect-square w-full bg-[#f4f3ef]" />
+              <ShopImage src={b.colors[0]?.image} alt="" fallback={{ kind: b.key, hex: b.colors[0]?.hex, phrase: '' }} className="aspect-square w-full bg-[#f4f3ef]" fit="contain" />
               <div className="px-2 py-1.5"><p className="truncate text-xs font-semibold">{b.name}</p><p className="text-[11px] text-white/45">{usd(b.basePriceCents)}</p></div>
             </button>
           ))}
@@ -646,7 +646,7 @@ function GarmentPreview({ blank, color, doc, placement, variant, notify, renderP
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <ShopButton variant="ghost" size="sm" loading={mock.state === 'loading'} onClick={real}><Wand2 className="h-4 w-4" /> Get a real mockup</ShopButton>
-        <span className="text-xs text-white/40">Instant preview is approximate.</span>
+        <span className="text-xs text-white/40">Instant preview is approximate — the real mockup is Printful's photo-real render.</span>
       </div>
       {mock.state === 'done' && mock.images.length > 0 && (
         <div className="grid w-full max-w-3xl grid-cols-2 gap-3 sm:grid-cols-3">
@@ -690,10 +690,10 @@ function HomiesPicker({ open, onClose, onPick, dark }) {
     <AnimatePresence>
       {open && (
         <motion.div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-          <motion.div role="dialog" aria-modal="true" aria-label="Homies designs" onClick={(e) => e.stopPropagation()} initial={{ y: 30 }} animate={{ y: 0 }} exit={{ y: 20 }}
+          <motion.div role="dialog" aria-modal="true" aria-label="The Homies designs" onClick={(e) => e.stopPropagation()} initial={{ y: 30 }} animate={{ y: 0 }} exit={{ y: 20 }}
             className="hh-shop flex max-h-[85dvh] w-full max-w-3xl flex-col rounded-t-3xl border border-white/10 bg-[#0f0f11] sm:rounded-3xl">
             <div className="flex items-center gap-3 border-b border-white/[0.07] p-5">
-              <p className="font-display text-3xl">Homies art</p>
+              <p className="font-display text-3xl">The Homies art</p>
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search designs" className="ml-auto h-10 w-40 rounded-full border border-white/12 bg-black/40 px-4 text-sm focus:outline-none sm:w-60" />
               <button type="button" onClick={onClose} aria-label="Close" className="shop-block rounded-full p-2 text-white/60 hover:bg-white/10"><X className="h-5 w-5" /></button>
             </div>

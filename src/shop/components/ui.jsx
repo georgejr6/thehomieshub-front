@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import GarmentSilhouette from '@/shop/components/GarmentSilhouette';
 
 // Small shop-only UI kit (the shop has its own look; it doesn't reuse the
 // app's shadcn theme so nothing outside the shop changes).
@@ -95,7 +96,8 @@ export function Toast({ toast }) {
 }
 
 /** Lazy image with a skeleton until it loads and a graceful fallback. */
-export function ShopImage({ src, alt, className, imgClassName, fit = 'cover', ...props }) {
+/** fallback: { kind, hex, phrase } → garment silhouette placeholder instead of a broken image. */
+export function ShopImage({ src, alt, className, imgClassName, fit = 'cover', fallback, ...props }) {
   const [state, setState] = React.useState('loading');
   const ref = React.useRef(null);
   // A cached image can fire onLoad before this effect runs — check `complete`
@@ -109,7 +111,8 @@ export function ShopImage({ src, alt, className, imgClassName, fit = 'cover', ..
     <div className={cn('relative overflow-hidden bg-[#141416]', className)}>
       {state === 'loading' && <div className="shop-skel absolute inset-0" aria-hidden />}
       {state === 'error' ? (
-        <div className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-widest text-white/30">The Homies Hub</div>
+        fallback ? <GarmentSilhouette className="absolute inset-0" kind={fallback.kind} hex={fallback.hex} phrase={fallback.phrase} />
+          : <div className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-widest text-white/30">The Homies</div>
       ) : (
         <img
           ref={ref}

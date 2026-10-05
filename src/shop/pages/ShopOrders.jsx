@@ -17,7 +17,7 @@ export default function ShopOrders() {
   }, [signedIn]);
   return (
     <motion.div {...pageMotion} className="mx-auto max-w-3xl px-4 pb-24 pt-8 sm:px-6">
-      <Helmet><title>My orders — Homies Shop</title></Helmet>
+      <Helmet><title>My orders | The Homies</title></Helmet>
       <h1 className="font-display text-6xl sm:text-7xl">My orders</h1>
       {!signedIn ? (
         <div className="mt-10 rounded-3xl border border-white/10 bg-[#111113] p-8 text-center">

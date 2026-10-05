@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { ShopImage } from '@/shop/components/ui';
-import { mockupUrl, KIND_LABEL, KINDS, productImage, productAltImage, displayName, kindOf } from '@/shop/lib/catalog';
+import { KIND_LABEL, KINDS, productImage, productAltImage, displayName, kindOf, colorHex } from '@/shop/lib/catalog';
 import { usd } from '@/shop/lib/pricing';
 
 /** Card for a design family (tee/hoodie/hat of one phrase). Hover swaps to the dark colourway. */
@@ -11,14 +11,17 @@ export function FamilyCard({ family, className, priority = false }) {
   const [hover, setHover] = useState(false);
   const first = family.products.tee || family.products.hoodie || family.products.hat;
   const kind = family.products.tee ? 'tee' : family.products.hoodie ? 'hoodie' : 'hat';
-  const id = family.design?.id;
-  const img = id ? mockupUrl(id, kind, 'White') : productImage(first);
-  const alt = id && kind !== 'hat' ? mockupUrl(id, kind, kind === 'hoodie' ? 'Bone' : 'Black') : '';
+  // Lead with the first garment that already has its Printful render.
+  const lead = KINDS.map((k) => family.products[k]).find((p) => p && productImage(p)) || first;
+  const leadKind = kindOf(lead);
+  const img = productImage(lead, leadKind === 'hat' ? '' : 'White');
+  const alt = productAltImage(lead, leadKind === 'hat' ? '' : 'White');
+  const fallback = { kind: leadKind, hex: leadKind === 'tee' ? colorHex('White') : colorHex('Black'), phrase: family.phrase };
   const kinds = KINDS.filter((k) => family.products[k]);
   return (
     <motion.div whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className={className}>
       <Link
-        to={`/shop/${first.slug}`}
+        to={`/shop/${lead.slug}`}
         className="shop-block group block"
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
@@ -26,9 +29,9 @@ export function FamilyCard({ family, className, priority = false }) {
         onBlur={() => setHover(false)}
       >
         <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#f4f3ef]">
-          <ShopImage src={img} alt={`${family.phrase} ${KIND_LABEL[kind]}`} className="absolute inset-0 bg-[#f4f3ef]" imgClassName="scale-[1.02] transition-transform duration-700 group-hover:scale-[1.06]" loading={priority ? 'eager' : 'lazy'} />
+          <ShopImage src={img} alt={`${family.phrase} ${KIND_LABEL[leadKind]}`} fallback={fallback} className="absolute inset-0 bg-[#f4f3ef]" imgClassName="object-contain p-[6%] transition-transform duration-700 group-hover:scale-[1.04]" loading={priority ? 'eager' : 'lazy'} />
           {alt && (
-            <img src={alt} alt="" aria-hidden loading="lazy" className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-500', hover ? 'opacity-100' : 'opacity-0')} />
+            <img src={alt} alt="" aria-hidden loading="lazy" className={cn('absolute inset-0 h-full w-full bg-[#f4f3ef] object-contain p-[6%] transition-opacity duration-500', hover ? 'opacity-100' : 'opacity-0')} />
           )}
           {family.soldOut && <span className="absolute left-3 top-3 rounded-full bg-black/80 px-3 py-1 text-[11px] font-bold uppercase tracking-wider">Sold out</span>}
           {family.collections.includes('must') && !family.soldOut && <span className="absolute left-3 top-3 rounded-full bg-[#f0b94d] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-black">Must-have</span>}
@@ -48,14 +51,16 @@ export function FamilyCard({ family, className, priority = false }) {
 /** Card for a single product (used when a garment filter is active). */
 export function ProductCard({ product, className }) {
   const [hover, setHover] = useState(false);
-  const img = productImage(product, 'White');
-  const alt = productAltImage(product);
+  const k = kindOf(product);
+  const img = productImage(product, k === 'hat' ? '' : 'White');
+  const alt = productAltImage(product, k === 'hat' ? '' : 'White');
+  const fallback = { kind: k, hex: k === 'tee' ? colorHex('White') : colorHex('Black'), phrase: displayName(product) };
   return (
     <motion.div whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className={className}>
       <Link to={`/shop/${product.slug}`} className="shop-block group block" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#f4f3ef]">
-          <ShopImage src={img} alt={product.name} className="absolute inset-0 bg-[#f4f3ef]" imgClassName="transition-transform duration-700 group-hover:scale-[1.05]" />
-          {alt && <img src={alt} alt="" aria-hidden loading="lazy" className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-500', hover ? 'opacity-100' : 'opacity-0')} />}
+          <ShopImage src={img} alt={product.name} fallback={fallback} className="absolute inset-0 bg-[#f4f3ef]" imgClassName="object-contain p-[6%] transition-transform duration-700 group-hover:scale-[1.04]" />
+          {alt && <img src={alt} alt="" aria-hidden loading="lazy" className={cn('absolute inset-0 h-full w-full bg-[#f4f3ef] object-contain p-[6%] transition-opacity duration-500', hover ? 'opacity-100' : 'opacity-0')} />}
           {product.soldOut && <span className="absolute left-3 top-3 rounded-full bg-black/80 px-3 py-1 text-[11px] font-bold uppercase">Sold out</span>}
         </div>
         <div className="mt-3.5 flex items-start justify-between gap-3">

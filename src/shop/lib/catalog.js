@@ -1,8 +1,8 @@
 import { DESIGNS } from '@/shop/data/designs';
 
 // Shop catalog helpers: tie live Printful products (/merch/products) back to
-// their design (phrase, collections, hosted mockups) so the shop can group a
-// design's tee / hoodie / hat and show real on-garment mockups.
+// their design (phrase, collections) so the shop can group a design's tee /
+// hoodie / hat. Images always come from the API (Printful ghost/flat renders).
 
 export const MEDIA = 'https://homieshub-media.nyc3.cdn.digitaloceanspaces.com/merch/v1';
 
@@ -10,7 +10,7 @@ export const COLLECTIONS = [
   { key: 'must', label: 'Must-Haves', blurb: 'The ones the chat keeps asking for.' },
   { key: 'travel', label: 'Travel', blurb: 'Passport stamped. Colombia, Brazil, repeat.' },
   { key: 'espanol', label: 'Español', blurb: 'Dame plata, baby.' },
-  { key: 'homies', label: 'Homies', blurb: 'Straight from the streams.' },
+  { key: 'homies', label: 'The Homies', blurb: 'Straight from the streams.' },
   { key: 'hats', label: 'Hats', blurb: 'Embroidered dad hats.' },
 ];
 
@@ -33,34 +33,43 @@ export function kindOf(product) {
 }
 
 const LIGHT = new Set(['white', 'athletic heather', 'ash', 'bone', 'heather grey', 'sport grey', 'khaki', 'natural']);
-const isLight = (c) => LIGHT.has(String(c || '').toLowerCase());
+export const isLightColor = (c) => LIGHT.has(String(c || '').toLowerCase());
 
-/** Hosted mockup for a design on a garment colour (falls back sensibly). */
-export function mockupUrl(designId, kind, color) {
-  if (!designId) return '';
-  if (kind === 'hat') return `${MEDIA}/mockups/${designId}__hat-black.jpg`;
-  if (kind === 'hoodie') return `${MEDIA}/mockups/${designId}__hoodie-${isLight(color) ? 'bone' : 'black'}.jpg`;
-  return `${MEDIA}/mockups/${designId}__tee-${isLight(color) ? 'white' : 'black'}.jpg`;
-}
-
-/** Flat artwork (transparent PNG) — used for hero type and previews. */
+/** Flat artwork (transparent PNG, no garment) — Studio art picker + product close-up only. */
 export const artUrl = (designId, ink = 'black') => (designId ? `${MEDIA}/print/${designId}__${ink}.png` : '');
 
-const good = (u) => typeof u === 'string' && /^https:\/\/.+\.(png|jpe?g|webp)(\?|$)/i.test(u);
+// Product images come ONLY from the API: Printful's garment-only ghost/flat
+// render per variant (variant.image = the variant's preview file), else the
+// product thumbnail/images. Never on-model photos. `printful-upload` tmp URLs
+// are mockup-task results that expire, so they're the last resort.
+const good = (u) => typeof u === 'string' && /^https:\/\/[^\s]+\.(png|jpe?g|webp)(\?|$)/i.test(u);
+const lasting = (u) => good(u) && !/printful-upload\.s3/.test(u);
 
-/** Best display image for a product (+ optional colour). */
+/** Best garment image for a product in a colour ('' = none yet → show the silhouette placeholder). */
 export function productImage(product, color) {
-  const hit = lookupSlug(product?.slug);
-  if (hit) return mockupUrl(hit.design.id, hit.kind, color);
-  const v = (product?.variants || []).find((x) => !color || x.color === color);
-  return [v?.image, product?.thumbnail, ...(product?.images || [])].find(good) || '';
+  const vs = product?.variants || [];
+  const exact = color ? vs.filter((v) => v.color === color) : [];
+  const cands = [...exact.map((v) => v.image), ...vs.map((v) => v.image), product?.thumbnail, ...(product?.images || [])];
+  return cands.find(lasting) || cands.find(good) || '';
 }
 
-/** Second image for hover-swap on cards (the other ink colour). */
-export function productAltImage(product) {
-  const hit = lookupSlug(product?.slug);
-  if (!hit || hit.kind === 'hat') return '';
-  return mockupUrl(hit.design.id, hit.kind, hit.kind === 'hoodie' ? 'Bone' : 'Black');
+/** Image for the opposite colourway (hover swap on cards), or ''. */
+export function productAltImage(product, color) {
+  const vs = product?.variants || [];
+  const first = color || vs[0]?.color;
+  const other = vs.find((v) => v.color !== first && isLightColor(v.color) !== isLightColor(first) && lasting(v.image))
+    || vs.find((v) => v.color !== first && lasting(v.image));
+  const main = productImage(product, first);
+  return other && other.image !== main ? other.image : '';
+}
+
+export const hasImage = (product) => !!productImage(product);
+
+/** Distinct colourways that have their own image, for galleries. */
+export function colorImages(product) {
+  const seen = new Map();
+  for (const v of product?.variants || []) if (lasting(v.image) && !seen.has(v.color)) seen.set(v.color, v.image);
+  return [...seen].map(([color, src]) => ({ color, src }));
 }
 
 export const displayName = (product) => lookupSlug(product?.slug)?.design.phrase || product?.name || '';

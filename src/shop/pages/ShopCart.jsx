@@ -49,7 +49,7 @@ export default function ShopCart() {
 
   return (
     <motion.div {...pageMotion} className="mx-auto max-w-[1200px] px-4 pb-24 pt-6 sm:px-6 lg:px-10">
-      <Helmet><title>Your bag — Homies Shop</title></Helmet>
+      <Helmet><title>Your bag | The Homies</title></Helmet>
       <Stepper current={step} />
       {cart.cart.length === 0 ? (
         <div className="py-24 text-center">

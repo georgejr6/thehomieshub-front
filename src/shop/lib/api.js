@@ -29,15 +29,15 @@ const isMockStudio = () => {
     return sessionStorage.getItem('hh_mock_studio') === '1';
   } catch { return false; }
 };
-const IMG = 'https://files.cdn.printful.com/products';
+// No garment photos in the fixture: blanks without a flat/ghost image use the silhouette.
 export const MOCK_BLANKS = [
   {
     key: 'tee', productId: 71, name: 'Staple Tee', basePriceCents: 3300,
     colors: [
-      { name: 'White', hex: '#f5f5f2', image: `${IMG}/71/4011_1752236284.jpg` },
-      { name: 'Black', hex: '#141414', image: `${IMG}/71/4016_1752236278.jpg` },
-      { name: 'Athletic Heather', hex: '#b9b9b6', image: `${IMG}/71/6948_1752236278.jpg` },
-      { name: 'Ash', hex: '#dedcd6', image: `${IMG}/71/4026_1752236278.jpg` },
+      { name: 'White', hex: '#f5f5f2', image: '' },
+      { name: 'Black', hex: '#141414', image: '' },
+      { name: 'Athletic Heather', hex: '#b9b9b6', image: '' },
+      { name: 'Ash', hex: '#dedcd6', image: '' },
     ],
     sizes: ['S', 'M', 'L', 'XL', '2XL', '3XL'],
     placements: [
@@ -51,8 +51,8 @@ export const MOCK_BLANKS = [
   {
     key: 'hoodie', productId: 380, name: 'Premium Hoodie', basePriceCents: 6300,
     colors: [
-      { name: 'Black', hex: '#141414', image: `${IMG}/380/10779_1788773849.jpg` },
-      { name: 'Bone', hex: '#e8dfcc', image: `${IMG}/380/20284_1788773849.jpg` },
+      { name: 'Black', hex: '#141414', image: '' },
+      { name: 'Bone', hex: '#e8dfcc', image: '' },
     ],
     sizes: ['S', 'M', 'L', 'XL', '2XL', '3XL'],
     placements: [
@@ -64,7 +64,7 @@ export const MOCK_BLANKS = [
   },
   {
     key: 'hat', productId: 206, name: 'Dad Hat', basePriceCents: 3700,
-    colors: [{ name: 'Black', hex: '#141414', image: `${IMG}/206/7854_1584455281.jpg` }, { name: 'Navy', hex: '#1f2a44', image: `${IMG}/206/7857_1584455384.jpg` }],
+    colors: [{ name: 'Black', hex: '#141414', image: '' }, { name: 'Navy', hex: '#1f2a44', image: '' }],
     sizes: ['One size'],
     placements: [{ key: 'embroidery_front', label: 'Front (embroidered)', technique: 'embroidery', area: { width: 1200, height: 525, dpi: 300 }, priceCents: 0 }],
     variants: [{ id: 6001, color: 'Black', size: 'One size', priceCents: 3700 }, { id: 6002, color: 'Navy', size: 'One size', priceCents: 3700 }],

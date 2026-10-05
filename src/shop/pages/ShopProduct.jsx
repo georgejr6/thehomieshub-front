@@ -10,7 +10,7 @@ import { ShopButton, Swatch, Pill, Skeleton, ShopImage, Tip, Eyebrow, pageMotion
 import { FamilyCard } from '@/shop/components/ProductCard';
 import AddonsPanel, { toCartAddons } from '@/shop/components/AddonsPanel';
 import SizeGuide from '@/shop/components/SizeGuide';
-import { lookupSlug, kindOf, siblings, families, KIND_LABEL, colorHex, productImage, artUrl, displayName } from '@/shop/lib/catalog';
+import { lookupSlug, kindOf, siblings, families, KIND_LABEL, colorHex, productImage, productAltImage, artUrl, displayName } from '@/shop/lib/catalog';
 import { usd, addonsTotal } from '@/shop/lib/pricing';
 import { MAX_QTY } from '@/shop/lib/cart';
 import { startCheckout, apiError } from '@/shop/lib/api';
@@ -73,12 +73,13 @@ export default function ShopProduct() {
   const gallery = useMemo(() => {
     if (!product) return [];
     const main = productImage(product, color);
-    const imgs = [{ src: main, label: `${color} ${KIND_LABEL[kind]}`, fit: 'cover' }];
+    const imgs = [{ src: main, label: `${color} ${KIND_LABEL[kind]}`, fit: 'contain', garment: true }];
+    const other = productAltImage(product, color);
+    if (other) imgs.push({ src: other, label: 'Other colourway', fit: 'contain', garment: true });
     if (designId && kind !== 'hat') imgs.push({ src: artUrl(designId, DARK.has(color) ? 'white' : 'black'), label: 'Artwork close-up', fit: 'contain', art: true, dark: DARK.has(color) });
-    const other = productImage(product, DARK.has(color) ? 'White' : 'Black');
-    if (other && other !== main) imgs.push({ src: other, label: 'Other colourway', fit: 'cover' });
-    return imgs;
+    return imgs.filter((g) => g.src || g.garment);
   }, [product, color, kind, designId]);
+  const fallback = { kind, hex: colorHex(color), phrase: product ? displayName(product) : '' };
 
   const pickColor = (c) => {
     setColor(c); setView(0);
@@ -132,7 +133,7 @@ export default function ShopProduct() {
   const name = product ? displayName(product) : hit?.design.phrase || '';
   return (
     <motion.div {...pageMotion} className="mx-auto max-w-[1440px] px-4 pb-32 pt-4 sm:px-6 lg:px-10 lg:pb-16">
-      <Helmet><title>{name ? `${name} ${KIND_LABEL[kind]} — Homies Shop` : 'Homies Shop'}</title></Helmet>
+      <Helmet><title>{name ? `${name} ${KIND_LABEL[kind]} | The Homies Shop` : 'The Homies Shop'}</title></Helmet>
       <Link to="/shop" className="shop-block inline-flex items-center gap-1.5 text-sm text-white/55 hover:text-white"><ArrowLeft className="h-4 w-4" /> Shop</Link>
       <div className="mt-5 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-16">
         {/* Gallery */}
@@ -142,16 +143,16 @@ export default function ShopProduct() {
               <div className={cn('relative aspect-[4/5] overflow-hidden rounded-[28px]', gallery[view]?.art ? (gallery[view].dark ? 'bg-[#141414]' : 'bg-[#f4f3ef]') : 'bg-[#f4f3ef]')}>
                 <AnimatePresence mode="wait">
                   <motion.div key={gallery[view]?.src} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="absolute inset-0">
-                    <ShopImage src={gallery[view]?.src} alt={`${name} — ${gallery[view]?.label}`} className={cn('h-full w-full', gallery[view]?.art ? 'bg-transparent p-[12%]' : 'bg-[#f4f3ef]')} fit={gallery[view]?.fit} />
+                    <ShopImage src={gallery[view]?.src} alt={`${name} — ${gallery[view]?.label}`} fallback={gallery[view]?.garment ? fallback : undefined} className={cn('h-full w-full', gallery[view]?.art ? 'bg-transparent p-[12%]' : 'bg-[#f4f3ef] p-[5%]')} fit={gallery[view]?.fit} />
                   </motion.div>
                 </AnimatePresence>
               </div>
               {gallery.length > 1 && (
                 <div className="mt-3 flex gap-3" role="tablist" aria-label="Product images">
-                  {gallery.map((g, n) => (
+                  {gallery.filter((g) => g.src).map((g, n) => (
                     <button key={g.src} role="tab" aria-selected={view === n} aria-label={g.label} type="button" onClick={() => setView(n)}
                       className={cn('shop-block h-20 w-16 overflow-hidden rounded-xl transition', view === n ? 'ring-2 ring-white' : 'opacity-60 ring-1 ring-white/10 hover:opacity-100', g.art ? (g.dark ? 'bg-[#141414]' : 'bg-[#f4f3ef]') : 'bg-[#f4f3ef]')}>
-                      <img src={g.src} alt="" className={cn('h-full w-full', g.fit === 'contain' ? 'object-contain p-2' : 'object-cover')} />
+                      <img src={g.src} alt="" className="h-full w-full object-contain p-1.5" />
                     </button>
                   ))}
                 </div>

@@ -40,13 +40,13 @@ export default function ShopThanks() {
 
   return (
     <motion.div {...pageMotion} className="mx-auto max-w-xl px-4 pb-24 pt-10 text-center">
-      <Helmet><title>Thank you — Homies Shop</title></Helmet>
+      <Helmet><title>Thank you | The Homies</title></Helmet>
       {valid && (
         <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
           <CheckCircle2 className="mx-auto h-16 w-16 text-[#f0b94d]" />
         </motion.div>
       )}
-      <h1 className="font-display mt-6 text-6xl leading-[0.9] sm:text-7xl">{valid ? <>Thanks for<br />repping the Homies</> : 'Merch order'}</h1>
+      <h1 className="font-display mt-6 text-6xl leading-[0.9] sm:text-7xl">{valid ? <>Thanks for<br />repping The Homies</> : 'Merch order'}</h1>
       {!valid ? (
         <p className="mt-6 text-white/60">We couldn't find that order. If you just paid, your confirmation email has the details.</p>
       ) : order ? (

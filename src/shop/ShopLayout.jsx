@@ -9,7 +9,7 @@ import CartDrawer from '@/shop/components/CartDrawer';
 import { Toast } from '@/shop/components/ui';
 import '@/shop/shop.css';
 
-// Homies Shop "mode": its own full-screen layout (like Media Mode / Homies
+// The Homies Shop "mode": its own full-screen layout (like Media Mode / Homies
 // Chat) — own header, no app sidebar or bottom nav. Routes: App.jsx /shop/*.
 
 export default function ShopLayout() {
@@ -68,8 +68,8 @@ function ShopHeader({ compact }) {
           <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
           <span className="hidden md:inline">The Homies</span>
         </Link>
-        <Link to="/shop" className="shop-block mr-auto flex items-baseline gap-2 md:mr-0" aria-label="Homies Shop home">
-          <span className="font-display text-[26px] leading-none">Homies</span>
+        <Link to="/shop" className="shop-block mr-auto flex items-baseline gap-2 md:mr-0" aria-label="The Homies Shop home">
+          <span className="font-display text-[26px] leading-none">The Homies</span>
           <span className="font-serif-i text-[19px] leading-none text-[#f0b94d]">shop</span>
         </Link>
         <nav className="mx-auto hidden items-center gap-1 md:flex" aria-label="Shop">
@@ -144,7 +144,7 @@ function ShopFooter() {
     <footer className="mt-24 border-t border-white/[0.07]">
       <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-14 sm:px-6 md:grid-cols-4 lg:px-10">
         <div className="md:col-span-2">
-          <p className="font-display text-4xl leading-none">Homies <span className="font-serif-i normal-case text-[#f0b94d]">shop</span></p>
+          <p className="font-display text-4xl leading-none">The Homies <span className="font-serif-i normal-case text-[#f0b94d]">shop</span></p>
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/55">Phrases straight from the streams, printed to order and shipped to you. Every piece is made when you order it — no waste, no warehouse.</p>
         </div>
         <div className="space-y-2.5 text-sm">
@@ -163,7 +163,7 @@ function ShopFooter() {
         </div>
       </div>
       <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 border-t border-white/[0.05] px-4 py-6 text-xs text-white/35 sm:px-6 lg:px-10">
-        <span>© {new Date().getFullYear()} The Homies Hub</span>
+        <span>© {new Date().getFullYear()} The Homies</span>
         <span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> Printed on demand · US shipping</span>
       </div>
     </footer>

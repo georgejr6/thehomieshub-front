@@ -1,5 +1,6 @@
 import Konva from 'konva';
 import { fontByKey, PREVIEW_BOX } from '@/shop/studio/model';
+import { GARMENT_PATHS } from '@/shop/components/GarmentSilhouette';
 import { loadImage } from '@/shop/lib/api';
 
 // Renders print files at the exact printfile size (offscreen Konva stage, not
@@ -85,26 +86,34 @@ export async function exportPlacement(layers, area) {
   }
 }
 
-/** Small JPEG of the front on the garment photo (instant preview for cart/designs). */
+/** Small JPEG of the design on a flat garment: the blank's flat/ghost render if
+ *  the API gives one, else the garment silhouette in its colour. Never people. */
 export async function exportPreview({ blankKey, garmentSrc, garmentHex, layers, area, size = 560 }) {
   const W = size; const H = Math.round(size * 1.25);
   const container = document.createElement('div');
   const stage = new Konva.Stage({ container, width: W, height: H });
   try {
     const bg = new Konva.Layer();
-    bg.add(new Konva.Rect({ width: W, height: H, fill: '#f4f3ef' }));
-    let box = { x: W * 0.2, y: H * 0.18, w: W * 0.6, h: H * 0.6 };
+    bg.add(new Konva.Rect({ width: W, height: H, fill: '#f1efea' }));
+    const pb = PREVIEW_BOX[blankKey] || PREVIEW_BOX.tee;
+    // garment occupies an inset 100×125 frame
+    const fw = W * 0.88; const fh = fw * 1.25;
+    const fx = (W - fw) / 2; const fy = (H - fh) / 2;
+    let drewPhoto = false;
     if (garmentSrc) {
       try {
         const g = await getImage(garmentSrc);
-        const s = Math.max(W / g.naturalWidth, H / g.naturalHeight);
-        const gw = g.naturalWidth * s; const gh = g.naturalHeight * s;
-        const gx = (W - gw) / 2; const gy = (H - gh) / 2;
-        bg.add(new Konva.Image({ image: g, x: gx, y: gy, width: gw, height: gh }));
-        const pb = PREVIEW_BOX[blankKey] || PREVIEW_BOX.tee;
-        box = { x: gx + gw * (pb.cx - pb.w / 2), y: gy + gh * pb.top, w: gw * pb.w, h: gh * pb.h };
-      } catch { bg.add(new Konva.Rect({ x: W * 0.15, y: H * 0.1, width: W * 0.7, height: H * 0.8, fill: garmentHex || '#ddd', cornerRadius: 24 })); }
+        const s = Math.min(fw / g.naturalWidth, fh / g.naturalHeight);
+        bg.add(new Konva.Image({ image: g, x: fx + (fw - g.naturalWidth * s) / 2, y: fy + (fh - g.naturalHeight * s) / 2, width: g.naturalWidth * s, height: g.naturalHeight * s }));
+        drewPhoto = true;
+      } catch { /* fall back to the silhouette */ }
     }
+    if (!drewPhoto) {
+      const path = GARMENT_PATHS[blankKey] || GARMENT_PATHS.tee;
+      const sc = fw / 100;
+      bg.add(new Konva.Path({ data: path, x: fx, y: fy, scaleX: sc, scaleY: sc, fill: garmentHex || '#e9e7e1', fillRule: 'evenodd', shadowColor: 'black', shadowBlur: 24, shadowOpacity: 0.18, shadowOffsetY: 10 }));
+    }
+    const box = { x: fx + fw * (pb.cx - pb.w / 2), y: fy + fh * pb.top, w: fw * pb.w, h: fh * pb.h };
     stage.add(bg);
     const art = await buildLayer(layers);
     const s = Math.min(box.w / area.width, box.h / area.height);

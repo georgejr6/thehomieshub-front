@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils';
 import { useShop } from '@/shop/ShopContext';
 import { ShopButton, Eyebrow, Skeleton, pageMotion } from '@/shop/components/ui';
 import { FamilyCard, ProductCard, CardSkeleton } from '@/shop/components/ProductCard';
-import { COLLECTIONS, families, filterProducts, mockupUrl, artUrl } from '@/shop/lib/catalog';
+import { COLLECTIONS, families, filterProducts, artUrl, productImage, kindOf, KINDS } from '@/shop/lib/catalog';
+import GarmentSilhouette from '@/shop/components/GarmentSilhouette';
 import { DESIGNS } from '@/shop/data/designs';
 
 const HERO_IDS = ['gringo-go-home', 'colombia-gt-brazil', 'dame-plata-baby', 'i-love-latinas', 'not-a-pookie', 'if-she-thick'];
@@ -38,10 +39,10 @@ export default function ShopHome() {
   return (
     <motion.div {...pageMotion}>
       <Helmet>
-        <title>Homies Shop — The Homies Hub</title>
-        <meta name="description" content="Official Homies Hub merch: phrases straight from the streams, printed to order. Tees, hoodies and embroidered dad hats." />
+        <title>The Homies Shop | The Homies</title>
+        <meta name="description" content="Official The Homies merch: phrases straight from the streams, printed to order. Tees, hoodies and embroidered dad hats." />
       </Helmet>
-      <Hero />
+      <Hero fams={fams} />
       <Marquee />
       <Promises />
       {error && (
@@ -86,12 +87,26 @@ export default function ShopHome() {
   );
 }
 
-function Hero() {
-  const { studioAvailable } = useShop();
+function Hero({ fams }) {
+  const { studioAvailable, loading } = useShop();
+  // Rotate through products whose clean garment render is ready (must-haves first).
+  const slides = useMemo(() => {
+    const ready = [];
+    const order = [...fams.filter((f) => HERO_IDS.includes(f.design?.id)), ...fams.filter((f) => !HERO_IDS.includes(f.design?.id))];
+    for (const f of order) {
+      const p = KINDS.map((k) => f.products[k]).find((x) => x && productImage(x));
+      if (p) ready.push({ key: f.key, phrase: f.phrase, slug: p.slug, src: productImage(p, kindOf(p) === 'hat' ? '' : 'White') });
+      if (ready.length >= 6) break;
+    }
+    return ready;
+  }, [fams]);
   const [i, setI] = useState(0);
-  useEffect(() => { const t = setInterval(() => setI((n) => (n + 1) % HERO_IDS.length), 4200); return () => clearInterval(t); }, []);
-  const id = HERO_IDS[i];
-  const phrase = DESIGNS.find((d) => d.id === id)?.phrase || '';
+  useEffect(() => {
+    if (slides.length < 2) return undefined;
+    const t = setInterval(() => setI((n) => (n + 1) % slides.length), 4200);
+    return () => clearInterval(t);
+  }, [slides.length]);
+  const slide = slides[i % Math.max(1, slides.length)];
   return (
     <section className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_80%_at_80%_20%,rgba(240,185,77,0.16),transparent_60%),radial-gradient(50%_60%_at_10%_90%,rgba(224,72,72,0.10),transparent_60%)]" />
@@ -113,26 +128,32 @@ function Hero() {
           </motion.div>
         </div>
         <div className="relative mx-auto w-full max-w-[520px]">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[28px] bg-[#f4f3ef] shadow-[0_40px_120px_-40px_rgba(240,185,77,0.35)]">
-            <AnimatePresence mode="popLayout">
-              <motion.img key={id} src={mockupUrl(id, 'tee', i % 2 ? 'Black' : 'White')} alt={`${phrase} tee`}
-                initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.7 }}
-                className="absolute inset-0 h-full w-full object-cover" />
-            </AnimatePresence>
-          </div>
-          <div className="absolute -bottom-5 left-4 right-4 flex items-center justify-between rounded-2xl border border-white/10 bg-[#0e0e10]/90 px-5 py-4 backdrop-blur-md sm:left-8 sm:right-8">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/45">Now showing</p>
-              <AnimatePresence mode="wait">
-                <motion.p key={id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="truncate font-semibold">{phrase}</motion.p>
+          <Link to={slide ? `/shop/${slide.slug}` : '/shop#all'} className="shop-block relative block aspect-[4/5] overflow-hidden rounded-[28px] bg-[#f4f3ef] shadow-[0_40px_120px_-40px_rgba(240,185,77,0.35)]" aria-label={slide ? `Shop ${slide.phrase}` : 'Shop the drop'}>
+            {slide ? (
+              <AnimatePresence mode="popLayout">
+                <motion.img key={slide.key} src={slide.src} alt={slide.phrase}
+                  initial={{ opacity: 0, scale: 1.03 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.7 }}
+                  className="absolute inset-0 h-full w-full object-contain p-[7%]" />
               </AnimatePresence>
+            ) : loading ? <div className="shop-skel absolute inset-0" /> : <GarmentSilhouette kind="tee" hex="#f5f5f2" phrase="The Homies" />}
+          </Link>
+          {slide && (
+            <div className="absolute -bottom-5 left-4 right-4 flex items-center justify-between rounded-2xl border border-white/10 bg-[#0e0e10]/90 px-5 py-4 backdrop-blur-md sm:left-8 sm:right-8">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/45">Now showing</p>
+                <AnimatePresence mode="wait">
+                  <motion.p key={slide.key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="truncate font-semibold">{slide.phrase}</motion.p>
+                </AnimatePresence>
+              </div>
+              {slides.length > 1 && (
+                <div className="flex gap-1.5">
+                  {slides.map((sl, n) => (
+                    <button key={sl.key} type="button" aria-label={`Show ${sl.phrase}`} onClick={() => setI(n)} className={cn('shop-block h-1.5 rounded-full transition-all', n === i ? 'w-6 bg-[#f0b94d]' : 'w-1.5 bg-white/25')} />
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex gap-1.5">
-              {HERO_IDS.map((h, n) => (
-                <button key={h} type="button" aria-label={`Show ${h}`} onClick={() => setI(n)} className={cn('shop-block h-1.5 rounded-full transition-all', n === i ? 'w-6 bg-[#f0b94d]' : 'w-1.5 bg-white/25')} />
-              ))}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </section>
@@ -207,7 +228,7 @@ function DesignYourOwnBanner() {
     <section className="mx-auto mt-24 max-w-[1440px] px-4 sm:px-6 lg:px-10">
       <div className="shop-grain relative grid overflow-hidden rounded-[28px] border border-white/10 bg-[#121214] md:grid-cols-2">
         <div className="relative z-10 p-8 sm:p-12">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#f0b94d]">Homies Studio</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#f0b94d]">The Homies Studio</p>
           <h2 className="font-display mt-4 text-5xl leading-[0.9] sm:text-6xl">Design your<br />own merch.</h2>
           <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/60">Upload a pic or type your own phrase, drag it where you want it, see it on the shirt instantly. Save it, come back to it, order it.</p>
           <ul className="mt-6 space-y-2 text-sm text-white/70">
@@ -230,7 +251,7 @@ function DesignYourOwnBanner() {
 function ComingSoon() {
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-2xl flex-col items-center justify-center px-4 text-center">
-      <Eyebrow className="text-[#f0b94d]">Homies Shop</Eyebrow>
+      <Eyebrow className="text-[#f0b94d]">The Homies Shop</Eyebrow>
       <h1 className="font-display mt-5 text-7xl leading-[0.9]">Merch is<br />coming soon</h1>
       <p className="mt-5 text-white/60">The first drop is almost here. Check back shortly.</p>
       <ShopButton as={Link} to="/browse" variant="ghost" className="mt-8">Back to The Homies</ShopButton>
