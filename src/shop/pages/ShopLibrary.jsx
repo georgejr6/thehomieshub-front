@@ -146,9 +146,9 @@ function DesignThumb({ design, blank }) {
   }, [saved, blank, design]);
   const src = saved || made;
   return (
-    <div ref={ref} className="aspect-[4/5] w-full overflow-hidden bg-[#ebe8e2]">
+    <div ref={ref} className="aspect-[4/5] w-full overflow-hidden bg-white">
       {src
-        ? <ShopImage src={src} alt="" className="h-full w-full bg-[#ebe8e2]" fit="contain" imgClassName="transition-transform duration-500 group-hover:scale-[1.03]" />
+        ? <ShopImage src={src} alt="" className="h-full w-full bg-white" fit="cover" imgClassName="transition-transform duration-500 group-hover:scale-[1.03]" />
         : <div className="flex h-full w-full items-center justify-center"><Palette className="h-8 w-8 text-black/20" /></div>}
     </div>
   );

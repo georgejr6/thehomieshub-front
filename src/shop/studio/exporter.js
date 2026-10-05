@@ -1,7 +1,8 @@
 import Konva from 'konva';
-import { fontByKey } from '@/shop/studio/model';
+import { fontByKey, weightOf } from '@/shop/studio/model';
 import { artScale } from '@/shop/studio/template';
 import { loadImage } from '@/shop/lib/api';
+import { loadFontCss as loadFontCssLocal } from '@/shop/lib/fontCss';
 
 // Renders print files at the exact printfile size (offscreen Konva stage, not
 // attached to the page) and a small on-garment preview for the cart/designs.
@@ -32,24 +33,15 @@ export function getImage(src) {
   return imageCache.get(src);
 }
 
-// Google Fonts from GET /merch/fonts load through their CSS (once per font).
-const cssLoaded = new Set();
-export function loadFontCss(url) {
-  if (!url || cssLoaded.has(url) || typeof document === 'undefined') return;
-  cssLoaded.add(url);
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = url;
-  document.head.appendChild(link);
-}
-export const fontSpec = (f, px = 64) => `${f.style === 'italic' ? 'italic' : 'normal'} ${f.weight === 'bold' ? 'bold' : 'normal'} ${px}px "${f.family}"`;
+export { loadFontCss } from '@/shop/lib/fontCss';
+export const fontSpec = (f, px = 64) => `${f.style === 'italic' ? 'italic' : 'normal'} ${weightOf(f)} ${px}px "${f.family}"`;
 
 export async function ensureFonts(layers = []) {
   if (typeof document === 'undefined' || !document.fonts?.load) return;
   const keys = new Set(layers.filter((l) => l.type === 'text').map((l) => l.font));
   await Promise.all([...keys].map((k) => {
     const f = fontByKey(k);
-    loadFontCss(f.cssUrl);
+    loadFontCssLocal(f.cssUrl);
     return document.fonts.load(fontSpec(f)).catch(() => {});
   }));
 }
@@ -59,7 +51,7 @@ export function textConfig(l) {
   return {
     text: f.upper ? String(l.text).toUpperCase() : String(l.text),
     fontFamily: f.family,
-    fontStyle: [f.style === 'italic' ? 'italic' : '', f.weight === 'bold' ? 'bold' : ''].filter(Boolean).join(' ') || 'normal',
+    fontStyle: [f.style === 'italic' ? 'italic' : '', weightOf(f) !== 400 ? String(weightOf(f)) : ''].filter(Boolean).join(' ') || 'normal',
     fontSize: l.fontSize,
     fill: l.color,
     align: ['left', 'center', 'right'].includes(l.align) ? l.align : 'center',

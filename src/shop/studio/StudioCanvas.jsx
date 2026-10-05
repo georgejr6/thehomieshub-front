@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Stage, Layer, Group, Rect, Line, Text, Path, Image as KImage, Transformer } from 'react-konva';
 import { Minus, Plus, Maximize2 } from 'lucide-react';
 import { textConfig, getImage, ensureFonts } from '@/shop/studio/exporter';
-import { clampToArea, isEmbroidery, clampText, fontByKey } from '@/shop/studio/model';
+import { clampToArea, isEmbroidery, clampText, fontByKey, weightOf } from '@/shop/studio/model';
 import { artScale } from '@/shop/studio/template';
 
 // The garment is the canvas: the template (Printful template image, the hat
@@ -80,8 +80,8 @@ function InlineTextEditor({ layer, node, onChange, onDone }) {
       className="absolute z-10 resize-none overflow-hidden rounded-md border border-dashed border-[#f0b94d] bg-black/10 p-0 outline-none"
       style={{
         left: pos.x, top: pos.y,
-        width: Math.max(90, layer.width * sc + 10), minHeight: fs * 1.1,
-        fontFamily: `'${f.family}'`, fontStyle: f.style || 'normal', fontWeight: f.weight || 'normal',
+        width: Math.max(90, layer.width * sc + 10), minHeight: fs * 1.12 * Math.max(1, String(layer.text).split('\n').length) + 6, paddingTop: 3,
+        fontFamily: `'${f.family}'`, fontStyle: f.style || 'normal', fontWeight: weightOf(f),
         fontSize: fs, lineHeight: 1.05, color: layer.color, textAlign: layer.align || 'center',
         letterSpacing: `${(Number(layer.letterSpacing) || 0) * sc}px`,
         textTransform: f.upper ? 'uppercase' : 'none',
@@ -208,7 +208,7 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
   const outline = dragging ? 0.95 : selectedId ? 0.55 : 0.32;
   const darkGarment = /^#(0|1|2|3)/i.test(t.hex || '');
   const lineColor = darkGarment ? '#ffffff' : '#111111';
-  const anchor = COARSE ? 26 : 12;
+  const anchor = COARSE ? 18 : 11;
   return (
     <div ref={wrap} className="relative h-full w-full touch-none select-none overflow-hidden" aria-label={`${placement.label} — design on the garment`} role="application">
       {fit > 0 && (
@@ -274,7 +274,7 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
               anchorStroke="#f0b94d"
               anchorStrokeWidth={1.5}
               anchorFill="#0a0a0b"
-              rotateAnchorOffset={(COARSE ? 34 : 24) / view.zoom}
+              rotateAnchorOffset={(COARSE ? 28 : 22) / view.zoom}
               borderStroke="#f0b94d"
               borderStrokeWidth={1.2}
               borderDash={[4, 3]}

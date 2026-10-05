@@ -53,11 +53,19 @@ const SILHOUETTE = {
   },
 };
 
+/** Our printfile shape, centred and as large as fits inside Printful's area (hat front is `fitted`). */
+export function fitPrintArea(area, pf) {
+  const k = Math.min(area.width / pf.width, area.height / pf.height);
+  const width = pf.width * k; const height = pf.height * k;
+  return { left: area.left + (area.width - width) / 2, top: area.top + (area.height - height) / 2, width, height };
+}
+
 function fromServer(blank, color, placement) {
   const key = placement.key;
   const list = Array.isArray(blank?.templates) ? blank.templates : null;
+  const colorList = Array.isArray(color?.templates) ? color.templates : null;
   const raw = [
-    color?.templates?.[key],
+    colorList ? colorList.find((t) => t?.placement === key) : color?.templates?.[key],
     placement?.templates?.[color?.name],
     !list ? blank?.templates?.[key]?.[color?.name] : null,
     list?.find((t) => t?.placement === key && (!t.color || t.color === color?.name)),
@@ -72,8 +80,9 @@ function fromServer(blank, color, placement) {
   const width = num(raw.templateWidth ?? raw.template_width ?? raw.width);
   const height = num(raw.templateHeight ?? raw.template_height ?? raw.height);
   if (!width || !height || !printArea.width || !printArea.height) return null;
+  const pf = placement.area || raw.printfile;
   return {
-    kind: 'printful', width, height, printArea,
+    kind: 'printful', width, height, printArea: pf ? fitPrintArea(printArea, pf) : printArea, fitted: !!raw.fitted,
     image: raw.templateImage || raw.template_image_url || raw.image || '',
     imageOnTop: raw.templateOnTop ?? raw.isTemplateOnFront ?? raw.is_template_on_front ?? true,
     backgroundColor: raw.backgroundColor || raw.background_color || color?.hex || '#ffffff',

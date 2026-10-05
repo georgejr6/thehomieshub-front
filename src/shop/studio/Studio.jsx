@@ -12,7 +12,7 @@ import { ShopButton, Swatch, Pill, Tip, Skeleton, ShopImage, useFocusTrap } from
 import StudioCanvas from '@/shop/studio/StudioCanvas';
 import useHistory from '@/shop/studio/useHistory';
 import {
-  INKS, threadsOf, allFonts, registerFonts, filterFonts, fontByKey, FONT_CATEGORIES, newDoc, placementOf, usedPlacements, defaultInk, defaultThread, makeTextLayer, makeImageLayer,
+  INKS, threadsOf, allFonts, registerFonts, filterFonts, fontByKey, weightOf, FONT_CATEGORIES, newDoc, placementOf, usedPlacements, defaultInk, defaultThread, makeTextLayer, makeImageLayer,
   isEmbroidery, validateDoc, clampToArea, clampText, withFontSize, TEXT_MAX, TEXT_MAX_LINES,
   placementAllowed, techniqueOf, serverLayers, resizeText, textSizeRange, twoLines,
 } from '@/shop/studio/model';
@@ -922,7 +922,7 @@ function FontPicker({ value, fonts, onPick }) {
     fonts.forEach((f) => loadFontCss(f.cssUrl));
     setTimeout(() => panel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
   }, [open, fonts]);
-  const face = (f) => ({ fontFamily: `'${f.family}'`, fontStyle: f.style || 'normal', fontWeight: f.weight || 'normal', textTransform: f.upper ? 'uppercase' : 'none' });
+  const face = (f) => ({ fontFamily: `'${f.family}'`, fontStyle: f.style || 'normal', fontWeight: weightOf(f), textTransform: f.upper ? 'uppercase' : 'none' });
   return (
     <div>
       <p className="mb-1.5 text-xs font-semibold text-white/60">Font</p>

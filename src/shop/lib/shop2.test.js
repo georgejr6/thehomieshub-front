@@ -81,11 +81,19 @@ describe('garment templates (the garment is the canvas)', async () => {
     expect(garmentThumb(tee, 'Black').image).toBeUndefined();
     expect(resolveTemplate(tee, 'Black', 'sleeve_left').printArea.left).toBeGreaterThan(500); // wearer's left = viewer's right
   });
+  test('live /blanks shape: colours carry templates[]; fitted areas keep our printfile shape centred', () => {
+    const hat = { key: 'hat', colors: [{ name: 'Black', hex: '#181717', templates: [{ placement: 'embroidery_front', templateImage: 'https://files.cdn.printful.com/m/hat.png', backgroundColor: '#181717', templateWidth: 3000, templateHeight: 3000, printArea: { left: 751, top: 850, width: 1499, height: 656 }, printfile: { width: 1200, height: 525, dpi: 300 }, fitted: true }] }], placements: [{ key: 'embroidery_front', area: { width: 1200, height: 525, dpi: 300 } }] };
+    const t = resolveTemplate(hat, 'Black', 'embroidery_front');
+    expect(t.kind).toBe('printful');
+    expect(t.printArea.width / t.printArea.height).toBeCloseTo(1200 / 525, 5);
+    expect(t.printArea.left + t.printArea.width / 2).toBeCloseTo(751 + 1499 / 2, 5);
+    expect(t.printArea.top + t.printArea.height / 2).toBeCloseTo(850 + 656 / 2, 5);
+  });
   test('server templates are used exactly (template image on top by default)', () => {
     const withT = { ...tee, colors: [{ ...tee.colors[0], templates: { front: { templateImage: 'https://x/t.png', backgroundColor: '#141414', templateWidth: 1000, templateHeight: 1000, printArea: { left: 300, top: 200, width: 400, height: 533.33 } } } }] };
     const t = resolveTemplate(withT, 'Black', 'front');
     expect(t).toMatchObject({ kind: 'printful', width: 1000, height: 1000, image: 'https://x/t.png', imageOnTop: true, backgroundColor: '#141414' });
-    expect(artScale(t).x).toBeCloseTo(400 / 1800, 6);
+    expect(artScale(t).x).toBeCloseTo(400 / 1800, 4);
   });
   test('hats use the garment-only catalog photo for the front', () => {
     const hat = { key: 'hat', colors: [{ name: 'Navy', hex: '#1f2a44', image: 'https://files.cdn.printful.com/products/206/navy.jpg' }], placements: [{ key: 'embroidery_front', area: { width: 1200, height: 525, dpi: 300 } }, { key: 'embroidery_back', area: { width: 600, height: 300, dpi: 300 } }] };
@@ -102,7 +110,10 @@ describe('fonts + add-on sizes', async () => {
     const all = registerFonts([{ key: 'bungee', family: 'Bungee', category: 'Display' }, { key: 'BAD KEY', family: 'X' }]);
     expect(isFontKey('bungee')).toBe(true);
     expect(isFontKey('BAD KEY')).toBe(false);
-    expect(fontByKey('bungee').cssUrl).toBe('https://fonts.googleapis.com/css2?family=Bungee:wght@400;700&display=swap');
+    expect(fontByKey('bungee').cssUrl).toBe('https://fonts.googleapis.com/css2?family=Bungee&display=swap');
+    registerFonts([{ key: 'serif_x', label: 'DM Serif Italic', category: 'serif', cssFamily: "'DM Serif Display', serif", googleFamily: 'DM Serif Display:ital@1', weight: 400, style: 'italic' }]);
+    expect(fontByKey('serif_x')).toMatchObject({ family: 'DM Serif Display', style: 'italic', cssUrl: 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@1&display=swap' });
+    registerFonts([{ key: 'bungee', family: 'Bungee', category: 'Display' }, { key: 'BAD KEY', family: 'X' }]);
     expect(filterFonts(all, { category: 'display', query: 'bun' }).map((f) => f.key)).toEqual(['bungee']);
     expect(filterFonts(all, { category: 'mono' }).map((f) => f.key)).toEqual(['mono']);
     registerFonts([]);

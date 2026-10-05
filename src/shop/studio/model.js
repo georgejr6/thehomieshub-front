@@ -14,32 +14,42 @@ export const STUDIO_FONTS = [
   { key: 'marker', label: 'Marker', family: 'HH Marker' },
   { key: 'mono', label: 'Mono', family: 'HH Mono', weight: 'bold' },
 ];
-const BASE_CATEGORY = { anton: 'display', archivo: 'sans', bebas: 'display', serif_italic: 'serif', instrument_italic: 'serif', marker: 'handwriting', mono: 'mono' };
+// Same categories as GET /merch/fonts (condensed · bold · display · serif · hand · script · mono).
+const BASE_CATEGORY = { anton: 'condensed', archivo: 'bold', bebas: 'condensed', serif_italic: 'serif', instrument_italic: 'serif', marker: 'hand', mono: 'mono' };
 STUDIO_FONTS.forEach((f) => { f.category = BASE_CATEGORY[f.key]; });
 
-// Extra fonts from GET /merch/fonts (curated Google Fonts). Only keys the server
-// lists are ever saved; until it answers, the 7 built-in fonts above are it.
+// The rest of the shared font registry comes from GET /merch/fonts (25 Google
+// Fonts the server can also render). The 7 keys above keep their self-hosted
+// woff2 files; only keys the server lists are ever saved.
 let extraFonts = [];
 const FONT_KEY_RE = /^[a-z0-9_]{1,40}$/;
-/** Register server fonts: [{ key, family, label?, category?, cssUrl?, weight?, style?, upper? }]. */
+/** First family name of a CSS font-family stack: "'Bebas Neue', sans-serif" → "Bebas Neue". */
+export const firstFamily = (stack) => String(stack || '').split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+/** css2 URL for a Google `family` spec ("DM Serif Display:ital@1", "Poppins:wght@700"). */
+export const googleCssUrl = (spec) => `https://fonts.googleapis.com/css2?family=${String(spec).trim().replace(/ /g, '+')}&display=swap`;
+/** Register server fonts: [{ key, label, category, cssFamily, googleFamily, weight, style }]. */
 export function registerFonts(list = []) {
   const known = new Set(STUDIO_FONTS.map((f) => f.key));
   extraFonts = (Array.isArray(list) ? list : [])
+    .map((f) => ({ ...f, family: f?.family || firstFamily(f?.cssFamily) || String(f?.googleFamily || '').split(':')[0] }))
     .filter((f) => f && FONT_KEY_RE.test(f.key || '') && f.family && !known.has(f.key))
     .map((f) => ({
       key: f.key, label: f.label || f.family, family: f.family, category: String(f.category || 'display').toLowerCase(),
-      cssUrl: f.cssUrl || f.css || `https://fonts.googleapis.com/css2?family=${String(f.family).trim().replace(/ /g, '+')}:wght@400;700&display=swap`,
-      weight: f.weight, style: f.style, upper: !!f.upper,
+      cssUrl: f.cssUrl || googleCssUrl(f.googleFamily || f.family),
+      weight: f.weight, style: f.style === 'italic' ? 'italic' : undefined, upper: !!f.upper,
     }));
   return allFonts();
 }
+/** Numeric CSS weight for a font entry ('bold' → 700). */
+export const weightOf = (f) => (f?.weight === 'bold' ? 700 : Number(f?.weight) || 400);
 export const allFonts = () => [...STUDIO_FONTS, ...extraFonts];
 export const fontByKey = (k) => allFonts().find((f) => f.key === k) || STUDIO_FONTS[0];
 export const isFontKey = (k) => allFonts().some((f) => f.key === k);
 export const FONT_KEYS = STUDIO_FONTS.map((f) => f.key);
 export const FONT_CATEGORIES = [
-  { key: 'all', label: 'All' }, { key: 'sans', label: 'Sans' }, { key: 'serif', label: 'Serif' },
-  { key: 'display', label: 'Display' }, { key: 'handwriting', label: 'Script' }, { key: 'mono', label: 'Mono' },
+  { key: 'all', label: 'All' }, { key: 'condensed', label: 'Condensed' }, { key: 'bold', label: 'Bold' },
+  { key: 'display', label: 'Display' }, { key: 'serif', label: 'Serif' }, { key: 'hand', label: 'Hand' },
+  { key: 'script', label: 'Script' }, { key: 'mono', label: 'Mono' },
 ];
 /** Search + category filter for the font picker. */
 export function filterFonts(fonts, { query = '', category = 'all' } = {}) {

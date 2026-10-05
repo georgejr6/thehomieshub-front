@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tip } from '@/shop/components/ui';
 import { addonDelta } from '@/shop/lib/pricing';
+import { fetchFonts } from '@/shop/lib/api';
+import { loadFontCss } from '@/shop/lib/fontCss';
+import { firstFamily, googleCssUrl } from '@/shop/studio/model';
 
 // Add-ons on a listed product: back print, sleeves, embroidered name… Each is
 // custom TEXT (docs/MERCH_API_V2.md: add-on text ≤ 40 chars / 2 lines; colours
@@ -36,7 +39,28 @@ export function addonFontSize(addon, sizeKey, text = '') {
   const lines = Math.max(1, String(text).split('\n').length);
   return Math.min(5000, Math.max(8, Math.round((h * step.f) / Math.sqrt(lines))));
 }
-const fontOf = (k) => TEXT_FONTS.find((f) => f.key === k) || TEXT_FONTS[0];
+let extraAddonFonts = [];
+/** The full shared font list (GET /merch/fonts) after the 7 self-hosted ones. */
+function useAddonFonts(active) {
+  const [list, setList] = useState(() => [...TEXT_FONTS, ...extraAddonFonts]);
+  useEffect(() => {
+    if (!active) return undefined;
+    let alive = true;
+    fetchFonts().then((fonts) => {
+      if (!alive || !fonts?.length) return;
+      const known = new Set(TEXT_FONTS.map((f) => f.key));
+      extraAddonFonts = fonts.filter((f) => f?.key && !known.has(f.key)).map((f) => ({
+        key: f.key, label: f.label || firstFamily(f.cssFamily), css: f.cssFamily || `'${firstFamily(f.cssFamily)}'`,
+        italic: f.style === 'italic', weight: Number(f.weight) || 400, cssUrl: googleCssUrl(f.googleFamily || firstFamily(f.cssFamily)),
+      }));
+      extraAddonFonts.forEach((f) => loadFontCss(f.cssUrl));
+      setList([...TEXT_FONTS, ...extraAddonFonts]);
+    });
+    return () => { alive = false; };
+  }, [active]);
+  return list;
+}
+const fontOf = (k, list = TEXT_FONTS) => list.find((f) => f.key === k) || TEXT_FONTS[0];
 export const isEmbroidery = (addon) => /embroid/i.test(`${addon?.technique || ''} ${addon?.key || ''}`);
 export const clampAddonText = (t) => String(t ?? '').split('\n').slice(0, ADDON_MAX_LINES).join('\n').slice(0, ADDON_TEXT_MAX);
 
@@ -49,6 +73,8 @@ export function defaultColor(palette, darkGarment) {
 
 /** value: { [addonKey]: { on, text, font, color } }. threadColors: [{hex,name}] from /blanks. */
 export default function AddonsPanel({ addons = [], value, onChange, threadColors = [], garmentHex = '#f5f5f2', darkGarment = false, highlight = false }) {
+  const anyOn = addons.some((a) => value?.[a.key]?.on);
+  const fonts = useAddonFonts(anyOn);
   if (!addons.length) return null;
   const set = (key, patch) => onChange({ ...value, [key]: { ...(value[key] || {}), ...patch } });
   return (
@@ -63,10 +89,10 @@ export default function AddonsPanel({ addons = [], value, onChange, threadColors
         const palette = emb ? threadColors.map((t) => ({ hex: t.hex.toUpperCase(), label: t.name || t.hex })) : INK_COLORS;
         const unavailable = emb && !palette.length;
         const color = v.color || defaultColor(palette, darkGarment);
-        const font = emb ? fontOf('archivo') : fontOf(v.font || 'anton');
+        const font = fontOf(v.font || (emb ? 'archivo' : 'anton'), fonts);
         return (
           <div key={a.key} className={cn('overflow-hidden rounded-2xl border transition-colors', v.on ? 'border-white/30 bg-white/[0.04]' : 'border-white/10', unavailable && 'opacity-50')}>
-            <button type="button" aria-expanded={!!v.on} disabled={unavailable} onClick={() => set(a.key, { on: !v.on, color, font: emb ? 'archivo' : (v.font || 'anton') })}
+            <button type="button" aria-expanded={!!v.on} disabled={unavailable} onClick={() => set(a.key, { on: !v.on, color, font: v.font || (emb ? 'archivo' : 'anton') })}
               className="flex min-h-[56px] w-full items-center gap-3 px-4 py-3 text-left disabled:cursor-not-allowed">
               <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition', v.on ? 'border-[#f0b94d] bg-[#f0b94d] text-black' : 'border-white/25 text-white/60')}>
                 {v.on ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
@@ -96,14 +122,14 @@ export default function AddonsPanel({ addons = [], value, onChange, threadColors
                           className="h-8 rounded-full border border-white/12 px-3 text-[11px] font-semibold text-white/70 hover:border-white/35 disabled:opacity-30">+ Line break</button>
                       </div>
                     </div>
-                    {!emb && (
+                    {(
                       <div>
-                        <p className="mb-1.5 text-xs font-semibold text-white/60">Font</p>
+                        <p className="mb-1.5 text-xs font-semibold text-white/60">Font <span className="font-normal text-white/35">· {font.label}</span></p>
                         <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-                          {TEXT_FONTS.map((f) => (
-                            <button key={f.key} type="button" aria-pressed={(v.font || 'anton') === f.key} onClick={() => set(a.key, { font: f.key })}
-                              className={cn('h-10 shrink-0 rounded-xl border px-3 text-sm', (v.font || 'anton') === f.key ? 'border-white bg-white text-black' : 'border-white/12 text-white/80')}
-                              style={{ fontFamily: f.css, fontStyle: f.italic ? 'italic' : 'normal', textTransform: f.upper ? 'uppercase' : 'none' }}>{f.label}</button>
+                          {fonts.map((f) => (
+                            <button key={f.key} type="button" aria-pressed={font.key === f.key} onClick={() => set(a.key, { font: f.key })}
+                              className={cn('h-10 shrink-0 rounded-xl border px-3 text-[15px]', font.key === f.key ? 'border-white bg-white text-black' : 'border-white/12 text-white/80')}
+                              style={{ fontFamily: f.css, fontStyle: f.italic ? 'italic' : 'normal', fontWeight: f.weight || 400, textTransform: f.upper ? 'uppercase' : 'none' }}>{f.label}</button>
                           ))}
                         </div>
                       </div>
@@ -130,7 +156,7 @@ export default function AddonsPanel({ addons = [], value, onChange, threadColors
                     </div>
                     <div className="flex min-h-[96px] items-center justify-center overflow-hidden rounded-xl px-4 py-3" style={{ background: garmentHex }} aria-label="Preview">
                       <span className="max-w-full whitespace-pre-line break-words text-center text-3xl leading-[1.05]"
-                        style={{ fontFamily: font.css, fontStyle: font.italic ? 'italic' : 'normal', color, textTransform: font.upper ? 'uppercase' : 'none', fontSize: { s: 22, m: 30, l: 40 }[v.size || 'm'] }}>
+                        style={{ fontFamily: font.css, fontStyle: font.italic ? 'italic' : 'normal', fontWeight: font.weight || 400, color, textTransform: font.upper ? 'uppercase' : 'none', fontSize: { s: 22, m: 30, l: 40 }[v.size || 'm'] }}>
                         {(v.text || '').trim() || (emb ? 'YOUR NAME' : 'Your text')}
                       </span>
                     </div>
@@ -159,7 +185,7 @@ export function toCartAddons(addons = [], value = {}, threadColors = [], darkGar
     const color = (v.color || defaultColor(palette, darkGarment) || '').toUpperCase();
     if (!/^#[0-9A-F]{6}$/.test(color)) return { addons: [], error: `Pick a colour for “${a.label}”.` };
     const fontSize = v.size ? addonFontSize(a, v.size, text) : (Number.isInteger(v.fontSize) ? v.fontSize : undefined);
-    out.push({ key: a.key, label: a.label, text, font: emb ? 'archivo' : (v.font || 'anton'), color, ...(fontSize ? { fontSize } : {}), priceCents: a.priceCents || 0 });
+    out.push({ key: a.key, label: a.label, text, font: v.font || (emb ? 'archivo' : 'anton'), color, ...(fontSize ? { fontSize } : {}), priceCents: a.priceCents || 0 });
   }
   return { addons: out, error: null };
 }

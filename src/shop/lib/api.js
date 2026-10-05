@@ -111,7 +111,8 @@ export function fetchFonts() {
 }
 
 export function fetchBlanks() {
-  if (isMockStudio()) return Promise.resolve(MOCK_BLANKS);
+  // Dev fixture: real blanks (read-only GET — garment templates, colours, prices), local designs.
+  if (isMockStudio()) return api.get('/merch/blanks').then((r) => (r.data?.blanks?.length ? r.data.blanks : MOCK_BLANKS)).catch(() => MOCK_BLANKS);
   if (!blanksPromise) {
     blanksPromise = api.get('/merch/blanks')
       .then((r) => (Array.isArray(r.data?.blanks) && r.data.blanks.length ? r.data.blanks : null))
