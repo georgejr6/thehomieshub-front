@@ -1,12 +1,11 @@
 /* Homies Shop — scoped styles (only loaded inside the shop mode). */
-@font-face { font-family: 'HH Anton'; src: url('/fonts/shop/Anton-Regular.ttf') format('truetype'); font-display: swap; }
-@font-face { font-family: 'HH Archivo'; src: url('/fonts/shop/ArchivoBlack-Regular.ttf') format('truetype'); font-display: swap; }
-@font-face { font-family: 'HH Bebas'; src: url('/fonts/shop/BebasNeue-Regular.ttf') format('truetype'); font-display: swap; }
-@font-face { font-family: 'HH Serif'; src: url('/fonts/shop/DMSerifDisplay-Italic.ttf') format('truetype'); font-style: italic; font-display: swap; }
-@font-face { font-family: 'HH Marker'; src: url('/fonts/shop/PermanentMarker-Regular.ttf') format('truetype'); font-display: swap; }
-@font-face { font-family: 'HH Mono'; src: url('/fonts/shop/SpaceMono-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-@font-face { font-family: 'HH Instrument'; src: url('/fonts/shop/InstrumentSerif-Italic.ttf') format('truetype'); font-style: italic; font-display: swap; }
-@font-face { font-family: 'HH Bowlby'; src: url('/fonts/shop/BowlbyOneSC-Regular.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: 'HH Anton'; src: url('/fonts/shop/Anton-Regular.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'HH Archivo'; src: url('/fonts/shop/ArchivoBlack-Regular.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'HH Bebas'; src: url('/fonts/shop/BebasNeue-Regular.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'HH Serif'; src: url('/fonts/shop/DMSerifDisplay-Italic.woff2') format('woff2'); font-style: italic; font-display: swap; }
+@font-face { font-family: 'HH Marker'; src: url('/fonts/shop/PermanentMarker-Regular.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'HH Mono'; src: url('/fonts/shop/SpaceMono-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'HH Instrument'; src: url('/fonts/shop/InstrumentSerif-Italic.woff2') format('woff2'); font-style: italic; font-display: swap; }
 
 .hh-shop {
   --shop-bg: #0a0a0b;
@@ -61,6 +60,7 @@
 
 .hh-shop .shop-skel { background: linear-gradient(100deg, #151517 30%, #1f1f22 50%, #151517 70%); background-size: 300% 100%; animation: shop-shimmer 1.4s ease-in-out infinite; }
 @keyframes shop-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .hh-shop .shop-skel { animation: none; background: #18181a; } }
 
 .hh-shop .shop-checker {
   background-color: #1a1a1d;

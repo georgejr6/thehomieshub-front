@@ -24,6 +24,9 @@ for (const d of DESIGNS) for (const [kind, slug] of Object.entries(d.slugs)) byS
 export const lookupSlug = (slug) => bySlug.get(slug) || null;
 
 export function kindOf(product) {
+  const t = product?.productType;
+  if (t === 'tee' || t === 'hoodie' || t === 'hat') return t;
+  if (t === 'crewneck') return 'hoodie';
   const hit = lookupSlug(product?.slug);
   if (hit) return hit.kind;
   const n = String(product?.name || '').toLowerCase();
@@ -31,6 +34,18 @@ export function kindOf(product) {
   if (/hoodie|sweatshirt|crewneck/.test(n)) return 'hoodie';
   return 'tee';
 }
+
+// What each garment can be customized with (docs/MERCH_API_V2.md "Listed product
+// add-ons"). Used for card badges + "Customizable" filters without fetching every
+// product; the product page uses the real product.addons from the API.
+export const CUSTOMIZE = {
+  tee: ['back', 'sleeve', 'name'],
+  hoodie: ['back', 'sleeve', 'name'], // listed hoodies don't offer chest embroidery (server: mixed_technique)
+  hat: ['embroidery', 'name'],
+};
+export const CUSTOM_LABEL = { name: 'Add a name', back: 'Back print', sleeve: 'Sleeve', embroidery: 'Embroidery' };
+export const CUSTOM_FILTERS = [{ key: 'name', label: 'Name' }, { key: 'back', label: 'Back print' }, { key: 'embroidery', label: 'Embroidery' }];
+export const customizeKeys = (product) => CUSTOMIZE[kindOf(product)] || [];
 
 const LIGHT = new Set(['white', 'athletic heather', 'ash', 'bone', 'heather grey', 'sport grey', 'khaki', 'natural']);
 export const isLightColor = (c) => LIGHT.has(String(c || '').toLowerCase());
@@ -45,22 +60,33 @@ export const artUrl = (designId, ink = 'black') => (designId ? `${MEDIA}/print/$
 const good = (u) => typeof u === 'string' && /^https:\/\/[^\s]+\.(png|jpe?g|webp)(\?|$)/i.test(u);
 const lasting = (u) => good(u) && !/printful-upload\.s3/.test(u);
 
-/** Best garment image for a product in a colour ('' = none yet → show the silhouette placeholder). */
+/** Garment image for a product in a colour. With a colour: ONLY that colour's own
+ *  render (never another colour's — a white image for a black hoodie looks faded);
+ *  '' → the silhouette placeholder. Without a colour: any render / thumbnail. */
 export function productImage(product, color) {
   const vs = product?.variants || [];
-  const exact = color ? vs.filter((v) => v.color === color) : [];
-  const cands = [...exact.map((v) => v.image), ...vs.map((v) => v.image), product?.thumbnail, ...(product?.images || [])];
+  if (color) {
+    const own = vs.filter((v) => v.color === color).map((v) => v.image);
+    return own.find(lasting) || own.find(good) || '';
+  }
+  const cands = [...vs.map((v) => v.image), product?.thumbnail, ...(product?.images || [])];
   return cands.find(lasting) || cands.find(good) || '';
 }
 
-/** Image for the opposite colourway (hover swap on cards), or ''. */
+/** Default colour to show a product in: White/Black if they have a render, else the first colour with one. */
+export function displayColor(product) {
+  const vs = product?.variants || [];
+  for (const c of ['White', 'Black']) if (vs.some((v) => v.color === c && good(v.image))) return c;
+  return vs.find((v) => good(v.image))?.color || vs[0]?.color || '';
+}
+
+/** The opposite colourway's own image (hover swap), or ''. */
 export function productAltImage(product, color) {
   const vs = product?.variants || [];
-  const first = color || vs[0]?.color;
+  const first = color || displayColor(product);
   const other = vs.find((v) => v.color !== first && isLightColor(v.color) !== isLightColor(first) && lasting(v.image))
     || vs.find((v) => v.color !== first && lasting(v.image));
-  const main = productImage(product, first);
-  return other && other.image !== main ? other.image : '';
+  return other ? other.image : '';
 }
 
 export const hasImage = (product) => !!productImage(product);
@@ -103,10 +129,11 @@ export function families(products = []) {
 }
 
 /** Products (not families) matching a filter chip and search query. */
-export function filterProducts(products = [], { kind = 'all', query = '', collection = '' } = {}) {
+export function filterProducts(products = [], { kind = 'all', query = '', collection = '', custom = '' } = {}) {
   const q = query.trim().toLowerCase();
   return products.filter((p) => {
     if (kind !== 'all' && kindOf(p) !== kind) return false;
+    if (custom && !customizeKeys(p).includes(custom)) return false;
     const hit = lookupSlug(p.slug);
     if (collection) {
       const cols = hit ? [...hit.design.collections, ...(hit.kind === 'hat' ? ['hats'] : [])] : [];

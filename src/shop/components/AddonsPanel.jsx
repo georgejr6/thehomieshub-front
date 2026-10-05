@@ -5,120 +5,109 @@ import { cn } from '@/lib/utils';
 import { Tip } from '@/shop/components/ui';
 import { addonDelta } from '@/shop/lib/pricing';
 
-// Add-ons on a listed product (back print, sleeve, left-chest name, custom
-// text). Prices come from the server (formula: cost ÷ 0.67, never below cost).
+// Add-ons on a listed product: back print, sleeves, embroidered name… Each is
+// custom TEXT (docs/MERCH_API_V2.md: add-on text ≤ 40 chars / 2 lines; colours
+// are hex; embroidery uses the blank's thread palette and always renders in
+// `archivo`). Prices come from the server (cost ÷ 0.67, never below cost).
 
+export const ADDON_TEXT_MAX = 40;
+export const ADDON_MAX_LINES = 2;
 export const TEXT_FONTS = [
-  { key: 'anton', label: 'Block', css: "'HH Anton', Impact, sans-serif" },
-  { key: 'archivo', label: 'Heavy', css: "'HH Archivo', sans-serif" },
-  { key: 'serif', label: 'Script serif', css: "'HH Serif', Georgia, serif" },
+  { key: 'anton', label: 'Block', css: "'HH Anton', Impact, sans-serif", upper: true },
+  { key: 'archivo', label: 'Heavy', css: "'HH Archivo', sans-serif", upper: true },
+  { key: 'bebas', label: 'Condensed', css: "'HH Bebas', sans-serif", upper: true },
+  { key: 'serif_italic', label: 'Script serif', css: "'HH Serif', Georgia, serif" },
   { key: 'marker', label: 'Marker', css: "'HH Marker', cursive" },
   { key: 'mono', label: 'Mono', css: "'HH Mono', monospace" },
 ];
 export const INK_COLORS = [
-  { key: 'white', label: 'White', hex: '#ffffff' },
-  { key: 'black', label: 'Black', hex: '#111111' },
-  { key: 'gold', label: 'Gold', hex: '#f0b94d' },
-  { key: 'red', label: 'Red', hex: '#d62828' },
+  { hex: '#FFFFFF', label: 'White' },
+  { hex: '#111111', label: 'Black' },
+  { hex: '#F0B94D', label: 'Gold' },
+  { hex: '#D62828', label: 'Red' },
 ];
-// Homies thread palette for embroidery (spec).
-export const THREAD_COLORS = [
-  { key: 'white', label: 'White thread', hex: '#ffffff' },
-  { key: 'black', label: 'Black thread', hex: '#111111' },
-  { key: 'red', label: 'Red thread', hex: '#cc3333' },
-  { key: 'gold', label: 'Gold thread', hex: '#e2a83a' },
-  { key: 'navy', label: 'Navy thread', hex: '#1f2a44' },
-];
-const fontCss = (k) => TEXT_FONTS.find((f) => f.key === k)?.css || TEXT_FONTS[0].css;
-const MAX_TEXT = 24;
+const fontOf = (k) => TEXT_FONTS.find((f) => f.key === k) || TEXT_FONTS[0];
+export const isEmbroidery = (addon) => /embroid/i.test(`${addon?.technique || ''} ${addon?.key || ''}`);
+export const clampAddonText = (t) => String(t ?? '').split('\n').slice(0, ADDON_MAX_LINES).join('\n').slice(0, ADDON_TEXT_MAX);
 
-export const isEmbroidery = (addon) => /embroid/i.test(addon?.technique || addon?.key || '');
+/** Closest palette colour to white/black so the default reads on the garment. */
+export function defaultColor(palette, darkGarment) {
+  if (!palette.length) return null;
+  const lum = (h) => { const n = parseInt(h.slice(1), 16); return ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114; };
+  return [...palette].sort((a, b) => (darkGarment ? lum(b.hex) - lum(a.hex) : lum(a.hex) - lum(b.hex)))[0].hex;
+}
 
-/** value: { [addonKey]: { on, mode:'design'|'text', text, font, color } } */
-export default function AddonsPanel({ addons = [], value, onChange, designId, garmentHex = '#f5f5f2', darkGarment = false }) {
+/** value: { [addonKey]: { on, text, font, color } }. threadColors: [{hex,name}] from /blanks. */
+export default function AddonsPanel({ addons = [], value, onChange, threadColors = [], garmentHex = '#f5f5f2', darkGarment = false, highlight = false }) {
   if (!addons.length) return null;
   const set = (key, patch) => onChange({ ...value, [key]: { ...(value[key] || {}), ...patch } });
   return (
-    <div className="space-y-3">
+    <div className={cn('space-y-3 rounded-3xl transition-shadow', highlight && 'shadow-[0_0_0_2px_rgba(240,185,77,0.6)]')} id="customize">
       <div className="flex items-baseline justify-between">
-        <p className="text-sm font-semibold">Make it yours</p>
-        <p className="text-xs text-white/45">Optional add-ons</p>
+        <p className="text-sm font-semibold">Customize it</p>
+        <p className="text-xs text-white/45">Optional · printed just for you</p>
       </div>
       {addons.map((a) => {
         const v = value[a.key] || {};
         const emb = isEmbroidery(a);
-        const canDesign = !emb && (a.kind === 'art' || a.kind === 'text_or_art') && !!designId;
-        const canText = a.kind === 'text' || a.kind === 'text_or_art' || emb;
-        const mode = v.mode || (canDesign ? 'design' : 'text');
-        const colors = emb ? THREAD_COLORS : INK_COLORS;
-        const color = v.color || (darkGarment ? 'white' : 'black');
+        const palette = emb ? threadColors.map((t) => ({ hex: t.hex.toUpperCase(), label: t.name || t.hex })) : INK_COLORS;
+        const unavailable = emb && !palette.length;
+        const color = v.color || defaultColor(palette, darkGarment);
+        const font = emb ? fontOf('archivo') : fontOf(v.font || 'anton');
         return (
-          <div key={a.key} className={cn('overflow-hidden rounded-2xl border transition-colors', v.on ? 'border-white/30 bg-white/[0.04]' : 'border-white/10')}>
-            <button type="button" aria-expanded={!!v.on} onClick={() => set(a.key, { on: !v.on, mode, color, font: v.font || (emb ? 'archivo' : 'anton') })}
-              className="shop-block flex w-full items-center gap-3 px-4 py-3.5 text-left">
-              <span className={cn('flex h-6 w-6 items-center justify-center rounded-full border transition', v.on ? 'border-[#f0b94d] bg-[#f0b94d] text-black' : 'border-white/25 text-white/60')}>
+          <div key={a.key} className={cn('overflow-hidden rounded-2xl border transition-colors', v.on ? 'border-white/30 bg-white/[0.04]' : 'border-white/10', unavailable && 'opacity-50')}>
+            <button type="button" aria-expanded={!!v.on} disabled={unavailable} onClick={() => set(a.key, { on: !v.on, color, font: emb ? 'archivo' : (v.font || 'anton') })}
+              className="flex min-h-[56px] w-full items-center gap-3 px-4 py-3 text-left disabled:cursor-not-allowed">
+              <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition', v.on ? 'border-[#f0b94d] bg-[#f0b94d] text-black' : 'border-white/25 text-white/60')}>
                 {v.on ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
               </span>
               <span className="flex-1">
                 <span className="block text-sm font-semibold">{a.label}</span>
-                <span className="block text-xs text-white/45">{emb ? 'Embroidered text' : a.kind === 'text' ? 'Your text, printed' : 'Same design or your own text'}</span>
+                <span className="block text-xs text-white/45">{unavailable ? 'Unavailable right now' : emb ? 'Embroidered text' : 'Your text, printed'}</span>
               </span>
               <span className="text-sm font-semibold text-[#f0b94d]">{addonDelta(a.priceCents)}</span>
             </button>
             <AnimatePresence initial={false}>
               {v.on && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }}>
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
                   <div className="space-y-4 border-t border-white/[0.07] px-4 pb-4 pt-4">
-                    {canDesign && canText && (
-                      <div className="inline-flex rounded-full border border-white/12 p-1 text-xs font-semibold" role="radiogroup" aria-label={`${a.label} content`}>
-                        {[['design', 'Same design'], ['text', 'Custom text']].map(([k, l]) => (
-                          <button key={k} type="button" role="radio" aria-checked={mode === k} onClick={() => set(a.key, { mode: k })}
-                            className={cn('shop-block rounded-full px-3.5 py-1.5', mode === k ? 'bg-white text-black' : 'text-white/60')}>{l}</button>
-                        ))}
+                    <div>
+                      <label htmlFor={`addon-${a.key}`} className="mb-1.5 block text-xs font-semibold text-white/60">{emb ? 'Name or short text' : 'Your text'} <span className="font-normal text-white/35">· up to 2 lines</span></label>
+                      <div className="relative">
+                        <textarea id={`addon-${a.key}`} rows={2} value={v.text || ''} onChange={(e) => set(a.key, { text: clampAddonText(e.target.value) })}
+                          placeholder={emb ? 'BIG HOMIE' : 'MEDELLÍN 2026'}
+                          className="w-full resize-none rounded-xl border border-white/12 bg-black/40 px-3.5 py-2.5 pr-14 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none" />
+                        <span className="absolute bottom-2.5 right-3 text-[11px] tabular-nums text-white/35">{(v.text || '').length}/{ADDON_TEXT_MAX}</span>
+                      </div>
+                    </div>
+                    {!emb && (
+                      <div>
+                        <p className="mb-1.5 text-xs font-semibold text-white/60">Font</p>
+                        <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+                          {TEXT_FONTS.map((f) => (
+                            <button key={f.key} type="button" aria-pressed={(v.font || 'anton') === f.key} onClick={() => set(a.key, { font: f.key })}
+                              className={cn('h-10 shrink-0 rounded-xl border px-3 text-sm', (v.font || 'anton') === f.key ? 'border-white bg-white text-black' : 'border-white/12 text-white/80')}
+                              style={{ fontFamily: f.css }}>{f.label}</button>
+                          ))}
+                        </div>
                       </div>
                     )}
-                    {mode === 'text' && (
-                      <>
-                        <div>
-                          <label htmlFor={`addon-${a.key}`} className="mb-1.5 block text-xs font-semibold text-white/60">{emb ? 'Name or short text' : 'Your text'}</label>
-                          <div className="relative">
-                            <input id={`addon-${a.key}`} value={v.text || ''} maxLength={MAX_TEXT} onChange={(e) => set(a.key, { text: e.target.value })}
-                              placeholder={emb ? 'e.g. BIG HOMIE' : 'e.g. MEDELLÍN 2026'}
-                              className="h-11 w-full rounded-xl border border-white/12 bg-black/40 px-3.5 pr-14 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none" />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] tabular-nums text-white/35">{(v.text || '').length}/{MAX_TEXT}</span>
-                          </div>
-                        </div>
-                        {!emb && (
-                          <div>
-                            <p className="mb-1.5 text-xs font-semibold text-white/60">Font</p>
-                            <div className="no-scrollbar flex gap-2 overflow-x-auto">
-                              {TEXT_FONTS.map((f) => (
-                                <button key={f.key} type="button" aria-pressed={(v.font || 'anton') === f.key} onClick={() => set(a.key, { font: f.key })}
-                                  className={cn('shop-block shrink-0 rounded-xl border px-3 py-2 text-sm', (v.font || 'anton') === f.key ? 'border-white bg-white text-black' : 'border-white/12 text-white/80')}
-                                  style={{ fontFamily: f.css }}>{f.label}</button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div>
-                          <p className="mb-1.5 text-xs font-semibold text-white/60">{emb ? 'Thread' : 'Ink'}</p>
-                          <div className="flex gap-2.5">
-                            {colors.map((c) => (
-                              <button key={c.key} type="button" aria-label={c.label} aria-pressed={color === c.key} title={c.label} onClick={() => set(a.key, { color: c.key })}
-                                className={cn('shop-block h-8 w-8 rounded-full ring-offset-2 ring-offset-[#0a0a0b]', color === c.key ? 'ring-2 ring-white' : 'ring-1 ring-white/20')} style={{ background: c.hex }} />
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl px-4" style={{ background: garmentHex }} aria-label="Preview">
-                          <span className="max-w-full truncate text-center text-3xl leading-none"
-                            style={{ fontFamily: emb ? fontCss('archivo') : fontCss(v.font || 'anton'), color: colors.find((c) => c.key === color)?.hex, textTransform: emb || ['anton', 'archivo'].includes(v.font || 'anton') ? 'uppercase' : 'none' }}>
-                            {(v.text || '').trim() || (emb ? 'YOUR NAME' : 'Your text')}
-                          </span>
-                        </div>
-                        {emb && <Tip>Embroidery is stitched by hand-guided machines — keep it short (max 2 lines) for the cleanest result.</Tip>}
-                      </>
-                    )}
-                    {mode === 'design' && <Tip>We'll print this same design on the {a.label.toLowerCase().replace(/ print$/, '')}.</Tip>}
+                    <div>
+                      <p className="mb-1.5 text-xs font-semibold text-white/60">{emb ? 'Thread' : 'Ink'} <span className="font-normal text-white/35">· {palette.find((c) => c.hex === color)?.label}</span></p>
+                      <div className="flex flex-wrap gap-2.5">
+                        {palette.map((c) => (
+                          <button key={c.hex} type="button" aria-label={c.label} aria-pressed={color === c.hex} title={c.label} onClick={() => set(a.key, { color: c.hex })}
+                            className={cn('h-9 w-9 rounded-full ring-offset-2 ring-offset-[#0a0a0b]', color === c.hex ? 'ring-2 ring-white' : 'ring-1 ring-white/20')} style={{ background: c.hex }} />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex min-h-[96px] items-center justify-center overflow-hidden rounded-xl px-4 py-3" style={{ background: garmentHex }} aria-label="Preview">
+                      <span className="max-w-full whitespace-pre-line break-words text-center text-3xl leading-[1.05]"
+                        style={{ fontFamily: font.css, color, textTransform: font.upper ? 'uppercase' : 'none' }}>
+                        {(v.text || '').trim() || (emb ? 'YOUR NAME' : 'Your text')}
+                      </span>
+                    </div>
+                    {emb && <Tip>Embroidery is stitched — keep it short for the cleanest result.</Tip>}
                   </div>
                 </motion.div>
               )}
@@ -130,21 +119,22 @@ export default function AddonsPanel({ addons = [], value, onChange, designId, ga
   );
 }
 
-/** Turn panel state into cart add-ons; returns { addons, error }. */
-export function toCartAddons(addons = [], value = {}, designId) {
+/** Panel state → cart add-ons ({ addons, error }). Text only; colours hex. */
+export function toCartAddons(addons = [], value = {}, threadColors = [], darkGarment = false) {
   const out = [];
   for (const a of addons) {
     const v = value[a.key];
     if (!v?.on) continue;
     const emb = isEmbroidery(a);
-    const mode = v.mode || ((a.kind === 'art' || a.kind === 'text_or_art') && designId && !emb ? 'design' : 'text');
-    if (mode === 'text') {
-      const text = String(v.text || '').trim();
-      if (!text) return { addons: [], error: `Add your text for “${a.label}” or turn it off.` };
-      out.push({ key: a.key, label: a.label, text: text.slice(0, MAX_TEXT), font: emb ? 'archivo' : (v.font || 'anton'), color: v.color || 'white', priceCents: a.priceCents || 0 });
-    } else {
-      out.push({ key: a.key, label: a.label, designId, priceCents: a.priceCents || 0 });
-    }
+    const text = clampAddonText(v.text).trim();
+    if (!text) return { addons: [], error: `Add your text for “${a.label}” or turn it off.` };
+    const palette = emb ? threadColors.map((t) => ({ hex: String(t.hex).toUpperCase() })) : INK_COLORS;
+    const color = (v.color || defaultColor(palette, darkGarment) || '').toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(color)) return { addons: [], error: `Pick a colour for “${a.label}”.` };
+    out.push({ key: a.key, label: a.label, text, font: emb ? 'archivo' : (v.font || 'anton'), color, priceCents: a.priceCents || 0 });
   }
   return { addons: out, error: null };
 }
+
+/** Cart add-ons → panel state (edit in place). */
+export const fromCartAddons = (cartAddons = []) => Object.fromEntries(cartAddons.map((a) => [a.key, { on: true, text: a.text || '', font: a.font, color: a.color }]));

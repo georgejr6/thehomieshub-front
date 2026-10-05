@@ -32,6 +32,7 @@ describe('pricing display', () => {
     expect(customPriceCents(blank, ['front'])).toBe(3300);
     expect(customPriceCents(blank, ['front', 'back'])).toBe(4200);
     expect(customPriceCents(blank, ['back', 'sleeve_left'])).toBe(5100);
+    expect(customPriceCents({ ...blank, placements: blank.placements.map((p) => ({ ...p, included: p.key === 'back' })) }, ['back'])).toBe(3300);
     expect(customPriceCents(null, ['front'])).toBe(0);
   });
 });
@@ -183,6 +184,7 @@ describe('catalog', () => {
     expect(productImage(p, 'Black')).toMatch(/black_preview/);
     expect(productImage(p, 'White')).toMatch(/white_preview/);
     expect(productAltImage(p, 'White')).toMatch(/black_preview/);
+    expect(productImage(p, 'Faded Black')).toBe(''); // never another colour's render
     expect(productImage({ thumbnail: 'https://files.cdn.printful.com/', variants: [] })).toBe('');
     expect(productImage({ images: ['https://printful-upload.s3-accelerate.amazonaws.com/tmp/x/a.jpg'], variants: [] })).toMatch(/tmp/);
     expect(JSON.stringify([productImage(p), productAltImage(p)])).not.toMatch(/merch\/v1\/mockups/);

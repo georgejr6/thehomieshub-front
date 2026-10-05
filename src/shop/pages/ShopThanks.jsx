@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { fetchOrderBySession, hasCartCheckoutMarker, clearCartCheckoutMarker, SESSION_RE } from '@/lib/merch';
 import { useShop } from '@/shop/ShopContext';
-import { ShopButton, pageMotion } from '@/shop/components/ui';
+import { ShopButton } from '@/shop/components/ui';
 import OrderCard from '@/shop/components/OrderCard';
 
 // /shop/thanks?session=cs_... — Stripe returns buyers here. The order row
@@ -31,7 +31,12 @@ export default function ShopThanks() {
         if (hasCartCheckoutMarker()) { cart.clear(); clearCartCheckoutMarker(); }
         return;
       }
-      if (tries >= 15) { setGaveUp(true); return; }
+      if (tries >= 15) {
+        // Paid (Stripe sent them here with a real session) but the webhook is slow:
+        // a cart checkout's bag still gets cleared so they don't buy twice.
+        if (hasCartCheckoutMarker()) { cart.clear(); clearCartCheckoutMarker(); }
+        setGaveUp(true); return;
+      }
       timer = setTimeout(poll, 2000);
     };
     poll();
@@ -39,7 +44,7 @@ export default function ShopThanks() {
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <motion.div {...pageMotion} className="mx-auto max-w-xl px-4 pb-24 pt-10 text-center">
+    <div className="mx-auto max-w-xl px-4 pb-24 pt-10 text-center">
       <Helmet><title>Thank you | The Homies</title></Helmet>
       {valid && (
         <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
@@ -52,7 +57,7 @@ export default function ShopThanks() {
       ) : order ? (
         <div className="mt-10 text-left"><OrderCard order={order} /><p className="mt-4 text-center text-sm text-white/50">We'll email you tracking as soon as it ships.</p></div>
       ) : gaveUp ? (
-        <p className="mt-6 text-white/60">Payment received — your confirmation email is on its way.</p>
+        <p className="mt-6 text-white/60">Payment received — your confirmation email is on its way. Customized pieces get a quick quality check before printing.</p>
       ) : (
         <p className="mt-8 flex items-center justify-center gap-2 text-white/55"><Loader2 className="h-5 w-5 animate-spin" /> Confirming your order…</p>
       )}
@@ -60,6 +65,6 @@ export default function ShopThanks() {
         <ShopButton as={Link} to="/shop" variant="ghost">Keep shopping</ShopButton>
         <ShopButton as={Link} to="/shop/orders" variant="outline">My orders</ShopButton>
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -7,6 +7,8 @@ import { useSyncExternalStore } from 'react';
 
 export const MAX_LINES = 10;
 export const MAX_QTY = 10;
+/** The server takes at most 10 items (units) per order. */
+export const MAX_ORDER_ITEMS = 10;
 const KEY = 'hh_merch_cart_v2';
 const LEGACY_KEY = 'hh_merch_cart_v1';
 const SAVED_KEY = 'hh_merch_saved_v1';

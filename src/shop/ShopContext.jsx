@@ -1,13 +1,39 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchShop } from '@/lib/merch';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchBlanks, fetchServerCart, pushServerCart, claimDesigns } from '@/shop/lib/api';
-import { useShopCart, checkoutItems, sanitizeCart, cartSnapshot, replaceCart } from '@/shop/lib/cart';
+import { fetchBlanks, fetchServerCart, pushServerCart, claimDesigns, setClaimPromise, fetchDesign } from '@/shop/lib/api';
+import { displayName, productImage, kindOf, KIND_LABEL } from '@/shop/lib/catalog';
+import { customPriceCents } from '@/shop/lib/pricing';
+import { useShopCart, checkoutItems, sanitizeCart, cartSnapshot, replaceCart, lineKey } from '@/shop/lib/cart';
 
 // Shared state for the whole shop mode: catalog, Studio availability, the
 // cart drawer and toasts. Loaded once when the shop opens.
 const ShopCtx = createContext(null);
 export const useShop = () => useContext(ShopCtx);
+
+const ADDON_LABELS = { back: 'Back print', sleeve_left: 'Left sleeve', sleeve_right: 'Right sleeve', embroidery_chest_left: 'Left-chest embroidery', embroidery_back: 'Back embroidery' };
+
+/** Server cart items carry ids only — fill in name/image/price for display (checkout re-prices anyway). */
+async function rebuildLine(it, products, blanks) {
+  if (it.kind === 'custom') {
+    const d = await fetchDesign(it.designId).catch(() => null);
+    const blank = (blanks || []).find((b) => b.key === d?.blankKey);
+    const v = blank?.variants?.find((x) => x.id === it.variantId);
+    const used = Object.keys(d?.layers || {}).filter((k) => (d.layers[k] || []).length);
+    return { ...it, name: d?.name || `Custom ${blank?.name || 'piece'}`, variant: [blank?.name, v?.color, v?.size].filter(Boolean).join(' · '), image: d?.previewUrl || '', priceCents: v ? customPriceCents(blank, used, v) : 0 };
+  }
+  const product = products.find((p) => (p.variants || []).some((v) => v.id === it.variantId));
+  const v = product?.variants.find((x) => x.id === it.variantId);
+  return {
+    ...it,
+    name: product ? displayName(product) : 'The Homies merch',
+    variant: product ? [KIND_LABEL[kindOf(product)], v?.color, v?.size].filter(Boolean).join(' · ') : '',
+    image: product ? productImage(product, v?.color) : '',
+    slug: product?.slug || '',
+    priceCents: v?.priceCents || 0,
+    addons: (it.addons || []).map((a) => ({ ...a, label: ADDON_LABELS[a.key] || a.key })),
+  };
+}
 
 export function ShopProvider({ children }) {
   const { user } = useAuth() || {};
@@ -33,21 +59,35 @@ export function ShopProvider({ children }) {
     toastTimer.current = setTimeout(() => setToast(null), 3800);
   }, []);
 
-  // Signed in: merge the server cart once (cross-device), claim guest designs,
-  // then mirror local changes back (debounced) for abandoned-cart reminders.
+  // Signed in: claim guest designs into the account FIRST (every design/checkout
+  // call awaits this), then merge the server cart once (cross-device), rebuilding
+  // display fields from the catalog, then mirror local changes back (debounced)
+  // for the abandoned-cart reminder.
   const signedIn = !!user?._id || !!user?.id || !!user?.username;
+  const claimedFor = useRef(null);
+  useEffect(() => {
+    const who = user?._id || user?.id || user?.username || null;
+    if (!who || claimedFor.current === who) return;
+    claimedFor.current = who;
+    setClaimPromise(claimDesigns());
+  }, [user]);
   const synced = useRef(false);
   useEffect(() => {
-    if (!signedIn || synced.current || blanks === undefined) return;
+    if (!signedIn || synced.current || blanks === undefined || catalog.loading) return;
     synced.current = true;
-    claimDesigns();
     if (!blanks) return; // v1 backend: no server cart
-    fetchServerCart().then((items) => {
+    fetchServerCart().then(async (items) => {
       if (!items?.length) return;
       const local = cartSnapshot();
-      if (!local.length) replaceCart(sanitizeCart(items));
+      const have = new Set(local.map((l) => l.key));
+      const extra = [];
+      for (const it of sanitizeCart(items)) {
+        if (have.has(lineKey(it))) continue;
+        extra.push(await rebuildLine(it, catalog.products, blanks));
+      }
+      if (extra.length) replaceCart([...cartSnapshot(), ...extra]);
     });
-  }, [signedIn, blanks]);
+  }, [signedIn, blanks, catalog.loading, catalog.products]);
   const pushTimer = useRef(null);
   useEffect(() => {
     if (!signedIn || !blanks || !synced.current) return undefined;

@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { X, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useShop } from '@/shop/ShopContext';
-import { ShopButton, Tip } from '@/shop/components/ui';
+import { ShopButton, Tip, useFocusTrap } from '@/shop/components/ui';
 import CartLine from '@/shop/components/CartLine';
 import { subtotalCents, usd } from '@/shop/lib/pricing';
 import { needsApproval } from '@/shop/lib/cart';
@@ -12,6 +12,8 @@ import { needsApproval } from '@/shop/lib/cart';
 export default function CartDrawer() {
   const { cartOpen, closeCart, cart } = useShop();
   const navigate = useNavigate();
+  const panel = useRef(null);
+  useFocusTrap(cartOpen, panel);
   useEffect(() => {
     if (!cartOpen) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') closeCart(); };
@@ -29,9 +31,10 @@ export default function CartDrawer() {
           <motion.div key="scrim" className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeCart} />
           <motion.aside
             key="panel"
+            ref={panel}
             role="dialog"
             aria-modal="true"
-            aria-label="Your cart"
+            aria-label="Your bag"
             className="hh-shop fixed inset-y-0 right-0 z-[61] flex w-full max-w-[440px] flex-col border-l border-white/10 bg-[#0e0e10] shadow-2xl"
             initial={{ x: '100%' }}
             animate={{ x: 0, transition: { type: 'spring', stiffness: 380, damping: 38 } }}
@@ -42,7 +45,7 @@ export default function CartDrawer() {
                 <p className="font-display text-3xl leading-none">Your bag</p>
                 <p className="mt-1 text-xs text-white/50">{cart.count} item{cart.count === 1 ? '' : 's'}</p>
               </div>
-              <button type="button" onClick={closeCart} aria-label="Close cart" className="shop-block rounded-full p-2 text-white/60 hover:bg-white/10 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" data-autofocus onClick={closeCart} aria-label="Close bag" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-white/60 hover:bg-white/10 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto px-6">
               {cart.cart.length === 0 ? (
@@ -75,7 +78,7 @@ export default function CartDrawer() {
                 <ShopButton size="lg" className="mt-5 w-full" onClick={() => { closeCart(); navigate('/shop/cart?step=review'); }}>
                   Checkout <ArrowRight className="h-4 w-4" />
                 </ShopButton>
-                <Link to="/shop/cart" onClick={closeCart} className="shop-block mt-3 text-center text-sm text-white/55 hover:text-white">View full cart</Link>
+                <Link to="/shop/cart" onClick={closeCart} className="block mt-3 text-center text-sm text-white/55 hover:text-white">View full cart</Link>
               </div>
             )}
           </motion.aside>

@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Package } from 'lucide-react';
 import { fetchMyOrders } from '@/lib/merch';
 import { useShop } from '@/shop/ShopContext';
-import { ShopButton, Skeleton, pageMotion } from '@/shop/components/ui';
+import { ShopButton, Skeleton } from '@/shop/components/ui';
 import OrderCard from '@/shop/components/OrderCard';
 
 export default function ShopOrders() {
@@ -16,7 +15,7 @@ export default function ShopOrders() {
     fetchMyOrders().then(setOrders).catch(() => setOrders(null));
   }, [signedIn]);
   return (
-    <motion.div {...pageMotion} className="mx-auto max-w-3xl px-4 pb-24 pt-8 sm:px-6">
+    <div className="mx-auto max-w-3xl px-4 pb-24 pt-8 sm:px-6">
       <Helmet><title>My orders | The Homies</title></Helmet>
       <h1 className="font-display text-6xl sm:text-7xl">My orders</h1>
       {!signedIn ? (
@@ -38,6 +37,6 @@ export default function ShopOrders() {
       ) : (
         <div className="mt-10 space-y-4">{orders.map((o) => <OrderCard key={o.number} order={o} />)}</div>
       )}
-    </motion.div>
+    </div>
   );
 }

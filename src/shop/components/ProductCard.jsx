@@ -1,85 +1,114 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { PenLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ShopImage } from '@/shop/components/ui';
-import { KIND_LABEL, KINDS, productImage, productAltImage, displayName, kindOf, colorHex } from '@/shop/lib/catalog';
+import {
+  KIND_LABEL, KINDS, productImage, productAltImage, displayName, kindOf, colorHex, displayColor, customizeKeys, CUSTOM_LABEL,
+} from '@/shop/lib/catalog';
 import { usd } from '@/shop/lib/pricing';
 
-/** Card for a design family (tee/hoodie/hat of one phrase). Hover swaps to the dark colourway. */
-export function FamilyCard({ family, className, priority = false }) {
-  const [hover, setHover] = useState(false);
-  const first = family.products.tee || family.products.hoodie || family.products.hat;
-  const kind = family.products.tee ? 'tee' : family.products.hoodie ? 'hoodie' : 'hat';
-  // Lead with the first garment that already has its Printful render.
-  const lead = KINDS.map((k) => family.products[k]).find((p) => p && productImage(p)) || first;
-  const leadKind = kindOf(lead);
-  const img = productImage(lead, leadKind === 'hat' ? '' : 'White');
-  const alt = productAltImage(lead, leadKind === 'hat' ? '' : 'White');
-  const fallback = { kind: leadKind, hex: leadKind === 'tee' ? colorHex('White') : colorHex('Black'), phrase: family.phrase };
-  const kinds = KINDS.filter((k) => family.products[k]);
+// One card system for the whole shop: image tile (garment render on a soft
+// neutral, silhouette if the render isn't ready), name, price, what you can
+// customize, and a Customize shortcut.
+
+function Badges({ keys }) {
+  if (!keys.length) return null;
+  const shown = keys.slice(0, 2);
   return (
-    <motion.div whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className={className}>
-      <Link
-        to={`/shop/${lead.slug}`}
-        className="shop-block group block"
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        onFocus={() => setHover(true)}
-        onBlur={() => setHover(false)}
-      >
-        <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#f4f3ef]">
-          <ShopImage src={img} alt={`${family.phrase} ${KIND_LABEL[leadKind]}`} fallback={fallback} className="absolute inset-0 bg-[#f4f3ef]" imgClassName="object-contain p-[6%] transition-transform duration-700 group-hover:scale-[1.04]" loading={priority ? 'eager' : 'lazy'} />
-          {alt && (
-            <img src={alt} alt="" aria-hidden loading="lazy" className={cn('absolute inset-0 h-full w-full bg-[#f4f3ef] object-contain p-[6%] transition-opacity duration-500', hover ? 'opacity-100' : 'opacity-0')} />
-          )}
-          {family.soldOut && <span className="absolute left-3 top-3 rounded-full bg-black/80 px-3 py-1 text-[11px] font-bold uppercase tracking-wider">Sold out</span>}
-          {family.collections.includes('must') && !family.soldOut && <span className="absolute left-3 top-3 rounded-full bg-[#f0b94d] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-black">Must-have</span>}
-        </div>
-        <div className="mt-3.5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold leading-snug">{family.phrase}</p>
-            <p className="mt-0.5 text-xs text-white/45">{kinds.map((k) => KIND_LABEL[k]).join(' · ')}</p>
-          </div>
-          <p className="shrink-0 text-[15px] font-semibold">{usd(family.minPriceCents)}</p>
-        </div>
-      </Link>
-    </motion.div>
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {shown.map((k) => <span key={k} className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] font-medium text-white/55">{CUSTOM_LABEL[k]}</span>)}
+      {keys.length > shown.length && <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] font-medium text-white/40">+{keys.length - shown.length}</span>}
+    </div>
   );
 }
 
-/** Card for a single product (used when a garment filter is active). */
-export function ProductCard({ product, className }) {
+function CardShell({ to, img, alt, altImg, fallback, title, sub, price, badges, flag, soldOut, priority }) {
   const [hover, setHover] = useState(false);
-  const k = kindOf(product);
-  const img = productImage(product, k === 'hat' ? '' : 'White');
-  const alt = productAltImage(product, k === 'hat' ? '' : 'White');
-  const fallback = { kind: k, hex: k === 'tee' ? colorHex('White') : colorHex('Black'), phrase: displayName(product) };
   return (
-    <motion.div whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className={className}>
-      <Link to={`/shop/${product.slug}`} className="shop-block group block" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-        <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#f4f3ef]">
-          <ShopImage src={img} alt={product.name} fallback={fallback} className="absolute inset-0 bg-[#f4f3ef]" imgClassName="object-contain p-[6%] transition-transform duration-700 group-hover:scale-[1.04]" />
-          {alt && <img src={alt} alt="" aria-hidden loading="lazy" className={cn('absolute inset-0 h-full w-full bg-[#f4f3ef] object-contain p-[6%] transition-opacity duration-500', hover ? 'opacity-100' : 'opacity-0')} />}
-          {product.soldOut && <span className="absolute left-3 top-3 rounded-full bg-black/80 px-3 py-1 text-[11px] font-bold uppercase">Sold out</span>}
+    <div className="group relative" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <Link to={to} className="block" onFocus={() => setHover(true)} onBlur={() => setHover(false)} aria-label={`${title}, ${price}`}>
+        <div className="relative aspect-[4/5] overflow-hidden rounded-[22px] bg-[#f2f1ed]">
+          <ShopImage src={img} alt={alt} fallback={fallback} fit="contain" className="absolute inset-0 bg-[#f2f1ed]"
+            imgClassName="p-[7%] transition-transform duration-700 ease-out group-hover:scale-[1.035]" loading={priority ? 'eager' : 'lazy'} />
+          {altImg && <img src={altImg} alt="" aria-hidden loading="lazy" decoding="async" className={cn('absolute inset-0 h-full w-full bg-[#f2f1ed] object-contain p-[7%] transition-opacity duration-500', hover ? 'opacity-100' : 'opacity-0')} />}
+          {soldOut ? <span className="absolute left-3 top-3 rounded-full bg-black/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">Sold out</span>
+            : flag && <span className="absolute left-3 top-3 rounded-full bg-black px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f0b94d]">{flag}</span>}
         </div>
-        <div className="mt-3.5 flex items-start justify-between gap-3">
+        <div className="mt-3 flex items-start justify-between gap-3 px-0.5">
           <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold">{displayName(product)}</p>
-            <p className="mt-0.5 text-xs text-white/45">{KIND_LABEL[kindOf(product)]}</p>
+            <p className="truncate text-[14px] font-semibold leading-snug">{title}</p>
+            <p className="mt-0.5 text-[12px] text-white/45">{sub}</p>
           </div>
-          <p className="shrink-0 text-[15px] font-semibold">{usd(product.minPriceCents)}</p>
+          <p className="shrink-0 text-[14px] font-semibold">{price}</p>
         </div>
       </Link>
-    </motion.div>
+      <div className="px-0.5"><Badges keys={badges} /></div>
+      {!soldOut && badges.length > 0 && (
+        <Link to={`${to}?customize=1`} aria-label={`Customize ${title}`}
+          className="absolute right-3 top-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/95 px-3 text-[12px] font-semibold text-black shadow-sm transition md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100">
+          <PenLine className="h-3.5 w-3.5" /> Customize
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/** A design family (tee / hoodie / hat of one phrase). Leads with the first garment whose render is ready. */
+export function FamilyCard({ family, className, priority = false }) {
+  const list = KINDS.map((k) => family.products[k]).filter(Boolean);
+  const lead = list.find((p) => productImage(p)) || list[0];
+  const kind = kindOf(lead);
+  const color = kind === 'hat' ? '' : displayColor(lead);
+  const keys = [...new Set(list.flatMap(customizeKeys))];
+  return (
+    <div className={className}>
+      <CardShell
+        to={`/shop/${lead.slug}`}
+        img={productImage(lead, color)}
+        alt={`${family.phrase} ${KIND_LABEL[kind]}`}
+        altImg={kind === 'hat' ? '' : productAltImage(lead, color)}
+        fallback={{ kind, hex: colorHex(color || 'White'), phrase: family.phrase }}
+        title={family.phrase}
+        sub={list.map((p) => KIND_LABEL[kindOf(p)]).join(' · ')}
+        price={usd(family.minPriceCents)}
+        badges={keys}
+        flag={family.collections.includes('must') ? 'Must-have' : ''}
+        soldOut={family.soldOut}
+        priority={priority}
+      />
+    </div>
+  );
+}
+
+/** A single product (used when a garment / customizable filter is active). */
+export function ProductCard({ product, className, priority = false }) {
+  const kind = kindOf(product);
+  const color = kind === 'hat' ? '' : displayColor(product);
+  return (
+    <div className={className}>
+      <CardShell
+        to={`/shop/${product.slug}`}
+        img={productImage(product, color)}
+        alt={product.name}
+        altImg={kind === 'hat' ? '' : productAltImage(product, color)}
+        fallback={{ kind, hex: colorHex(color || 'White'), phrase: displayName(product) }}
+        title={displayName(product)}
+        sub={KIND_LABEL[kind]}
+        price={usd(product.minPriceCents)}
+        badges={customizeKeys(product)}
+        soldOut={product.soldOut}
+        priority={priority}
+      />
+    </div>
   );
 }
 
 export function CardSkeleton() {
   return (
-    <div>
-      <div className="shop-skel aspect-[4/5] rounded-2xl" />
-      <div className="shop-skel mt-3.5 h-4 w-3/4 rounded-full" />
+    <div aria-hidden>
+      <div className="shop-skel aspect-[4/5] rounded-[22px]" />
+      <div className="shop-skel mt-3 h-3.5 w-3/4 rounded-full" />
       <div className="shop-skel mt-2 h-3 w-1/3 rounded-full" />
     </div>
   );

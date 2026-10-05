@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus, Trash2, Copy, Palette } from 'lucide-react';
 import { useShop } from '@/shop/ShopContext';
-import { ShopButton, Skeleton, ShopImage, Tip, pageMotion } from '@/shop/components/ui';
+import { ShopButton, Skeleton, ShopImage, Tip } from '@/shop/components/ui';
 import { fetchMyDesigns, deleteDesign, createDesign, apiError } from '@/shop/lib/api';
 
 // Saved designs (account, or this device for guests). Open / duplicate / delete.
@@ -33,7 +33,7 @@ export default function ShopDesigns() {
     return <div className="mx-auto max-w-xl px-4 py-24 text-center"><p className="font-display text-5xl">My designs</p><p className="mt-3 text-white/55">The Studio is almost ready — check back soon.</p></div>;
   }
   return (
-    <motion.div {...pageMotion} className="mx-auto max-w-[1440px] px-4 pb-24 pt-8 sm:px-6 lg:px-10">
+    <div className="mx-auto max-w-[1440px] px-4 pb-24 pt-8 sm:px-6 lg:px-10">
       <Helmet><title>My designs | The Homies</title></Helmet>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -47,7 +47,7 @@ export default function ShopDesigns() {
         {designs === undefined && Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="aspect-[4/5]" />)}
         {designs?.map((d) => (
           <div key={d.id} className="group">
-            <button type="button" onClick={() => navigate(`/shop/design?design=${encodeURIComponent(d.id)}`)} className="shop-block block w-full overflow-hidden rounded-2xl">
+            <button type="button" onClick={() => navigate(`/shop/design?design=${encodeURIComponent(d.id)}`)} className="block w-full overflow-hidden rounded-2xl">
               {d.previewUrl || d.preview ? <ShopImage src={d.previewUrl || d.preview} alt={d.name} className="aspect-[4/5] w-full bg-[#f4f3ef]" />
                 : <div className="shop-checker flex aspect-[4/5] w-full items-center justify-center"><Palette className="h-8 w-8 text-white/30" /></div>}
             </button>
@@ -57,8 +57,8 @@ export default function ShopDesigns() {
                 <p className="text-xs text-white/45">{d.updatedAt ? `Edited ${new Date(d.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}</p>
               </div>
               <div className="flex shrink-0">
-                <button type="button" aria-label={`Duplicate ${d.name}`} onClick={() => duplicate(d)} className="shop-block rounded-full p-2 text-white/45 hover:bg-white/10 hover:text-white"><Copy className="h-4 w-4" /></button>
-                <button type="button" aria-label={`Delete ${d.name}`} onClick={() => setConfirm(d)} className="shop-block rounded-full p-2 text-white/45 hover:bg-white/10 hover:text-[#f3a0a0]"><Trash2 className="h-4 w-4" /></button>
+                <button type="button" aria-label={`Duplicate ${d.name}`} onClick={() => duplicate(d)} className="rounded-full p-2 text-white/45 hover:bg-white/10 hover:text-white"><Copy className="h-4 w-4" /></button>
+                <button type="button" aria-label={`Delete ${d.name}`} onClick={() => setConfirm(d)} className="rounded-full p-2 text-white/45 hover:bg-white/10 hover:text-[#f3a0a0]"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
           </div>
@@ -83,6 +83,6 @@ export default function ShopDesigns() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

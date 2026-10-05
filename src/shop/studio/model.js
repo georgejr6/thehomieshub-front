@@ -4,28 +4,29 @@
 
 import { maxWidthForDpi } from '@/shop/lib/dpi';
 
+// Keys must match the server's text renderer (docs/MERCH_API_V2.md #6).
 export const STUDIO_FONTS = [
   { key: 'anton', label: 'Block', family: 'HH Anton', upper: true },
   { key: 'archivo', label: 'Heavy', family: 'HH Archivo', upper: true },
   { key: 'bebas', label: 'Condensed', family: 'HH Bebas', upper: true },
-  { key: 'bowlby', label: 'Chunky', family: 'HH Bowlby', upper: true },
-  { key: 'serif', label: 'Script serif', family: 'HH Serif', style: 'italic' },
-  { key: 'instrument', label: 'Fine serif', family: 'HH Instrument', style: 'italic' },
+  { key: 'serif_italic', label: 'Script serif', family: 'HH Serif', style: 'italic' },
+  { key: 'instrument_italic', label: 'Fine serif', family: 'HH Instrument', style: 'italic' },
   { key: 'marker', label: 'Marker', family: 'HH Marker' },
   { key: 'mono', label: 'Mono', family: 'HH Mono', weight: 'bold' },
 ];
 export const fontByKey = (k) => STUDIO_FONTS.find((f) => f.key === k) || STUDIO_FONTS[0];
+export const FONT_KEYS = STUDIO_FONTS.map((f) => f.key);
 
-export const INKS = ['#ffffff', '#111111', '#f0b94d', '#d62828', '#1f6feb', '#2ea043', '#ff7ac6', '#8b5cf6'];
-export const THREADS = [
-  { hex: '#ffffff', label: 'White' }, { hex: '#111111', label: 'Black' }, { hex: '#cc3333', label: 'Red' },
-  { hex: '#e2a83a', label: 'Gold' }, { hex: '#1f2a44', label: 'Navy' },
-];
+export const INKS = ['#FFFFFF', '#111111', '#F0B94D', '#D62828', '#1F6FEB', '#2EA043', '#FF7AC6', '#8B5CF6'];
+/** Embroidery thread palette = the blank's own (Printful's colours, from /blanks). */
+export const threadsOf = (blank) => (Array.isArray(blank?.threadColors) ? blank.threadColors.filter((t) => /^#[0-9a-f]{6}$/i.test(t?.hex)) : []);
 
-export const isEmbroidery = (placement) => placement?.technique === 'embroidery' || /embroid/.test(placement?.key || '');
+export const isEmbroidery = (placement) => String(placement?.technique || '').toLowerCase() === 'embroidery' || /embroid/.test(placement?.key || '');
 export const EMB_MIN_LETTER_IN = 0.25;
-export const EMB_MAX_LINES = 2;
-export const TEXT_MAX = 60;
+export const TEXT_MAX = 80;
+export const TEXT_MAX_LINES = 2;
+/** Keep at most 2 lines and 80 characters. */
+export const clampText = (t) => String(t ?? '').split('\n').slice(0, TEXT_MAX_LINES).join('\n').slice(0, TEXT_MAX);
 
 let seq = 0;
 export const newId = () => `l${Date.now().toString(36)}${(seq++).toString(36)}`;
@@ -64,10 +65,17 @@ export function makeTextLayer(placement, { text = 'YOUR TEXT', font = 'anton', c
   const box = estimateTextBox(text, fontSize);
   const width = Math.min(box.width, area.width);
   return {
-    id: newId(), type: 'text', text: String(text).slice(0, TEXT_MAX), font: fontKey, color, fontSize,
+    id: newId(), type: 'text', text: clampText(text), font: fontKey, color, fontSize,
     x: Math.round((area.width - width) / 2), y: Math.round(Math.min(area.height * 0.18, area.height - box.height)),
     width, height: box.height, rotation: 0,
   };
+}
+
+/** The server stores text boxes without a font size: derive it from box height ÷ lines. */
+export function withFontSize(layer) {
+  if (layer?.type !== 'text' || Number(layer.fontSize) > 0) return layer;
+  const lines = Math.max(1, String(layer.text || '').split('\n').length);
+  return { ...layer, fontSize: Math.max(12, Math.round((Number(layer.height) || 120) / lines / 1.05)) };
 }
 
 /** Fit an image into the area: centred, as large as allowed while staying sharp (≥150 dpi) and inside the box. */
@@ -112,17 +120,24 @@ export function validateDoc(doc, blank) {
   const issues = [];
   const used = usedPlacements(doc);
   if (!used.length) issues.push('Add some text or an image first.');
+  if (new Set(used.map((k) => placementOf(blank, k)).filter(Boolean).map(techniqueOf)).size > 1) {
+    issues.push("Embroidered and printed spots can't be combined on one piece — keep one or the other.");
+  }
   for (const key of used) {
     const p = placementOf(blank, key);
     if (!p) { issues.push(`“${key}” isn't available on this item.`); continue; }
     const layers = doc.layers[key];
     if (isEmbroidery(p)) {
       if (layers.some((l) => l.type !== 'text')) issues.push(`${p.label}: embroidery is text only.`);
+      const threads = threadsOf(blank);
       for (const l of layers.filter((x) => x.type === 'text')) {
-        if (String(l.text).split('\n').length > EMB_MAX_LINES) issues.push(`${p.label}: keep embroidery to ${EMB_MAX_LINES} lines.`);
         if (l.fontSize < minEmbroideryFontSize(p.area)) issues.push(`${p.label}: letters are too small to stitch — make the text bigger.`);
-        if (!THREADS.some((t) => t.hex.toLowerCase() === String(l.color).toLowerCase())) issues.push(`${p.label}: pick a thread colour.`);
+        if (!threads.some((t) => t.hex.toLowerCase() === String(l.color).toLowerCase())) issues.push(`${p.label}: pick a thread colour.`);
       }
+    }
+    for (const l of layers.filter((x) => x.type === 'text')) {
+      if (String(l.text).split('\n').length > TEXT_MAX_LINES) issues.push(`${p.label}: keep text to ${TEXT_MAX_LINES} lines.`);
+      if (String(l.text).length > TEXT_MAX) issues.push(`${p.label}: text is over ${TEXT_MAX} characters.`);
     }
     for (const l of layers) {
       if (l.type === 'text' && !String(l.text || '').trim()) issues.push(`${p.label}: a text layer is empty.`);
@@ -131,6 +146,45 @@ export function validateDoc(doc, blank) {
   }
   return [...new Set(issues)];
 }
+
+/** Embroidered and printed spots can't be mixed on one piece (server: `mixed_technique`). */
+export const techniqueOf = (placement) => (isEmbroidery(placement) ? 'embroidery' : 'print');
+/** The technique already used by the design (or null when it's empty). */
+export function docTechnique(doc, blank) {
+  const p = usedPlacements(doc).map((k) => placementOf(blank, k)).find(Boolean);
+  return p ? techniqueOf(p) : null;
+}
+/** Can content go on this placement without mixing techniques? */
+export function placementAllowed(doc, blank, placement) {
+  const others = usedPlacements(doc).filter((k) => k !== placement?.key).map((k) => placementOf(blank, k)).filter(Boolean);
+  return others.every((p) => techniqueOf(p) === techniqueOf(placement));
+}
+
+/** Thread that reads on the garment: white on dark, black on light, else the first. */
+export function defaultThread(blank, colorName) {
+  const threads = threadsOf(blank);
+  if (!threads.length) return '';
+  const want = defaultInk(colorName, true).toUpperCase();
+  return (threads.find((t) => t.hex.toUpperCase() === want) || threads[0]).hex.toUpperCase();
+}
+
+const num = (v) => Math.round(Number(v) || 0);
+/** Strip a layer to the fields the server stores (MERCH_API_V2 "Layer fields"). */
+export function serverLayer(l) {
+  const base = { id: String(l.id), type: l.type, x: num(l.x), y: num(l.y), width: Math.max(1, num(l.width)), height: Math.max(1, num(l.height)), rotation: Math.round((Number(l.rotation) || 0) * 100) / 100 };
+  if (l.type === 'image') {
+    const out = { ...base, src: l.src };
+    if (l.name) out.name = String(l.name).slice(0, 60);
+    if (l.naturalWidth > 0 && l.naturalHeight > 0) { out.naturalWidth = num(l.naturalWidth); out.naturalHeight = num(l.naturalHeight); }
+    return out;
+  }
+  const out = { ...base, text: clampText(l.text), font: FONT_KEYS.includes(l.font) ? l.font : 'anton', color: String(l.color || '#FFFFFF').toUpperCase() };
+  if (l.fontSize > 0) out.fontSize = Math.min(5000, Math.max(1, num(l.fontSize)));
+  return out;
+}
+export const serverLayers = (layers = {}) => Object.fromEntries(
+  Object.entries(layers).filter(([, ls]) => Array.isArray(ls) && ls.length).map(([k, ls]) => [k, ls.map(serverLayer)]),
+);
 
 // Where the print area sits on a garment image (fractions). Flat/ghost renders
 // and the silhouette share the same framing (src/shop/components/GarmentSilhouette).

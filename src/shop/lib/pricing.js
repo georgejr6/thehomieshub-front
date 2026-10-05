@@ -27,12 +27,18 @@ export function priceFrom(values = []) {
   return lo === hi ? usd(lo) : `From ${usd(lo)}`;
 }
 
-/** Studio price: base (front) + every extra placement that has art. */
-export function customPriceCents(blank, usedPlacements = []) {
+/** A placement is included in the base price when the API says so (else: the first one). */
+export const placementIncluded = (blank, p) => (typeof p?.included === 'boolean' ? p.included : blank?.placements?.[0]?.key === p?.key);
+
+/**
+ * Studio price for one piece: the chosen variant's price (front-only custom
+ * price, varies by size) + every extra, non-included placement that has art.
+ */
+export function customPriceCents(blank, usedPlacements = [], variant = null) {
   if (!blank) return 0;
-  const base = Number.isInteger(blank.basePriceCents) ? blank.basePriceCents : 0;
+  const base = Number.isInteger(variant?.priceCents) ? variant.priceCents : (Number.isInteger(blank.basePriceCents) ? blank.basePriceCents : 0);
   const extra = (blank.placements || [])
-    .filter((p) => usedPlacements.includes(p.key))
+    .filter((p) => usedPlacements.includes(p.key) && !placementIncluded(blank, p))
     .reduce((n, p) => n + (Number.isInteger(p.priceCents) ? p.priceCents : 0), 0);
   return base + extra;
 }

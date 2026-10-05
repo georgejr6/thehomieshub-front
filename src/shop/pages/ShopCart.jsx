@@ -1,15 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { fetchProduct } from '@/lib/merch';
+import AddonsPanel, { toCartAddons, fromCartAddons } from '@/shop/components/AddonsPanel';
+import { kindOf, colorHex, isLightColor } from '@/shop/lib/catalog';
 import { ArrowLeft, ArrowRight, Check, Lock, ShieldCheck, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { markCartCheckout, clearCartCheckoutMarker } from '@/lib/merch';
 import { useShop } from '@/shop/ShopContext';
-import { ShopButton, Tip, ShopImage, pageMotion } from '@/shop/components/ui';
+import { ShopButton, Tip, ShopImage, useFocusTrap } from '@/shop/components/ui';
 import CartLine from '@/shop/components/CartLine';
 import { subtotalCents, lineTotalCents, usd } from '@/shop/lib/pricing';
-import { needsApproval, checkoutItems, pruneUnavailable } from '@/shop/lib/cart';
+import { needsApproval, checkoutItems, pruneUnavailable, cartCount, MAX_ORDER_ITEMS } from '@/shop/lib/cart';
 import { startCheckout, apiError } from '@/shop/lib/api';
 
 const STEPS = [{ key: 'cart', label: 'Bag' }, { key: 'review', label: 'Review' }, { key: 'pay', label: 'Pay' }];
@@ -17,16 +20,22 @@ const STEPS = [{ key: 'cart', label: 'Bag' }, { key: 'review', label: 'Review' }
 export default function ShopCart() {
   const { cart, notify, reload } = useShop();
   const [params, setParams] = useSearchParams();
-  const navigate = useNavigate();
   const step = params.get('step') === 'review' && cart.cart.length ? 'review' : 'cart';
   const [agree, setAgree] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [editing, setEditing] = useState(null); // cart line whose add-ons are being edited
+  // A marker left by an earlier, abandoned checkout must not empty the bag later.
+  useEffect(() => { clearCartCheckoutMarker(); }, []);
+  // The final-sale confirmation is for exactly this bag: any change resets it.
+  const bagSig = cart.cart.map((l) => `${l.key}x${l.quantity}`).join('|');
+  useEffect(() => { setAgree(false); }, [bagSig]);
   const custom = needsApproval(cart.cart);
   const subtotal = subtotalCents(cart.cart);
   const go = (s) => { setParams(s === 'cart' ? {} : { step: s }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
   const pay = async () => {
     if (custom && !agree) { notify('Please confirm the custom-item note first.', 'error'); return; }
+    if (cartCount(cart.cart) > MAX_ORDER_ITEMS) { notify(`Up to ${MAX_ORDER_ITEMS} items per order — lower a quantity or save something for later.`, 'error'); return; }
     setPaying(true);
     markCartCheckout();
     try {
@@ -34,7 +43,10 @@ export default function ShopCart() {
     } catch (e) {
       clearCartCheckoutMarker();
       setPaying(false);
-      if (e?.response?.data?.code === 'unavailable') {
+      const code = e?.response?.data?.code;
+      if (code === 'printfiles_missing' || code === 'design_not_ready') { notify('One of your designs needs a refresh — open it in the Studio and add it to your bag again.', 'error'); return; }
+      if (code === 'design_not_found') { notify("One of your designs can't be found anymore. Remove it from your bag and try again.", 'error'); return; }
+      if (code === 'unavailable' || code === 'addons_unavailable') {
         const products = await reload();
         const { kept, removed } = pruneUnavailable(cart.cart, products);
         if (removed.length) {
@@ -48,7 +60,7 @@ export default function ShopCart() {
   };
 
   return (
-    <motion.div {...pageMotion} className="mx-auto max-w-[1200px] px-4 pb-24 pt-6 sm:px-6 lg:px-10">
+    <div className="mx-auto max-w-[1200px] px-4 pb-24 pt-6 sm:px-6 lg:px-10">
       <Helmet><title>Your bag | The Homies</title></Helmet>
       <Stepper current={step} />
       {cart.cart.length === 0 ? (
@@ -66,13 +78,13 @@ export default function ShopCart() {
                 <motion.div key="cart" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
                   <h1 className="font-display text-5xl sm:text-6xl">Your bag</h1>
                   <ul className="mt-6 divide-y divide-white/[0.07] border-y border-white/[0.07]">
-                    {cart.cart.map((l) => <li key={l.key} className="py-6"><CartLine line={l} onEdit={(line) => navigate(`/shop/${line.slug}`)} /></li>)}
+                    {cart.cart.map((l) => <li key={l.key} className="py-6"><CartLine line={l} onEdit={(line) => setEditing(line)} /></li>)}
                   </ul>
                   <SavedForLater />
                 </motion.div>
               ) : (
                 <motion.div key="review" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }}>
-                  <button type="button" onClick={() => go('cart')} className="shop-block inline-flex items-center gap-1.5 text-sm text-white/55 hover:text-white"><ArrowLeft className="h-4 w-4" /> Edit bag</button>
+                  <button type="button" onClick={() => go('cart')} className="inline-flex items-center gap-1.5 text-sm text-white/55 hover:text-white"><ArrowLeft className="h-4 w-4" /> Edit bag</button>
                   <h1 className="font-display mt-4 text-5xl sm:text-6xl">Review your order</h1>
                   <p className="mt-2 text-sm text-white/55">Check everything looks right. You'll enter shipping and payment on the next screen (secured by Stripe).</p>
                   <ul className="mt-6 space-y-3">
@@ -129,7 +141,61 @@ export default function ShopCart() {
           </aside>
         </div>
       )}
-    </motion.div>
+      <AddonEditDialog line={editing} onClose={() => setEditing(null)} />
+    </div>
+  );
+}
+
+/** Edit a line's add-ons in place (same product + variant; updates the existing line). */
+function AddonEditDialog({ line, onClose }) {
+  const { cart, notify, blanks } = useShop();
+  const [product, setProduct] = useState(null);
+  const [value, setValue] = useState({});
+  const panel = useRef(null);
+  useFocusTrap(!!line, panel);
+  useEffect(() => {
+    if (!line) return;
+    setProduct(null); setValue(fromCartAddons(line.addons));
+    fetchProduct(line.slug).then(setProduct).catch(() => setProduct(false));
+  }, [line]);
+  useEffect(() => {
+    if (!line) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [line, onClose]);
+  const variant = product?.variants?.find((v) => v.id === line?.variantId);
+  const dark = variant ? !isLightColor(variant.color) : false;
+  const type = product?.productType || (product ? kindOf(product) : '');
+  const threads = (Array.isArray(blanks) ? blanks : []).find((b) => b.key === type)?.threadColors || [];
+  const save = () => {
+    const { addons, error } = toCartAddons(product.addons || [], value, threads, dark);
+    if (error) { notify(error, 'error'); return; }
+    cart.updateAddons(line.key, addons);
+    notify('Add-ons updated');
+    onClose();
+  };
+  return (
+    <AnimatePresence>
+      {line && (
+        <motion.div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+          <motion.div ref={panel} role="dialog" aria-modal="true" aria-labelledby="edit-addons-title" onClick={(e) => e.stopPropagation()} initial={{ y: 30 }} animate={{ y: 0 }} exit={{ y: 20 }}
+            className="hh-shop max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/10 bg-[#0f0f11] p-6 sm:rounded-3xl">
+            <p id="edit-addons-title" className="font-display text-2xl">Edit add-ons</p>
+            <p className="mt-1 text-sm text-white/55">{line.name} · {line.variant}</p>
+            <div className="mt-5">
+              {product === null ? <div className="shop-skel h-40 rounded-2xl" />
+                : product === false || !(product.addons || []).length ? <p className="text-sm text-white/55">Add-ons aren't available for this item right now.</p>
+                : <AddonsPanel addons={product.addons} value={value} onChange={setValue} threadColors={threads} garmentHex={colorHex(variant?.color)} darkGarment={dark} />}
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <ShopButton variant="ghost" size="sm" onClick={onClose}>Cancel</ShopButton>
+              <ShopButton size="sm" disabled={!product} onClick={save}>Save</ShopButton>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

@@ -7,8 +7,15 @@ import { isStripeCheckoutUrl } from '@/lib/merch';
 
 // ── anonymous device id (lets guests save designs; claimed on sign-in) ─────────
 const DEVICE_KEY = 'hh_merch_device';
-const uuid = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID()
-  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); }));
+// uuid v4 from the platform CSPRNG only (never Math.random — the device id owns designs).
+function uuid() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
 export function deviceId() {
   try {
     let id = localStorage.getItem(DEVICE_KEY);
@@ -17,6 +24,12 @@ export function deviceId() {
   } catch { return uuid(); }
 }
 const dev = () => ({ headers: { 'X-Merch-Device': deviceId() } });
+
+// Signed-in: guest designs must be claimed into the account before any design /
+// checkout call (else the server sees them as someone else's). ShopContext sets this.
+let claimReady = Promise.resolve();
+export function setClaimPromise(p) { claimReady = Promise.resolve(p).catch(() => {}); }
+const claimed = () => claimReady;
 
 export const apiError = (err, fallback = 'Something went wrong. Try again.') =>
   err?.response?.data?.error || err?.response?.data?.message || fallback;
@@ -30,9 +43,16 @@ const isMockStudio = () => {
   } catch { return false; }
 };
 // No garment photos in the fixture: blanks without a flat/ghost image use the silhouette.
+const MOCK_THREADS = [
+  ['#FFFFFF', 'White'], ['#000000', 'Black'], ['#96A1A8', 'Grey'], ['#A67843', 'Old Gold'], ['#FFCC00', 'Gold'],
+  ['#E25C27', 'Orange'], ['#CC3366', 'Flamingo'], ['#CC3333', 'Red'], ['#660000', 'Maroon'], ['#333366', 'Navy'],
+  ['#005397', 'Royal'], ['#3399FF', 'Aqua'], ['#6B5294', 'Purple'], ['#01784E', 'Kelly Green'], ['#7BA35A', 'Kiwi Green'],
+].map(([hex, name]) => ({ hex, name }));
+const mockVariants = (colors, sizes, base, start, bump = {}) => colors.flatMap((c, ci) => sizes.map((s, si) => ({ id: start + ci * 10 + si, color: c, size: s, priceCents: base + (bump[s] || 0) })));
+const BIG = { '2XL': 200, '3XL': 400 };
 export const MOCK_BLANKS = [
   {
-    key: 'tee', productId: 71, name: 'Staple Tee', basePriceCents: 3300,
+    key: 'tee', productId: 71, name: 'Staple Tee', brand: 'Bella + Canvas', basePriceCents: 1900,
     colors: [
       { name: 'White', hex: '#f5f5f2', image: '' },
       { name: 'Black', hex: '#141414', image: '' },
@@ -41,33 +61,38 @@ export const MOCK_BLANKS = [
     ],
     sizes: ['S', 'M', 'L', 'XL', '2XL', '3XL'],
     placements: [
-      { key: 'front', label: 'Front', technique: 'dtg', area: { width: 1800, height: 2400, dpi: 150 }, priceCents: 0 },
-      { key: 'back', label: 'Back', technique: 'dtg', area: { width: 1800, height: 2400, dpi: 150 }, priceCents: 900 },
-      { key: 'sleeve_left', label: 'Left sleeve', technique: 'dtg', area: { width: 600, height: 600, dpi: 150 }, priceCents: 900 },
-      { key: 'sleeve_right', label: 'Right sleeve', technique: 'dtg', area: { width: 600, height: 600, dpi: 150 }, priceCents: 900 },
+      { key: 'front', label: 'Front', technique: 'DTG', kind: 'art', area: { width: 1800, height: 2400, dpi: 150 }, included: true, priceCents: 0 },
+      { key: 'back', label: 'Back', technique: 'DTG', kind: 'art', area: { width: 1800, height: 2400, dpi: 150 }, included: false, priceCents: 900 },
+      { key: 'sleeve_left', label: 'Left sleeve', technique: 'DTG', kind: 'art', area: { width: 600, height: 600, dpi: 150 }, included: false, priceCents: 400 },
+      { key: 'sleeve_right', label: 'Right sleeve', technique: 'DTG', kind: 'art', area: { width: 600, height: 600, dpi: 150 }, included: false, priceCents: 400 },
     ],
-    variants: ['White', 'Black', 'Athletic Heather', 'Ash'].flatMap((c, ci) => ['S', 'M', 'L', 'XL', '2XL', '3XL'].map((s, si) => ({ id: 4000 + ci * 10 + si, color: c, size: s, priceCents: 3300 }))),
+    variants: mockVariants(['White', 'Black', 'Athletic Heather', 'Ash'], ['S', 'M', 'L', 'XL', '2XL', '3XL'], 1900, 4000, BIG),
   },
   {
-    key: 'hoodie', productId: 380, name: 'Premium Hoodie', basePriceCents: 6300,
+    key: 'hoodie', productId: 380, name: 'Premium Hoodie', brand: 'Cotton Heritage', basePriceCents: 4200,
     colors: [
       { name: 'Black', hex: '#141414', image: '' },
       { name: 'Bone', hex: '#e8dfcc', image: '' },
     ],
     sizes: ['S', 'M', 'L', 'XL', '2XL', '3XL'],
     placements: [
-      { key: 'front', label: 'Front', technique: 'dtg', area: { width: 1800, height: 1800, dpi: 150 }, priceCents: 0 },
-      { key: 'back', label: 'Back', technique: 'dtg', area: { width: 1800, height: 2400, dpi: 150 }, priceCents: 900 },
-      { key: 'embroidery_chest_left', label: 'Left chest (embroidered)', technique: 'embroidery', area: { width: 1200, height: 1200, dpi: 300 }, priceCents: 1200 },
+      { key: 'front', label: 'Front', technique: 'DTG', kind: 'art', area: { width: 1800, height: 1800, dpi: 150 }, included: true, priceCents: 0 },
+      { key: 'back', label: 'Back', technique: 'DTG', kind: 'art', area: { width: 1800, height: 2400, dpi: 150 }, included: false, priceCents: 900 },
+      { key: 'embroidery_chest_left', label: 'Left chest (embroidered)', technique: 'EMBROIDERY', kind: 'text', area: { width: 1200, height: 1200, dpi: 300 }, included: false, priceCents: 500 },
     ],
-    variants: ['Black', 'Bone'].flatMap((c, ci) => ['S', 'M', 'L', 'XL', '2XL', '3XL'].map((s, si) => ({ id: 5000 + ci * 10 + si, color: c, size: s, priceCents: 6300 }))),
+    variants: mockVariants(['Black', 'Bone'], ['S', 'M', 'L', 'XL', '2XL', '3XL'], 4200, 5000, BIG),
+    threadColors: MOCK_THREADS,
   },
   {
-    key: 'hat', productId: 206, name: 'Dad Hat', basePriceCents: 3700,
+    key: 'hat', productId: 206, name: 'Dad Hat', brand: 'Yupoong', basePriceCents: 2300,
     colors: [{ name: 'Black', hex: '#141414', image: '' }, { name: 'Navy', hex: '#1f2a44', image: '' }],
     sizes: ['One size'],
-    placements: [{ key: 'embroidery_front', label: 'Front (embroidered)', technique: 'embroidery', area: { width: 1200, height: 525, dpi: 300 }, priceCents: 0 }],
-    variants: [{ id: 6001, color: 'Black', size: 'One size', priceCents: 3700 }, { id: 6002, color: 'Navy', size: 'One size', priceCents: 3700 }],
+    placements: [
+      { key: 'embroidery_front', label: 'Front (embroidered)', technique: 'EMBROIDERY', kind: 'text', area: { width: 1200, height: 525, dpi: 300 }, included: true, priceCents: 0 },
+      { key: 'embroidery_back', label: 'Back (embroidered)', technique: 'EMBROIDERY', kind: 'text', area: { width: 600, height: 300, dpi: 300 }, included: false, priceCents: 500 },
+    ],
+    variants: [{ id: 6001, color: 'Black', size: 'One size', priceCents: 2300 }, { id: 6002, color: 'Navy', size: 'One size', priceCents: 2300 }],
+    threadColors: MOCK_THREADS,
   },
 ];
 
@@ -93,18 +118,29 @@ export function validateUpload(file) {
   if (file.size > UPLOAD_MAX_BYTES) return 'That image is over 25 MB.';
   return null;
 }
-export async function uploadImage(fileOrBlob, { onProgress, filename } = {}) {
+/** purpose: 'art' (customer image, needs rightsAccepted) | 'printfile' (exact-size PNG) | 'preview'. */
+export async function uploadImage(fileOrBlob, { onProgress, filename, purpose = 'art', rightsAccepted = false } = {}) {
   if (isMockStudio()) {
     const url = URL.createObjectURL(fileOrBlob);
     const img = await loadImage(url);
     return { url, width: img.naturalWidth, height: img.naturalHeight, mime: fileOrBlob.type, local: true };
   }
+  await claimed();
   const form = new FormData();
+  form.append('purpose', purpose);
+  if (purpose === 'art' && rightsAccepted) form.append('rightsAccepted', '1');
   form.append('file', fileOrBlob, filename || fileOrBlob.name || 'upload.png');
   const { data } = await api.post('/merch/uploads', form, {
     ...dev(),
     onUploadProgress: (e) => onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0),
   });
+  return data;
+}
+/** Copy one of our catalog print files into the caller's art (no rights checkbox). */
+export async function uploadHouseArt(url) {
+  if (isMockStudio()) return { url };
+  await claimed();
+  const { data } = await api.post('/merch/uploads/house', { url }, dev());
   return data;
 }
 export function loadImage(src) {
@@ -128,6 +164,7 @@ export async function createDesign(body) {
     mockWrite([d, ...mockList()]);
     return d;
   }
+  await claimed();
   const { data } = await api.post('/merch/designs', body, dev());
   return data?.design;
 }
@@ -137,21 +174,25 @@ export async function updateDesign(id, body) {
     mockWrite(l);
     return l.find((d) => d.id === id);
   }
+  await claimed();
   const { data } = await api.patch(`/merch/designs/${encodeURIComponent(id)}`, body, dev());
   return data?.design;
 }
 export async function fetchDesign(id) {
   if (isMockStudio()) return mockList().find((d) => d.id === id) || null;
+  await claimed();
   const { data } = await api.get(`/merch/designs/${encodeURIComponent(id)}`, dev());
   return data?.design || null;
 }
 export async function fetchMyDesigns() {
   if (isMockStudio()) return mockList();
+  await claimed();
   const { data } = await api.get('/merch/designs/mine', dev());
   return data?.designs || [];
 }
 export async function deleteDesign(id) {
   if (isMockStudio()) { mockWrite(mockList().filter((d) => d.id !== id)); return; }
+  await claimed();
   await api.delete(`/merch/designs/${encodeURIComponent(id)}`, dev());
 }
 export async function claimDesigns() {
@@ -160,6 +201,7 @@ export async function claimDesigns() {
 }
 export async function savePrintfiles(id, files) {
   if (isMockStudio()) return updateDesign(id, { printfiles: files });
+  await claimed();
   const { data } = await api.post(`/merch/designs/${encodeURIComponent(id)}/printfiles`, { files }, dev());
   return data?.design;
 }
@@ -190,7 +232,8 @@ export async function pushServerCart(items) {
 
 // ── checkout ──────────────────────────────────────────────────────────────────
 export async function startCheckout(items) {
-  const { data } = await api.post('/merch/checkout', { items });
+  await claimed();
+  const { data } = await api.post('/merch/checkout', { items }, dev());
   if (!isStripeCheckoutUrl(data?.url)) throw new Error('no checkout url');
   window.location.href = data.url;
 }

@@ -43,11 +43,26 @@ export default function OrderCard({ order }) {
           ))}
         </div>
       )}
-      <ul className="mt-5 space-y-1.5 border-t border-white/[0.07] pt-4 text-sm">
+      {order.needsApproval && order.status !== 'rejected' && order.status !== 'canceled' && (
+        <p className="mt-3 rounded-xl bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/60">This order has customized pieces — we check each one before it goes to print so it comes out right.</p>
+      )}
+      <ul className="mt-5 space-y-3 border-t border-white/[0.07] pt-4 text-sm">
         {order.items.map((i, n) => (
-          <li key={n} className="flex justify-between gap-3">
-            <span className="min-w-0 truncate">{i.name}{i.variantName ? <span className="text-white/45"> · {i.variantName}</span> : null} × {i.quantity}</span>
-            <span className="shrink-0">{usd(i.unitCents * i.quantity)}</span>
+          <li key={n} className="flex gap-3">
+            {/^https:\/\//.test(i.previewUrl || '') && <img src={i.previewUrl} alt="" className="h-14 w-12 shrink-0 rounded-lg bg-[#f2f1ed] object-contain" />}
+            <div className="min-w-0 flex-1">
+              <div className="flex justify-between gap-3">
+                <span className="min-w-0 truncate">{i.name}{i.variantName ? <span className="text-white/45"> · {i.variantName}</span> : null} × {i.quantity}</span>
+                <span className="shrink-0">{usd(i.unitCents * i.quantity)}</span>
+              </div>
+              {i.kind === 'custom' && <p className="text-xs text-[#f0b94d]/80">Your design</p>}
+              {(i.addons || []).map((a) => (
+                <p key={a.key} className="flex justify-between gap-2 text-xs text-white/50">
+                  <span className="truncate">+ {a.label}{a.text ? ` · “${a.text}”` : ''}</span>
+                  {a.priceCents > 0 && <span className="shrink-0">{usd(a.priceCents)}</span>}
+                </p>
+              ))}
+            </div>
           </li>
         ))}
         {order.shippingCents > 0 && <li className="flex justify-between text-white/50"><span>Shipping</span><span>{usd(order.shippingCents)}</span></li>}

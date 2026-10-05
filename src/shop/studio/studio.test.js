@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import { historyReducer } from '@/shop/studio/useHistory';
-import { newDoc, makeTextLayer, makeImageLayer, clampToArea, snapToCenter, usedPlacements, validateDoc, minEmbroideryFontSize, THREADS } from '@/shop/studio/model';
+import { newDoc, makeTextLayer, makeImageLayer, clampToArea, snapToCenter, usedPlacements, validateDoc, minEmbroideryFontSize, threadsOf, clampText, withFontSize, serverLayers, placementAllowed, defaultThread } from '@/shop/studio/model';
+import { customPriceCents } from '@/shop/lib/pricing';
 import { toCartAddons } from '@/shop/components/AddonsPanel';
 
 const tee = {
@@ -10,7 +11,16 @@ const tee = {
     { key: 'back', label: 'Back', technique: 'dtg', area: { width: 1800, height: 2400, dpi: 150 }, priceCents: 900 },
   ],
 };
-const hat = { key: 'hat', colors: [{ name: 'Black' }], placements: [{ key: 'embroidery_front', label: 'Front', technique: 'embroidery', area: { width: 1200, height: 525, dpi: 300 } }] };
+const THREADS = [{ hex: '#FFFFFF', name: 'White' }, { hex: '#000000', name: 'Black' }, { hex: 'nope', name: 'Bad' }];
+const NL = String.fromCharCode(10);
+const hat = { key: 'hat', colors: [{ name: 'Black' }], threadColors: THREADS, placements: [{ key: 'embroidery_front', label: 'Front', technique: 'EMBROIDERY', area: { width: 1200, height: 525, dpi: 300 } }] };
+const hoodie = {
+  key: 'hoodie', colors: [{ name: 'Black' }], threadColors: THREADS,
+  placements: [
+    { key: 'front', label: 'Front', technique: 'DTG', area: { width: 1800, height: 1800, dpi: 150 }, included: true, priceCents: 0 },
+    { key: 'embroidery_chest_left', label: 'Chest', technique: 'EMBROIDERY', area: { width: 1200, height: 1200, dpi: 300 }, included: false, priceCents: 500 },
+  ],
+};
 
 describe('studio model', () => {
   test('new doc has an empty layer list per placement', () => {
@@ -46,9 +56,48 @@ describe('studio model', () => {
     expect(issues).toMatch(/2 lines/);
     expect(issues).toMatch(/too small/);
     expect(issues).toMatch(/thread/);
-    const good = { blankKey: 'hat', color: 'Black', layers: { embroidery_front: [{ ...makeTextLayer(p, { text: 'HOMIE', color: THREADS[0].hex }) }] } };
+    const good = { blankKey: 'hat', color: 'Black', layers: { embroidery_front: [{ ...makeTextLayer(p, { text: 'HOMIE', color: threadsOf(hat)[0].hex }) }] } };
     expect(validateDoc(good, hat)).toEqual([]);
     expect(usedPlacements(good)).toEqual(['embroidery_front']);
+  });
+  test('thread palette comes from the blank (invalid hex dropped); default thread reads on the garment', () => {
+    expect(threadsOf(hat).map((t) => t.hex)).toEqual(['#FFFFFF', '#000000']);
+    expect(threadsOf({})).toEqual([]);
+    expect(defaultThread(hat, 'Black')).toBe('#FFFFFF');
+    expect(defaultThread({}, 'Black')).toBe('');
+  });
+  test('text is limited to 2 lines and 80 characters', () => {
+    expect(clampText(['a', 'b', 'c'].join(NL))).toBe(['a', 'b'].join(NL));
+    expect(clampText('x'.repeat(120))).toHaveLength(80);
+  });
+  test('font size is derived from box height when the server did not store it', () => {
+    expect(withFontSize({ type: 'text', text: 'ONE', height: 210 }).fontSize).toBe(200);
+    expect(withFontSize({ type: 'text', text: ['A', 'B'].join(NL), height: 210 }).fontSize).toBe(100);
+    expect(withFontSize({ type: 'text', text: 'X', height: 210, fontSize: 64 }).fontSize).toBe(64);
+  });
+  test('serverLayers keeps only stored fields and drops empty placements', () => {
+    const out = serverLayers({
+      front: [{ id: 'a', type: 'image', src: 'https://x/a.png', x: 1.4, y: 2.6, width: 100, height: 50, rotation: 0, naturalWidth: 2000, naturalHeight: 1000, name: 'a.png', junk: 1 }],
+      back: [],
+      sleeve_left: [{ id: 'b', type: 'text', text: 'hi', font: 'bowlby', color: '#ffcc00', x: 0, y: 0, width: 10, height: 10, rotation: 12.345, fontSize: 40 }],
+    });
+    expect(Object.keys(out)).toEqual(['front', 'sleeve_left']);
+    expect(out.front[0]).toEqual({ id: 'a', type: 'image', src: 'https://x/a.png', x: 1, y: 3, width: 100, height: 50, rotation: 0, naturalWidth: 2000, naturalHeight: 1000, name: 'a.png' });
+    expect(out.sleeve_left[0]).toMatchObject({ font: 'anton', color: '#FFCC00', rotation: 12.35, fontSize: 40 });
+  });
+  test('embroidered and printed spots never mix', () => {
+    const text = makeTextLayer(hoodie.placements[0], { text: 'HI', color: '#FFFFFF' });
+    const doc = { blankKey: 'hoodie', color: 'Black', layers: { front: [text], embroidery_chest_left: [] } };
+    expect(placementAllowed(doc, hoodie, hoodie.placements[1])).toBe(false);
+    expect(placementAllowed(doc, hoodie, hoodie.placements[0])).toBe(true);
+    const mixed = { ...doc, layers: { front: [text], embroidery_chest_left: [makeTextLayer(hoodie.placements[1], { text: 'HI', color: '#FFFFFF' })] } };
+    expect(validateDoc(mixed, hoodie).join(' ')).toMatch(/can't be combined/);
+  });
+  test('price = chosen variant (size) + extra, non-included spots', () => {
+    const blank = { basePriceCents: 1900, placements: [{ key: 'front', included: true, priceCents: 0 }, { key: 'back', included: false, priceCents: 900 }] };
+    expect(customPriceCents(blank, ['front'], { priceCents: 2100 })).toBe(2100);
+    expect(customPriceCents(blank, ['front', 'back'], { priceCents: 2100 })).toBe(3000);
+    expect(customPriceCents(blank, ['back'])).toBe(2800);
   });
 });
 
@@ -69,20 +118,24 @@ describe('history', () => {
   });
 });
 
-describe('add-ons → cart', () => {
+describe('add-ons -> cart', () => {
   const addons = [
-    { key: 'back', label: 'Back print', kind: 'text_or_art', technique: 'dtg', priceCents: 900 },
-    { key: 'chest_name', label: 'Left-chest name', kind: 'text', technique: 'embroidery', priceCents: 1200 },
+    { key: 'back', label: 'Back print', kind: 'text_or_art', technique: 'DTG', priceCents: 900 },
+    { key: 'embroidery_chest_left', label: 'Left-chest name', kind: 'text', technique: 'EMBROIDERY', priceCents: 500 },
   ];
   test('off add-ons are ignored; text is required when on', () => {
-    expect(toCartAddons(addons, {}, 'vamos')).toEqual({ addons: [], error: null });
-    expect(toCartAddons(addons, { chest_name: { on: true, text: '  ' } }, 'vamos').error).toMatch(/Add your text/);
+    expect(toCartAddons(addons, {}, THREADS)).toEqual({ addons: [], error: null });
+    expect(toCartAddons(addons, { embroidery_chest_left: { on: true, text: '  ' } }, THREADS).error).toMatch(/Add your text/);
   });
-  test('same-design back print + embroidered name', () => {
-    const r = toCartAddons(addons, { back: { on: true }, chest_name: { on: true, text: 'Big Homie', color: 'gold' } }, 'vamos');
+  test('text back print + embroidered name: hex colours, heavy font for thread', () => {
+    const r = toCartAddons(addons, { back: { on: true, text: 'VAMOS', font: 'bebas', color: '#f0b94d' }, embroidery_chest_left: { on: true, text: 'Big Homie', color: '#000000' } }, THREADS);
+    expect(r.error).toBeNull();
     expect(r.addons).toEqual([
-      { key: 'back', label: 'Back print', designId: 'vamos', priceCents: 900 },
-      { key: 'chest_name', label: 'Left-chest name', text: 'Big Homie', font: 'archivo', color: 'gold', priceCents: 1200 },
+      { key: 'back', label: 'Back print', text: 'VAMOS', font: 'bebas', color: '#F0B94D', priceCents: 900 },
+      { key: 'embroidery_chest_left', label: 'Left-chest name', text: 'Big Homie', font: 'archivo', color: '#000000', priceCents: 500 },
     ]);
+  });
+  test('embroidery needs a thread palette', () => {
+    expect(toCartAddons(addons, { embroidery_chest_left: { on: true, text: 'Hi' } }, []).error).toMatch(/colour/);
   });
 });
