@@ -81,8 +81,8 @@ export default function ShopCart() {
           {cart.saved.length > 0 && <SavedForLater />}
         </div>
       ) : (
-        <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_380px]">
-          <div>
+        <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0">
             <AnimatePresence mode="wait">
               {step === 'cart' ? (
                 <motion.div key="cart" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
@@ -149,13 +149,16 @@ export default function ShopCart() {
                 {discount > 0 && (
                   <div className="flex justify-between text-[#7be0a5]"><dt>{bundle ? `Bundle discount (${offer.bundleMinItems}+ items)` : 'Homies Points discount'}</dt><dd>−{usd(discount)}</dd></div>
                 )}
+                {discount > 0 && (
+                  <p className="text-[11px] text-white/40">Applied on the payment screen.</p>
+                )}
                 <div className="flex justify-between border-t border-white/10 pt-3 text-base font-semibold"><dt>Subtotal</dt><dd>{usd(subtotal - discount)}</dd></div>
               </dl>
               {canUsePoints && (
                 <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#f0b94d]/30 bg-[#f0b94d]/[0.06] p-3 text-sm">
                   <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#f0b94d]" />
                   <span><span className="inline-flex items-center gap-1 font-semibold text-[#f6d48f]"><Coins className="h-4 w-4" /> Use {offer.pointsCost.toLocaleString('en-US')} points for {usd(offer.discountCents)} off</span>
-                    <span className="block text-xs text-white/55">You have {offer.points.toLocaleString('en-US')} points. They're only used if you complete payment.</span></span>
+                    <span className="block text-xs text-white/55">You have {offer.points.toLocaleString('en-US')} points. If you don't finish paying, they come back within about an hour.</span></span>
                 </label>
               )}
               {!bundle && !!offer?.discountCents && cart.count < offer.bundleMinItems && (
