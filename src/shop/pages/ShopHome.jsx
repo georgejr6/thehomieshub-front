@@ -8,7 +8,8 @@ import { useShop } from '@/shop/ShopContext';
 import { ShopButton, Eyebrow } from '@/shop/components/ui';
 import { FamilyCard, ProductCard, CardSkeleton } from '@/shop/components/ProductCard';
 import GarmentSilhouette from '@/shop/components/GarmentSilhouette';
-import { COLLECTIONS, CUSTOM_FILTERS, families, filterProducts, productImage, kindOf, KINDS, displayColor, artUrl } from '@/shop/lib/catalog';
+import { COLLECTIONS, CUSTOM_FILTERS, families, filterProducts, productImage, kindOf, KINDS, displayColor } from '@/shop/lib/catalog';
+import { resolveTemplate } from '@/shop/studio/template';
 
 const HERO_IDS = ['gringo-go-home', 'colombia-gt-brazil', 'dame-plata-baby', 'i-love-latinas', 'not-a-pookie', 'if-she-thick'];
 const GARMENTS = [{ key: 'all', label: 'All' }, { key: 'tee', label: 'Tees' }, { key: 'hoodie', label: 'Hoodies' }, { key: 'hat', label: 'Hats' }];
@@ -170,6 +171,69 @@ function Hero({ fams, loading }) {
   );
 }
 
+// Blank garments you can design on (Printful's garment-only templates from
+// /merch/blanks, composited in their colour) — never models, never text art.
+const SLIDE_PICKS = [['hoodie', 'Black'], ['tee', 'White'], ['hat', 'Navy'], ['crewneck', 'Bone'], ['tee', 'Black'], ['hat', 'Khaki'], ['hoodie', 'White'], ['crewneck', 'Black']];
+function useGarmentSlides() {
+  const { blanks } = useShop();
+  return useMemo(() => {
+    if (!Array.isArray(blanks)) return [];
+    const out = [];
+    for (const [key, colorName] of SLIDE_PICKS) {
+      const b = blanks.find((x) => x.key === key);
+      const c = b?.colors.find((x) => x.name === colorName) || b?.colors[0];
+      if (!b || !c) continue;
+      const t = resolveTemplate(b, c.name, b.placements[0]?.key);
+      if (t.kind === 'silhouette' || !t.image) continue;
+      out.push({ id: `${key}-${c.name}`, label: `${b.name} · ${c.name}`, image: t.image, bg: t.backgroundColor || c.hex, kind: t.kind });
+    }
+    return out;
+  }, [blanks]);
+}
+
+function GarmentSlideshow() {
+  const slides = useGarmentSlides();
+  const reduce = useReducedMotion();
+  const [i, setI] = useState(0);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (reduce || paused || slides.length < 2) return undefined;
+    const t = setInterval(() => setI((n) => (n + 1) % slides.length), 3500);
+    return () => clearInterval(t);
+  }, [reduce, paused, slides.length]);
+  const cur = slides[i % Math.max(1, slides.length)];
+  return (
+    <div className="relative hidden min-h-[300px] overflow-hidden bg-white md:block"
+      onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)} onBlurCapture={() => setPaused(false)}>
+      {!slides.length && <div className="absolute inset-0 grid place-items-center bg-[#ebe8e2]"><GarmentSilhouette kind="tee" hex="#141414" showPhrase={false} className="bg-transparent" /></div>}
+      {slides.map((sl, n) => (
+        <div key={sl.id} aria-hidden={n !== i} className={cn('absolute inset-0 transition-opacity ease-out', reduce ? 'duration-0' : 'duration-700', n === i ? 'opacity-100' : 'opacity-0')}>
+          {/* square template: garment colour underneath shows through the template's garment area */}
+          <div className="absolute inset-y-0 left-1/2 aspect-square h-full -translate-x-1/2">
+            <div className="absolute inset-0" style={{ background: sl.bg }} />
+            <img src={sl.image} alt="" loading={n < 2 ? 'eager' : 'lazy'} decoding="async" className="absolute inset-0 h-full w-full" />
+          </div>
+        </div>
+      ))}
+      {slides.length > 1 && (
+        <>
+          <p className="absolute bottom-4 left-5 rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white backdrop-blur" aria-live="polite">{cur?.label}</p>
+          <div className="absolute bottom-4 right-5 flex gap-1.5" role="group" aria-label="Choose a garment">
+            {slides.map((sl, n) => (
+              <button key={sl.id} type="button" aria-label={sl.label} aria-pressed={n === i}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setI(n); }}
+                className="flex h-6 items-center px-0.5">
+                <span className={cn('block h-1.5 rounded-full transition-all', n === i ? 'w-5 bg-black' : 'w-1.5 bg-black/25')} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Prominent "Design your own" entry (blank garments → Studio). */
 function StudioEntry() {
   return (
@@ -181,11 +245,7 @@ function StudioEntry() {
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/55">Pick a blank tee, hoodie, crewneck or hat. Add your text or upload a picture, place it where you want, see it on the garment, and order. Saves as you go.</p>
           <span className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-[#f0b94d] px-6 text-sm font-semibold text-black transition group-hover:brightness-110">Open the Studio <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></span>
         </div>
-        <div className="shop-checker relative hidden min-h-[260px] md:block" aria-hidden>
-          <img src={artUrl('the-homies-hub', 'white')} alt="" className="absolute left-1/2 top-1/2 w-[42%] -translate-x-1/2 -translate-y-1/2 -rotate-3 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)] transition-transform duration-500 group-hover:rotate-0" />
-          <div className="absolute left-[15%] top-[20%] rounded-full border border-dashed border-[#f0b94d]/60 px-3 py-1 text-[11px] text-[#f0b94d]">Drag to place</div>
-          <div className="absolute bottom-[16%] right-[12%] rounded-full bg-[#1f8f4e]/20 px-3 py-1 text-[11px] font-medium text-[#7be0a5]">Print-ready</div>
-        </div>
+        <GarmentSlideshow />
       </Link>
     </section>
   );

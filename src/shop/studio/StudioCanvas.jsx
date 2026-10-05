@@ -138,6 +138,16 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
     (commit ? onCommit : onPreview)(next);
   };
   const screenPerArt = fit * view.zoom * s.x; // 1 printfile px → screen px
+  // A tap on a decoration image that lands on (or right next to) a text line picks the text,
+  // so lines sitting on top of shapes (Customize designs) are easy to grab and restyle.
+  const pickAt = (l) => {
+    if (l.type === 'text') return l.id;
+    const p = stageRef.current?.findOne('.art')?.getRelativePointerPosition();
+    if (!p) return l.id;
+    const pad = 12 / Math.max(screenPerArt, 0.0001);
+    const hit = [...layers].reverse().find((t) => t.type === 'text' && p.x >= t.x - pad && p.x <= t.x + t.width + pad && p.y >= t.y - pad && p.y <= t.y + t.height + pad);
+    return hit ? hit.id : l.id;
+  };
 
   // Free drag inside the print area; centre lines pull gently (8 screen px) and let go.
   const onDragMove = (e, l) => {
@@ -254,9 +264,9 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
                     x: l.x, y: l.y, rotation: l.rotation || 0,
                     draggable: l.id !== editingId,
                     ref: (n) => { if (n) nodes.current[l.id] = n; else delete nodes.current[l.id]; },
-                    onMouseDown: () => onSelect(l.id),
-                    onTap: () => onSelect(l.id),
-                    onDragStart: () => { onSelect(l.id); setDragging(true); },
+                    onMouseDown: () => onSelect(pickAt(l)),
+                    onTap: () => onSelect(pickAt(l)),
+                    onDragStart: () => { if (selectedId !== l.id) onSelect(l.id); setDragging(true); },
                     onDragMove: (e) => onDragMove(e, l),
                     onDragEnd: (e) => onDragEnd(e, l),
                     onTransformStart: () => setDragging(true),
