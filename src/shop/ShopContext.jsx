@@ -53,6 +53,7 @@ export function ShopProvider({ children }) {
   const toastTimer = useRef(null);
   const cartApi = useShopCart();
 
+  const closeStudio = useCallback(() => setStudioOverlay(null), []);
   const reload = useCallback(({ force = true } = {}) => {
     setCatalog((c) => (c.products.length ? c : { ...c, loading: true, error: false }));
     return loadCatalog({ force })
@@ -119,10 +120,10 @@ export function ShopProvider({ children }) {
     studioOverlay,
     /** Desktop: open the Studio over the page and return true. Phones: return false (follow the link). */
     openStudio: (init) => { if (!wantsStudioOverlay()) return false; prefetchStudio(); setStudioOverlay({ ...init, at: Date.now() }); return true; },
-    closeStudio: () => setStudioOverlay(null),
+    closeStudio,
     signedIn,
     user,
-  }), [catalog, reload, blanks, cartApi, cartOpen, notify, toast, studioOverlay, signedIn, user]);
+  }), [catalog, reload, blanks, cartApi, cartOpen, notify, toast, studioOverlay, closeStudio, signedIn, user]);
 
   return <ShopCtx.Provider value={value}>{children}</ShopCtx.Provider>;
 }
