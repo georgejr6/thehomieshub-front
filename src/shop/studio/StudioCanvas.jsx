@@ -67,6 +67,8 @@ function InlineTextEditor({ layer, node, onChange, onDone }) {
   const pos = node.getAbsolutePosition();
   const sc = node.getAbsoluteScale().x;
   const fs = Math.max(10, layer.fontSize * sc);
+  // iOS Safari zooms the page when a focused field is under 16px: render at 16px+ and scale down visually
+  const k = fs < 16 ? fs / 16 : 1;
   return (
     <textarea
       ref={ref}
@@ -86,10 +88,10 @@ function InlineTextEditor({ layer, node, onChange, onDone }) {
         left: pos.x, top: pos.y,
         width: Math.max(90, layer.width * sc + 10), minHeight: fs * 1.12 * Math.max(1, String(layer.text).split('\n').length) + 6, paddingTop: 3,
         fontFamily: `'${f.family}'`, fontStyle: f.style || 'normal', fontWeight: weightOf(f),
-        fontSize: fs, lineHeight: 1.05, color: layer.color, textAlign: layer.align || 'center',
-        letterSpacing: `${(Number(layer.letterSpacing) || 0) * sc}px`,
+        fontSize: fs / k, lineHeight: 1.05, color: layer.color, textAlign: layer.align || 'center',
+        letterSpacing: `${(Number(layer.letterSpacing) || 0) * sc / k}px`,
         textTransform: f.upper ? 'uppercase' : 'none',
-        transform: `rotate(${layer.rotation || 0}deg)`, transformOrigin: 'top left',
+        transform: `rotate(${layer.rotation || 0}deg) scale(${k})`, transformOrigin: 'top left',
       }}
     />
   );
