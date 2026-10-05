@@ -99,7 +99,7 @@ export function StudioScreen({ init = {}, embedded = false, onDesignId, onAdded 
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-xl flex-col items-center justify-center px-4 text-center">
         <Wand2 className="h-10 w-10 text-[#f0b94d]" />
-        <h1 className="font-display mt-5 text-5xl leading-[0.9] sm:text-6xl">The Studio is<br />almost ready</h1>
+        <h1 className="font-display mt-5 text-5xl leading-[0.9] sm:text-6xl">Design your own is<br />almost ready</h1>
         <p className="mt-4 text-white/60">Design-your-own is coming very soon. In the meantime, the full drop is live.</p>
         <ShopButton as={Link} to="/shop" className="mt-8">Shop the drop</ShopButton>
       </div>
@@ -325,12 +325,16 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
     const a = placement.area;
     const fit = (l) => {
       const m = { ...l, width, height };
-      if (width <= a.width + 1 && height <= a.height + 1) return m;
+      if (l.rotation || (width <= a.width + 1 && height <= a.height + 1)) return m;
       const k = Math.min(a.width / width, a.height / height) * 0.96;
       const r = { ...m, ...resizeText(m, Math.floor(m.fontSize * k), a, isEmbroidery(placement)) };
       return { ...r, x: Math.round((a.width - r.width) / 2) };
     };
-    const fix = (s) => ({ ...s, layers: { ...s.layers, [placement.key]: (s.layers[placement.key] || []).map((l) => (l.id === id ? fit(l) : l)) } });
+    const fix = (s) => {
+      const list = s.layers[placement.key] || [];
+      const next = list.map((l) => (l.id === id ? fit(l) : l));
+      return JSON.stringify(next) === JSON.stringify(list) ? s : { ...s, layers: { ...s.layers, [placement.key]: next } };
+    };
     history.amend(fix);
     setLive((cur) => (cur ? fix(cur) : cur));
   }, [history, placement]);
@@ -643,7 +647,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
               </motion.div>
             )}
           </AnimatePresence>
-          <div className="grid grid-cols-4 border-t border-white/[0.07]" role="group" aria-label="Studio tools">
+          <div className="grid grid-cols-4 border-t border-white/[0.07]" role="group" aria-label="Design tools">
             {[['add', 'Add', Sparkles], ['edit', 'Edit', PenLine], ['layers', 'Layers', LayersIcon], ['product', 'Product', Shirt]].map(([k, l, Icon]) => (
               <button key={k} aria-pressed={mobileTab === k} type="button" onClick={() => setMobileTab(mobileTab === k ? null : k)}
                 className={cn('flex min-h-12 flex-col items-center justify-center gap-1 text-[11px] font-semibold', mobileTab === k ? 'text-white' : 'text-white/45')}>
@@ -1134,7 +1138,7 @@ function CoachMarks({ step, onNext, onDone }) {
     <AnimatePresence>
       {s && (
         <motion.div key={step} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-          className={cn('fixed bottom-48 left-1/2 z-[66] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl bg-[#f0b94d] p-5 text-black shadow-2xl lg:bottom-auto lg:left-auto lg:translate-x-0', s.where)} role="dialog" aria-label="Studio tips">
+          className={cn('fixed bottom-48 left-1/2 z-[66] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl bg-[#f0b94d] p-5 text-black shadow-2xl lg:bottom-auto lg:left-auto lg:translate-x-0', s.where)} role="dialog" aria-label="Design tips">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/60">Tip {step + 1} of {COACH.length}</p>
           <p className="font-display mt-1 text-2xl">{s.title}</p>
           <p className="mt-1.5 text-sm leading-relaxed text-black/75">{s.body}</p>

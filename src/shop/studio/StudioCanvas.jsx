@@ -46,6 +46,7 @@ function ImageNode({ layer, common }) {
 
 function TextNode({ layer, common, onMeasure, area }) {
   const ref = useRef(null);
+  const reported = useRef(''); // last size sent up: report each size once (no measure loop when text can't shrink further)
   const [fontsReady, setFontsReady] = useState(0);
   // Re-render (and re-measure) once the font is really loaded; a font that fails stays on the fallback until export refuses it.
   useEffect(() => { ensureFonts([layer]).catch(() => {}).then(() => setFontsReady((n) => n + 1)); }, [layer.font]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -53,8 +54,13 @@ function TextNode({ layer, common, onMeasure, area }) {
     const n = ref.current;
     if (!n) return;
     const w = Math.ceil(n.width()); const h = Math.ceil(n.height());
-    const over = area && (w > area.width + 1 || h > area.height + 1); // drawn bigger than the print area → caller fits it
-    if (over || Math.abs(w - layer.width) > 1 || Math.abs(h - layer.height) > 1) onMeasure(layer.id, w, h);
+    // drawn bigger than the print area → caller fits it (unrotated only: rotated bounds are the clamp's job)
+    const over = area && !layer.rotation && (w > area.width + 1 || h > area.height + 1);
+    const key = `${w}x${h}x${layer.fontSize}`;
+    if ((over || Math.abs(w - layer.width) > 1 || Math.abs(h - layer.height) > 1) && reported.current !== key) {
+      reported.current = key;
+      onMeasure(layer.id, w, h);
+    }
   });
   // `common.ref` registers the node for the Transformer; keep our own ref too (it used to be overwritten → never measured)
   const setRef = (n) => { ref.current = n; common.ref?.(n); };

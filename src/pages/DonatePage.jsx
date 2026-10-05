@@ -126,7 +126,7 @@ export default function DonatePage() {
           <PartyPopper className="mt-0.5 h-5 w-5 shrink-0 text-green-400" />
           <div>
             <p className="font-semibold text-white">Thank you!</p>
-            <p className="text-sm text-gray-300">Your donation went through. You'll get a receipt by email. It means a lot.</p>
+            <p className="text-sm text-gray-300">Your donation went through. It means a lot.</p>
           </div>
         </div>
       )}
