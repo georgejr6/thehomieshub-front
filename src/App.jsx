@@ -78,6 +78,7 @@ import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
 const PayPage = lazyWithReload(() => import('@/pages/PayPage'));
 const SponsorPage = lazyWithReload(() => import('@/pages/SponsorPage'));
+const DonatePage = lazyWithReload(() => import('@/pages/DonatePage'));
 const SponsorGuidePage = lazyWithReload(() => import('@/pages/SponsorGuidePage'));
 const FightPoolPage = lazyWithReload(() => import('@/pages/FightPoolPage'));
 const BetsPage = lazyWithReload(() => import('@/pages/BetsPage'));
@@ -122,7 +123,7 @@ import { isLocationVerified } from '@/lib/tracker';
 // the entry point + legally-required pages so people can still learn what
 // the site is and reach required disclosures before being asked for it.
 const LOCATION_GATE_EXEMPT_PATHS = new Set([
-  '/', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support', '/appeal',
+  '/', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support', '/appeal', '/donate',
 ]);
 
 // chat.thehomies.app / community.thehomies.app / discord.thehomies.app all
@@ -347,7 +348,7 @@ const AppContent = React.memo(() => {
     if (user) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (cancelled || location.pathname === '/join' || location.pathname === '/live' || location.pathname === '/fight' || location.pathname === '/sponsor' || location.pathname === '/sponsor/guide' || location.pathname.startsWith('/bets')) return; // /live has its own sign-in prompts
+      if (cancelled || location.pathname === '/join' || location.pathname === '/live' || location.pathname === '/fight' || location.pathname === '/sponsor' || location.pathname === '/sponsor/guide' || location.pathname === '/donate' || location.pathname.startsWith('/bets')) return; // /live has its own sign-in prompts
       if (!isLocationVerified()) return;
       try {
         const last = Number(localStorage.getItem(JOIN_INVITE_KEY) || 0);
@@ -591,6 +592,7 @@ const AppContent = React.memo(() => {
                 <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
                 {/* Inside MainLayout so the header/sidebar stay available. Fight sponsorship (Oct 29): fans back Mwosa in USDC via the DIGITVL x402 gateway (was /fight). */}
                 <Route path="/sponsor" element={<SponsorPage />} />
+                <Route path="/donate" element={<DonatePage />} />
                 <Route path="/sponsor/guide" element={<SponsorGuidePage />} />
                 {/* Fight Pools: pari-mutuel USDC pools held by the HomiesPools contract, bets via x402 /bet. */}
                 <Route path="/fight" element={<FightPoolPage />} />

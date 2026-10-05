@@ -318,6 +318,22 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
   const previewLayers = useCallback((next) => {
     setLive({ ...history.state, layers: { ...history.state.layers, [placement.key]: next } });
   }, [history.state, placement.key]);
+  // Real rendered size of a text layer (font metrics) → the document, with no undo step,
+  // so centring, snapping and the print-area clamp all use what's actually drawn.
+  // Text drawn wider/taller than the print area (e.g. a long phrase prefilled on a hat) shrinks to fit, centred.
+  const measureLayer = useCallback((id, width, height) => {
+    const a = placement.area;
+    const fit = (l) => {
+      const m = { ...l, width, height };
+      if (width <= a.width + 1 && height <= a.height + 1) return m;
+      const k = Math.min(a.width / width, a.height / height) * 0.96;
+      const r = { ...m, ...resizeText(m, Math.floor(m.fontSize * k), a, isEmbroidery(placement)) };
+      return { ...r, x: Math.round((a.width - r.width) / 2) };
+    };
+    const fix = (s) => ({ ...s, layers: { ...s.layers, [placement.key]: (s.layers[placement.key] || []).map((l) => (l.id === id ? fit(l) : l)) } });
+    history.amend(fix);
+    setLive((cur) => (cur ? fix(cur) : cur));
+  }, [history, placement]);
   const patchSelected = (patch) => selected && commitLayers((cur) => cur.map((l) => (l.id === selected.id ? { ...l, ...patch } : l)));
 
   const guardPlacement = () => {
@@ -534,7 +550,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
   if (step === 'pick') {
     return (
       <div className={cn('overflow-y-auto', heightClass)}>
-        {!embedded && <Helmet><title>The Homies Studio | The Homies</title></Helmet>}
+        {!embedded && <Helmet><title>Design your own | The Homies Shop</title></Helmet>}
         <StartPicker blanks={blanks} initialBlank={blank.key} initialColor={color.name} onStart={(b, c) => {
           setLive(null);
           history.reset(newDoc(b, c));
@@ -550,7 +566,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
 
   return (
     <div className={cn('flex flex-col overflow-y-auto lg:flex-row lg:overflow-hidden', heightClass)} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      {!embedded && <Helmet><title>The Homies Studio | The Homies</title></Helmet>}
+      {!embedded && <Helmet><title>Design your own | The Homies Shop</title></Helmet>}
       <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden" onChange={(e) => { const f = [...(e.target.files || [])]; e.target.value = ''; if (f.length) addFiles(f); }} />
 
       {/* Left rail (desktop) */}
@@ -594,7 +610,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
         <div className={cn('relative min-h-[28dvh] flex-1 bg-[radial-gradient(circle_at_50%_30%,#1c1c20,#0a0a0b_70%)] lg:min-h-0', coach === 2 && 'ring-2 ring-inset ring-[#f0b94d]')}>
           <StudioCanvas template={template} placement={placement} layers={layers} selectedId={selectedId}
             onSelect={(id) => { setSelectedId(id); if (id) setMobileTab('edit'); }}
-            onPreview={previewLayers} onCommit={commitLayers}
+            onPreview={previewLayers} onCommit={commitLayers} onMeasure={measureLayer}
             onAddTextAt={allowed ? addText : () => notify(MIXED_MSG, 'error')}
             editRequest={editRequest} showHint={allowed} />
           {!allowed && layers.length === 0 && (
@@ -905,7 +921,7 @@ function StartPicker({ blanks, initialBlank, initialColor, onStart }) {
   const colorName = b.colors.some((x) => x.name === c) ? c : b.colors[0]?.name;
   return (
     <div className="mx-auto max-w-[1100px] px-4 pb-16 pt-8 sm:px-6 lg:pt-12">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#f0b94d]">The Homies Studio</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#f0b94d]">The Homies Shop</p>
       <h1 className="font-display mt-2 text-4xl leading-[0.95] sm:text-6xl">Pick your piece</h1>
       <p className="mt-2 text-sm text-white/55">Choose a garment and a colour — it becomes your canvas. Then tap it to write on it.</p>
       <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -44,7 +44,7 @@ export default function ShopCart() {
       clearCartCheckoutMarker();
       setPaying(false);
       const code = e?.response?.data?.code;
-      if (code === 'printfiles_missing' || code === 'design_not_ready') { notify('One of your designs needs a refresh — open it in the Studio and add it to your bag again.', 'error'); return; }
+      if (code === 'printfiles_missing' || code === 'design_not_ready') { notify('One of your designs needs a refresh. Open it from Your library and add it to your bag again.', 'error'); return; }
       if (code === 'design_not_found') { notify("One of your designs can't be found anymore. Remove it from your bag and try again.", 'error'); return; }
       if (code === 'unavailable' || code === 'addons_unavailable') {
         const products = await reload();

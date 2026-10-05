@@ -118,6 +118,12 @@ describe('history', () => {
     h = historyReducer(h, { type: 'commit', state: 9 });
     expect(h.future).toEqual([]);
   });
+  test('amend corrects the present without an undo step', () => {
+    let h = { past: [1], present: { w: 365 }, future: [] };
+    h = historyReducer(h, { type: 'amend', state: (s) => ({ ...s, w: 286 }) });
+    expect(h.present).toEqual({ w: 286 });
+    expect(h.past).toEqual([1]);
+  });
 });
 
 describe('add-ons -> cart', () => {

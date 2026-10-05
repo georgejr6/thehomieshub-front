@@ -44,7 +44,7 @@ function ImageNode({ layer, common }) {
   return <KImage image={img} width={layer.width} height={layer.height} {...common} />;
 }
 
-function TextNode({ layer, common, onMeasure }) {
+function TextNode({ layer, common, onMeasure, area }) {
   const ref = useRef(null);
   const [fontsReady, setFontsReady] = useState(0);
   // Re-render (and re-measure) once the font is really loaded; a font that fails stays on the fallback until export refuses it.
@@ -53,9 +53,12 @@ function TextNode({ layer, common, onMeasure }) {
     const n = ref.current;
     if (!n) return;
     const w = Math.ceil(n.width()); const h = Math.ceil(n.height());
-    if (Math.abs(w - layer.width) > 1 || Math.abs(h - layer.height) > 1) onMeasure(layer.id, w, h);
+    const over = area && (w > area.width + 1 || h > area.height + 1); // drawn bigger than the print area → caller fits it
+    if (over || Math.abs(w - layer.width) > 1 || Math.abs(h - layer.height) > 1) onMeasure(layer.id, w, h);
   });
-  return <Text ref={ref} key={fontsReady} {...textConfig(layer)} {...common} />;
+  // `common.ref` registers the node for the Transformer; keep our own ref too (it used to be overwritten → never measured)
+  const setRef = (n) => { ref.current = n; common.ref?.(n); };
+  return <Text key={fontsReady} {...textConfig(layer)} {...common} ref={setRef} />;
 }
 
 /** Type straight onto the garment (double-click / double-tap a text layer). */
@@ -99,7 +102,7 @@ function InlineTextEditor({ layer, node, onChange, onDone }) {
 
 const MIN_ZOOM = 1; const MAX_ZOOM = 4;
 
-export default function StudioCanvas({ template, placement, layers, selectedId, onSelect, onPreview, onCommit, onAddTextAt, editRequest, onEditDone, showHint = false }) {
+export default function StudioCanvas({ template, placement, layers, selectedId, onSelect, onPreview, onCommit, onMeasure, onAddTextAt, editRequest, onEditDone, showHint = false }) {
   const wrap = useRef(null);
   const stageRef = useRef(null);
   const { width, height } = useSize(wrap);
@@ -154,16 +157,19 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
   // Free drag inside the print area; centre lines pull gently (8 screen px) and let go.
   const onDragMove = (e, l) => {
     const n = e.target;
-    const c = clampToArea({ ...l, x: n.x(), y: n.y() }, pf);
+    // text: the node's drawn size (the stored one can lag behind a font load)
+    const w = l.type === 'text' ? n.width() : l.width;
+    const h = l.type === 'text' ? n.height() : l.height;
+    const c = clampToArea({ ...l, width: w, height: h, x: n.x(), y: n.y() }, pf);
     const th = 8 / Math.max(screenPerArt, 0.0001);
     const g = [];
     let { x, y } = c;
-    if (Math.abs(x + l.width / 2 - pf.width / 2) < th) { x = Math.round(pf.width / 2 - l.width / 2); g.push('v'); }
-    if (Math.abs(y + l.height / 2 - pf.height / 2) < th) { y = Math.round(pf.height / 2 - l.height / 2); g.push('h'); }
+    if (Math.abs(x + w / 2 - pf.width / 2) < th) { x = Math.round(pf.width / 2 - w / 2); g.push('v'); }
+    if (Math.abs(y + h / 2 - pf.height / 2) < th) { y = Math.round(pf.height / 2 - h / 2); g.push('h'); }
     n.position({ x, y });
     setGuides((old) => (old.join() === g.join() ? old : g));
   };
-  const onDragEnd = (e, l) => { setGuides([]); setDragging(false); update(l.id, { x: Math.round(e.target.x()), y: Math.round(e.target.y()) }, true); };
+  const onDragEnd = (e, l) => { setGuides([]); setDragging(false); update(l.id, { x: Math.round(e.target.x()), y: Math.round(e.target.y()), ...(l.type === 'text' ? { width: Math.ceil(e.target.width()), height: Math.ceil(e.target.height()) } : {}) }, true); };
   const onTransformEnd = (e, l) => {
     const n = e.target;
     const sx = n.scaleX(); const sy = n.scaleY();
@@ -281,7 +287,7 @@ export default function StudioCanvas({ template, placement, layers, selectedId, 
                   };
                   return l.type === 'image'
                     ? <ImageNode key={l.id} layer={l} common={common} />
-                    : <TextNode key={l.id} layer={l} common={common} onMeasure={(id, w, h) => update(id, { width: w, height: h }, false)} />;
+                    : <TextNode key={l.id} layer={l} common={common} area={onMeasure ? pf : null} onMeasure={(id, w, h) => (onMeasure ? onMeasure(id, w, h) : update(id, { width: w, height: h }, false))} />;
                 })}
               </Group>
               {garment && t.imageOnTop && <KImage image={garment} width={t.width} height={t.height} listening={false} />}

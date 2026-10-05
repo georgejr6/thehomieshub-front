@@ -1,3 +1,4 @@
+import Wordmark from '@/shop/components/Wordmark';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useOutlet, useSearchParams } from 'react-router-dom';
 import { MotionConfig, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
@@ -86,8 +87,7 @@ function ShopHeader({ studio }) {
         </Link>
         <span className="hidden h-5 w-px bg-white/10 lg:block" aria-hidden />
         <Link to="/shop" className="mr-auto flex items-baseline gap-1.5 md:mr-0" aria-label="The Homies Shop home">
-          <span className="font-display text-[19px] leading-none tracking-wide md:text-[21px]">The Homies</span>
-          <span className="font-serif-i text-[17px] leading-none text-[#f0b94d] md:text-[19px]">shop</span>
+          <Wordmark className="text-[15px] md:text-[17px]" />
         </Link>
         <nav className="mx-auto hidden items-center gap-1 md:flex" aria-label="Shop">
           <NavLink to="/shop" end className={navCls}>Shop</NavLink>
@@ -124,7 +124,7 @@ function TabBar() {
       <div className="flex h-16">
         <NavLink to="/shop" end className={tab}><Store className="h-5 w-5" />Shop</NavLink>
         <NavLink to="/shop/design" className={tab}>
-          {({ isActive }) => (<><span className={cn('flex h-7 w-7 items-center justify-center rounded-full', isActive ? 'bg-[#f0b94d] text-black' : 'bg-[#f0b94d]/15 text-[#f0b94d]')}><Wand2 className="h-4 w-4" /></span>Studio</>)}
+          {({ isActive }) => (<><span className={cn('flex h-7 w-7 items-center justify-center rounded-full', isActive ? 'bg-[#f0b94d] text-black' : 'bg-[#f0b94d]/15 text-[#f0b94d]')}><Wand2 className="h-4 w-4" /></span>Design</>)}
         </NavLink>
         <button type="button" onClick={openCart} className="relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium text-white/45" aria-label={`Bag, ${cart.count} item${cart.count === 1 ? '' : 's'}`}>
           <span className="relative"><ShoppingBag className="h-5 w-5" />{cart.count > 0 && <span className="absolute -right-2 -top-1.5 min-w-[18px] rounded-full bg-white px-1 text-center text-[10px] font-bold leading-[18px] text-black">{cart.count}</span>}</span>
@@ -176,7 +176,7 @@ function ShopFooter() {
     <footer className="mt-24 hidden border-t border-white/[0.07] md:block">
       <div className="mx-auto flex max-w-[1320px] flex-wrap items-start justify-between gap-10 px-6 py-12 lg:px-10">
         <div>
-          <p className="font-display text-2xl leading-none">The Homies <span className="font-serif-i normal-case text-[#f0b94d]">shop</span></p>
+          <p><Wordmark className="text-xl" /></p>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/50">Phrases straight from the streams, printed when you order and shipped to you.</p>
         </div>
         <div className="flex gap-14 text-sm">

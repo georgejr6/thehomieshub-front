@@ -1,3 +1,4 @@
+import Wordmark from '@/shop/components/Wordmark';
 import React from 'react';
 
 // What /shop shows while its code is still downloading: the shop's own header
@@ -24,7 +25,7 @@ export default function ShopShellFallback({ bare = false }) {
     <div className="min-h-[100dvh] bg-[#0a0a0b] text-white" role="status" aria-label="Loading the shop">
       <div className="mx-auto flex h-14 max-w-[1320px] items-center gap-3 px-4 sm:px-6 md:h-16 lg:px-10">
         <span className="h-4 w-4 rounded-full bg-white/10" />
-        <span className="text-[19px] font-black uppercase leading-none tracking-wide md:text-[21px]">The Homies <span className="font-serif italic normal-case text-[#f0b94d]">shop</span></span>
+        <Wordmark className="text-[15px] md:text-[17px]" />
       </div>
       {grid}
     </div>

@@ -165,7 +165,7 @@ const GiftDialog = ({
 
   const handleCardDonate = async () => {
     if (!targetId || targetType !== 'live_stream') {
-      window.open('https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09', '_blank');
+      window.location.assign('/donate');
       return;
     }
     // Live streams: our own Stripe Checkout. The message is read aloud only

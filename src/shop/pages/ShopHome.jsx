@@ -241,10 +241,10 @@ function StudioEntry() {
     <section className="mx-auto max-w-[1320px] px-4 sm:px-6 lg:px-10">
       <Link to="/shop/design" className="group relative grid overflow-hidden rounded-[28px] border border-white/10 bg-[#111113] md:grid-cols-[1.2fr_1fr]">
         <div className="relative z-10 p-7 sm:p-10">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#f0b94d]">The Homies Studio</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#f0b94d]">The Homies Shop</p>
           <h2 className="font-display mt-3 text-4xl leading-[0.95] sm:text-5xl">Design your own.</h2>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/55">Pick a blank tee, hoodie, crewneck or hat. Add your text or upload a picture, place it where you want, see it on the garment, and order. Saves as you go.</p>
-          <span className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-[#f0b94d] px-6 text-sm font-semibold text-black transition group-hover:brightness-110">Open the Studio <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></span>
+          <span className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-[#f0b94d] px-6 text-sm font-semibold text-black transition group-hover:brightness-110">Start designing <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></span>
         </div>
         <GarmentSlideshow />
       </Link>

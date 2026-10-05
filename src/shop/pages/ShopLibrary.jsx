@@ -49,7 +49,7 @@ export default function ShopLibrary() {
   const open = (e, d) => { if (openStudio({ design: d.id })) e.preventDefault(); };
 
   if (blanks !== undefined && !studioAvailable) {
-    return <div className="mx-auto max-w-xl px-4 py-24 text-center"><p className="font-display text-5xl">Your library</p><p className="mt-3 text-white/55">The Studio is almost ready — check back soon.</p></div>;
+    return <div className="mx-auto max-w-xl px-4 py-24 text-center"><p className="font-display text-5xl">Your library</p><p className="mt-3 text-white/55">Design your own is almost ready. Check back soon.</p></div>;
   }
   return (
     <div className="mx-auto max-w-[1320px] px-4 pb-24 pt-8 sm:px-6 lg:px-10">
@@ -57,7 +57,7 @@ export default function ShopLibrary() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-5xl sm:text-7xl">Your library</h1>
-          <p className="mt-2 text-sm text-white/55">Everything you make in the Studio saves here automatically.</p>
+          <p className="mt-2 text-sm text-white/55">Everything you design saves here automatically.</p>
         </div>
         <ShopButton as={Link} to="/shop/design" variant="gold" onMouseEnter={prefetchStudio} onClick={(e) => { if (openStudio({})) e.preventDefault(); }}><Plus className="h-4 w-4" /> New design</ShopButton>
       </div>
@@ -77,7 +77,7 @@ export default function ShopLibrary() {
               <p className="mt-0.5 truncate text-xs text-white/45">{[blank?.name, d.color, edited(d)].filter(Boolean).join(' · ')}</p>
               <div className="mt-3 grid gap-1.5 sm:flex sm:flex-wrap sm:items-center">
                 <Link to={studioHref({ design: d.id })} onClick={(e) => open(e, d)} onMouseEnter={prefetchStudio}
-                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-white px-3.5 text-xs font-semibold text-black hover:bg-[#f0b94d] sm:h-9"><PenLine className="h-3.5 w-3.5" /> Open in Studio</Link>
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-white px-3.5 text-xs font-semibold text-black hover:bg-[#f0b94d] sm:h-9"><PenLine className="h-3.5 w-3.5" /> Open & edit</Link>
                 <button type="button" onClick={() => setBagging(d)} disabled={!blank || !usedKeys(d).length}
                   className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-white/15 px-3.5 text-xs font-semibold hover:border-white/40 disabled:opacity-30 sm:h-9"><ShoppingBag className="h-3.5 w-3.5" /> Add to bag</button>
               </div>
@@ -96,7 +96,7 @@ export default function ShopLibrary() {
         <div className="py-16 text-center">
           <p className="font-display text-4xl">Nothing here yet</p>
           <p className="mt-2 text-white/55">Start a design — it only takes a minute, and it saves here as you go.</p>
-          <ShopButton as={Link} to="/shop/design" className="mt-6" onClick={(e) => { if (openStudio({})) e.preventDefault(); }}>Open the Studio</ShopButton>
+          <ShopButton as={Link} to="/shop/design" className="mt-6" onClick={(e) => { if (openStudio({})) e.preventDefault(); }}>Start designing</ShopButton>
         </div>
       )}
       {designs === null && <p className="py-16 text-center text-white/55">Couldn't load your library. <button type="button" onClick={load} className="underline">Try again</button></p>}
@@ -225,7 +225,7 @@ function BagDialog({ design, blanks, onClose, onAdded, notify }) {
       });
       onAdded(line);
     } catch (e) {
-      notify(apiError(e, e?.message || 'Could not add it to your bag. Open it in the Studio and try again.'), 'error');
+      notify(apiError(e, e?.message || 'Could not add it to your bag. Open it, then try again.'), 'error');
       setBusy('');
     }
   };

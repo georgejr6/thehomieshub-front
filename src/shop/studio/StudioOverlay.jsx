@@ -1,3 +1,4 @@
+import Wordmark from '@/shop/components/Wordmark';
 import React, { Suspense, lazy, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, X, Wand2 } from 'lucide-react';
@@ -44,16 +45,16 @@ export default function StudioOverlay() {
         <motion.div
           ref={panel}
           key={init.at}
-          role="dialog" aria-modal="true" aria-label="The Homies Studio" data-studio-host
+          role="dialog" aria-modal="true" aria-label="The Homies Shop: design your own" data-studio-host
           className="hh-shop fixed inset-0 z-[60] flex flex-col bg-[#0a0a0b]"
           initial={{ opacity: 0, scale: 0.985 }} animate={{ opacity: 1, scale: 1, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } }}
           exit={{ opacity: 0, scale: 0.99, transition: { duration: 0.15 } }}
         >
           <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f0b94d]/15 text-[#f0b94d]"><Wand2 className="h-4 w-4" /></span>
-            <p className="font-display text-[20px] leading-none tracking-wide">The Homies <span className="font-serif-i normal-case text-[#f0b94d]">studio</span></p>
+            <p><Wordmark className="text-[16px]" /></p>
             <span className="ml-3 hidden text-xs text-white/40 xl:inline">Saves automatically · Esc to close</span>
-            <button type="button" data-autofocus onClick={closeStudio} aria-label="Close the Studio"
+            <button type="button" data-autofocus onClick={closeStudio} aria-label="Close"
               className="ml-auto inline-flex h-10 items-center gap-2 rounded-full border border-white/12 px-4 text-sm font-semibold text-white/80 hover:border-white/35 hover:text-white">
               <X className="h-4 w-4" /> Close
             </button>

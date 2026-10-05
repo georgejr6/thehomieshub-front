@@ -26,6 +26,7 @@
 :where(.hh-shop) a:hover { color: inherit; }
 
 .hh-shop .font-display { font-family: 'HH Anton', 'Anton', Impact, sans-serif; letter-spacing: 0.005em; text-transform: uppercase; }
+.hh-wordmark { font-family: 'HH Archivo', 'Archivo Black', 'Arial Black', system-ui, sans-serif; font-weight: 900; font-style: normal; letter-spacing: 0.08em; text-transform: uppercase; }
 .hh-shop .font-serif-i { font-family: 'HH Serif', Georgia, serif; font-style: italic; }
 .hh-shop .text-muted-shop { color: var(--shop-muted); }
 .hh-shop .bg-surface { background: var(--shop-surface); }

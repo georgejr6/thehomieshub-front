@@ -21,6 +21,12 @@ export function historyReducer(h, action) {
       if (!h.future.length) return h;
       return { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) };
     }
+    case 'amend': {
+      // corrects the present without an undo step (e.g. measured text size)
+      const next = typeof action.state === 'function' ? action.state(h.present) : action.state;
+      if (JSON.stringify(next) === JSON.stringify(h.present)) return h;
+      return { ...h, present: next };
+    }
     case 'reset':
       return { past: [], present: action.state, future: [] };
     default:
@@ -36,6 +42,7 @@ export default function useHistory(initial) {
     commit: useCallback((state) => dispatch({ type: 'commit', state }), [dispatch]),
     undo: useCallback(() => dispatch({ type: 'undo' }), [dispatch]),
     redo: useCallback(() => dispatch({ type: 'redo' }), [dispatch]),
+    amend: useCallback((state) => dispatch({ type: 'amend', state }), [dispatch]),
     reset: useCallback((state) => dispatch({ type: 'reset', state }), [dispatch]),
     canUndo: h.past.length > 0,
     canRedo: h.future.length > 0,

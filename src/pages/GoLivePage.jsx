@@ -239,10 +239,10 @@ const GoLivePage = ({ onLoginRequest }) => {
 
     // Donation bot — fires every 5 min while enabled + live (admin only)
     const DONATION_MESSAGES = [
-        "💛 Enjoying the stream? Show some love and send a donation! CashApp: $Homieshub or donate here → https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09",
-        "🙏 Your support keeps us going! Drop a donation to CashApp: $Homieshub or click → https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09",
-        "🔥 If you're vibing with this stream, show support! CashApp: $Homieshub | Donate: https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09",
-        "❤️ Every donation helps us keep building! Send to CashApp: $Homieshub or use the link → https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09",
+        "💛 Enjoying the stream? Show some love and send a donation! CashApp: $Homieshub or donate here → https://www.thehomies.app/donate",
+        "🙏 Your support keeps us going! Drop a donation to CashApp: $Homieshub or click → https://www.thehomies.app/donate",
+        "🔥 If you're vibing with this stream, show support! CashApp: $Homieshub | Donate: https://www.thehomies.app/donate",
+        "❤️ Every donation helps us keep building! Send to CashApp: $Homieshub or use the link → https://www.thehomies.app/donate",
     ];
     const donationMsgIndexRef = useRef(0);
 

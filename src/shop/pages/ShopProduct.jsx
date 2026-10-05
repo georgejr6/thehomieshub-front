@@ -245,7 +245,7 @@ export default function ShopProduct() {
             <Link to={studioHref(studioInit)} onClick={(e) => { if (openStudio(studioInit)) e.preventDefault(); }} onMouseEnter={prefetchStudio}
               className="mt-6 flex items-center gap-4 rounded-2xl border border-dashed border-white/15 p-4 transition hover:border-[#f0b94d]/60">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f0b94d]/15"><Wand2 className="h-5 w-5 text-[#f0b94d]" /></div>
-              <div className="flex-1"><p className="text-sm font-medium">Make it your own in the Studio</p><p className="text-xs text-white/50">Move it, resize it, add your own picture or text.</p></div>
+              <div className="flex-1"><p className="text-sm font-medium">Make it your own</p><p className="text-xs text-white/50">Move it, resize it, add your own picture or text.</p></div>
             </Link>
           )}
 

@@ -13,7 +13,7 @@ const MIN = 100;
 const MAX = 50000;
 const usd = (c) => `$${(c / 100).toFixed(2).replace(/\.00$/, '')}`;
 
-function CryptoWallet({ wallet }) {
+export function CryptoWallet({ wallet }) {
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState(false);
   useEffect(() => {

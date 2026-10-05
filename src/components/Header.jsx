@@ -43,7 +43,7 @@ const BetaPopover = () => <Popover>
                         Donate with Cash App ($Homieshub)
                       </Button>
                     </a>
-                    <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer" className="block">
+                    <a href="/donate" className="block">
                        <Button variant="outline" className="w-full justify-start">
                         <img src={stripeIcon} alt="Stripe" className="h-4 w-4 mr-2" />
                         Donate with Stripe
@@ -73,7 +73,7 @@ const DonateDialog = () => <Dialog>
                 Donate via Cash App
               </Button>
             </a>
-            <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer" className="block">
+            <a href="/donate" className="block">
                <Button variant="outline" className="w-full justify-start text-lg p-6">
                 <img src={stripeIcon} alt="Stripe" className="h-6 w-6 mr-4" />
                 Donate via Stripe
@@ -206,7 +206,7 @@ const Header = ({
               <YouTubeIcon className="h-5 w-5" />
             </Button>
           </a>
-          <a href="https://donate.stripe.com/fZu9ASbadcfU5VzbX4f7i09" target="_blank" rel="noopener noreferrer">
+          <a href="/donate">
             <Button variant="ghost" size="icon" className="text-[#22c55e] hover:text-[#22c55e] hover:bg-[#22c55e]/10" title="Donate">
               <DollarSign className="h-5 w-5" />
             </Button>
