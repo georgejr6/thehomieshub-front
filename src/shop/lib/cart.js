@@ -57,6 +57,8 @@ export function cleanLine(l) {
     image: httpsImg(l.image),
     slug: str(l.slug, 80),
     priceCents: Number.isInteger(l.priceCents) && l.priceCents >= 0 ? l.priceCents : 0,
+    houseArt: kind === 'custom' && l.houseArt ? true : undefined,
+    sourceId: kind === 'custom' && /^[A-Za-z0-9_-]{6,40}$/.test(String(l.sourceId || '')) ? String(l.sourceId) : undefined,
   };
   line.key = lineKey(line);
   return line;

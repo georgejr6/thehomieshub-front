@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { cachedCatalog, loadCatalog } from '@/shop/lib/catalogCache';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchBlanks, fetchServerCart, pushServerCart, claimDesigns, setClaimPromise, fetchDesign } from '@/shop/lib/api';
+import { fetchBlanks, fetchServerCart, pushServerCart, claimDesigns, setClaimPromise, fetchDesign, fetchDesignQuote } from '@/shop/lib/api';
 import { displayName, productImage, kindOf, KIND_LABEL } from '@/shop/lib/catalog';
 import { customPriceCents } from '@/shop/lib/pricing';
 import { wantsStudioOverlay, prefetchStudio } from '@/shop/lib/studioLink';
@@ -21,7 +21,11 @@ async function rebuildLine(it, products, blanks) {
     const blank = (blanks || []).find((b) => b.key === d?.blankKey);
     const v = blank?.variants?.find((x) => x.id === it.variantId);
     const used = Object.keys(d?.layers || {}).filter((k) => (d.layers[k] || []).length);
-    return { ...it, name: d?.name || `Custom ${blank?.name || 'piece'}`, variant: [blank?.name, v?.color, v?.size].filter(Boolean).join(' · '), image: d?.previewUrl || '', priceCents: v ? customPriceCents(blank, used, v) : 0 };
+    const quote = await fetchDesignQuote(it.designId, it.variantId);
+    return {
+      ...it, name: d?.name || `Custom ${blank?.name || 'piece'}`, variant: [blank?.name, v?.color, v?.size].filter(Boolean).join(' · '), image: d?.previewUrl || '',
+      priceCents: quote ? quote.unitCents : (v ? customPriceCents(blank, used, v) : 0), houseArt: !!quote?.houseArt,
+    };
   }
   const product = products.find((p) => (p.variants || []).some((v) => v.id === it.variantId));
   const v = product?.variants.find((x) => x.id === it.variantId);

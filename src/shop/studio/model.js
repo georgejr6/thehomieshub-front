@@ -244,6 +244,7 @@ export function validateDoc(doc, blank) {
       for (const l of layers.filter((x) => x.type === 'text')) {
         if (l.fontSize < minEmbroideryFontSize(p.area)) issues.push(`${p.label}: letters are too small to stitch — make the text bigger.`);
         if (!threads.some((t) => t.hex.toLowerCase() === String(l.color).toLowerCase())) issues.push(`${p.label}: pick a thread colour.`);
+        if (!isEmbroiderySafe(l.font)) issues.push(`${p.label}: pick a font that can be embroidered.`);
       }
     }
     for (const l of layers.filter((x) => x.type === 'text')) {

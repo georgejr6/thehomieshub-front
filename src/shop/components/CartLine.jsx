@@ -10,7 +10,8 @@ import { MAX_QTY } from '@/shop/lib/cart';
 // see exactly what they pay for.
 export default function CartLine({ line, saved = false, compact = false, onEdit }) {
   const { cart, notify, closeCart } = useShop();
-  const href = line.kind === 'custom' ? `/shop/design?design=${encodeURIComponent(line.designId)}` : line.slug ? `/shop/${line.slug}` : '/shop';
+  // Custom lines are frozen bag copies — editing opens the original design (or the library), never the copy.
+  const href = line.kind === 'custom' ? (line.sourceId ? `/shop/design?design=${encodeURIComponent(line.sourceId)}` : '/shop/library') : line.slug ? `/shop/${line.slug}` : '/shop';
   return (
     <div className="flex gap-4">
       <Link to={href} onClick={closeCart} className={`block shrink-0 overflow-hidden rounded-xl ${compact ? 'h-24 w-20' : 'h-32 w-28'}`} aria-label={line.name}>
@@ -21,6 +22,7 @@ export default function CartLine({ line, saved = false, compact = false, onEdit 
           <div className="min-w-0">
             <Link to={href} onClick={closeCart} className="block truncate font-semibold leading-tight hover:underline">{line.name || 'The Homies merch'}</Link>
             <p className="mt-0.5 text-xs text-white/50">{line.variant}{line.kind === 'custom' ? ' · Your design' : ''}</p>
+            {line.houseArt && <p className="mt-0.5 text-[11px] text-[#f6d48f]">Includes The Homies design · listed price</p>}
           </div>
           <p className="shrink-0 font-semibold">{usd(saved ? unitCents(line) : lineTotalCents(line))}</p>
         </div>

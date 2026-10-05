@@ -2,7 +2,7 @@ import { usedPlacements, placementOf, serverLayers } from '@/shop/studio/model';
 import { exportPlacement, exportPreview } from '@/shop/studio/exporter';
 import { resolveTemplate } from '@/shop/studio/template';
 import { ensureFontRegistry } from '@/shop/studio/fonts';
-import { createDesign, updateDesign, uploadImage, savePrintfiles } from '@/shop/lib/api';
+import { createDesign, updateDesign, uploadImage, savePrintfiles, fetchDesignQuote } from '@/shop/lib/api';
 
 // Everything "Add to bag" does for a custom design, shared by the Studio and
 // the library. The bag gets a FROZEN COPY ("… (in your bag)", kept out of the
@@ -52,7 +52,7 @@ export async function bagDesign({ blank, color, size, variant, doc, name, priceC
   const files = await renderPrintfiles(blank, frozen, onStep);
   await savePrintfiles(copy.id, files);
   onStep('Making your preview');
-  const previewUrl = await makePreview(blank, color, frozen);
+  const [previewUrl, quote] = await Promise.all([makePreview(blank, color, frozen), fetchDesignQuote(copy.id, variant.id)]);
   if (previewUrl) {
     updateDesign(copy.id, { previewUrl }).catch((e) => console.warn('[shop] preview save failed', e));
     if (originalId) updateDesign(originalId, { previewUrl }).catch((e) => console.warn('[shop] preview save failed', e));
@@ -61,6 +61,9 @@ export async function bagDesign({ blank, color, size, variant, doc, name, priceC
     kind: 'custom', designId: copy.id, variantId: variant.id, quantity: 1,
     name: label,
     variant: [blank.name, color?.name, size].filter(Boolean).join(' · '),
-    image: /^https:/.test(previewUrl) ? previewUrl : '', priceCents,
+    image: /^https:/.test(previewUrl) ? previewUrl : '',
+    priceCents: quote ? quote.unitCents : priceCents, // the server's exact price when it answers
+    houseArt: !!quote?.houseArt,
+    sourceId: originalId || undefined,
   };
 }

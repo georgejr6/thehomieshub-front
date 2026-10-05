@@ -159,3 +159,21 @@ describe('review round: print correctness', async () => {
     expect(r.addons[0].fontSize).toBe(addonFontSize(back, 'm', 'HI'));
   });
 });
+
+describe('server quote + house art', async () => {
+  const { cleanLine } = await import('@/shop/lib/cart');
+  const { validateDoc, makeTextLayer, registerFonts } = await import('@/shop/studio/model');
+  test('custom lines keep the house-art flag and the original design to edit', () => {
+    const l = cleanLine({ kind: 'custom', designId: 'copy123', sourceId: 'orig456', variantId: 9, quantity: 1, priceCents: 7000, houseArt: true });
+    expect(l).toMatchObject({ houseArt: true, sourceId: 'orig456', priceCents: 7000 });
+    expect(cleanLine({ kind: 'listed', variantId: 9, quantity: 1, houseArt: true }).houseArt).toBeUndefined();
+  });
+  test('embroidered text must use an embroidery-safe font', () => {
+    registerFonts([{ key: 'pacifico', cssFamily: "'Pacifico'", googleFamily: 'Pacifico', embroiderySafe: false }, { key: 'archivo', embroiderySafe: true }]);
+    const hat = { key: 'hat', threadColors: [{ hex: '#FFFFFF', name: 'White' }], placements: [{ key: 'embroidery_front', label: 'Front', technique: 'EMBROIDERY', area: { width: 1200, height: 525, dpi: 300 } }] };
+    const l = { ...makeTextLayer(hat.placements[0], { text: 'HI', color: '#FFFFFF' }), font: 'pacifico' };
+    expect(validateDoc({ layers: { embroidery_front: [l] } }, hat).join(' ')).toMatch(/can be embroidered/);
+    expect(validateDoc({ layers: { embroidery_front: [{ ...l, font: 'archivo' }] } }, hat).join(' ')).not.toMatch(/can be embroidered/);
+    registerFonts([]);
+  });
+});

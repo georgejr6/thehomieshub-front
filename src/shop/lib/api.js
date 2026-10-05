@@ -196,6 +196,20 @@ export async function fetchDesign(id) {
   const { data } = await api.get(`/merch/designs/${encodeURIComponent(id)}`, dev());
   return data?.design || null;
 }
+/**
+ * The exact checkout price of a saved design on a variant (server-side: base,
+ * extra spots, and The Homies' listed price floor when it prints house art).
+ * → { unitCents, baseCents, addons, houseArt:null|{names, listedCents} } or null.
+ */
+export async function fetchDesignQuote(designId, variantId) {
+  if (!designId || !variantId || isMockStudio()) return null;
+  await claimed();
+  try {
+    const { data } = await api.get(`/merch/designs/${encodeURIComponent(designId)}/quote`, { ...dev(), params: { variantId } });
+    return Number.isInteger(data?.unitCents) ? data : null;
+  } catch { return null; }
+}
+
 /** Bag copies ("… (in your bag)", library:false) never show in the library. */
 export const isLibraryDesign = (d) => !!d && d.library !== false && !/\(in your bag\)$/.test(d.name || '');
 const byNewest = (a, b) => (Date.parse(b.updatedAt || b.createdAt || 0) || 0) - (Date.parse(a.updatedAt || a.createdAt || 0) || 0);

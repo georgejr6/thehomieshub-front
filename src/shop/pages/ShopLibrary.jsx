@@ -9,6 +9,7 @@ import { ShopButton, Skeleton, ShopImage, Tip, Pill, useFocusTrap } from '@/shop
 import { fetchMyDesigns, deleteDesign, createDesign, updateDesign, apiError } from '@/shop/lib/api';
 import { customPriceCents, usd } from '@/shop/lib/pricing';
 import { studioHref, prefetchStudio } from '@/shop/lib/studioLink';
+import useDesignQuote from '@/shop/lib/useDesignQuote';
 
 // "Your library": every design you've made in the Studio (account, or this
 // device for guests), newest first. Bag copies never show here.
@@ -201,7 +202,8 @@ function BagDialog({ design, blanks, onClose, onAdded, notify }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [design, busy, onClose]);
   const variant = blank?.variants.find((v) => v.color === color?.name && v.size === size);
-  const price = blank ? customPriceCents(blank, usedKeys(design), variant) : 0;
+  const quote = useDesignQuote(design?.id, variant?.id);
+  const price = quote ? quote.unitCents : (blank ? customPriceCents(blank, usedKeys(design), variant) : 0);
 
   const add = async () => {
     if (!variant) { notify('Pick a size.', 'error'); return; }
@@ -252,6 +254,7 @@ function BagDialog({ design, blanks, onClose, onAdded, notify }) {
               <span className="text-sm text-white/55">Your price</span>
               <span className="font-display text-3xl">{usd(price)}</span>
             </div>
+            {quote?.houseArt && <p className="mt-1 text-right text-xs text-[#f6d48f]">Includes The Homies design · listed price</p>}
             {busy && <p className="mt-3 text-xs text-white/50" role="status">{busy}…</p>}
             <div className="mt-5 flex justify-end gap-2">
               <ShopButton variant="ghost" size="sm" onClick={onClose} disabled={!!busy}>Cancel</ShopButton>

@@ -24,6 +24,7 @@ import { ensureFontRegistry } from '@/shop/studio/fonts';
 import { effectiveDpi, dpiStatus, DPI_COPY, inchesLabel } from '@/shop/lib/dpi';
 import { customPriceCents, placementIncluded, usd, addonDelta } from '@/shop/lib/pricing';
 import { createAutosaver } from '@/shop/lib/autosave';
+import useDesignQuote from '@/shop/lib/useDesignQuote';
 import {
   validateUpload, uploadImage, uploadHouseArt, loadImage, createDesign, updateDesign, fetchDesign, fetchDesignFromProduct, requestMockup, pollMockup, apiError,
 } from '@/shop/lib/api';
@@ -150,7 +151,11 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
   const used = usedPlacements(doc);
   const threads = threadsOf(blank);
   const variant = blank.variants.find((v) => v.color === color.name && v.size === size) || blank.variants.find((v) => v.color === color.name);
-  const price = customPriceCents(blank, used, variant);
+  const estimate = customPriceCents(blank, used, variant);
+  // The server quote is the real price (house art never sells below its listed price);
+  // it refreshes after each save and on colour/size changes.
+  const quote = useDesignQuote(designId, variant?.id, `${saveStatus === 'saved' ? 'saved' : 'pending'}:${used.join(',')}`);
+  const price = quote ? quote.unitCents : estimate;
   const allowed = placementAllowed(doc, blank, placement);
   const template = useMemo(() => resolveTemplate(blank, color.name, placement.key), [blank, color.name, placement.key]);
   useEffect(() => { ensureFontRegistry().then(setFonts); }, []);
@@ -631,7 +636,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
             ))}
           </div>
           <div className="flex items-center gap-2.5 border-t border-white/[0.07] px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2.5">
-            <div className="min-w-0 flex-1"><p className="truncate text-[11px] text-white/45">{blank.name} · {color.name} · {size}</p><p className="font-display text-2xl leading-none">{usd(price)}</p></div>
+            <div className="min-w-0 flex-1"><p className="truncate text-[11px] text-white/45">{blank.name} · {color.name} · {size}</p><p className="font-display text-2xl leading-none">{usd(price)}</p>{quote?.houseArt && <p className="truncate text-[10px] text-[#f6d48f]">Includes The Homies design · listed price</p>}</div>
             <button type="button" onClick={() => { setSelectedId(null); setMockupOpen(true); }} className="h-10 rounded-full border border-white/15 px-3.5 text-xs font-semibold">Mockup</button>
             <ShopButton onClick={addToBag} disabled={!!busy} className="h-10"><ShoppingBag className="h-4 w-4" /> Add</ShopButton>
           </div>
@@ -644,6 +649,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
         <div className="border-t border-white/[0.07] p-5">{panels.edit}</div>
         <div className="mt-auto border-t border-white/[0.07] p-5">
           <div className="flex items-baseline justify-between"><span className="text-sm text-white/55">Your price</span><span className="font-display text-4xl">{usd(price)}</span></div>
+          {quote?.houseArt && <p className="mt-1 text-xs text-[#f6d48f]">Includes The Homies design · listed price</p>}
           <p className="mt-1 text-xs text-white/40">{used.length > 1 ? `${used.length} print locations` : `${blank.placements.find((p) => placementIncluded(blank, p))?.label || 'Front'} included`} · shipping at checkout</p>
           <ShopButton size="lg" className="mt-4 w-full" onClick={addToBag} disabled={!!busy}><ShoppingBag className="h-4 w-4" /> Add to bag</ShopButton>
           <Link to="/shop/library" onClick={embedded ? () => onAdded?.({ closeOnly: true }) : undefined} className="mt-3 block text-center text-xs text-white/50 hover:text-white">Your library</Link>
