@@ -138,21 +138,21 @@ mux-player {
 }
 
 /* Mobile specific overrides */
-/* Not inside Homies Chat (body.hh-chat-open): it's sized like Discord, and
+/* Not inside Homies Chat (body.hh-chat-open) or the Homies Shop (body.hh-shop-open, own tap targets): chat is sized like Discord, and
    44px-min flex buttons/links broke inline links, reaction chips and icon rows.
    :where() keeps these at their old (zero-class) specificity elsewhere. */
 @media (max-width: 768px) {
   /* Hide hover effects on touch devices */
-  :where(body:not(.hh-chat-open)) .hover\:scale-105:hover,
-  :where(body:not(.hh-chat-open)) .group:hover .group-hover\:opacity-100 {
+  :where(body:not(.hh-chat-open):not(.hh-shop-open)) .hover\:scale-105:hover,
+  :where(body:not(.hh-chat-open):not(.hh-shop-open)) .group:hover .group-hover\:opacity-100 {
     transform: none;
     opacity: 1; /* Always show controls/overlays or handle via JS state */
   }
 
   /* Increase tap targets */
-  :where(body:not(.hh-chat-open)) button,
-  :where(body:not(.hh-chat-open)) a,
-  :where(body:not(.hh-chat-open)) [role="button"] {
+  :where(body:not(.hh-chat-open):not(.hh-shop-open)) button,
+  :where(body:not(.hh-chat-open):not(.hh-shop-open)) a,
+  :where(body:not(.hh-chat-open):not(.hh-shop-open)) [role="button"] {
     min-height: 44px;
     min-width: 44px;
     display: flex;

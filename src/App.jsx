@@ -84,9 +84,16 @@ const ProposePoolPage = lazyWithReload(() => import('@/pages/ProposePoolPage'));
 const JudgePoolPage = lazyWithReload(() => import('@/pages/JudgePoolPage'));
 const AdminPools = lazyWithReload(() => import('@/pages/admin/AdminPools'));
 const AdminMerch = lazyWithReload(() => import('@/pages/admin/AdminMerch'));
-const ShopPage = lazyWithReload(() => import('@/pages/ShopPage'));
-const ShopProductPage = lazyWithReload(() => import('@/pages/ShopProductPage'));
-const ShopThanksPage = lazyWithReload(() => import('@/pages/ShopThanksPage'));
+// Homies Shop mode (own full-screen layout, like Media Mode) — src/shop/
+const ShopLayout = lazyWithReload(() => import('@/shop/ShopLayout'));
+const ShopHome = lazyWithReload(() => import('@/shop/pages/ShopHome'));
+const ShopCollection = lazyWithReload(() => import('@/shop/pages/ShopCollection'));
+const ShopProduct = lazyWithReload(() => import('@/shop/pages/ShopProduct'));
+const ShopCart = lazyWithReload(() => import('@/shop/pages/ShopCart'));
+const ShopThanks = lazyWithReload(() => import('@/shop/pages/ShopThanks'));
+const ShopOrders = lazyWithReload(() => import('@/shop/pages/ShopOrders'));
+const ShopDesigns = lazyWithReload(() => import('@/shop/pages/ShopDesigns'));
+const ShopStudio = lazyWithReload(() => import('@/shop/studio/Studio'));
 import api from '@/api/homieshub';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -467,6 +474,18 @@ const AppContent = React.memo(() => {
                 <Route path=":postId" element={<MediaApp />} />
             </Route>
 
+            {/* --- Homies Shop mode: its own full-screen app at /shop (public, signed out too) --- */}
+            <Route path="/shop" element={<ShopLayout />}>
+                <Route index element={<ShopHome />} />
+                <Route path="collections/:key" element={<ShopCollection />} />
+                <Route path="design" element={<ShopStudio />} />
+                <Route path="designs" element={<ShopDesigns />} />
+                <Route path="cart" element={<ShopCart />} />
+                <Route path="thanks" element={<ShopThanks />} />
+                <Route path="orders" element={<ShopOrders />} />
+                <Route path=":slug" element={<ShopProduct />} />
+            </Route>
+
             {/* --- Dedicated per-song pages (share links land here) --- */}
             <Route element={<MediaLayout />}>
                 <Route path="/song/:id" element={<SongPage />} />
@@ -580,12 +599,6 @@ const AppContent = React.memo(() => {
                 <Route path="/consultation" element={<ConsultationPage />} />
                 <Route path="/billing" element={user ? <BillingPage /> : <Navigate to="/?openAuth=1&tab=signin" />} />
                 <Route path="/marketplace" element={<MarketplacePage />} />
-                {/* Homies merch (Printful) — public, signed out too; lib/merch.js */}
-                <Route path="/shop" element={<ShopPage />} />
-                <Route path="/shop/thanks" element={<ShopThanksPage />} />
-                <Route path="/shop/orders" element={<ShopPage initialTab="orders" />} />
-                <Route path="/shop/cart" element={<ShopPage openCart />} />
-                <Route path="/shop/:slug" element={<ShopProductPage />} />
                 <Route path="/purchases" element={user ? <PurchasesPage /> : <Navigate to="/" />} />
                 <Route path="/clips" element={user ? <MyClipsPage /> : <Navigate to="/" />} />
                 <Route path="/clips/:id" element={user ? <MyClipsPage /> : <Navigate to="/" />} />

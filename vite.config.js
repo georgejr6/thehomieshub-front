@@ -248,6 +248,11 @@ export default defineConfig({
 			'Cross-Origin-Embedder-Policy': 'credentialless',
 		},
 		allowedHosts: true,
+		// Same-origin path for merch images on DO Spaces (no CORS there) so the
+		// shop Studio canvas can export them; vercel.json does the same in prod.
+		proxy: {
+			'/merch-cdn': { target: 'https://homieshub-media.nyc3.cdn.digitaloceanspaces.com', changeOrigin: true, rewrite: (p) => p.replace(/^\/merch-cdn/, '/merch') },
+		},
 	},
 	resolve: {
 		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],
