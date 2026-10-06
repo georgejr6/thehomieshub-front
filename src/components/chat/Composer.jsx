@@ -97,6 +97,26 @@ function highlightParts(text, mentionTokens, everyoneOk) {
   return out;
 }
 
+// Members already in memory whose username / display name / Discord name
+// matches what's typed after "@". Exact > prefix > word-prefix > anywhere
+// (same ranking as the mobile app). A bare "@" leaves it to the server,
+// which lists the most recently active people.
+function localMemberHits(users, q, meId) {
+  const scored = [];
+  for (const u of users) {
+    if (!u?.id || !u.username || u.bot || u.isBot || u.id === meId) continue;
+    const names = [u.username, u.displayName, u.discordUsername].filter(Boolean).map((x) => String(x).toLowerCase());
+    let score = 0;
+    if (!q) continue;
+    if (names.includes(q)) score = 4;
+    else if (names.some((x) => x.startsWith(q))) score = 3;
+    else if (names.some((x) => x.split(/[\s._-]/).some((w) => w.startsWith(q)))) score = 2;
+    else if (names.some((x) => x.includes(q))) score = 1;
+    if (score) scored.push([score, u]);
+  }
+  return scored.sort((a, b) => b[0] - a[0]).slice(0, 8).map(([, u]) => u);
+}
+
 function typingText(names) {
   if (!names.length) return '';
   if (names.length === 1) return <><b>{names[0]}</b> is typing…</>;
@@ -279,7 +299,6 @@ const Composer = forwardRef(function Composer({ channel, state, actions, replyTo
     if (m) {
       const query = m[2];
       const start = caret - query.length - 1;
-      const results = await actions.searchMembers(query).catch(() => []);
       // @everyone / @here first, only for people allowed to use them.
       const q = query.toLowerCase();
       const special = can.mentionEveryone
@@ -287,13 +306,28 @@ const Composer = forwardRef(function Composer({ channel, state, actions, replyTo
             .filter(([w]) => w.startsWith(q))
             .map(([w, desc]) => ({ id: `@${w}`, special: true, username: w, displayName: `@${w}`, desc }))
         : [];
-      // Only the latest keystroke's search may open the picker — an older,
+      // Open the picker on THIS keystroke from people already loaded (chat
+      // authors + member list), so you can confirm who you're tagging while
+      // still typing; the server search then fills in everyone else.
+      const local = localMemberHits(Object.values(state.users || {}), q, state.me?.id);
+      setMention({ query, start, results: [...special, ...local].slice(0, 10), index: 0 });
+      await new Promise((r) => setTimeout(r, 120)); // debounce: one search per pause, not per key
+      if (req !== mentionReq.current) return;
+      const results = await actions.searchMembers(query).catch(() => []);
+      // Only the latest keystroke's search may update the picker — an older,
       // slower response would otherwise reopen it after you moved on/sent.
-      if (req === mentionReq.current) setMention({ query, start, results: [...special, ...results].slice(0, 10), index: 0 });
+      if (req !== mentionReq.current) return;
+      const seen = new Set();
+      const merged = [...special, ...local, ...results].filter((u) => u?.id && u.id !== state.me?.id && !seen.has(u.id) && seen.add(u.id));
+      // Picked / dismissed (Esc, emoji, send) while the search was out → stay closed.
+      setMention((cur) => (cur && cur.start === start && cur.query === query
+        ? { query, start, results: merged.slice(0, 10), index: Math.min(cur.index, Math.max(merged.length - 1, 0)) }
+        : cur));
     } else setMention(null);
   };
 
   const pickMention = (u) => {
+    mentionReq.current += 1; // a search still in flight must not reopen the picker
     const before = text.slice(0, mention.start);
     const after = text.slice(mention.start + 1 + mention.query.length);
     const token = `@${u.username}`;

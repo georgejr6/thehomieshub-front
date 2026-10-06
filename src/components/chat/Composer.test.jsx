@@ -13,13 +13,13 @@ const png = (name = 'image.png', size = 100) => {
   return f;
 };
 
-function setup({ can = { send: true, attach: true }, uploadMaxBytes = 20 * MB } = {}) {
+function setup({ can = { send: true, attach: true }, uploadMaxBytes = 20 * MB, users = {}, searchMembers } = {}) {
   localStorage.clear();
   const ref = createRef();
   const onError = vi.fn();
   const actions = {
     typing: vi.fn(),
-    searchMembers: vi.fn().mockResolvedValue([]),
+    searchMembers: searchMembers || vi.fn().mockResolvedValue([]),
     uploadFiles: vi.fn().mockResolvedValue([{ url: 'https://cdn/x.png', type: 'image', name: 'x.png' }]),
     sendMessage: vi.fn().mockResolvedValue({ message: {} }),
   };
@@ -27,7 +27,7 @@ function setup({ can = { send: true, attach: true }, uploadMaxBytes = 20 * MB } 
     <Composer
       ref={ref}
       channel={{ id: 'c1', name: 'general', type: 'text', can }}
-      state={{ me: { id: 'me', uploadMaxBytes }, typing: {}, users: {} }}
+      state={{ me: { id: 'me', uploadMaxBytes }, typing: {}, users }}
       actions={actions}
       replyTo={null}
       clearReply={() => {}}
@@ -100,5 +100,48 @@ describe('Composer attachments', () => {
     await waitFor(() => expect(onError).toHaveBeenCalledWith('Files can be up to 20 MB.'));
     expect(screen.getByRole('button', { name: 'Remove a.png' })).toBeInTheDocument();
     expect(actions.sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('Composer @mention picker', () => {
+  const users = {
+    u1: { id: 'u1', username: 'mwosa', displayName: 'Mwosa' },
+    u2: { id: 'u2', username: 'mike', displayName: 'Mike T' },
+    me: { id: 'me', username: 'myself', displayName: 'Me' },
+  };
+
+  it('shows matching members on the keystroke, before the server answers', async () => {
+    const { input } = setup({ users, searchMembers: vi.fn(() => new Promise(() => {})) });
+    fireEvent.change(input, { target: { value: 'yo @mw', selectionStart: 6 } });
+    expect(await screen.findByText('Mwosa')).toBeTruthy();
+    expect(screen.queryByText('Mike T')).toBeNull();
+    expect(screen.queryByText('Me')).toBeNull(); // never suggests yourself
+  });
+
+  it('merges server results in under the local ones', async () => {
+    const searchMembers = vi.fn().mockResolvedValue([{ id: 'u9', username: 'mwosa_1', displayName: 'Mwosa Two' }]);
+    const { input } = setup({ users, searchMembers });
+    fireEvent.change(input, { target: { value: '@mw', selectionStart: 3 } });
+    expect(await screen.findByText('Mwosa Two')).toBeTruthy();
+    expect(screen.getByText('Mwosa')).toBeTruthy();
+  });
+
+  it('picking a member fills in the full @username', async () => {
+    const { input } = setup({ users, searchMembers: vi.fn(() => new Promise(() => {})) });
+    fireEvent.change(input, { target: { value: 'hi @mi', selectionStart: 6 } });
+    fireEvent.mouseDown(await screen.findByText('Mike T'));
+    expect(input.value).toBe('hi @mike ');
+  });
+
+  it('a late server reply does not reopen the picker after a pick', async () => {
+    let resolve;
+    const searchMembers = vi.fn(() => new Promise((r) => { resolve = r; }));
+    const { input } = setup({ users, searchMembers });
+    fireEvent.change(input, { target: { value: 'hi @mi', selectionStart: 6 } });
+    await waitFor(() => expect(searchMembers).toHaveBeenCalled()); // search is in flight
+    fireEvent.mouseDown(screen.getByText('Mike T'));
+    await act(async () => { resolve([{ id: 'u7', username: 'mila', displayName: 'Mila' }]); });
+    expect(screen.queryByText('Mila')).toBeNull();
+    expect(screen.queryByText('Members')).toBeNull();
   });
 });
