@@ -7,6 +7,7 @@ import { DESIGNS } from '@/shop/data/designs';
 export const MEDIA = 'https://homieshub-media.nyc3.cdn.digitaloceanspaces.com/merch/v1';
 
 export const COLLECTIONS = [
+  { key: 'lxvemore', label: 'LXVEMORE', blurb: 'In stock now. The teddy, printed and embroidered. Make any piece yours.' },
   { key: 'must', label: 'Must-Haves', blurb: 'The ones the chat keeps asking for.' },
   { key: 'travel', label: 'Travel', blurb: 'Passport stamped. Colombia, Brazil, repeat.' },
   { key: 'espanol', label: 'Español', blurb: 'Dame plata, baby.' },
@@ -14,8 +15,10 @@ export const COLLECTIONS = [
   { key: 'hats', label: 'Hats', blurb: 'Embroidered dad hats.' },
 ];
 
-export const KIND_LABEL = { tee: 'Tee', hoodie: 'Hoodie', hat: 'Dad Hat' };
-export const KINDS = ['tee', 'hoodie', 'hat'];
+export const KIND_LABEL = { tee: 'Tee', hoodie: 'Hoodie', hat: 'Dad Hat', crewneck: 'Crewneck', longsleeve: 'Long Sleeve', jogger: 'Joggers', shorts: 'Shorts' };
+export const KINDS = ['tee', 'hoodie', 'hat', 'crewneck', 'longsleeve', 'jogger', 'shorts'];
+// LXVEMORE pieces (backend brand "lxvemore") lead the shop.
+export const isLxvemore = (product) => product?.brand === 'lxvemore';
 
 const bySlug = new Map();
 for (const d of DESIGNS) for (const [kind, slug] of Object.entries(d.slugs)) bySlug.set(slug, { design: d, kind });
@@ -26,7 +29,8 @@ export const lookupSlug = (slug) => bySlug.get(slug) || null;
 export function kindOf(product) {
   const t = product?.productType;
   if (t === 'tee' || t === 'hoodie' || t === 'hat') return t;
-  if (t === 'crewneck') return 'hoodie';
+  if (t === 'crewneck') return isLxvemore(product) ? 'crewneck' : 'hoodie';
+  if (t === 'longsleeve' || t === 'jogger' || t === 'shorts') return t;
   const hit = lookupSlug(product?.slug);
   if (hit) return hit.kind;
   const n = String(product?.name || '').toLowerCase();
@@ -45,7 +49,11 @@ export const CUSTOMIZE = {
 };
 export const CUSTOM_LABEL = { name: 'Add a name', back: 'Back print', sleeve: 'Sleeve', embroidery: 'Embroidery' };
 export const CUSTOM_FILTERS = [{ key: 'name', label: 'Name' }, { key: 'back', label: 'Back print' }, { key: 'embroidery', label: 'Embroidery' }];
-export const customizeKeys = (product) => CUSTOMIZE[kindOf(product)] || [];
+export const customizeKeys = (product) => {
+  // LXVEMORE: embroidered patch pieces take embroidered text; printed (DTF) ones a back print / sleeve
+  if (isLxvemore(product)) return /patch/i.test(product?.name || '') ? ['embroidery', 'name'] : ['back', 'sleeve', 'name'];
+  return CUSTOMIZE[kindOf(product)] || [];
+};
 
 const LIGHT = new Set(['white', 'athletic heather', 'ash', 'bone', 'heather grey', 'sport grey', 'khaki', 'natural']);
 export const isLightColor = (c) => LIGHT.has(String(c || '').toLowerCase());
@@ -125,7 +133,8 @@ export function families(products = []) {
         design: hit?.design || null,
         phrase: hit?.design.phrase || p.name,
         products: {},
-        collections: hit ? [...hit.design.collections] : [],
+        collections: hit ? [...hit.design.collections] : isLxvemore(p) ? ['lxvemore'] : [],
+        lxvemore: isLxvemore(p),
         minPriceCents: Infinity,
         soldOut: true,
       });
@@ -138,7 +147,7 @@ export function families(products = []) {
   const order = new Map(DESIGNS.map((d, i) => [d.id, i]));
   return [...map.values()]
     .map((f) => ({ ...f, minPriceCents: Number.isFinite(f.minPriceCents) ? f.minPriceCents : 0, collections: f.products.hat ? [...f.collections, 'hats'] : f.collections }))
-    .sort((a, b) => (order.get(a.design?.id) ?? 999) - (order.get(b.design?.id) ?? 999));
+    .sort((a, b) => (b.lxvemore - a.lxvemore) || (order.get(a.design?.id) ?? 999) - (order.get(b.design?.id) ?? 999));
 }
 
 /** Products (not families) matching a filter chip and search query. */

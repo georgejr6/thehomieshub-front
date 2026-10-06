@@ -893,7 +893,7 @@ function ProductPanel({ blanks, blank, color, size, onBlank, onColor, onSize, on
       <div>
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">Product</p>
         <div className="grid grid-cols-3 gap-2">
-          {blanks.map((b) => (
+          {blanks.filter((b) => b.pickable !== false || b.key === blank.key).map((b) => (
             <button key={b.key} type="button" aria-pressed={b.key === blank.key} onClick={() => onBlank(b)}
               className={cn('block overflow-hidden rounded-xl border text-left transition', b.key === blank.key ? 'border-white' : 'border-white/10 hover:border-white/30')}>
               <GarmentThumb blank={b} colorName={b.key === blank.key ? color.name : b.colors[0]?.name} className="aspect-square w-full" />
@@ -929,7 +929,7 @@ function StartPicker({ blanks, initialBlank, initialColor, onStart }) {
       <h1 className="font-display mt-2 text-4xl leading-[0.95] sm:text-6xl">Pick your piece</h1>
       <p className="mt-2 text-sm text-white/55">Choose a garment and a colour — it becomes your canvas. Then tap it to write on it.</p>
       <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {blanks.map((x) => (
+        {blanks.filter((x) => x.pickable !== false || x.key === b.key).map((x) => (
           <button key={x.key} type="button" aria-pressed={x.key === b.key} onClick={() => setBk(x.key)}
             className={cn('group block overflow-hidden rounded-[22px] border text-left transition', x.key === b.key ? 'border-white ring-1 ring-white' : 'border-white/10 hover:border-white/30')}>
             <GarmentThumb blank={x} colorName={x.key === b.key ? colorName : x.colors[0]?.name} className="aspect-[4/5] w-full transition-transform duration-500 group-hover:scale-[1.02]" />

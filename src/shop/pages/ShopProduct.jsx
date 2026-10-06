@@ -65,7 +65,9 @@ export default function ShopProduct() {
   // Embroidery thread palette = the matching blank's (Printful colours, from /blanks).
   const threadColors = useMemo(() => {
     const type = product?.productType || kind;
-    return (Array.isArray(blanks) ? blanks : []).find((b) => b.key === type)?.threadColors || [];
+    const list = Array.isArray(blanks) ? blanks : [];
+    // one Printful thread palette: LXVEMORE pieces (long sleeve, shorts, ...) use any embroidery blank's
+    return list.find((b) => b.key === type)?.threadColors || list.find((b) => b.threadColors?.length)?.threadColors || [];
   }, [blanks, product, kind]);
   const { addons: cartAddons } = toCartAddons(addons, addonState, threadColors, dark);
   const unit = (selected?.priceCents || product?.minPriceCents || 0) + addonsTotal(cartAddons);

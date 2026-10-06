@@ -239,7 +239,8 @@ export function validateDoc(doc, blank) {
     if (!p) { issues.push(`“${key}” isn't available on this item.`); continue; }
     const layers = doc.layers[key];
     if (isEmbroidery(p)) {
-      if (layers.some((l) => l.type !== 'text')) issues.push(`${p.label}: embroidery is text only.`);
+      // a listed piece's own embroidered patch (house art, server-checked) may stay; other images can't be stitched
+      if (layers.some((l) => l.type !== 'text' && !l.house)) issues.push(`${p.label}: embroidery is text only.`);
       const threads = threadsOf(blank);
       for (const l of layers.filter((x) => x.type === 'text')) {
         if (l.fontSize < minEmbroideryFontSize(p.area)) issues.push(`${p.label}: letters are too small to stitch — make the text bigger.`);

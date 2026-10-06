@@ -13,7 +13,7 @@ import { resolveTemplate } from '@/shop/studio/template';
 
 const HERO_IDS = ['gringo-go-home', 'colombia-gt-brazil', 'dame-plata-baby', 'i-love-latinas', 'not-a-pookie', 'if-she-thick'];
 const GARMENTS = [{ key: 'all', label: 'All' }, { key: 'tee', label: 'Tees' }, { key: 'hoodie', label: 'Hoodies' }, { key: 'hat', label: 'Hats' }];
-const RAILS = ['must', 'travel', 'espanol', 'hats'];
+const RAILS = ['lxvemore', 'must', 'travel', 'espanol', 'hats'];
 
 export default function ShopHome() {
   const { loading, enabled, products, error, reload } = useShop();
@@ -107,12 +107,15 @@ function Hero({ fams, loading }) {
   // Products whose clean Printful render is ready, must-haves first.
   const slides = useMemo(() => {
     const out = [];
-    const order = [...fams.filter((f) => HERO_IDS.includes(f.design?.id)), ...fams.filter((f) => !HERO_IDS.includes(f.design?.id))];
+    // LXVEMORE first (owner 2026-10-06), then the must-haves
+    const lxv = fams.filter((f) => f.lxvemore);
+    const rest = fams.filter((f) => !f.lxvemore);
+    const order = [...lxv, ...rest.filter((f) => HERO_IDS.includes(f.design?.id)), ...rest.filter((f) => !HERO_IDS.includes(f.design?.id))];
     for (const f of order) {
       const ready = KINDS.map((k) => f.products[k]).filter((x) => x && productImage(x));
       const p = ready[hashOf(f.key) % Math.max(1, ready.length)];
       if (p) out.push({ key: f.key, phrase: f.phrase, slug: p.slug, src: productImage(p, kindOf(p) === 'hat' ? '' : displayColor(p)) });
-      if (out.length >= 6) break;
+      if (out.length >= 8) break;
     }
     return out;
   }, [fams]);
