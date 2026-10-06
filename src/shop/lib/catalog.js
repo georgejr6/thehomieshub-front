@@ -51,11 +51,15 @@ export const CUSTOM_LABEL = { name: 'Add a name', back: 'Back print', sleeve: 'S
 export const CUSTOM_FILTERS = [{ key: 'name', label: 'Name' }, { key: 'back', label: 'Back print' }, { key: 'embroidery', label: 'Embroidery' }];
 export const customizeKeys = (product) => {
   // LXVEMORE: embroidered patch pieces take embroidered text; printed (DTF) ones a back print / sleeve
-  if (isLxvemore(product)) return /patch/i.test(product?.name || '') ? ['embroidery', 'name'] : ['back', 'sleeve', 'name'];
+  if (isLxvemore(product)) {
+    const k = kindOf(product);
+    if (k === 'jogger') return /patch/i.test(product?.name || '') ? [] : ['name']; // patch joggers: Studio only; love joggers: leg print
+    return /patch/i.test(product?.name || '') ? ['embroidery', 'name'] : ['back', 'sleeve', 'name'];
+  }
   return CUSTOMIZE[kindOf(product)] || [];
 };
 
-const LIGHT = new Set(['white', 'athletic heather', 'ash', 'bone', 'heather grey', 'sport grey', 'khaki', 'natural']);
+const LIGHT = new Set(['white', 'athletic heather', 'ash', 'bone', 'heather grey', 'sport grey', 'khaki', 'natural', 'light pink', 'stone']);
 export const isLightColor = (c) => LIGHT.has(String(c || '').toLowerCase());
 
 /** Flat artwork (transparent PNG, no garment) — Studio art picker + product close-up only. */
@@ -180,5 +184,19 @@ export function siblings(product, products = []) {
 export const COLOR_HEX = {
   White: '#f5f5f2', Black: '#141414', 'Athletic Heather': '#b9b9b6', Ash: '#dedcd6', 'Carbon Grey': '#4a4c50',
   Bone: '#e8dfcc', Navy: '#1f2a44', 'Heather Grey': '#9d9d9d', Khaki: '#c3b091',
+  'Light Pink': '#f2c9d1', 'Charcoal Heather': '#5a5a5c', Stone: '#d6cfc0',
 };
+
+/** Embroidery thread palette for a product type: its blank's, else any embroidery blank's (Printful has one palette). */
+export function threadPaletteFor(blanks, type) {
+  const list = Array.isArray(blanks) ? blanks : [];
+  return list.find((b) => b.key === type)?.threadColors || list.find((b) => b.threadColors?.length)?.threadColors || [];
+}
+
+/** "Name Hoodie" unless the name already ends with the garment (LXVEMORE product names do). */
+export function withKind(name, kind) {
+  const label = KIND_LABEL[kind] || '';
+  if (!name || !label) return name || label;
+  return name.toLowerCase().endsWith(label.toLowerCase()) || /joggers?$|long sleeve$|shorts$|crewneck$/i.test(name) ? name : `${name} ${label}`;
+}
 export const colorHex = (c) => COLOR_HEX[c] || '#888';

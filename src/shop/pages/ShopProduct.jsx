@@ -9,7 +9,7 @@ import { ShopButton, Swatch, Pill, Skeleton, ShopImage, Tip, Eyebrow } from '@/s
 import { FamilyCard } from '@/shop/components/ProductCard';
 import AddonsPanel, { toCartAddons } from '@/shop/components/AddonsPanel';
 import SizeGuide from '@/shop/components/SizeGuide';
-import { lookupSlug, kindOf, siblings, families, KIND_LABEL, colorHex, productImage, productAltImage, artUrl, displayName, isLightColor } from '@/shop/lib/catalog';
+import { lookupSlug, kindOf, siblings, families, KIND_LABEL, colorHex, productImage, productAltImage, artUrl, displayName, isLightColor, isLxvemore, threadPaletteFor, withKind } from '@/shop/lib/catalog';
 import { usd, addonsTotal } from '@/shop/lib/pricing';
 import { MAX_QTY } from '@/shop/lib/cart';
 import { startCheckout, apiError } from '@/shop/lib/api';
@@ -65,19 +65,17 @@ export default function ShopProduct() {
   // Embroidery thread palette = the matching blank's (Printful colours, from /blanks).
   const threadColors = useMemo(() => {
     const type = product?.productType || kind;
-    const list = Array.isArray(blanks) ? blanks : [];
-    // one Printful thread palette: LXVEMORE pieces (long sleeve, shorts, ...) use any embroidery blank's
-    return list.find((b) => b.key === type)?.threadColors || list.find((b) => b.threadColors?.length)?.threadColors || [];
+    return threadPaletteFor(blanks, type);
   }, [blanks, product, kind]);
   const { addons: cartAddons } = toCartAddons(addons, addonState, threadColors, dark);
   const unit = (selected?.priceCents || product?.minPriceCents || 0) + addonsTotal(cartAddons);
   const sibs = siblings(product, products);
   const related = useMemo(() => {
-    if (!hit) return [];
+    if (!hit) return isLxvemore(product) ? families(products).filter((f) => f.lxvemore && f.key !== `p:${slug}`).slice(0, 4) : [];
     const fams = families(products).filter((f) => f.design?.id !== designId);
     const same = fams.filter((f) => f.collections.some((c) => hit.design.collections.includes(c)));
     return (same.length >= 4 ? same : fams).slice(0, 4);
-  }, [products, hit, designId]);
+  }, [products, hit, designId, product, slug]);
 
   // Exact colour only — never another colour's render (a white image for a black hoodie looks faded).
   const gallery = useMemo(() => {
@@ -154,7 +152,7 @@ export default function ShopProduct() {
   const name = product ? displayName(product) : hit?.design.phrase || '';
   return (
     <div className="mx-auto max-w-[1320px] px-4 pb-40 pt-4 sm:px-6 lg:px-10 lg:pb-16">
-      <Helmet><title>{name ? `${name} ${KIND_LABEL[kind]} | The Homies Shop` : 'The Homies Shop'}</title></Helmet>
+      <Helmet><title>{name ? `${withKind(name, kind)} | The Homies Shop` : 'The Homies Shop'}</title></Helmet>
       <Link to="/shop" className="inline-flex h-10 items-center gap-1.5 text-sm text-white/55 hover:text-white"><ArrowLeft className="h-4 w-4" /> Shop</Link>
       <div className="mt-3 grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
         {/* Gallery */}

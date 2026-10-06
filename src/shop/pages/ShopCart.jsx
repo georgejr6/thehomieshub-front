@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { fetchProduct } from '@/lib/merch';
 import AddonsPanel, { toCartAddons, fromCartAddons } from '@/shop/components/AddonsPanel';
-import { kindOf, colorHex, isLightColor } from '@/shop/lib/catalog';
+import { kindOf, colorHex, isLightColor, threadPaletteFor } from '@/shop/lib/catalog';
 import { ArrowLeft, ArrowRight, Check, Lock, ShieldCheck, Sparkles, Eye, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { markCartCheckout, clearCartCheckoutMarker } from '@/lib/merch';
@@ -204,7 +204,7 @@ function AddonEditDialog({ line, onClose }) {
   const variant = product?.variants?.find((v) => v.id === line?.variantId);
   const dark = variant ? !isLightColor(variant.color) : false;
   const type = product?.productType || (product ? kindOf(product) : '');
-  const threads = (Array.isArray(blanks) ? blanks : []).find((b) => b.key === type)?.threadColors || [];
+  const threads = threadPaletteFor(blanks, type);
   const save = () => {
     const { addons, error } = toCartAddons(product.addons || [], value, threads, dark);
     if (error) { notify(error, 'error'); return; }

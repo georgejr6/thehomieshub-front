@@ -4,7 +4,7 @@ import { PenLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ShopImage } from '@/shop/components/ui';
 import {
-  KIND_LABEL, KINDS, hashOf, productImage, productAltImage, displayName, kindOf, colorHex, displayColor, customizeKeys, CUSTOM_LABEL,
+  KIND_LABEL, KINDS, withKind, hashOf, productImage, productAltImage, displayName, kindOf, colorHex, displayColor, customizeKeys, CUSTOM_LABEL,
 } from '@/shop/lib/catalog';
 import { usd } from '@/shop/lib/pricing';
 import { useShop } from '@/shop/ShopContext';
@@ -73,7 +73,7 @@ export function FamilyCard({ family, className, priority = false }) {
         to={`/shop/${lead.slug}`}
         studio={{ product: lead.slug, color }}
         img={productImage(lead, color)}
-        alt={`${family.phrase} ${KIND_LABEL[kind]}`}
+        alt={withKind(family.phrase, kind)}
         altImg={kind === 'hat' ? '' : productAltImage(lead, color)}
         fallback={{ kind, hex: colorHex(color || 'White'), phrase: family.phrase }}
         title={family.phrase}

@@ -121,6 +121,9 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
   const [live, setLive] = useState(null);
   const doc = live || history.state;
   const blank = blanks.find((b) => b.key === doc.blankKey) || blanks[0];
+  // an LXVEMORE (non-pickable) blank the design started on stays switchable-back in the Product panel
+  const homeBlank = useRef(null);
+  if (blank.pickable === false) homeBlank.current = blank.key;
   const [placementKey, setPlacementKey] = useState(blank.placements[0].key);
   const placement = placementOf(blank, placementKey) || blank.placements[0];
   const layers = doc.layers[placement.key] || [];
@@ -548,7 +551,7 @@ function StudioEditor({ blanks, init, embedded, heightClass, onDesignId, onAdded
     add: <AddPanel onText={() => addText()} onUpload={() => (guardPlacement() ? fileInput.current?.click() : null)} onHomies={() => (guardPlacement() ? setPicker(true) : null)} embroidery={isEmbroidery(placement)} blocked={!allowed} />,
     layers: <LayersPanel layers={layers} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setMobileTab('edit'); }} onMove={moveLayer} onDelete={(id) => { commitLayers((cur) => cur.filter((l) => l.id !== id)); if (id === selectedId) setSelectedId(null); }} />,
     edit: <EditPanel layer={selected} placement={placement} threads={threads} fonts={fontsForPlacement(fonts, isEmbroidery(placement))} onPatch={patchSelected} onDelete={removeSelected} onDuplicate={duplicateSelected} onCenter={center} />,
-    product: <ProductPanel blanks={blanks} blank={blank} color={color} size={size} onBlank={switchBlank} onColor={setColor} onSize={setSize} onMockup={() => setMockupOpen(true)} />,
+    product: <ProductPanel blanks={blanks} homeKey={homeBlank.current} blank={blank} color={color} size={size} onBlank={switchBlank} onColor={setColor} onSize={setSize} onMockup={() => setMockupOpen(true)} />,
   };
 
   if (step === 'pick') {
@@ -887,13 +890,13 @@ function GarmentThumb({ blank, colorName, className }) {
 
 const fromPrice = (b) => Math.min(...(b.variants || []).map((v) => v.priceCents).filter((n) => Number.isInteger(n) && n > 0), b.basePriceCents || Infinity);
 
-function ProductPanel({ blanks, blank, color, size, onBlank, onColor, onSize, onMockup }) {
+function ProductPanel({ blanks, homeKey, blank, color, size, onBlank, onColor, onSize, onMockup }) {
   return (
     <>
       <div>
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">Product</p>
         <div className="grid grid-cols-3 gap-2">
-          {blanks.filter((b) => b.pickable !== false || b.key === blank.key).map((b) => (
+          {blanks.filter((b) => b.pickable !== false || b.key === blank.key || b.key === homeKey).map((b) => (
             <button key={b.key} type="button" aria-pressed={b.key === blank.key} onClick={() => onBlank(b)}
               className={cn('block overflow-hidden rounded-xl border text-left transition', b.key === blank.key ? 'border-white' : 'border-white/10 hover:border-white/30')}>
               <GarmentThumb blank={b} colorName={b.key === blank.key ? color.name : b.colors[0]?.name} className="aspect-square w-full" />

@@ -12,7 +12,10 @@ import { COLLECTIONS, CUSTOM_FILTERS, families, hashOf, filterProducts, productI
 import { resolveTemplate } from '@/shop/studio/template';
 
 const HERO_IDS = ['gringo-go-home', 'colombia-gt-brazil', 'dame-plata-baby', 'i-love-latinas', 'not-a-pookie', 'if-she-thick'];
-const GARMENTS = [{ key: 'all', label: 'All' }, { key: 'tee', label: 'Tees' }, { key: 'hoodie', label: 'Hoodies' }, { key: 'hat', label: 'Hats' }];
+const GARMENTS = [
+  { key: 'all', label: 'All' }, { key: 'tee', label: 'Tees' }, { key: 'hoodie', label: 'Hoodies' }, { key: 'crewneck', label: 'Crewnecks' },
+  { key: 'longsleeve', label: 'Long Sleeves' }, { key: 'jogger', label: 'Joggers' }, { key: 'shorts', label: 'Shorts' }, { key: 'hat', label: 'Hats' },
+];
 const RAILS = ['lxvemore', 'must', 'travel', 'espanol', 'hats'];
 
 export default function ShopHome() {
@@ -65,7 +68,7 @@ export default function ShopHome() {
             {query && <button type="button" onClick={() => setParam('q', '')} className="mt-3 inline-flex h-9 items-center gap-1 text-sm text-white/55 hover:text-white"><X className="h-3.5 w-3.5" /> Clear search</button>}
           </div>
           <div className="flex flex-col gap-2.5 md:items-end">
-            <ChipRow label="Garment" options={GARMENTS} value={kind} onChange={(v) => setParam('type', v)} />
+            <ChipRow label="Garment" options={GARMENTS.filter((g) => g.key === 'all' || g.key === kind || (products || []).some((p) => kindOf(p) === g.key))} value={kind} onChange={(v) => setParam('type', v)} />
             <ChipRow label="Customizable" options={[{ key: '', label: 'Any' }, ...CUSTOM_FILTERS]} value={custom} onChange={(v) => setParam('custom', v)} icon={PenLine} />
           </div>
         </div>

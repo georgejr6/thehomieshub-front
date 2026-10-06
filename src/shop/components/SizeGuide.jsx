@@ -9,6 +9,8 @@ const CHARTS = {
   tee: { title: 'Staple Tee', note: 'Unisex, true to size. Size up for an oversized fit.', rows: [['S', 18, 28], ['M', 20, 29], ['L', 22, 30], ['XL', 24, 31], ['2XL', 26, 32], ['3XL', 28, 33]] },
   hoodie: { title: 'Premium Hoodie', note: 'Unisex, relaxed fit with a dropped shoulder.', rows: [['S', 20, 27], ['M', 22, 28], ['L', 24, 29], ['XL', 26, 30], ['2XL', 28, 31], ['3XL', 30, 32]] },
 };
+// Garments without a chart here (crewneck, long sleeve, joggers, shorts) get a plain note, never the hat text.
+const NO_CHART = { hat: 'One size fits most — adjustable strap in the back.' };
 
 export default function SizeGuide({ open, onClose, kind = 'tee' }) {
   const chart = CHARTS[kind];
@@ -41,7 +43,7 @@ export default function SizeGuide({ open, onClose, kind = 'tee' }) {
                 <p className="mt-4 text-xs text-white/40">Measured flat, approximate (±1"). Chest width × 2 ≈ around the chest.</p>
               </>
             ) : (
-              <p className="mt-4 text-sm text-white/60">One size fits most — adjustable strap in the back.</p>
+              <p className="mt-4 text-sm text-white/60">{NO_CHART[kind] || 'Unisex, true to size. Pick your usual size; size up for a looser fit.'}</p>
             )}
           </motion.div>
         </motion.div>
