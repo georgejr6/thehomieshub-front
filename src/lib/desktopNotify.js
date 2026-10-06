@@ -38,7 +38,7 @@ export function desktopNotify(kind, { title, body, icon, tag, onClick, force = f
   try {
     // Same tag across tabs → the browser shows one notification, not one per tab.
     const n = new Notification(title, { body: String(body || '').slice(0, 180), icon: icon || '/favicon.ico', tag });
-    n.onclick = () => { window.focus(); n.close(); onClick?.(); };
+    n.onclick = () => { window.homiesDesktop?.focus?.(); window.focus(); n.close(); onClick?.(); }; // desktop app: un-hide from tray
     return n;
   } catch {
     return null; // some mobile browsers only allow notifications from a service worker

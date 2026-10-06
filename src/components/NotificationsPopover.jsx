@@ -154,6 +154,9 @@ const NotificationsPopover = () => {
 
   const totalUnread = unreadNotifications + unreadMessages;
 
+  // Desktop app: mirror the count on the taskbar/dock icon.
+  useEffect(() => { window.homiesDesktop?.setBadge?.(user ? totalUnread : 0); }, [user, totalUnread]);
+
   const loadNotifications = useCallback(async () => {
     if (!user) return;
     try {
