@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Smartphone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import StoreBadges from '@/components/StoreBadges';
+import DesktopAppRow from '@/components/DesktopAppRow';
+import { markMobilePrompt } from '@/lib/desktopApp';
 
 const DELAY_MS = 15000;
 const DISMISS_KEY = 'hh_get_app_modal_dismissed';
@@ -21,12 +23,13 @@ const GetAppSignedOutModal = () => {
     try {
       if (sessionStorage.getItem(DISMISS_KEY) === '1') return;
     } catch { /* ignore */ }
-    const t = setTimeout(() => setOpen(true), DELAY_MS);
+    const t = setTimeout(() => { markMobilePrompt(); setOpen(true); }, DELAY_MS);
     return () => clearTimeout(t);
   }, [user]);
 
   const handleOpenChange = (next) => {
     setOpen(next);
+    markMobilePrompt();
     if (!next) {
       try { sessionStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ }
     }
@@ -36,7 +39,7 @@ const GetAppSignedOutModal = () => {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md text-center">
+      <DialogContent data-hh-mobile-prompt="modal" className="sm:max-w-md text-center">
         <DialogHeader>
           <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
             <Smartphone className="h-6 w-6 text-primary" />
@@ -49,6 +52,7 @@ const GetAppSignedOutModal = () => {
         <div className="flex justify-center pt-2">
           <StoreBadges surface="signed_out_modal" />
         </div>
+        <DesktopAppRow surface="signed_out_modal" className="mt-2 flex flex-col items-center" />
       </DialogContent>
     </Dialog>
   );

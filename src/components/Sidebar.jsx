@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import api from '@/api/homieshub';
 import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 import StoreBadges from '@/components/StoreBadges';
+import DesktopAppRow from '@/components/DesktopAppRow';
 import { useMerchAvailable } from '@/lib/merch';
 import { prefetchShop, prefetchShopOnIdle } from '@/shop/prefetch';
 
@@ -36,6 +37,7 @@ const GetAppSidebarButton = () => (
           <p className="text-sm text-muted-foreground">Now live on the App Store and Google Play.</p>
         </div>
         <StoreBadges surface="sidebar" />
+        <DesktopAppRow surface="sidebar" />
       </div>
     </PopoverContent>
   </Popover>

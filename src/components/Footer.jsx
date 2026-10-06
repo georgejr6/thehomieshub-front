@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, FileText, Heart, Mail, Crown } from 'lucide-react';
 import StoreBadges from '@/components/StoreBadges';
+import DesktopAppRow from '@/components/DesktopAppRow';
 
 const Footer = () => {
     const currentYear = new Date().getFullYear();
@@ -18,6 +19,7 @@ const Footer = () => {
                         <div className="pt-1">
                             <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide mb-2">Get the app</h4>
                             <StoreBadges surface="footer" size="sm" />
+                            <DesktopAppRow surface="footer" bordered={false} className="mt-3" />
                         </div>
                     </div>
 

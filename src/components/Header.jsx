@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, Bell, Menu, User, LogIn, Wallet, DollarSign, Sparkles, Settings, GraduationCap, CreditCard, Store, ShoppingBag, Smartphone, MessagesSquare, HelpCircle } from 'lucide-react';
 import StoreBadges from '@/components/StoreBadges';
+import DesktopAppRow from '@/components/DesktopAppRow';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -98,6 +99,7 @@ const GetAppPopover = () => <Popover>
                     </p>
                 </div>
                 <StoreBadges surface="header" />
+                <DesktopAppRow surface="header" />
             </div>
         </PopoverContent>
     </Popover>;

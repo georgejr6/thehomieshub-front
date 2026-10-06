@@ -10,6 +10,8 @@ import MobileNav from '@/components/MobileNav';
 import Footer from '@/components/Footer';
 import GetAppBanner from '@/components/GetAppBanner';
 import GetAppSignedOutModal from '@/components/GetAppSignedOutModal';
+import DesktopAppNudge from '@/components/DesktopAppNudge';
+const DesktopDownloadPage = lazyWithReload(() => import('@/pages/DesktopDownloadPage'));
 const HomePage = lazyWithReload(() => import('@/pages/HomePage'));
 const InvitePage = lazyWithReload(() => import('@/pages/InvitePage'));
 const CommunitiesPage = lazyWithReload(() => import('@/pages/CommunitiesPage'));
@@ -124,6 +126,7 @@ import { isLocationVerified } from '@/lib/tracker';
 // the site is and reach required disclosures before being asked for it.
 const LOCATION_GATE_EXEMPT_PATHS = new Set([
   '/', '/terms', '/privacy', '/community-guidelines', '/child-safety', '/support', '/appeal', '/donate',
+  '/desktop',
 ]);
 
 // chat.thehomies.app / community.thehomies.app / discord.thehomies.app all
@@ -663,6 +666,9 @@ const AppContent = React.memo(() => {
                 <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
                 <Route path="/child-safety" element={<ChildSafetyPage />} />
                 <Route path="/support" element={<SupportPage />} />
+                {/* Get the app: mobile first, desktop builds (Windows/Mac/Linux) below. */}
+                <Route path="/desktop" element={<DesktopDownloadPage />} />
+                <Route path="/download" element={<Navigate to="/desktop" replace />} />
                 <Route path="/appeal" element={<AppealPage />} />
 
                 <Route path="/creator-studio" element={user ? <CreatorStudioPage onLoginRequest={handleLoginRequest} /> : <Navigate to="/" />} />
@@ -712,6 +718,7 @@ const AppContent = React.memo(() => {
         {/* The chat composer owns the bottom-right corner on /chat. */}
         {!location.pathname.startsWith('/chat') && location.pathname !== '/live' && <HelpAssistant />}
         <Toaster />
+        <DesktopAppNudge />
 
         {/* Story viewer — fixed fullscreen, independent of all layout/feed lifecycle */}
         {viewingIndex !== null && (

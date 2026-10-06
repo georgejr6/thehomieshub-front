@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Smartphone, X } from 'lucide-react';
 import { trackEvent } from '@/lib/tracker';
 import { IOS_APP_URL, ANDROID_APP_URL } from '@/lib/appLinks';
+import { markMobilePrompt } from '@/lib/desktopApp';
 
 const DISMISS_KEY = 'hh_get_app_dismissed';
 
@@ -19,6 +20,13 @@ const GetAppBanner = () => {
     () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(DISMISS_KEY) === '1'
   );
 
+  // Lets the desktop-app nudge keep clear of this banner (on screen + a quiet gap after).
+  useEffect(() => {
+    if (dismissed) return undefined;
+    markMobilePrompt();
+    return () => markMobilePrompt();
+  }, [dismissed]);
+
   if (dismissed) return null;
 
   const platform = isAndroid() ? 'android' : 'ios';
@@ -26,6 +34,7 @@ const GetAppBanner = () => {
 
   const dismiss = () => {
     try { sessionStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ }
+    markMobilePrompt();
     setDismissed(true);
   };
 
@@ -34,7 +43,7 @@ const GetAppBanner = () => {
   };
 
   return (
-    <div className="w-full bg-primary/10 border-b border-primary/20 text-foreground">
+    <div data-hh-mobile-prompt="banner" className="w-full bg-primary/10 border-b border-primary/20 text-foreground">
       <div className="flex items-center gap-3 px-4 py-2 max-w-5xl mx-auto">
         <Smartphone className="h-4 w-4 text-primary shrink-0" />
         <p className="text-xs sm:text-sm flex-1 min-w-0">
