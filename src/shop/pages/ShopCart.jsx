@@ -27,8 +27,9 @@ export default function ShopCart() {
   const [paying, setPaying] = useState(false);
   const [editing, setEditing] = useState(null); // cart line whose add-ons are being edited
   const [previewing, setPreviewing] = useState(null); // custom line shown big ("Your design")
-  const [offer, setOffer] = useState(null); // { discountCents, pointsCost, bundleMinItems, points }
+  const [offer, setOffer] = useState(null); // { discountCents, bundleMinItems, pointsMaxPct, pointsMin, centsPerPoint, points }
   const [usePoints, setUsePoints] = useState(false);
+  const [pointsWanted, setPointsWanted] = useState(null); // null = as many as allowed
   useEffect(() => { fetchOffers().then(setOffer).catch(() => setOffer(null)); }, [signedIn]);
   // A marker left by an earlier, abandoned checkout must not empty the bag later.
   useEffect(() => { clearCartCheckoutMarker(); }, []);
@@ -37,10 +38,19 @@ export default function ShopCart() {
   useEffect(() => { setAgree(false); }, [bagSig]);
   const custom = needsApproval(cart.cart);
   const subtotal = subtotalCents(cart.cart);
-  // one $5 offer per order: same rule as the server (utils/merch/checkout.js offerFor), which has the final say
-  const bundle = !!offer?.discountCents && cart.count >= offer.bundleMinItems;
-  const canUsePoints = !bundle && !!offer?.discountCents && offer.points != null && offer.points >= offer.pointsCost;
-  const discount = bundle || (canUsePoints && usePoints) ? offer.discountCents : 0;
+  // one discount per order, same rule as the server (utils/merch/checkout.js offerFor), which has the final say:
+  // $5 bundle with 2+ items, or Homies Points (1 pt = 1¢, up to 20% of the items), whichever is worth more
+  const bundleOk = !!offer?.discountCents && cart.count >= offer.bundleMinItems;
+  const bundleCents = bundleOk ? offer.discountCents : 0;
+  const cpp = offer?.centsPerPoint || 1;
+  const pointsMin = offer?.pointsMin || 100;
+  const pointsCap = offer?.pointsMaxPct ? Math.floor(Math.floor((subtotal * offer.pointsMaxPct) / 100) / cpp) : 0;
+  const pointsMax = Math.min(pointsCap, offer?.points || 0); // most this buyer can use on this bag
+  const canUsePoints = offer?.points != null && pointsMax >= pointsMin;
+  const pointsUsed = canUsePoints && usePoints ? Math.max(pointsMin, Math.min(pointsWanted ?? pointsMax, pointsMax)) : 0;
+  const pointsWin = pointsUsed * cpp > bundleCents;
+  const bundle = bundleOk && !pointsWin;
+  const discount = pointsWin ? pointsUsed * cpp : bundleCents;
   const go = (s) => { setParams(s === 'cart' ? {} : { step: s }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
   const pay = async () => {
@@ -49,7 +59,7 @@ export default function ShopCart() {
     setPaying(true);
     markCartCheckout();
     try {
-      await startCheckout(checkoutItems(cart.cart), { usePoints: canUsePoints && usePoints });
+      await startCheckout(checkoutItems(cart.cart), { points: pointsWin ? pointsUsed : 0 });
     } catch (e) {
       clearCartCheckoutMarker();
       setPaying(false);
@@ -147,21 +157,17 @@ export default function ShopCart() {
                 <div className="flex justify-between"><dt className="text-white/60">Items ({cart.count})</dt><dd>{usd(subtotal)}</dd></div>
                 <div className="flex justify-between"><dt className="text-white/60">Shipping</dt><dd className="text-white/60">At checkout</dd></div>
                 {discount > 0 && (
-                  <div className="flex justify-between text-[#7be0a5]"><dt>{bundle ? `Bundle discount (${offer.bundleMinItems}+ items)` : 'Homies Points discount'}</dt><dd>−{usd(discount)}</dd></div>
+                  <div className="flex justify-between text-[#7be0a5]"><dt>{bundle ? `Bundle discount (${offer.bundleMinItems}+ items)` : `Homies Points (${pointsUsed.toLocaleString('en-US')} pts)`}</dt><dd>−{usd(discount)}</dd></div>
                 )}
                 {discount > 0 && (
                   <p className="text-[11px] text-white/40">Applied on the payment screen.</p>
                 )}
                 <div className="flex justify-between border-t border-white/10 pt-3 text-base font-semibold"><dt>Subtotal</dt><dd>{usd(subtotal - discount)}</dd></div>
               </dl>
-              {canUsePoints && (
-                <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#f0b94d]/30 bg-[#f0b94d]/[0.06] p-3 text-sm">
-                  <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#f0b94d]" />
-                  <span><span className="inline-flex items-center gap-1 font-semibold text-[#f6d48f]"><Coins className="h-4 w-4" /> Use {offer.pointsCost.toLocaleString('en-US')} points for {usd(offer.discountCents)} off</span>
-                    <span className="block text-xs text-white/55">You have {offer.points.toLocaleString('en-US')} points. If you don't finish paying, they come back within about an hour.</span></span>
-                </label>
-              )}
-              {!bundle && !!offer?.discountCents && cart.count < offer.bundleMinItems && (
+              <PointsCard offer={offer} signedIn={signedIn} canUse={canUsePoints} on={usePoints} setOn={setUsePoints}
+                used={pointsUsed} min={pointsMin} max={pointsMax} cpp={cpp} onChange={setPointsWanted}
+                bundleCents={bundleCents} pointsWin={pointsWin} />
+              {!bundleOk && !!offer?.discountCents && cart.count < offer.bundleMinItems && (
                 <p className="mt-4 text-xs text-white/55">Add {offer.bundleMinItems - cart.count === 1 ? 'one more item' : `${offer.bundleMinItems - cart.count} more items`} and get {usd(offer.discountCents)} off{canUsePoints ? ', and keep your points' : ''}.</p>
               )}
               {step === 'cart' ? (
@@ -179,6 +185,67 @@ export default function ShopCart() {
       )}
       <AddonEditDialog line={editing} onClose={() => setEditing(null)} />
       <DesignPreviewDialog line={previewing} onClose={() => setPreviewing(null)} />
+    </div>
+  );
+}
+
+/**
+ * Pay part of the items with Homies Points: 1 pt = 1¢, up to 20% of the items.
+ * Signed out: a sign-in nudge. Points never stack with the bundle; the bigger one wins.
+ */
+function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, onChange, bundleCents, pointsWin }) {
+  if (!offer?.pointsMaxPct) return null;
+  const pct = offer.pointsMaxPct;
+  const n = (v) => v.toLocaleString('en-US');
+  if (!signedIn || offer.points == null) {
+    return (
+      <Link to="/?openAuth=1&tab=signin&redirect=/shop/cart" className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm transition-colors hover:border-[#f0b94d]/40">
+        <Coins className="h-5 w-5 shrink-0 text-[#f0b94d]" />
+        <span><span className="font-semibold text-white">Got Homies Points?</span>
+          <span className="block text-xs text-white/55">Sign in to take up to {pct}% off with your points.</span></span>
+      </Link>
+    );
+  }
+  if (!canUse) {
+    return (
+      <p className="mt-4 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-white/55">
+        <Coins className="h-4 w-4 shrink-0 text-[#f0b94d]" />
+        You have {n(offer.points)} points. With {n(min)}+ you can take up to {pct}% off.
+      </p>
+    );
+  }
+  return (
+    <div className={cn('mt-4 rounded-2xl border p-3 text-sm transition-colors', on ? 'border-[#f0b94d]/40 bg-[#f0b94d]/[0.07]' : 'border-white/10 bg-white/[0.03]')}>
+      <label className="flex cursor-pointer items-start gap-3">
+        <input type="checkbox" checked={on} onChange={(e) => setOn(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#f0b94d]" />
+        <span className="flex-1"><span className="inline-flex items-center gap-1 font-semibold text-[#f6d48f]"><Coins className="h-4 w-4" /> Pay with Homies Points</span>
+          <span className="block text-xs text-white/55">You have {n(offer.points)}. Up to {pct}% off: {n(Math.round(100 / cpp))} pts = $1.</span></span>
+      </label>
+      <AnimatePresence initial={false}>
+        {on && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="pt-3">
+              <div className="flex items-baseline justify-between">
+                <span className="font-semibold tabular-nums">{n(used)} pts</span>
+                <span className="font-semibold tabular-nums text-[#7be0a5]">−{usd(used * cpp)}</span>
+              </div>
+              {max > min && (
+                <input type="range" min={min} max={max} step={1} value={used} aria-label="Points to use"
+                  onChange={(e) => onChange(Number(e.target.value))}
+                  className="mt-2 w-full accent-[#f0b94d]" />
+              )}
+              <div className="mt-1 flex justify-between text-[11px] text-white/40">
+                <span>{n(min)}</span>
+                <button type="button" onClick={() => onChange(null)} className="font-semibold text-[#f0b94d] hover:underline">Max {n(max)}</button>
+              </div>
+              {bundleCents > 0 && !pointsWin && (
+                <p className="mt-2 text-xs text-white/55">Your bundle saves {usd(bundleCents)}, which beats this. Slide past {n(Math.floor(bundleCents / cpp))} pts to use points instead, or keep them.</p>
+              )}
+              <p className="mt-2 text-[11px] text-white/40">If you don't finish paying, your points come back within about an hour.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

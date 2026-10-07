@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import BundleSegment from '@/components/BundleSegment';
+import { MerchReelRow } from '@/components/merch/MerchReel';
 
 const YouTubeIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -178,6 +179,11 @@ const LandingPage = ({ onLoginRequest }) => {
               </div>
             </motion.div>
           </div>
+        </div>
+
+        {/* The Homies Shop: animated reel row (renders nothing while the shop is closed) */}
+        <div className="container mx-auto px-4 pt-12">
+          <MerchReelRow />
         </div>
 
         {/* Navigation Directory */}

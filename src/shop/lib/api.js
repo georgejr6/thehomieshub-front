@@ -279,16 +279,17 @@ export async function pushServerCart(items) {
 }
 
 // ── checkout ──────────────────────────────────────────────────────────────────
-/** $5-off terms + the signed-in buyer's points: { discountCents, pointsCost, bundleMinItems, points|null }. */
+/** Discount terms + the signed-in buyer's points: { discountCents, bundleMinItems, pointsMaxPct, pointsMin, centsPerPoint, points|null }. */
 export async function fetchOffers() {
   await claimed();
   const { data } = await api.get('/merch/offers', dev());
   return data;
 }
 
-export async function startCheckout(items, { usePoints = false } = {}) {
+/** points: how many Homies Points to spend (the server clamps it to 20% of the items and the balance). */
+export async function startCheckout(items, { points = 0 } = {}) {
   await claimed();
-  const { data } = await api.post('/merch/checkout', { items, ...(usePoints ? { usePoints: true } : {}) }, dev());
+  const { data } = await api.post('/merch/checkout', { items, ...(points > 0 ? { usePoints: true, points: Math.floor(points) } : {}) }, dev());
   if (!isStripeCheckoutUrl(data?.url)) throw new Error('no checkout url');
   window.location.href = data.url;
 }

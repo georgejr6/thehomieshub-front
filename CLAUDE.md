@@ -35,6 +35,7 @@ The main feed is a TikTok-style vertical scroll. Data flows:
 2. Results are shuffled and stored as `verticalPosts`
 3. `VerticalVideoFeed` (`src/components/VerticalVideoFeed.jsx`) renders `VerticalVideo` per item
 4. `VerticalVideoFeed` auto-loops: appends reshuffled posts when within 3 of the end
+5. Merch reels (2026-10-07): HomePage (/browse For You) passes `merch`; `src/components/merch/MerchReel.jsx` cards go after every 10 posts, max 2 per browser session (sessionStorage), slots fixed ahead of the viewer; 'Not interested' snoozes a product 7 days (localStorage). `MerchReelRow` = reel row on the landing page. Cart: `PointsCard` in ShopCart.jsx = Homies Points slider (1 pt = 1c, up to 20% of items, server clamps; backend /api/merch/offers).
 
 ### Key Video Components
 | Component | Role |

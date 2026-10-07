@@ -142,6 +142,7 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
                 posts={verticalPosts}
                 onLoginRequest={onLoginRequest}
                 aspectRatio="vertical"
+                merch
                 onTopChange={(atTop) => { setIsAtTop(atTop); if (!atTop) setShowStories(false); }}
             />
         </div>

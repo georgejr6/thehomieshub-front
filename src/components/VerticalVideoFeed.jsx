@@ -1,7 +1,8 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import VerticalVideo from '@/components/VerticalVideo';
 import MusicFeedCard from '@/components/music/MusicFeedCard';
 import { useVideoPlaybackDisabled } from '@/lib/videoPlaybackStatus';
+import { MerchReelCard, useMerchReelProducts, merchReelsLeft, FEED_EVERY } from '@/components/merch/MerchReel';
 
 // How many posts from the end before we append more
 const REFILL_THRESHOLD = 3;
@@ -25,7 +26,7 @@ function wrapPosts(posts, loopIndex) {
   }));
 }
 
-const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, initialIndex = 0 }) => {
+const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, initialIndex = 0, merch = false }) => {
   const playbackDisabled = useVideoPlaybackDisabled();
   const containerRef = useRef(null);
   const [visibleIndex, setVisibleIndex] = useState(initialIndex);
@@ -39,6 +40,32 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
     loopCountRef.current = 0;
     setItems(wrapPosts(posts, 0));
   }, [posts]);
+
+  // Merch reels (merch prop, For You only): a The Homies Shop card after every
+  // FEED_EVERY posts, at most 2 per browser session. The slots are fixed
+  // ahead of the viewer when the shop loads, so nothing above them shifts.
+  const merchProducts = useMerchReelProducts(merch);
+  const [merchSlots, setMerchSlots] = useState(null); // organic positions a merch card follows
+  const [merchHidden, setMerchHidden] = useState(() => new Set());
+  const visibleIndexRef = useRef(initialIndex);
+  visibleIndexRef.current = visibleIndex;
+  useEffect(() => {
+    if (!merch || merchSlots || !merchProducts.length) return;
+    const first = Math.max(FEED_EVERY, visibleIndexRef.current + 4);
+    setMerchSlots(Array.from({ length: Math.min(merchReelsLeft(), merchProducts.length) }, (_, k) => first + k * FEED_EVERY));
+  }, [merch, merchSlots, merchProducts]);
+  const displayItems = useMemo(() => {
+    if (!merchSlots) return items;
+    const out = [];
+    items.forEach((it, i) => {
+      out.push(it);
+      const k = merchSlots.indexOf(i + 1);
+      const product = k >= 0 ? merchProducts[k] : null;
+      if (product && !merchHidden.has(product.slug)) out.push({ post: { type: 'merch', id: `merch-${product.slug}`, product }, instanceKey: `merch-${k}-${product.slug}` });
+    });
+    return out;
+  }, [items, merchSlots, merchProducts, merchHidden]);
+  const hideMerch = useCallback((slug) => setMerchHidden((prev) => new Set(prev).add(slug)), []);
 
   // Scroll to initialIndex once the feed container has mounted (it only
   // mounts after the playback check resolves).
@@ -96,7 +123,7 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
     // playbackDisabled: the feed container only mounts once the playback check
     // resolves. Without it, posts that loaded first left the observer unattached
     // and visibleIndex stuck at 0 (first video kept playing while swiping).
-  }, [items, playbackDisabled]);
+  }, [displayItems, playbackDisabled]);
 
   // Blunt site-wide circuit breaker (2026-09-23) — when on, no VerticalVideo
   // (and therefore no <video>/<MuxPlayer>) ever mounts, for anyone, full
@@ -119,7 +146,15 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
       className="h-[100svh] w-full overflow-y-scroll snap-y snap-mandatory bg-black [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
       style={{ scrollBehavior: 'smooth' }}
     >
-      {items.map(({ post, instanceKey }, index) => post.type === 'music' ? (
+      {displayItems.map(({ post, instanceKey }, index) => post.type === 'merch' ? (
+        <MerchReelCard
+          key={instanceKey}
+          product={post.product}
+          index={index}
+          isVisible={index === visibleIndex}
+          onHide={hideMerch}
+        />
+      ) : post.type === 'music' ? (
         <MusicFeedCard
           key={instanceKey}
           post={post}
