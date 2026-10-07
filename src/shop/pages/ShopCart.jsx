@@ -166,7 +166,7 @@ export default function ShopCart() {
               </dl>
               <PointsCard offer={offer} signedIn={signedIn} canUse={canUsePoints} on={usePoints} setOn={setUsePoints}
                 used={pointsUsed} min={pointsMin} max={pointsMax} cpp={cpp} onChange={setPointsWanted}
-                bundleCents={bundleCents} pointsWin={pointsWin} />
+                bundleCents={bundleCents} pointsWin={pointsWin} subtotal={subtotal} />
               {!bundleOk && !!offer?.discountCents && cart.count < offer.bundleMinItems && (
                 <p className="mt-4 text-xs text-white/55">Add {offer.bundleMinItems - cart.count === 1 ? 'one more item' : `${offer.bundleMinItems - cart.count} more items`} and get {usd(offer.discountCents)} off{canUsePoints ? ', and keep your points' : ''}.</p>
               )}
@@ -190,10 +190,11 @@ export default function ShopCart() {
 }
 
 /**
- * Pay part of the items with Homies Points: 1 pt = 1¢, up to 20% of the items.
+ * Pay part of the items with Homies Points (server: 1 pt = 1¢, up to 20% of the items).
  * Signed out: a sign-in nudge. Points never stack with the bundle; the bigger one wins.
  */
-function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, onChange, bundleCents, pointsWin }) {
+// Shows what points take off and the new price, never a per-point value (owner: "1¢" makes points feel worthless).
+function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, onChange, bundleCents, pointsWin, subtotal }) {
   if (!offer?.pointsMaxPct) return null;
   const pct = offer.pointsMaxPct;
   const n = (v) => v.toLocaleString('en-US');
@@ -210,7 +211,7 @@ function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, o
     return (
       <p className="mt-4 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-white/55">
         <Coins className="h-4 w-4 shrink-0 text-[#f0b94d]" />
-        You have {n(offer.points)} points. With {n(min)}+ you can take up to {pct}% off.
+        You have {n(offer.points)} points. Keep earning and use them for up to {pct}% off.
       </p>
     );
   }
@@ -219,7 +220,7 @@ function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, o
       <label className="flex cursor-pointer items-start gap-3">
         <input type="checkbox" checked={on} onChange={(e) => setOn(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#f0b94d]" />
         <span className="flex-1"><span className="inline-flex items-center gap-1 font-semibold text-[#f6d48f]"><Coins className="h-4 w-4" /> Pay with Homies Points</span>
-          <span className="block text-xs text-white/55">You have {n(offer.points)}. Up to {pct}% off: {n(Math.round(100 / cpp))} pts = $1.</span></span>
+          <span className="block text-xs text-white/55">You have {n(offer.points)} points. Take up to {pct}% off this order.</span></span>
       </label>
       <AnimatePresence initial={false}>
         {on && (
@@ -229,6 +230,13 @@ function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, o
                 <span className="font-semibold tabular-nums">{n(used)} pts</span>
                 <span className="font-semibold tabular-nums text-[#7be0a5]">−{usd(used * cpp)}</span>
               </div>
+              {pointsWin && (
+                <div className="mt-1 flex items-baseline justify-between text-xs">
+                  <span className="text-white/55">New price</span>
+                  <span className="tabular-nums"><span className="mr-1.5 text-white/40 line-through">{usd(subtotal)}</span>
+                    <motion.span key={used} initial={{ opacity: 0.4, y: -2 }} animate={{ opacity: 1, y: 0 }} className="inline-block font-semibold text-white">{usd(subtotal - used * cpp)}</motion.span></span>
+                </div>
+              )}
               {max > min && (
                 <input type="range" min={min} max={max} step={1} value={used} aria-label="Points to use"
                   onChange={(e) => onChange(Number(e.target.value))}
@@ -239,7 +247,7 @@ function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, o
                 <button type="button" onClick={() => onChange(null)} className="font-semibold text-[#f0b94d] hover:underline">Max {n(max)}</button>
               </div>
               {bundleCents > 0 && !pointsWin && (
-                <p className="mt-2 text-xs text-white/55">Your bundle saves {usd(bundleCents)}, which beats this. Slide past {n(Math.floor(bundleCents / cpp))} pts to use points instead, or keep them.</p>
+                <p className="mt-2 text-xs text-white/55">Your bundle saves {usd(bundleCents)}, which beats this. Slide up to use points instead, or keep them.</p>
               )}
               <p className="mt-2 text-[11px] text-white/40">If you don't finish paying, your points come back within about an hour.</p>
             </div>
