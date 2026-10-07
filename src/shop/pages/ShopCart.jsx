@@ -227,8 +227,8 @@ function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, o
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="pt-3">
               <div className="flex items-baseline justify-between">
-                <span className="font-semibold tabular-nums">{n(used)} pts</span>
-                <span className="font-semibold tabular-nums text-[#7be0a5]">−{usd(used * cpp)}</span>
+                <span className={cn('font-semibold tabular-nums', !pointsWin && 'opacity-45')}>{n(used)} pts</span>
+                <span className={cn('font-semibold tabular-nums text-[#7be0a5]', !pointsWin && 'opacity-45')}>−{usd(used * cpp)}</span>
               </div>
               {pointsWin && (
                 <div className="mt-1 flex items-baseline justify-between text-xs">
@@ -247,7 +247,9 @@ function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, o
                 <button type="button" onClick={() => onChange(null)} className="font-semibold text-[#f0b94d] hover:underline">Max {n(max)}</button>
               </div>
               {bundleCents > 0 && !pointsWin && (
-                <p className="mt-2 text-xs text-white/55">Your bundle saves {usd(bundleCents)}, which beats this. Slide up to use points instead, or keep them.</p>
+                <p className="mt-2 text-xs text-white/55">{max * cpp > bundleCents
+                  ? `Your bundle saves ${usd(bundleCents)}, which beats this. Slide up to use points instead, or keep them.`
+                  : `Your bundle saves ${usd(bundleCents)}, more than your points can on this order. Keep your points for next time.`}</p>
               )}
               <p className="mt-2 text-[11px] text-white/40">If you don't finish paying, your points come back within about an hour.</p>
             </div>
