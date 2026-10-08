@@ -287,9 +287,14 @@ export async function fetchOffers() {
 }
 
 /** points: how many Homies Points to spend (the server clamps it to 20% of the items and the balance). */
-export async function startCheckout(items, { points = 0 } = {}) {
+/** fromCart: true = started from the bag (the server takes the bought lines out of the saved bag), false = Buy now. */
+export async function startCheckout(items, { points = 0, fromCart } = {}) {
   await claimed();
-  const { data } = await api.post('/merch/checkout', { items, ...(points > 0 ? { usePoints: true, points: Math.floor(points) } : {}) }, dev());
+  const { data } = await api.post('/merch/checkout', {
+    items,
+    ...(points > 0 ? { usePoints: true, points: Math.floor(points) } : {}),
+    ...(typeof fromCart === 'boolean' ? { fromCart } : {}),
+  }, dev());
   if (!isStripeCheckoutUrl(data?.url)) throw new Error('no checkout url');
   window.location.href = data.url;
 }

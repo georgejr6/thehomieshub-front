@@ -56,26 +56,37 @@ export default function ShopCart() {
 
   // Unlimited-colour embroidery pieces (LXVEMORE teddy) are made through a different Printful
   // process, so they check out on their own (server: separate_order). The rest stays in the bag.
-  const separateSlugs = new Set((products || []).filter((p) => p.separateCheckout).map((p) => p.slug));
-  const separateLines = cart.cart.filter((l) => l.kind !== 'custom' && separateSlugs.has(l.slug));
+  // Matched by variant id (slugs can be missing on old lines); the server's own answer
+  // (separate_order -> separateVariantIds) wins when we have it.
+  const [serverSep, setServerSep] = useState(null);
+  const sepIds = new Set(serverSep || (products || []).filter((p) => p.separateCheckout).flatMap((p) => (p.variants || []).map((v) => v.id)));
+  const separateLines = cart.cart.filter((l) => l.kind !== 'custom' && sepIds.has(l.variantId));
   const mixed = separateLines.length > 0 && separateLines.length < cart.cart.length;
 
   const pay = async ({ only = null } = {}) => {
     if (custom && !agree && !only) { notify('Please confirm the custom-item note first.', 'error'); return; }
     if (mixed && !only) { setSplit(true); return; }
+    if (only && !only.length) { setSplit(false); notify('Something changed in your bag. Refresh and try again.', 'error'); reload(); return; }
     const lines = only || cart.cart;
     if (cartCount(lines) > MAX_ORDER_ITEMS) { notify(`Up to ${MAX_ORDER_ITEMS} items per order — lower a quantity or save something for later.`, 'error'); return; }
     setPaying(true);
     markCartCheckout(only ? only.map((l) => l.key) : null);
     try {
-      // points: the server re-caps them to 20% of what's actually being paid for
-      await startCheckout(checkoutItems(lines), { points: pointsWin ? pointsUsed : 0 });
+      // points: the server picks points vs the bundle for what's actually being paid for and
+      // re-caps them to 20% of it (so a teddy-only checkout still gets the points the buyer chose)
+      await startCheckout(checkoutItems(lines), { points: pointsWin || (only && usePoints && canUsePoints) ? pointsUsed : 0, fromCart: true });
     } catch (e) {
       clearCartCheckoutMarker();
       setPaying(false);
       const code = e?.response?.data?.code;
       if (code === 'printfiles_missing' || code === 'design_not_ready') { notify('One of your designs needs a refresh. Open it from Your library and add it to your bag again.', 'error'); return; }
-      if (code === 'separate_order') { setSplit(true); return; }
+      if (code === 'separate_order') {
+        const ids = e?.response?.data?.separateVariantIds;
+        if (Array.isArray(ids) && ids.length) setServerSep(ids.map(Number));
+        else reload();
+        setSplit(true);
+        return;
+      }
       if (code === 'design_not_found') { notify("One of your designs can't be found anymore. Remove it from your bag and try again.", 'error'); return; }
       if (code === 'unavailable' || code === 'addons_unavailable') {
         const products = await reload();
@@ -194,7 +205,7 @@ export default function ShopCart() {
           </aside>
         </div>
       )}
-      <SplitCheckoutDialog open={split} lines={separateLines} onClose={() => setSplit(false)}
+      <SplitCheckoutDialog open={split && separateLines.length > 0} lines={separateLines} onClose={() => setSplit(false)}
         onContinue={() => { setSplit(false); pay({ only: separateLines }); }} />
       <AddonEditDialog line={editing} onClose={() => setEditing(null)} />
       <DesignPreviewDialog line={previewing} onClose={() => setPreviewing(null)} />
@@ -308,7 +319,7 @@ function SplitCheckoutDialog({ open, lines, onClose, onContinue }) {
               <ShopButton variant="gold" className="flex-1" onClick={onContinue}><Lock className="h-4 w-4" /> Continue · {usd(total)}</ShopButton>
               <ShopButton variant="ghost" className="flex-1" onClick={onClose}>Not now</ShopButton>
             </div>
-            <p className="mt-3 text-center text-[11px] text-white/40">Shipping is added at checkout.</p>
+            <p className="mt-3 text-center text-[11px] text-white/40">Shipping and any discount are applied at checkout.</p>
           </motion.div>
         </motion.div>
       )}

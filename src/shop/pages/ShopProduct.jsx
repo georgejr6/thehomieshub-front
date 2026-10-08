@@ -134,7 +134,7 @@ export default function ShopProduct() {
     clearCartCheckoutMarker(); // Buy now must never empty the saved bag on the thanks page
     if (line.addons.length) { cart.add(line); navigate('/shop/cart?step=review'); return; } // customized → review (final-sale notice)
     setBuying(true);
-    try { await startCheckout([{ kind: 'listed', variantId: line.variantId, quantity: line.quantity, addons: [] }]); }
+    try { await startCheckout([{ kind: 'listed', variantId: line.variantId, quantity: line.quantity, addons: [] }], { fromCart: false }); }
     catch (e) { notify(apiError(e, 'Could not start checkout.'), 'error'); setBuying(false); }
   };
   const share = async () => {
