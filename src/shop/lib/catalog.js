@@ -15,8 +15,8 @@ export const COLLECTIONS = [
   { key: 'hats', label: 'Hats', blurb: 'Embroidered dad hats.' },
 ];
 
-export const KIND_LABEL = { tee: 'Tee', hoodie: 'Hoodie', hat: 'Dad Hat', crewneck: 'Crewneck', longsleeve: 'Long Sleeve', jogger: 'Joggers', shorts: 'Shorts' };
-export const KINDS = ['tee', 'hoodie', 'hat', 'crewneck', 'longsleeve', 'jogger', 'shorts'];
+export const KIND_LABEL = { tee: 'Tee', hoodie: 'Hoodie', hat: 'Dad Hat', beanie: 'Beanie', crewneck: 'Crewneck', longsleeve: 'Long Sleeve', jogger: 'Joggers', shorts: 'Shorts' };
+export const KINDS = ['tee', 'hoodie', 'hat', 'beanie', 'crewneck', 'longsleeve', 'jogger', 'shorts'];
 // LXVEMORE pieces (backend brand "lxvemore") lead the shop.
 export const isLxvemore = (product) => product?.brand === 'lxvemore';
 
@@ -30,10 +30,11 @@ export function kindOf(product) {
   const t = product?.productType;
   if (t === 'tee' || t === 'hoodie' || t === 'hat') return t;
   if (t === 'crewneck') return isLxvemore(product) ? 'crewneck' : 'hoodie';
-  if (t === 'longsleeve' || t === 'jogger' || t === 'shorts') return t;
+  if (t === 'longsleeve' || t === 'jogger' || t === 'shorts' || t === 'beanie') return t;
   const hit = lookupSlug(product?.slug);
   if (hit) return hit.kind;
   const n = String(product?.name || '').toLowerCase();
+  if (/\bbeanie\b/.test(n)) return 'beanie';
   if (/\bhat\b|\bcap\b/.test(n)) return 'hat';
   if (/hoodie|sweatshirt|crewneck/.test(n)) return 'hoodie';
   return 'tee';
@@ -50,6 +51,7 @@ export const CUSTOMIZE = {
 export const CUSTOM_LABEL = { name: 'Add a name', back: 'Back print', sleeve: 'Sleeve', embroidery: 'Embroidery' };
 export const CUSTOM_FILTERS = [{ key: 'name', label: 'Name' }, { key: 'back', label: 'Back print' }, { key: 'embroidery', label: 'Embroidery' }];
 export const customizeKeys = (product) => {
+  if (product?.customizable === false) return []; // e.g. unlimited-colour embroidery pieces (no add-ons / Studio)
   // LXVEMORE: embroidered patch pieces take embroidered text; printed (DTF) ones a back print / sleeve
   if (isLxvemore(product)) {
     const k = kindOf(product);

@@ -14,7 +14,7 @@ import { resolveTemplate } from '@/shop/studio/template';
 const HERO_IDS = ['gringo-go-home', 'colombia-gt-brazil', 'dame-plata-baby', 'i-love-latinas', 'not-a-pookie', 'if-she-thick'];
 const GARMENTS = [
   { key: 'all', label: 'All' }, { key: 'tee', label: 'Tees' }, { key: 'hoodie', label: 'Hoodies' }, { key: 'crewneck', label: 'Crewnecks' },
-  { key: 'longsleeve', label: 'Long Sleeves' }, { key: 'jogger', label: 'Joggers' }, { key: 'shorts', label: 'Shorts' }, { key: 'hat', label: 'Hats' },
+  { key: 'longsleeve', label: 'Long Sleeves' }, { key: 'jogger', label: 'Joggers' }, { key: 'shorts', label: 'Shorts' }, { key: 'hat', label: 'Hats' }, { key: 'beanie', label: 'Beanies' },
 ];
 const RAILS = ['lxvemore', 'must', 'travel', 'espanol', 'hats'];
 

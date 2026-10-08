@@ -80,6 +80,12 @@ export default function ShopProduct() {
   // Exact colour only — never another colour's render (a white image for a black hoodie looks faded).
   const gallery = useMemo(() => {
     if (!product) return [];
+    // extra garment-only angles for this colour (front / side / back), when the API has them
+    const views = (product.variants || []).find((v) => v.color === color && Array.isArray(v.views) && v.views.length)?.views;
+    if (views) {
+      return views.filter((x) => /^https:\/\//.test(x?.url || ''))
+        .map((x) => ({ key: `view-${x.view}`, src: x.url, label: `${color} ${KIND_LABEL[kind]} · ${String(x.view).replace(/-/g, ' ')}`, garment: true }));
+    }
     const imgs = [{ key: 'main', src: productImage(product, kind === 'hat' ? color || '' : color), label: `${color} ${KIND_LABEL[kind]}`, garment: true }];
     const other = kind === 'hat' ? '' : productAltImage(product, color);
     if (other) imgs.push({ key: 'alt', src: other, label: 'Other colourway', garment: true });
@@ -185,7 +191,7 @@ export default function ShopProduct() {
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <p className="text-2xl font-semibold">{product ? usd(unit) : '—'}</p>
             {cartAddons.length > 0 && <p className="text-sm text-white/50">incl. {cartAddons.length} add-on{cartAddons.length > 1 ? 's' : ''}</p>}
-            {product && studioAvailable && (
+            {product && studioAvailable && product.customizable !== false && (
               <Link to={studioHref(studioInit)} onClick={(e) => { if (openStudio(studioInit)) e.preventDefault(); }} onMouseEnter={prefetchStudio} onFocus={prefetchStudio}
                 className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-full bg-[#f0b94d] px-4 text-sm font-semibold text-black hover:brightness-110">
                 <PenLine className="h-4 w-4" /> Customize
@@ -241,7 +247,7 @@ export default function ShopProduct() {
             <ShopButton variant="ghost" size="lg" onClick={share} aria-label="Share"><Share2 className="h-4 w-4" /></ShopButton>
           </div>
 
-          {product && studioAvailable && (
+          {product && studioAvailable && product.customizable !== false && (
             <Link to={studioHref(studioInit)} onClick={(e) => { if (openStudio(studioInit)) e.preventDefault(); }} onMouseEnter={prefetchStudio}
               className="mt-6 flex items-center gap-4 rounded-2xl border border-dashed border-white/15 p-4 transition hover:border-[#f0b94d]/60">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f0b94d]/15"><Wand2 className="h-5 w-5 text-[#f0b94d]" /></div>
@@ -254,6 +260,7 @@ export default function ShopProduct() {
             <p className="flex items-start gap-3"><RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-white/40" /> Misprinted or damaged? We replace it.{cartAddons.length ? ' Customized pieces are otherwise final sale.' : ''}</p>
           </div>
           {kind === 'hat' && <Tip className="mt-5">Embroidered on a soft, unstructured dad hat. One size, adjustable strap.</Tip>}
+          {kind === 'beanie' && <Tip className="mt-5">Embroidered on a snug cuffed beanie. One size.</Tip>}
         </div>
       </div>
 
