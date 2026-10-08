@@ -103,17 +103,29 @@ export function pruneUnavailable(cart, products = []) {
 // the cart only when this marker exists and the order is confirmed.
 const PENDING_KEY = 'hh_merch_cart_checkout';
 const PENDING_MAX_MS = 24 * 60 * 60 * 1000;
-export function markCartCheckout() {
-  try { localStorage.setItem(PENDING_KEY, String(Date.now())); } catch { /* private mode */ }
+/** keys: the cart lines being paid for (null = the whole bag). */
+export function markCartCheckout(keys = null) {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify({ t: Date.now(), keys: Array.isArray(keys) ? keys : null })); } catch { /* private mode */ }
+}
+function readMarker() {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY);
+    if (!raw) return null;
+    if (/^\d+$/.test(raw)) return { t: Number(raw), keys: null }; // older format: whole bag
+    const m = JSON.parse(raw);
+    return m && Number.isFinite(m.t) ? m : null;
+  } catch { return null; }
+}
+/** The cart line keys the pending checkout paid for, or null for the whole bag. */
+export function cartCheckoutKeys() {
+  return readMarker()?.keys || null;
 }
 export function clearCartCheckoutMarker() {
   try { localStorage.removeItem(PENDING_KEY); } catch { /* private mode */ }
 }
 export function hasCartCheckoutMarker(now = Date.now()) {
-  try {
-    const t = Number(localStorage.getItem(PENDING_KEY));
-    return Number.isFinite(t) && t > 0 && now - t < PENDING_MAX_MS;
-  } catch { return false; }
+  const m = readMarker();
+  return !!m && m.t > 0 && now - m.t < PENDING_MAX_MS;
 }
 
 function readStored() {

@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Loader2 } from 'lucide-react';
-import { fetchOrderBySession, hasCartCheckoutMarker, clearCartCheckoutMarker, SESSION_RE } from '@/lib/merch';
+import { fetchOrderBySession, hasCartCheckoutMarker, clearCartCheckoutMarker, cartCheckoutKeys, SESSION_RE } from '@/lib/merch';
 import { useShop } from '@/shop/ShopContext';
 import { ShopButton } from '@/shop/components/ui';
 import OrderCard from '@/shop/components/OrderCard';
@@ -19,6 +19,8 @@ export default function ShopThanks() {
   const [gaveUp, setGaveUp] = useState(false);
   const valid = SESSION_RE.test(session);
 
+  // a split checkout (teddy pieces first) only takes those lines out of the bag
+  const emptyPaid = () => { const keys = cartCheckoutKeys(); if (keys) keys.forEach((k) => cart.remove(k)); else cart.clear(); };
   useEffect(() => {
     if (!valid) return undefined;
     let tries = 0; let timer = null; let alive = true;
@@ -28,13 +30,13 @@ export default function ShopThanks() {
       if (!alive) return;
       if (o) {
         setOrder(o);
-        if (hasCartCheckoutMarker()) { cart.clear(); clearCartCheckoutMarker(); }
+        if (hasCartCheckoutMarker()) { emptyPaid(); clearCartCheckoutMarker(); }
         return;
       }
       if (tries >= 15) {
         // Paid (Stripe sent them here with a real session) but the webhook is slow:
         // a cart checkout's bag still gets cleared so they don't buy twice.
-        if (hasCartCheckoutMarker()) { cart.clear(); clearCartCheckoutMarker(); }
+        if (hasCartCheckoutMarker()) { emptyPaid(); clearCartCheckoutMarker(); }
         setGaveUp(true); return;
       }
       timer = setTimeout(poll, 2000);

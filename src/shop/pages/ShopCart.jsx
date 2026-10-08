@@ -20,7 +20,8 @@ import CompleteTheLook from '@/shop/components/CompleteTheLook';
 const STEPS = [{ key: 'cart', label: 'Bag' }, { key: 'review', label: 'Review' }, { key: 'pay', label: 'Pay' }];
 
 export default function ShopCart() {
-  const { cart, notify, reload, signedIn } = useShop();
+  const { cart, notify, reload, signedIn, products } = useShop();
+  const [split, setSplit] = useState(false); // "these check out on their own" dialog
   const [params, setParams] = useSearchParams();
   const step = params.get('step') === 'review' && cart.cart.length ? 'review' : 'cart';
   const [agree, setAgree] = useState(false);
@@ -53,18 +54,28 @@ export default function ShopCart() {
   const discount = pointsWin ? pointsUsed * cpp : bundleCents;
   const go = (s) => { setParams(s === 'cart' ? {} : { step: s }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
-  const pay = async () => {
-    if (custom && !agree) { notify('Please confirm the custom-item note first.', 'error'); return; }
-    if (cartCount(cart.cart) > MAX_ORDER_ITEMS) { notify(`Up to ${MAX_ORDER_ITEMS} items per order — lower a quantity or save something for later.`, 'error'); return; }
+  // Unlimited-colour embroidery pieces (LXVEMORE teddy) are made through a different Printful
+  // process, so they check out on their own (server: separate_order). The rest stays in the bag.
+  const separateSlugs = new Set((products || []).filter((p) => p.separateCheckout).map((p) => p.slug));
+  const separateLines = cart.cart.filter((l) => l.kind !== 'custom' && separateSlugs.has(l.slug));
+  const mixed = separateLines.length > 0 && separateLines.length < cart.cart.length;
+
+  const pay = async ({ only = null } = {}) => {
+    if (custom && !agree && !only) { notify('Please confirm the custom-item note first.', 'error'); return; }
+    if (mixed && !only) { setSplit(true); return; }
+    const lines = only || cart.cart;
+    if (cartCount(lines) > MAX_ORDER_ITEMS) { notify(`Up to ${MAX_ORDER_ITEMS} items per order — lower a quantity or save something for later.`, 'error'); return; }
     setPaying(true);
-    markCartCheckout();
+    markCartCheckout(only ? only.map((l) => l.key) : null);
     try {
-      await startCheckout(checkoutItems(cart.cart), { points: pointsWin ? pointsUsed : 0 });
+      // points: the server re-caps them to 20% of what's actually being paid for
+      await startCheckout(checkoutItems(lines), { points: pointsWin ? pointsUsed : 0 });
     } catch (e) {
       clearCartCheckoutMarker();
       setPaying(false);
       const code = e?.response?.data?.code;
       if (code === 'printfiles_missing' || code === 'design_not_ready') { notify('One of your designs needs a refresh. Open it from Your library and add it to your bag again.', 'error'); return; }
+      if (code === 'separate_order') { setSplit(true); return; }
       if (code === 'design_not_found') { notify("One of your designs can't be found anymore. Remove it from your bag and try again.", 'error'); return; }
       if (code === 'unavailable' || code === 'addons_unavailable') {
         const products = await reload();
@@ -183,6 +194,8 @@ export default function ShopCart() {
           </aside>
         </div>
       )}
+      <SplitCheckoutDialog open={split} lines={separateLines} onClose={() => setSplit(false)}
+        onContinue={() => { setSplit(false); pay({ only: separateLines }); }} />
       <AddonEditDialog line={editing} onClose={() => setEditing(null)} />
       <DesignPreviewDialog line={previewing} onClose={() => setPreviewing(null)} />
     </div>
@@ -257,6 +270,49 @@ function PointsCard({ offer, signedIn, canUse, on, setOn, used, min, max, cpp, o
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/** Unlimited-colour embroidery pieces check out on their own; the rest stays in the bag. */
+function SplitCheckoutDialog({ open, lines, onClose, onContinue }) {
+  const panel = useRef(null);
+  useFocusTrap(open, panel);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+  const total = lines.reduce((n, l) => n + lineTotalCents(l), 0);
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+          <motion.div ref={panel} role="dialog" aria-modal="true" aria-labelledby="split-title" onClick={(e) => e.stopPropagation()} initial={{ y: 30 }} animate={{ y: 0 }} exit={{ y: 20 }}
+            className="hh-shop w-full max-w-md rounded-t-3xl border border-white/10 bg-[#0f0f11] p-6 sm:rounded-3xl">
+            <p id="split-title" className="font-display text-2xl">These check out on their own</p>
+            <p className="mt-2 text-sm leading-relaxed text-white/60">
+              Our embroidered teddy pieces are stitched in full colour with a separate process, so they get their own checkout and ship on their own.
+              Pay for them first. Everything else stays in your bag for the next checkout.
+            </p>
+            <ul className="mt-4 space-y-2">
+              {lines.map((l) => (
+                <li key={l.key} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-[#141416] p-2">
+                  <ShopImage src={l.image} alt="" className="h-12 w-10 shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{l.name}</p><p className="text-xs text-white/50">{l.variant} · Qty {l.quantity}</p></div>
+                  <p className="text-sm font-semibold">{usd(lineTotalCents(l))}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
+              <ShopButton variant="gold" className="flex-1" onClick={onContinue}><Lock className="h-4 w-4" /> Continue · {usd(total)}</ShopButton>
+              <ShopButton variant="ghost" className="flex-1" onClick={onClose}>Not now</ShopButton>
+            </div>
+            <p className="mt-3 text-center text-[11px] text-white/40">Shipping is added at checkout.</p>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
