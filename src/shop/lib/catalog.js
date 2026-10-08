@@ -187,6 +187,9 @@ export const COLOR_HEX = {
   White: '#f5f5f2', Black: '#141414', 'Athletic Heather': '#b9b9b6', Ash: '#dedcd6', 'Carbon Grey': '#4a4c50',
   Bone: '#e8dfcc', Navy: '#1f2a44', 'Heather Grey': '#9d9d9d', Khaki: '#c3b091',
   'Light Pink': '#f2c9d1', 'Charcoal Heather': '#5a5a5c', Stone: '#d6cfc0',
+  // hats + beanies (Printful catalog colours)
+  Cranberry: '#a3001b', 'Dark Grey': '#39353a', 'Green Camo': '#415446', 'Light Blue': '#b5cbda', Pink: '#fab2ba', Spruce: '#183a31',
+  'Baby Pink': '#ffc6cd', Brown: '#3b2416', Gold: '#ffa913', Olive: '#41401d', Red: '#b91616', Royal: '#222985',
 };
 
 /** Embroidery thread palette for a product type: its blank's, else any embroidery blank's (Printful has one palette). */
