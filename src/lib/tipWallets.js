@@ -5,6 +5,7 @@
 const ALGO_ADDRESS = 'ZHKTZUB7T7IDPUWN3EFJIMTPM5GYAFEQXBBOGZQWC4MUFWYCVDDXYPVR6Q';
 const BTC_ADDRESS = 'bc1q8x8y5qzu83frzjwjdn7efavs9a0w596l29he8t'; // bech32 checksum verified 2026-09-26
 const ETH_ADDRESS = '0x89a7Aa3876bf1deBc380F2EbB600E1DF76f2f7Ab'; // EIP-55 checksum verified 2026-09-26
+const SOL_ADDRESS = 'ERWpY4sosr7tv3bbdySbQQSNjPCJCsgn3yeZiGQFjoGB'; // base58 -> 32-byte ed25519 key verified 2026-10-13
 
 export const TIP_WALLETS = [
   {
@@ -39,5 +40,13 @@ export const TIP_WALLETS = [
     address: ETH_ADDRESS,
     uri: `ethereum:${ETH_ADDRESS}`,
     note: 'Send ETH on Ethereum mainnet only.',
+  },
+  {
+    id: 'sol',
+    label: 'SOL',
+    network: 'Solana',
+    address: SOL_ADDRESS,
+    uri: `solana:${SOL_ADDRESS}`,
+    note: 'Send SOL on the Solana network only.',
   },
 ].filter((w) => w.address);
