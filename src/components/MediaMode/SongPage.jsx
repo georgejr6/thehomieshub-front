@@ -205,7 +205,7 @@ const SongPage = () => {
                 {track.explicit && <span className="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">EXPLICIT</span>}
               </div>
 
-              <div className="flex items-center gap-3 justify-center sm:justify-start mt-6">
+              <div className="flex items-center gap-3 justify-center sm:justify-start mt-6 flex-wrap">
                 <button onClick={handlePlay}
                   className="bg-primary hover:bg-primary/90 text-black rounded-full h-14 w-14 flex items-center justify-center disabled:opacity-50 shadow-lg">
                   {isLoading && isThis
