@@ -43,13 +43,17 @@ const SongPage = () => {
   const [licenseOpen, setLicenseOpen] = useState(false);
   const wantLicense = useRef(new URLSearchParams(location.search).get('license') === '1');
   // ?buy=1 (email "Download" links) opens the pay-what-you-want sheet once.
+  // Read at mount: the /song/:id -> readable URL swap can drop the query first.
+  const wantBuy = useRef(new URLSearchParams(location.search).get('buy') === '1');
   useEffect(() => {
-    if (new URLSearchParams(location.search).get('buy') !== '1' || !track?.id) return;
+    if (!wantBuy.current || !track?.id) return;
+    wantBuy.current = false;
     setDownloadOpen(true);
-    navigate(location.pathname, { replace: true });
+    if (new URLSearchParams(location.search).get('buy') === '1') navigate(location.pathname, { replace: true });
   }, [track?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Back from a paid download: { status: 'waiting' | 'ready' | 'email', url }
   const [bought, setBought] = useState(null);
+  const pollRef = useRef(0);
   const autoPlayedFor = useRef(null); // song id we've already auto-started
   const trackRef = useRef(null);
   trackRef.current = track;
@@ -85,18 +89,28 @@ const SongPage = () => {
     const session = q.get('session') || '';
     navigate(location.pathname, { replace: true });
     if (!/^cs_(live|test)_[A-Za-z0-9]+$/.test(session)) { setBought({ status: 'email' }); return undefined; }
-    setBought({ status: 'waiting' });
+    setBought({ status: 'waiting', title: trackRef.current?.title || '' });
+    // Polls on its own lifetime (the navigate above re-runs this effect); a
+    // newer purchase return or leaving the page stops it via pollRef.
+    const run = (pollRef.current = (pollRef.current || 0) + 1);
     let tries = 0;
-    let timer;
+    const alive = () => pollRef.current === run;
+    const again = () => { if (!alive()) return; if (++tries < 15) setTimeout(poll, 2000); else setBought((b) => ({ ...b, status: 'email' })); };
     const poll = () => {
+      if (!alive()) return;
       api.get(`/tips/download/${session}`).then(({ data }) => {
-        if (data?.ready) { setBought(data.downloadUrl ? { status: 'ready', url: data.downloadUrl } : { status: 'email' }); return; }
-        if (++tries < 15) timer = setTimeout(poll, 2000); else setBought({ status: 'email' });
-      }).catch(() => { if (++tries < 15) timer = setTimeout(poll, 2000); else setBought({ status: 'email' }); });
+        if (!alive()) return;
+        if (data?.ready) {
+          setBought((b) => ({ ...b, title: data.trackTitle || b?.title, ...(data.downloadUrl ? { status: 'ready', url: data.downloadUrl } : { status: 'email' }) }));
+          return;
+        }
+        again();
+      }).catch(again);
     };
     poll();
-    return () => clearTimeout(timer);
+    return undefined;
   }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { pollRef.current = (pollRef.current || 0) + 1; }, []); // stop polling on unmount
 
   // Anyone can tip (card or crypto), signed in or not.
   const handleTipClick = () => setTipModalOpen(true);
@@ -308,7 +322,7 @@ const SongPage = () => {
             <button type="button" onClick={() => setBought(null)} className="absolute right-3 top-3 text-gray-400 hover:text-white" aria-label="Close">
               <X className="w-4 h-4" />
             </button>
-            <p className="font-semibold">Thank you for buying “{track.title}” 🙏</p>
+            <p className="font-semibold">Thank you for buying “{bought.title || track.title}” 🙏</p>
             {bought.status === 'waiting' && (
               <p className="text-sm text-gray-300 mt-1 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Getting your download ready…</p>
             )}
