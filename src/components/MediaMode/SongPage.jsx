@@ -5,6 +5,8 @@ import { Play, Pause, Heart, Share2, Repeat, ArrowLeft, Music, Loader2, Gift } f
 import { useMedia } from '@/contexts/MediaContext';
 import { musicApi } from '@/lib/digitvlApi';
 import TipModal from '@/components/TipModal';
+import StreamingLinks from '@/components/music/StreamingLinks';
+import { useTrackStreamingLinks } from '@/lib/streamingLinks';
 import { useToast } from '@/components/ui/use-toast';
 
 // Dedicated per-song page. Canonical URL is /music/<artist>/<song> (readable,
@@ -36,6 +38,7 @@ const SongPage = () => {
   trackRef.current = track;
   // Set when /song/:id swaps to the readable URL, so the slug lookup is skipped.
   const resolvedRef = useRef(null);
+  const streamLinks = useTrackStreamingLinks(track?.id);
 
   // Back from Stripe Checkout (routes/tips.js success_url): thank them once.
   useEffect(() => {
@@ -160,7 +163,7 @@ const SongPage = () => {
         <Music className="w-12 h-12 text-gray-600" />
         <p className="text-lg font-semibold">Song not found</p>
         <p className="text-gray-500 text-sm">This track may have moved or been removed.</p>
-        <button onClick={() => navigate('/media/music')}
+        <button onClick={() => navigate('/music')}
           className="mt-2 px-4 py-2 rounded-lg bg-primary text-black font-semibold text-sm">
           Browse music
         </button>
@@ -230,6 +233,7 @@ const SongPage = () => {
                   <Gift className="w-4 h-4" /> Tip
                 </button>
               </div>
+              <StreamingLinks links={streamLinks} label="Also on" className="justify-center sm:justify-start mt-5" />
             </div>
           </div>
         </div>

@@ -478,6 +478,12 @@ const AppContent = React.memo(() => {
                 <Route path=":postId" element={<MediaApp />} />
             </Route>
 
+            {/* --- /music: Media Mode with only the music (free; full songs with a verified account) --- */}
+            <Route path="/music" element={<MediaLayout />}>
+                <Route index element={<MediaApp musicOnly />} />
+                <Route path="liked" element={<MediaApp musicOnly />} />
+            </Route>
+
             {/* --- Homies Shop mode: its own full-screen app at /shop (public, signed out too) --- */}
             <Route path="/shop" element={<ShopLayout />}>
                 <Route index element={<ShopHome />} />

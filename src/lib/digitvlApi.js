@@ -98,6 +98,8 @@ export const musicApi = {
   // Top 10 — ranked by real plays, human songs seeded first (see backend /music/top).
   getTop:          (limit = 10) => musicHttp.get('/music/top', { params: { limit } }).then(r => (r.data?.result?.tracks || []).map(normalizeTrack)).catch(() => []),
   getGenres:       () => musicHttp.get('/music/genres').then(r => r.data?.result?.genres || []),
+  // Spotify / Apple Music links for songs also released there -> { artists, tracks: { [id]: {spotify, appleMusic} } }.
+  getStreamingLinks: () => musicHttp.get('/music/streaming-links').then(r => r.data?.result || { artists: {}, tracks: {} }),
   getArtistTracks: (slug) => musicHttp.get('/music/catalog', { params: { search: slug } }).then(tracksOf),
   search:          (q) => musicHttp.get('/music/catalog', { params: { search: q } }).then(tracksOf),
   // Newest uploads — catalog is returned newest-first (-created_at), so this is

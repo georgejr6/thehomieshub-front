@@ -16,6 +16,10 @@ import VideoPlayer from './VideoPlayer';
 import MediaAdminPanel from './MediaAdminPanel';
 import VideoPurchaseGate from './VideoPurchaseGate';
 import { cn } from '@/lib/utils';
+import { Helmet } from 'react-helmet';
+import StreamingLinks from '@/components/music/StreamingLinks';
+import { useStreamingLinks } from '@/lib/streamingLinks';
+import { openSignupPrompt } from '@/components/SignupPrompt';
 
 // ── Auto-categorize videos into binge-worthy rows ────────────────────────────
 function buildSmartRows(allVideos) {
@@ -132,7 +136,14 @@ const SectionHeading = ({ icon: Icon, title, subtitle }) => (
 
 const ROUTABLE_TABS = ['home', 'videos', 'music', 'likes', 'purchased', 'admin'];
 
-const MediaApp = () => {
+// thehomies.app/music = Media Mode with only the music (owner 2026-10-14):
+// Browse + Liked tabs, search over songs only. Music is free: signed-out
+// visitors hear 30s previews, any verified account gets full songs (server
+// decides, homieshub-backend utils/mediaAccess.js).
+const MUSIC_TABS = ['music', 'likes'];
+const MUSIC_TAB_LABELS = { music: 'Browse', likes: 'Liked' };
+
+const MediaApp = ({ musicOnly = false }) => {
   const { postId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -169,19 +180,24 @@ const MediaApp = () => {
   // Keep the active tab in the URL (/media/<tab>) so a refresh or shared link
   // lands on the same tab (music stays music, videos stays videos).
   const goTab = useCallback((tab) => {
+    if (musicOnly) { navigate(tab === 'likes' ? '/music/liked' : '/music'); return; }
     setActiveCategory(tab);
     navigate(`/media/${tab}`);
-  }, [navigate, setActiveCategory]);
+  }, [navigate, setActiveCategory, musicOnly]);
+
+  // /music keeps its own tab (from the URL) so it never changes /media's tab.
+  const category = musicOnly ? (location.pathname.replace(/\/+$/, '') === '/music/liked' ? 'likes' : 'music') : activeCategory;
 
   // Sync the tab FROM the URL on load + browser back/forward.
   useEffect(() => {
+    if (musicOnly) return;
     const seg = location.pathname.split('/')[2];
     if (seg && ROUTABLE_TABS.includes(seg)) setActiveCategory(seg);
   }, [location.pathname]); // eslint-disable-line
 
 
   // Re-fetch HH videos every time Media Mode opens (picks up newly uploaded content)
-  useEffect(() => { refreshHhVideos(); }, []); // eslint-disable-line
+  useEffect(() => { if (!musicOnly) refreshHhVideos(); }, []); // eslint-disable-line
 
   // ── Handle return from Stripe purchase ────────────────────────────────────
   useEffect(() => {
@@ -232,7 +248,7 @@ const MediaApp = () => {
     if (video.muxPlaybackId) playVideo(video);
   }, [postId]); // eslint-disable-line
 
-  const TABS = [
+  const TABS = musicOnly ? MUSIC_TABS : [
     ...BASE_TABS,
     ...(user && purchases.length > 0 ? [PURCHASED_TAB] : []),
     ...(user?.isAdmin ? [ADMIN_TAB] : []),
@@ -265,7 +281,7 @@ const MediaApp = () => {
   };
 
   // ── Unified search ────────────────────────────────────────────────────────
-  const allContent = useMemo(() => [...allTracks, ...newVideos, ...trendingVideos, ...movies, ...series, ...hhVideos], [allTracks, newVideos, trendingVideos, movies, series, hhVideos]);
+  const allContent = useMemo(() => (musicOnly ? allTracks : [...allTracks, ...newVideos, ...trendingVideos, ...movies, ...series, ...hhVideos]), [musicOnly, allTracks, newVideos, trendingVideos, movies, series, hhVideos]);
   const searchResults = useMemo(() => searchQuery
     ? allContent.filter(item =>
         item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -304,10 +320,10 @@ const MediaApp = () => {
     [categoryRows]
   );
   const heroItem = useMemo(() => {
-    if (activeCategory === 'videos') return featuredCategory?.items[0] || featuredVideo || newVideos[0] || trendingVideos[0] || null;
-    if (activeCategory === 'music')  return allTracks[0] || null;
+    if (category === 'videos') return featuredCategory?.items[0] || featuredVideo || newVideos[0] || trendingVideos[0] || null;
+    if (category === 'music')  return allTracks[0] || null;
     return featuredCategory?.items[0] || featuredVideo || newVideos[0] || allTracks[0] || null;
-  }, [activeCategory, featuredCategory, featuredVideo, newVideos, trendingVideos, allTracks]);
+  }, [category, featuredCategory, featuredVideo, newVideos, trendingVideos, allTracks]);
 
   const heroIsVideo = heroItem?.mediaKind === 'video';
 
@@ -328,7 +344,10 @@ const MediaApp = () => {
     return [...new Set(pool.map(v => v.backdropUrl || v.cover))].filter(Boolean);
   }, [heroItem, heroIsVideo, allTracks, featuredVideo, newVideos, trendingVideos]);
 
-  const isLoading = catalogLoading || videoLoading;
+  const isLoading = catalogLoading || (!musicOnly && videoLoading);
+  const streaming = useStreamingLinks();
+  const heroLinks = !heroIsVideo && heroItem ? streaming.tracks[String(heroItem.id)] : null;
+  const infoLinks = infoItem && infoItem.mediaKind !== 'video' ? streaming.tracks[String(infoItem.id)] : null;
 
   // ── Smart auto-categories from all video content ──────────────────────────
   const smartVideoRows = useMemo(() => {
@@ -357,6 +376,13 @@ const MediaApp = () => {
   return (
     <div className="fixed inset-0 z-[100] bg-[#141414] text-white font-sans overflow-hidden flex flex-col">
 
+      {musicOnly && (
+        <Helmet>
+          <title>Music | The Homies</title>
+          <meta name="description" content="Listen to Mwosa and more for free on The Homies. Full songs with a free account." />
+          <link rel="canonical" href="https://www.thehomies.app/music" />
+        </Helmet>
+      )}
       {currentVideo && <VideoPlayer />}
 
       {/* ── Nav ────────────────────────────────────────────────────────────── */}
@@ -373,20 +399,20 @@ const MediaApp = () => {
             <span className="text-xs font-semibold hidden md:block whitespace-nowrap">The Homies</span>
           </button>
 
-          <span className="text-red-600 font-black text-xl md:text-2xl tracking-tighter cursor-pointer select-none"
-            onClick={() => goTab('home')}>DIGITVL</span>
+          <span className="text-red-600 font-black text-xl md:text-2xl tracking-tighter cursor-pointer select-none whitespace-nowrap"
+            onClick={() => goTab(musicOnly ? 'music' : 'home')}>DIGITVL{musicOnly && <span className="text-white"> MUSIC</span>}</span>
 
           {/* Desktop tabs */}
           <ul className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-300">
             {TABS.map(tab => (
               <li key={tab}
                 className={cn("hover:text-white cursor-pointer transition-colors flex items-center gap-1",
-                  activeCategory === tab && "text-white font-bold",
-                  tab === ADMIN_TAB && activeCategory !== ADMIN_TAB && "text-zinc-500 hover:text-zinc-300")}
+                  category === tab && "text-white font-bold",
+                  tab === ADMIN_TAB && category !== ADMIN_TAB && "text-zinc-500 hover:text-zinc-300")}
                 onClick={() => goTab(tab)}>
                 {tab === ADMIN_TAB ? <><Settings2 className="w-3.5 h-3.5" />Admin</>
                   : tab === PURCHASED_TAB ? <><ShoppingBag className="w-3.5 h-3.5" />Purchased</>
-                  : TAB_LABELS[tab] || tab}
+                  : (musicOnly ? MUSIC_TAB_LABELS[tab] : TAB_LABELS[tab]) || tab}
               </li>
             ))}
           </ul>
@@ -396,12 +422,12 @@ const MediaApp = () => {
             {TABS.map(tab => (
               <button key={tab}
                 className={cn("whitespace-nowrap transition-colors flex items-center gap-1",
-                  activeCategory === tab ? "text-white font-bold" : "text-zinc-400",
-                  tab === ADMIN_TAB && activeCategory !== ADMIN_TAB && "text-zinc-500")}
+                  category === tab ? "text-white font-bold" : "text-zinc-400",
+                  tab === ADMIN_TAB && category !== ADMIN_TAB && "text-zinc-500")}
                 onClick={() => goTab(tab)}>
                 {tab === ADMIN_TAB ? <><Settings2 className="w-3 h-3" />Admin</>
                   : tab === PURCHASED_TAB ? <><ShoppingBag className="w-3 h-3" />Purchased</>
-                  : TAB_LABELS[tab] || tab}
+                  : (musicOnly ? MUSIC_TAB_LABELS[tab] : TAB_LABELS[tab]) || tab}
               </button>
             ))}
           </div>
@@ -418,7 +444,7 @@ const MediaApp = () => {
               className="hover:text-zinc-300 shrink-0">
               <Search className="h-5 w-5" />
             </button>
-            <input id="media-search" type="text" placeholder="Titles, artists…"
+            <input id="media-search" type="text" placeholder={musicOnly ? "Songs, artists…" : "Titles, artists…"}
               className={cn("bg-transparent border-none focus:ring-0 text-sm ml-2 w-full text-white placeholder:text-zinc-400 outline-none",
                 !isSearchOpen && "hidden")}
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
@@ -446,7 +472,7 @@ const MediaApp = () => {
       <div id="media-scroller" className="flex-1 overflow-y-auto overflow-x-hidden relative">
 
         {/* ── ADMIN (full page, replaces all content) ──────────────────── */}
-        {activeCategory === ADMIN_TAB && user?.isAdmin ? (
+        {category === ADMIN_TAB && user?.isAdmin ? (
           <div className="pt-16 min-h-screen bg-black">
             <MediaAdminPanel isInline onCategoriesChange={fetchCategoryRows} />
           </div>
@@ -475,21 +501,21 @@ const MediaApp = () => {
             ) : <p className="text-zinc-500 mt-4">No matches found.</p>}
           </div>
 
-        ) : activeCategory === 'likes' ? (
+        ) : category === 'likes' ? (
           /* ── LIKES — liked videos and music, kept separate ───────────── */
           <div className="pt-24 px-4 md:px-12 min-h-screen space-y-8">
             <h1 className="text-3xl font-bold">My List</h1>
-            {likedVideos.length === 0 && likedTracks.length === 0 ? (
-              <p className="text-zinc-500 mt-4">Nothing liked yet. Tap the heart on any video or track to save it here.</p>
+            {(musicOnly ? likedTracks.length === 0 : likedVideos.length === 0 && likedTracks.length === 0) ? (
+              <p className="text-zinc-500 mt-4">{musicOnly ? 'Nothing liked yet. Tap the heart on any song to save it here.' : 'Nothing liked yet. Tap the heart on any video or track to save it here.'}</p>
             ) : (
               <>
-                {likedVideos.length > 0 && <MediaRow title="Liked Videos" items={likedVideos} onPlay={playVideo} isGrid />}
+                {!musicOnly && likedVideos.length > 0 && <MediaRow title="Liked Videos" items={likedVideos} onPlay={playVideo} isGrid />}
                 {likedTracks.length > 0 && <MediaRow title="Liked Music" items={likedTracks} />}
               </>
             )}
           </div>
 
-        ) : activeCategory === PURCHASED_TAB ? (
+        ) : category === PURCHASED_TAB ? (
           /* ── PURCHASED VIDEOS ────────────────────────────────────────── */
           <div className="pt-24 px-4 md:px-12 min-h-screen">
             <div className="flex items-center gap-3 mb-8">
@@ -589,6 +615,17 @@ const MediaApp = () => {
                         <Info className="w-5 h-5" /> More Info
                       </Button>
                     </div>
+                    {heroLinks && <StreamingLinks links={heroLinks} label="Also on" className="mt-5" />}
+                    {musicOnly && !user && (
+                      <p className="mt-5 text-sm text-white/80">
+                        All music here is free. You'll hear 30s previews until you{' '}
+                        <button type="button" className="font-bold text-white underline underline-offset-2"
+                          onClick={() => openSignupPrompt({ kind: 'music', title: 'Full songs, free', redirect: '/music' })}>
+                          make a free account
+                        </button>{' '}
+                        — then every song plays in full. No membership needed.
+                      </p>
+                    )}
                   </motion.div>
                 </div>
               </div>
@@ -596,7 +633,7 @@ const MediaApp = () => {
 
             {/* CONTENT ROWS */}
             <div className={cn("relative z-10 pb-36 space-y-8 px-4 md:pl-12", heroItem ? "-mt-24" : "pt-24")}>
-              {activeCategory === 'home' && (
+              {category === 'home' && (
                 <>
                   {/* ── WATCH: all video content grouped together ─────────── */}
                   {hasVideos && (
@@ -637,7 +674,7 @@ const MediaApp = () => {
                   )}
                 </>
               )}
-              {activeCategory === 'videos' && (
+              {category === 'videos' && (
                 <>
                   {categoryRows.map(cat => cat.items.length > 0 && (
                     <MediaRow key={cat.id} title={cat.isFeatured ? `★ ${cat.name}` : cat.name} items={cat.items} onPlay={playVideo} />
@@ -659,7 +696,7 @@ const MediaApp = () => {
                   )}
                 </>
               )}
-              {activeCategory === 'music' && (
+              {category === 'music' && (
                 <>
                   {/* ── Catalog controls: isolated search · genre filter · view ── */}
                   <div className="space-y-4 mb-6">
@@ -841,6 +878,7 @@ const MediaApp = () => {
                 </div>
               )}
               {infoItem.description && <p className="text-zinc-400 text-sm leading-relaxed mb-4">{infoItem.description}</p>}
+              {infoLinks && <StreamingLinks links={infoLinks} label="Also on" compact className="mb-4" />}
               {infoItem.director && <p className="text-zinc-500 text-xs mb-1">Director: <span className="text-zinc-300">{infoItem.director}</span></p>}
               {infoItem.cast?.length > 0 && <p className="text-zinc-500 text-xs mb-4">Cast: <span className="text-zinc-300">{infoItem.cast.slice(0, 5).join(', ')}</span></p>}
               <Button onClick={() => { infoItem.mediaKind === 'video' ? playVideo(infoItem) : playMedia(infoItem); setInfoItem(null); }}
