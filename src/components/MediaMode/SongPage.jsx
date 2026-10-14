@@ -196,7 +196,7 @@ const SongPage = () => {
             <img src={track.cover} alt={track.title}
               className="w-52 h-52 sm:w-60 sm:h-60 rounded-2xl object-cover shadow-2xl flex-shrink-0"
               onError={e => { e.target.src = `https://picsum.photos/seed/${track.id}/400/400`; }} />
-            <div className="flex-1 min-w-0 text-center sm:text-left">
+            <div className="flex-1 min-w-0 w-full text-center sm:text-left">
               <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">Song</p>
               <h1 className="text-3xl sm:text-5xl font-black leading-tight break-words">{track.title}</h1>
               <p className="text-lg text-gray-300 mt-2">{track.artist}</p>
