@@ -275,7 +275,14 @@ export const MediaProvider = ({ children }) => {
         const at = cur.previewSeconds || 30;
         const full = userRef.current && tracksRef.current.find((t) => t.id === cur.id && t.access !== 'preview');
         if (full) _loadTrack(full, true, at);
-        else if (userRef.current) musicApi.getTrack(cur.id).then((t) => { if (t?.audioUrl && t.access !== 'preview') _loadTrack(t, true, at); }).catch(() => {});
+        // Still a preview while signed in = email not verified yet (full songs
+        // need a verified account): say so and move on instead of stopping.
+        else if (userRef.current) musicApi.getTrack(cur.id).then((t) => {
+          if (t?.audioUrl && t.access !== 'preview') { _loadTrack(t, true, at); return; }
+          window.dispatchEvent(new CustomEvent('hh:verify-email-for-music'));
+          const next = _pickNextPopular();
+          if (next) _loadTrack(next, true);
+        }).catch(() => {});
         else window.dispatchEvent(new CustomEvent('hh:signup-prompt', { detail: { kind: 'music', title: cur.title, cover: cur.cover, redirect: `/song/${cur.id}` } }));
         return;
       }

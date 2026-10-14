@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/api/homieshub';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,14 @@ export default function EmailVerifyGate() {
   const { toast } = useToast();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // A song preview ended while signed in (full songs need a verified email):
+  // re-read the account so this screen shows if it's still unverified.
+  useEffect(() => {
+    const onNeed = () => { Promise.resolve(refreshMe?.()).catch(() => {}); };
+    window.addEventListener('hh:verify-email-for-music', onNeed);
+    return () => window.removeEventListener('hh:verify-email-for-music', onNeed);
+  }, [refreshMe]);
 
   if (!user || user.emailVerified || user.createdVia !== 'local' || user.reverifyPending) return null;
 
