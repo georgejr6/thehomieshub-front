@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
-import { Play, Pause, Heart, Share2, Repeat, ArrowLeft, Music, Loader2, Gift } from 'lucide-react';
+import { Play, Pause, Heart, Share2, Repeat, ArrowLeft, Music, Loader2, Gift, Download, X, Clapperboard } from 'lucide-react';
 import { useMedia } from '@/contexts/MediaContext';
 import { musicApi } from '@/lib/digitvlApi';
 import TipModal from '@/components/TipModal';
 import StreamingLinks from '@/components/music/StreamingLinks';
+import DownloadModal from '@/components/music/DownloadModal';
+import LicenseModal from '@/components/MediaMode/LicenseModal';
+import api from '@/api/homieshub';
 import { useTrackStreamingLinks } from '@/lib/streamingLinks';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -33,6 +36,20 @@ const SongPage = () => {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [tipModalOpen, setTipModalOpen] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  // Licensing for creators' own videos (sync tiers only; the MP3 is sold via
+  // the pay-what-you-want Download button). ?license=1 opens it (email links).
+  const [licenseTiers, setLicenseTiers] = useState(null);
+  const [licenseOpen, setLicenseOpen] = useState(false);
+  const wantLicense = useRef(new URLSearchParams(location.search).get('license') === '1');
+  // ?buy=1 (email "Download" links) opens the pay-what-you-want sheet once.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('buy') !== '1' || !track?.id) return;
+    setDownloadOpen(true);
+    navigate(location.pathname, { replace: true });
+  }, [track?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Back from a paid download: { status: 'waiting' | 'ready' | 'email', url }
+  const [bought, setBought] = useState(null);
   const autoPlayedFor = useRef(null); // song id we've already auto-started
   const trackRef = useRef(null);
   trackRef.current = track;
@@ -45,6 +62,40 @@ const SongPage = () => {
     if (new URLSearchParams(location.search).get('tip') !== 'thanks') return;
     toast({ title: 'Thank you for the tip! 🙏', description: 'It goes straight to the artist.' });
     navigate(location.pathname, { replace: true });
+  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!track?.id) return undefined;
+    let alive = true;
+    setLicenseTiers(null);
+    musicApi.getListing(track.id).then((l) => {
+      if (!alive) return;
+      const tiers = (l?.tiers || []).filter((t) => t.kind === 'license');
+      setLicenseTiers(tiers.length ? { ...l, tiers } : null);
+      if (tiers.length && wantLicense.current) { wantLicense.current = false; setLicenseOpen(true); }
+    });
+    return () => { alive = false; };
+  }, [track?.id]);
+
+  // Back from a pay-what-you-want download (routes/tips.js): show the download
+  // button as soon as the webhook has recorded it; the link is emailed too.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    if (q.get('download') !== 'thanks') return undefined;
+    const session = q.get('session') || '';
+    navigate(location.pathname, { replace: true });
+    if (!/^cs_(live|test)_[A-Za-z0-9]+$/.test(session)) { setBought({ status: 'email' }); return undefined; }
+    setBought({ status: 'waiting' });
+    let tries = 0;
+    let timer;
+    const poll = () => {
+      api.get(`/tips/download/${session}`).then(({ data }) => {
+        if (data?.ready) { setBought(data.downloadUrl ? { status: 'ready', url: data.downloadUrl } : { status: 'email' }); return; }
+        if (++tries < 15) timer = setTimeout(poll, 2000); else setBought({ status: 'email' });
+      }).catch(() => { if (++tries < 15) timer = setTimeout(poll, 2000); else setBought({ status: 'email' }); });
+    };
+    poll();
+    return () => clearTimeout(timer);
   }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Anyone can tip (card or crypto), signed in or not.
@@ -232,12 +283,44 @@ const SongPage = () => {
                   title={`Tip ${track.artist || 'the artist'}`}>
                   <Gift className="w-4 h-4" /> Tip
                 </button>
+                <button onClick={() => setDownloadOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white text-sm font-medium"
+                  title="Buy the MP3 — pay what you want">
+                  <Download className="w-4 h-4" /> Download
+                </button>
+                {licenseTiers && (
+                  <button onClick={() => setLicenseOpen(true)}
+                    className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white text-sm font-medium"
+                    title="License this song for your own videos">
+                    <Clapperboard className="w-4 h-4" /> License
+                  </button>
+                )}
               </div>
               <StreamingLinks links={streamLinks} label="Also on" className="justify-center sm:justify-start mt-5" />
             </div>
           </div>
         </div>
       </div>
+
+      {bought && (
+        <div className="max-w-5xl mx-auto px-5 mt-8">
+          <div className="relative rounded-xl border border-primary/30 bg-primary/10 p-4 pr-10">
+            <button type="button" onClick={() => setBought(null)} className="absolute right-3 top-3 text-gray-400 hover:text-white" aria-label="Close">
+              <X className="w-4 h-4" />
+            </button>
+            <p className="font-semibold">Thank you for buying “{track.title}” 🙏</p>
+            {bought.status === 'waiting' && (
+              <p className="text-sm text-gray-300 mt-1 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Getting your download ready…</p>
+            )}
+            {bought.status === 'ready' && (
+              <a href={bought.url} className="mt-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-black font-bold text-sm">
+                <Download className="w-4 h-4" /> Download MP3
+              </a>
+            )}
+            <p className="text-xs text-gray-400 mt-2">We also emailed you the link and your receipt. The link works for 7 days.</p>
+          </div>
+        </div>
+      )}
 
       {/* Up next — most popular */}
       {upNext.length > 0 && (
@@ -261,6 +344,13 @@ const SongPage = () => {
         </div>
       )}
 
+      <LicenseModal track={track} listing={licenseTiers} isOpen={licenseOpen} onOpenChange={setLicenseOpen} />
+      <DownloadModal
+        open={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+        track={track}
+        returnPath={songPath || location.pathname}
+      />
       <TipModal
         open={tipModalOpen}
         onClose={() => setTipModalOpen(false)}
