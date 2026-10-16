@@ -162,6 +162,8 @@ export function useMerchCart() {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 export const fetchShop = () => api.get('/merch/products').then((r) => r.data || { enabled: false, products: [] });
+// Fourthwall-only pieces (guides, courses): listed here, bought on Fourthwall.
+export const fetchFourthwall = () => api.get('/merch/fourthwall').then((r) => (Array.isArray(r.data?.products) ? r.data.products.filter((p) => /^https:\/\//.test(p?.url || '')) : []));
 export const fetchProduct = (slug) => api.get(`/merch/products/${encodeURIComponent(slug)}`).then((r) => r.data?.product);
 export const fetchOrderBySession = (id) => api.get(`/merch/orders/by-session/${encodeURIComponent(id)}`).then((r) => r.data?.order);
 export const fetchMyOrders = () => api.get('/merch/orders/mine').then((r) => r.data?.orders || []);

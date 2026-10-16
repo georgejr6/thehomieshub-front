@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, ChevronLeft, ChevronRight, Wand2, X, Truck, PenLine } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Wand2, X, Truck, PenLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useShop } from '@/shop/ShopContext';
-import { ShopButton, Eyebrow } from '@/shop/components/ui';
+import { ShopButton, Eyebrow, ShopImage } from '@/shop/components/ui';
+import { usd } from '@/shop/lib/pricing';
+import { fetchFourthwall } from '@/lib/merch';
 import { FamilyCard, ProductCard, CardSkeleton } from '@/shop/components/ProductCard';
 import GarmentSilhouette from '@/shop/components/GarmentSilhouette';
 import { COLLECTIONS, CUSTOM_FILTERS, families, hashOf, filterProducts, productImage, kindOf, KINDS, displayColor } from '@/shop/lib/catalog';
@@ -59,6 +61,7 @@ export default function ShopHome() {
         </div>
       )}
       {!query && COLLECTIONS.filter((c) => RAILS.includes(c.key)).map((c) => <Rail key={c.key} collection={c} fams={fams} loading={loading} />)}
+      {!query && <GuidesRail />}
 
       <section ref={allRef} id="all" className="mx-auto mt-24 max-w-[1320px] scroll-mt-20 px-4 sm:px-6 lg:px-10" aria-labelledby="all-heading">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -280,6 +283,43 @@ function Rail({ collection, fams, loading }) {
         {loading
           ? Array.from({ length: 5 }, (_, n) => <div key={n} className="w-[62vw] shrink-0 snap-start sm:w-[280px]"><CardSkeleton /></div>)
           : items.slice(0, 12).map((f) => <FamilyCard key={f.key} family={f} className="w-[62vw] shrink-0 snap-start sm:w-[280px]" />)}
+      </div>
+    </section>
+  );
+}
+
+// Guides & courses sold on The Homies' Fourthwall shop: cards link out, checkout happens there.
+function GuidesRail() {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    let live = true;
+    fetchFourthwall().then((list) => { if (live) setItems(list); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  if (!items.length) return null;
+  return (
+    <section className="mx-auto mt-20 max-w-[1320px] px-4 sm:px-6 lg:px-10" aria-labelledby="rail-guides">
+      <div className="mb-6">
+        <h2 id="rail-guides" className="font-display text-3xl leading-none sm:text-4xl">Guides &amp; Courses</h2>
+        <p className="mt-2 text-sm text-white/50">Digital, instant access. Checkout on our Fourthwall shop.</p>
+      </div>
+      <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:gap-6 sm:px-6 lg:-mx-10 lg:px-10">
+        {items.map((g) => (
+          <a key={g.id} href={g.url} target="_blank" rel="noopener noreferrer" aria-label={`${g.name}${g.priceCents != null ? `, ${usd(g.priceCents)}` : ''} (opens Fourthwall)`}
+            className="group block w-[62vw] shrink-0 snap-start sm:w-[280px]">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[22px] bg-[#f2f1ed]">
+              <ShopImage src={g.image} alt={g.name} fit="cover" className="absolute inset-0" imgClassName="transition-transform duration-700 ease-out group-hover:scale-[1.035]" />
+              <span className="absolute left-3 top-3 rounded-full bg-black px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f0b94d]">Digital</span>
+            </div>
+            <div className="mt-3 flex items-start justify-between gap-3 px-0.5">
+              <div className="min-w-0">
+                <p className="truncate text-[14px] font-semibold leading-snug">{g.name}</p>
+                <p className="mt-0.5 line-clamp-2 text-[12px] text-white/45">{g.blurb}</p>
+              </div>
+              <p className="inline-flex shrink-0 items-center gap-1 text-[14px] font-semibold">{g.priceCents != null ? usd(g.priceCents) : ''}<ArrowUpRight aria-hidden className="h-3.5 w-3.5 text-white/50" /></p>
+            </div>
+          </a>
+        ))}
       </div>
     </section>
   );
