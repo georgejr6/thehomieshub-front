@@ -94,6 +94,7 @@ const ShopHome = lazyWithReload(() => import('@/shop/pages/ShopHome'));
 const ShopCollection = lazyWithReload(() => import('@/shop/pages/ShopCollection'));
 const ShopProduct = lazyWithReload(() => import('@/shop/pages/ShopProduct'));
 const ShopCart = lazyWithReload(() => import('@/shop/pages/ShopCart'));
+const ShopMetaCheckout = lazyWithReload(() => import('@/shop/pages/ShopMetaCheckout'));
 const ShopThanks = lazyWithReload(() => import('@/shop/pages/ShopThanks'));
 const ShopOrders = lazyWithReload(() => import('@/shop/pages/ShopOrders'));
 const ShopLibrary = lazyWithReload(() => import('@/shop/pages/ShopLibrary'));
@@ -492,6 +493,7 @@ const AppContent = React.memo(() => {
                 <Route path="library" element={<ShopLibrary />} />
                 <Route path="designs" element={<Navigate to="/shop/library" replace />} />
                 <Route path="cart" element={<ShopCart />} />
+                <Route path="checkout" element={<ShopMetaCheckout />} />
                 <Route path="thanks" element={<ShopThanks />} />
                 <Route path="orders" element={<ShopOrders />} />
                 <Route path=":slug" element={<ShopProduct />} />

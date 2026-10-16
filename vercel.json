@@ -10,6 +10,7 @@
     { "source": "/shop/thanks", "destination": "/index.html" },
     { "source": "/shop/orders", "destination": "/index.html" },
     { "source": "/shop/cart", "destination": "/index.html" },
+    { "source": "/shop/checkout", "destination": "/index.html" },
     { "source": "/shop/design", "destination": "/index.html" },
     { "source": "/shop/designs", "destination": "/index.html" },
     { "source": "/shop/library", "destination": "/index.html" },
