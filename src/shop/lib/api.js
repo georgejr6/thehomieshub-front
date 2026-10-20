@@ -286,14 +286,21 @@ export async function fetchOffers() {
   return data;
 }
 
+/** The live-only free-shipping code: { active, code?, endsGraceAt? } (code only while it works). */
+export async function fetchLiveOffer() {
+  const { data } = await api.get('/merch/live-offer');
+  return data;
+}
+
 /** points: how many Homies Points to spend (the server clamps it to 20% of the items and the balance). */
 /** fromCart: true = started from the bag (the server takes the bought lines out of the saved bag), false = Buy now. */
-export async function startCheckout(items, { points = 0, fromCart } = {}) {
+export async function startCheckout(items, { points = 0, fromCart, liveCode = '' } = {}) {
   await claimed();
   const { data } = await api.post('/merch/checkout', {
     items,
     ...(points > 0 ? { usePoints: true, points: Math.floor(points) } : {}),
     ...(typeof fromCart === 'boolean' ? { fromCart } : {}),
+    ...(liveCode ? { liveCode } : {}),
   }, dev());
   if (!isStripeCheckoutUrl(data?.url)) throw new Error('no checkout url');
   window.location.href = data.url;

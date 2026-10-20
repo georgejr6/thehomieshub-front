@@ -13,7 +13,7 @@ import { ShopButton, Tip, ShopImage, useFocusTrap } from '@/shop/components/ui';
 import CartLine from '@/shop/components/CartLine';
 import { subtotalCents, lineTotalCents, usd } from '@/shop/lib/pricing';
 import { needsApproval, checkoutItems, pruneUnavailable, cartCount, MAX_ORDER_ITEMS } from '@/shop/lib/cart';
-import { startCheckout, apiError, fetchOffers } from '@/shop/lib/api';
+import { startCheckout, apiError, fetchOffers, fetchLiveOffer } from '@/shop/lib/api';
 import DesignPreviewDialog from '@/shop/components/DesignPreviewDialog';
 import CompleteTheLook from '@/shop/components/CompleteTheLook';
 
@@ -32,6 +32,27 @@ export default function ShopCart() {
   const [usePoints, setUsePoints] = useState(false);
   const [pointsWanted, setPointsWanted] = useState(null); // null = as many as allowed
   useEffect(() => { fetchOffers().then(setOffer).catch(() => setOffer(null)); }, [signedIn]);
+  // "LIVE" code: free shipping while Mwosa is live. The server has the final say at checkout.
+  const [liveOffer, setLiveOffer] = useState(null); // { active, code? }
+  const [liveInput, setLiveInput] = useState('');
+  const [liveCode, setLiveCode] = useState(''); // the applied code ('' = none)
+  const [liveError, setLiveError] = useState('');
+  useEffect(() => {
+    let off = false;
+    const load = () => fetchLiveOffer().then((o) => { if (!off) setLiveOffer(o); }).catch(() => {});
+    load();
+    const t = setInterval(load, 60000);
+    return () => { off = true; clearInterval(t); };
+  }, []);
+  // went off air while a code was applied: drop it (the server would refuse it past the grace window)
+  useEffect(() => { if (liveCode && liveOffer && !liveOffer.active) setLiveCode(''); }, [liveOffer, liveCode]);
+  const applyLive = (raw) => {
+    const given = String(raw || '').trim();
+    if (!given) return;
+    if (!liveOffer?.active) { setLiveError('That code only works while Mwosa is live.'); return; }
+    if (given.toLowerCase() !== String(liveOffer.code || '').toLowerCase()) { setLiveError("That code isn't valid."); return; }
+    setLiveError(''); setLiveCode(liveOffer.code); setLiveInput('');
+  };
   // A marker left by an earlier, abandoned checkout must not empty the bag later.
   useEffect(() => { clearCartCheckoutMarker(); }, []);
   // The final-sale confirmation is for exactly this bag: any change resets it.
@@ -74,11 +95,12 @@ export default function ShopCart() {
     try {
       // points: the server picks points vs the bundle for what's actually being paid for and
       // re-caps them to 20% of it (so a teddy-only checkout still gets the points the buyer chose)
-      await startCheckout(checkoutItems(lines), { points: pointsWin || (only && usePoints && canUsePoints) ? pointsUsed : 0, fromCart: true });
+      await startCheckout(checkoutItems(lines), { points: pointsWin || (only && usePoints && canUsePoints) ? pointsUsed : 0, fromCart: true, liveCode });
     } catch (e) {
       clearCartCheckoutMarker();
       setPaying(false);
       const code = e?.response?.data?.code;
+      if (code === 'live_code_invalid' || code === 'live_code_offair') { setLiveCode(''); setLiveError(apiError(e, "That code isn't valid.")); return; }
       if (code === 'printfiles_missing' || code === 'design_not_ready') { notify('One of your designs needs a refresh. Open it from Your library and add it to your bag again.', 'error'); return; }
       if (code === 'separate_order') {
         const ids = e?.response?.data?.separateVariantIds;
@@ -177,7 +199,7 @@ export default function ShopCart() {
               <p className="font-display text-3xl">Summary</p>
               <dl className="mt-5 space-y-2.5 text-sm">
                 <div className="flex justify-between"><dt className="text-white/60">Items ({cart.count})</dt><dd>{usd(subtotal)}</dd></div>
-                <div className="flex justify-between"><dt className="text-white/60">Shipping</dt><dd className="text-white/60">At checkout</dd></div>
+                <div className="flex justify-between"><dt className="text-white/60">Shipping</dt>{liveCode ? <dd className="font-semibold text-[#7be0a5]">Free (live)</dd> : <dd className="text-white/60">At checkout</dd>}</div>
                 {discount > 0 && (
                   <div className="flex justify-between text-[#7be0a5]"><dt>{bundle ? `Bundle discount (${offer.bundleMinItems}+ items)` : `Homies Points (${pointsUsed.toLocaleString('en-US')} pts)`}</dt><dd>−{usd(discount)}</dd></div>
                 )}
@@ -186,6 +208,8 @@ export default function ShopCart() {
                 )}
                 <div className="flex justify-between border-t border-white/10 pt-3 text-base font-semibold"><dt>Subtotal</dt><dd>{usd(subtotal - discount)}</dd></div>
               </dl>
+              <LiveCodeCard offer={liveOffer} applied={liveCode} input={liveInput} setInput={(v) => { setLiveInput(v); setLiveError(''); }}
+                error={liveError} onApply={applyLive} onRemove={() => setLiveCode('')} />
               <PointsCard offer={offer} signedIn={signedIn} canUse={canUsePoints} on={usePoints} setOn={setUsePoints}
                 used={pointsUsed} min={pointsMin} max={pointsMax} cpp={cpp} onChange={setPointsWanted}
                 bundleCents={bundleCents} pointsWin={pointsWin} subtotal={subtotal} />
@@ -209,6 +233,34 @@ export default function ShopCart() {
         onContinue={() => { setSplit(false); pay({ only: separateLines }); }} />
       <AddonEditDialog line={editing} onClose={() => setEditing(null)} />
       <DesignPreviewDialog line={previewing} onClose={() => setPreviewing(null)} />
+    </div>
+  );
+}
+
+/** "LIVE" code: free shipping while Mwosa is live. Banner when live, plus a small code box that only accepts that code. */
+function LiveCodeCard({ offer, applied, input, setInput, error, onApply, onRemove }) {
+  if (applied) {
+    return (
+      <p className="mt-4 flex items-center justify-between gap-2 rounded-2xl border border-[#7be0a5]/30 bg-[#7be0a5]/[0.07] p-3 text-xs text-[#7be0a5]">
+        <span className="font-semibold">Code {applied}: free shipping on this order.</span>
+        <button type="button" onClick={onRemove} className="shrink-0 text-white/55 underline-offset-4 hover:text-white hover:underline">Remove</button>
+      </p>
+    );
+  }
+  return (
+    <div className="mt-4">
+      {offer?.active && (
+        <div className="mb-2 rounded-2xl border border-[#f0b94d]/40 bg-[#f0b94d]/[0.07] p-3 text-xs">
+          <p className="font-semibold text-[#f6d48f]">You're watching live. Use code {offer.code} for free shipping.</p>
+          <button type="button" onClick={() => onApply(offer.code)} className="mt-1 font-semibold text-[#f0b94d] underline-offset-4 hover:underline">Apply {offer.code}</button>
+        </div>
+      )}
+      <form onSubmit={(e) => { e.preventDefault(); onApply(input); }} className="flex gap-2">
+        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Code" aria-label="Live code" maxLength={30} autoComplete="off" autoCapitalize="characters"
+          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm uppercase placeholder:normal-case placeholder:text-white/35 focus:border-[#f0b94d]/50 focus:outline-none" />
+        <button type="submit" disabled={!input.trim()} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold hover:border-[#f0b94d]/40 disabled:opacity-40">Apply</button>
+      </form>
+      {error && <p role="alert" className="mt-1.5 text-xs text-[#ff8a8a]">{error}</p>}
     </div>
   );
 }
