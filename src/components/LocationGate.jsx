@@ -26,7 +26,9 @@ const BlurredPlaceholder = () => (
 // Once satisfied, never asked again: anonymous verification persists in
 // this browser's localStorage; account verification persists on the user
 // document. initTracker() silently re-checks per session from then on.
-export default function LocationGate({ children }) {
+// `allowEmailVerified` (used on /chat, owner 2026-10-19): a verified email is
+// enough there; the backend chat gate applies the same rule.
+export default function LocationGate({ children, allowEmailVerified = false }) {
   const { user, refreshMe } = useAuth();
   const [verified, setVerified] = useState(() =>
     user ? !!user?.gate?.locationEnabledAt : isLocationVerified()
@@ -40,7 +42,7 @@ export default function LocationGate({ children }) {
 
   // Signed-out visitors only ever get previews now (2026-09-26), so they
   // browse without the location step; accounts still verify once.
-  if (verified || !user) return children;
+  if (verified || !user || (allowEmailVerified && user.emailVerified)) return children;
 
   const enableForAccount = async () => {
     // Always a fresh reading for the account's verification (it goes into the
