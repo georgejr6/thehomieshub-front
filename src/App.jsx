@@ -12,6 +12,7 @@ import GetAppBanner from '@/components/GetAppBanner';
 import GetAppSignedOutModal from '@/components/GetAppSignedOutModal';
 const HomePage = lazyWithReload(() => import('@/pages/HomePage'));
 const InvitePage = lazyWithReload(() => import('@/pages/InvitePage'));
+const EventInvitePage = lazyWithReload(() => import('@/pages/EventInvitePage'));
 const CommunitiesPage = lazyWithReload(() => import('@/pages/CommunitiesPage'));
 const ExplorePage = lazyWithReload(() => import('@/pages/ExplorePage'));
 const SubscriptionsPage = lazyWithReload(() => import('@/pages/SubscriptionsPage'));
@@ -350,7 +351,7 @@ const AppContent = React.memo(() => {
     if (user) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (cancelled || location.pathname === '/join' || location.pathname === '/live' || location.pathname === '/fight' || location.pathname === '/sponsor' || location.pathname === '/sponsor/guide' || location.pathname === '/donate' || location.pathname === '/payx' || location.pathname.startsWith('/bets')) return; // /live has its own sign-in prompts
+      if (cancelled || location.pathname === '/join' || location.pathname === '/my-dr-itinerary' || location.pathname === '/live' || location.pathname === '/fight' || location.pathname === '/sponsor' || location.pathname === '/sponsor/guide' || location.pathname === '/donate' || location.pathname === '/payx' || location.pathname.startsWith('/bets')) return; // these have their own join prompts
       if (!isLocationVerified()) return;
       try {
         const last = Number(localStorage.getItem(JOIN_INVITE_KEY) || 0);
@@ -566,6 +567,8 @@ const AppContent = React.memo(() => {
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
             <Route path="/join" element={<JoinGatePage />} />
+            {/* Location-gated event landing pages (own blur→verify→email→join flow) */}
+            <Route path="/my-dr-itinerary" element={<EventInvitePage slug="rumble-in-paradise" />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminRouteWrapper><AdminDashboard /></AdminRouteWrapper>} />
             <Route path="/admin/content" element={<AdminRouteWrapper><AdminContent /></AdminRouteWrapper>} />
