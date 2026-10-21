@@ -7,7 +7,7 @@ import { DESIGNS } from '@/shop/data/designs';
 export const MEDIA = 'https://homieshub-media.nyc3.cdn.digitaloceanspaces.com/merch/v1';
 
 export const COLLECTIONS = [
-  { key: 'corruption', label: 'Corruption On De Groundd', blurb: 'Embroidered dad hats, every colourway. Corruption on de groundd, mehnn.' },
+  { key: 'corruption', label: 'Corruption On De Groundd', blurb: 'Embroidered tees and dad hats, every colourway. Corruption on de groundd, mehnn.' },
   { key: 'lxvemore', label: 'LXVEMORE', blurb: 'In stock now. The teddy, printed and embroidered. Make any piece yours.' },
   { key: 'must', label: 'Must-Haves', blurb: 'The ones the chat keeps asking for.' },
   { key: 'travel', label: 'Travel', blurb: 'Passport stamped. Colombia, Brazil, repeat.' },
