@@ -9,12 +9,16 @@ import { captureGeo, getCachedGeo, flushNow } from '@/lib/tracker';
 
 // Event landing page. On open it fires the browser's native location prompt
 // once (same geo pipeline the rest of the site uses — the visit + coordinates
-// are recorded through /api/track). The visitor accepts or declines; either
-// way the page shows — it's an email-for-updates capture + a Join button.
-// No event details or sensitive info live here; add real details to the
-// EVENT config as the promoter confirms them.
+// are recorded through /api/track). The content stays blurred until location
+// is allowed; if the visitor denies (or the prompt can't run), they're sent
+// away to google.com. Once allowed it's an email-for-updates capture + a Join
+// button. No event details or sensitive info live here; add real details to
+// the EVENT config as the promoter confirms them.
 //
 // Reused by any event via the EVENTS map below; routed per-slug in App.jsx.
+
+// Where to send a visitor who won't share location.
+const BOUNCE_URL = 'https://www.google.com/';
 
 const EVENTS = {
   'rumble-in-paradise': {
@@ -29,18 +33,22 @@ export default function EventInvitePage({ slug }) {
   const navigate = useNavigate();
   const event = useMemo(() => EVENTS[slug] || EVENTS['rumble-in-paradise'], [slug]);
 
+  const [verified, setVerified] = useState(false);
   const [email, setEmail] = useState('');
   const [emailDone, setEmailDone] = useState(false);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState('');
 
-  // On open: fire the native location prompt once (non-blocking), then nudge
-  // the visit ping out. Accept or decline, the page just carries on.
+  // On open: ask for location. Allowed → unblur the card. Denied, or the
+  // prompt can't run → send the visitor away. The card is blurred until then.
   useEffect(() => {
     let alive = true;
     (async () => {
-      try { await captureGeo({ force: true }); } catch { /* declined / unsupported — fine */ }
-      if (alive) flushNow();
+      let ok = false;
+      try { ok = await captureGeo({ force: true }); } catch { ok = false; }
+      if (!alive) return;
+      if (ok) { setVerified(true); flushNow(); }
+      else { window.location.replace(BOUNCE_URL); }
     })();
     return () => { alive = false; };
   }, []);
@@ -101,6 +109,7 @@ export default function EventInvitePage({ slug }) {
 
         {/* card */}
         <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl overflow-hidden">
+          <div className={verified ? '' : 'blur-md select-none pointer-events-none'} aria-hidden={!verified}>
           <AnimatePresence mode="wait">
             {!emailDone ? (
               <motion.form
@@ -157,6 +166,15 @@ export default function EventInvitePage({ slug }) {
               </motion.div>
             )}
           </AnimatePresence>
+          </div>
+
+          {/* while location is being requested / before it's allowed */}
+          {!verified && (
+            <div className="absolute inset-0 z-20 bg-neutral-950/70 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+              <Loader2 className="h-6 w-6 text-primary animate-spin mb-3" />
+              <p className="text-white/70 text-sm max-w-xs">Checking your location…</p>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-[11px] text-white/30 mt-5">The Homies · Rumble In Paradise</p>
