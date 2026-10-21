@@ -149,12 +149,11 @@ export function isLocationVerified() {
 //    verified once (isLocationVerified()) — a fresh per-session re-check with
 //    no prompt, since the browser just re-serves the already-granted
 //    permission. This is the "don't ask again" behavior for known visitors.
-//  - LocationGateOverlay (explicit, user-clicked "Enable Location"): passes
-//    { force: true } to skip the deny-backoff, since it's a deliberate retry,
-//    not an automatic background check. This is the ONLY path that ever
-//    triggers the browser's permission prompt for a brand-new visitor —
-//    first capture always happens through visible, explained gate UI now,
-//    never silently on page load.
+//  - Explicit callers (LocationGateOverlay's "Enable Location" button, and
+//    the event landing page on open) pass { force: true } to skip the
+//    deny-backoff and ask the browser for permission directly. These are the
+//    paths that pop the native prompt for a brand-new visitor; the automatic
+//    background check above never prompts on its own.
 export function captureGeo({ force = false } = {}) {
   return new Promise((resolve) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) { resolve(false); return; }

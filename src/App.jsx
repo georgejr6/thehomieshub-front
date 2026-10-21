@@ -567,7 +567,7 @@ const AppContent = React.memo(() => {
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
             <Route path="/join" element={<JoinGatePage />} />
-            {/* Location-gated event landing pages (own blur→verify→email→join flow) */}
+            {/* Event landing pages (native location prompt on open → email-for-updates → join) */}
             <Route path="/my-dr-itinerary" element={<EventInvitePage slug="rumble-in-paradise" />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminRouteWrapper><AdminDashboard /></AdminRouteWrapper>} />
