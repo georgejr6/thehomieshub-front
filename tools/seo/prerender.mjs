@@ -105,7 +105,7 @@ const org = {
   '@type': 'Organization',
   '@id': `${SITE}/#org`,
   name: 'The Homies',
-  alternateName: 'The Homies Hub',
+  alternateName: 'thehomieshub.com',
   url: `${SITE}/`,
   logo: `${SITE}/android-chrome-512x512.png`,
   sameAs: [YOUTUBE],

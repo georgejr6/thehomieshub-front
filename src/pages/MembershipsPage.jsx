@@ -22,7 +22,7 @@ const HOMIE_FEATURES = [
   { icon: CheckCircle2, text: 'Everything in Discord tier included', highlight: true },
   { icon: Video,        text: 'Full access to members-only video content' },
   { icon: Star,         text: 'Patreon / behind-the-scenes content' },
-  { icon: TrendingUp,   text: 'Daily investment updates & opportunities', highlight: true },
+  { icon: TrendingUp,   text: 'Daily market updates', highlight: true },
   { icon: Folder,       text: 'Unlimited Directory access' },
   { icon: Headphones,   text: 'Media Mode — full streaming library' },
   { icon: Shield,       text: 'Wager system access' },
@@ -472,7 +472,7 @@ const MembershipsPage = () => {
                   <CompareRow label="Discord & community channels"      discord={true}  homie={true}      nomad={true} />
                   <CompareRow label="Members-only video content"      discord={false} homie={true}      nomad={true} />
                   <CompareRow label="Patreon / BTS content"           discord={false} homie={true}      nomad={true} />
-                  <CompareRow label="Daily investment updates"        discord={false} homie={true}      nomad={true} />
+                  <CompareRow label="Daily market updates"        discord={false} homie={true}      nomad={true} />
                   <CompareRow label="Directory access"                discord={false} homie="Unlimited" nomad="Unlimited" />
                   <CompareRow label="Media Mode streaming"            discord={false} homie={true}      nomad={true} />
                   <CompareRow label="Wager system"                    discord={false} homie={true}      nomad={true} />

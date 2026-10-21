@@ -125,7 +125,7 @@ export const LANDING = [
 <h3>Discord tier: $10 a month, or $96 a year</h3>
 <ul><li>Full Discord server access (this tier is Discord only)</li><li>All community channels and roles</li><li>Verified Homie role on Discord</li></ul>
 <h3>The Homie: $15 a month, or $100 a year</h3>
-<ul><li>Everything in the Discord tier</li><li>Full access to members-only video content</li><li>Patreon and behind-the-scenes content</li><li>Daily investment updates and opportunities</li><li>Unlimited Directory access</li><li>Media Mode, the full streaming library</li></ul>
+<ul><li>Everything in the Discord tier</li><li>Full access to members-only video content</li><li>Patreon and behind-the-scenes content</li><li>Daily market updates</li><li>Unlimited Directory access</li><li>Media Mode, the full streaming library</li></ul>
 <h3>Digital Nomad: $100 a month, or $840 a year</h3>
 <ul><li>Everything in The Homie tier</li><li>All exclusive Nomad channels and content</li><li>Remote jobs and freelance contract access</li><li>The full Digital Nomad course</li><li>Website or e-commerce setup after three months</li><li>One-on-one virtual mentorship sessions</li><li>Daily direct mentorship</li></ul>
 <p>Yearly billing works out cheaper than monthly on every tier. If you start on the $10 plan and want to move up to The Homie at $15, the plan is swapped on the same subscription so you are not charged twice. Check live pricing and sign up on the <a href="/memberships">memberships page</a>.</p>`,
@@ -162,7 +162,7 @@ export const LANDING = [
     sections: [
       {
         h2: 'What The Homies is',
-        html: `<p>The Homies (the app and site are also known as The Homies Hub) started as a place for a community that kept forming around live streams. Instead of sending people to five different platforms, everything sits in one app at <strong>thehomies.app</strong>. You watch, you talk, you buy merch, you listen to music, and you support the people making it, all without leaving.</p>
+        html: `<p>The Homies started as a place for a community that kept forming around live streams. Instead of sending people to five different platforms, everything sits in one app at <strong>thehomies.app</strong>. You watch, you talk, you buy merch, you listen to music, and you support the people making it, all without leaving. You may also see the older address thehomieshub.com, which redirects here.</p>
 <p>The audience is people who are working on themselves: getting fit, learning to box, building income, travelling and rethinking the nine-to-five. The tone is straight talk between friends rather than guru content, and the community is the part that makes it work.</p>`,
       },
       {
@@ -193,7 +193,7 @@ export const LANDING = [
     ],
     faq: [
       { q: 'What is The Homies?', a: 'A community app with live streams, short clips, music, a merch shop and a built-in chat, run by Mwosa.' },
-      { q: 'Is The Homies the same as The Homies Hub?', a: 'Yes. The Homies Hub is the app and site at thehomies.app; the older thehomieshub.com address redirects there.' },
+      { q: 'What is thehomieshub.com?', a: 'It is the older address for The Homies. If you land on thehomieshub.com, it redirects to thehomies.app.' },
       { q: 'Is it free?', a: 'Joining the chat and watching shorts and music is free. Paid memberships and merch are optional.' },
       { q: 'Where do I watch the streams?', a: 'On the YouTube channel and in the Live section of the app.' },
     ],
