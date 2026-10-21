@@ -47,7 +47,8 @@ export default function ShopHome() {
   return (
     <div>
       <Helmet>
-        <title>The Homies Shop | The Homies</title>
+        <title>The Homies Shop | Streetwear Tees, Hoodies, Hats</title>
+        <link rel="canonical" href="https://www.thehomies.app/shop" />
         <meta name="description" content="Official The Homies merch: phrases straight from the streams, printed to order. Tees, hoodies and embroidered dad hats — customize any piece or design your own." />
       </Helmet>
       <Hero fams={fams} loading={loading} />

@@ -111,8 +111,9 @@ const LandingPage = ({ onLoginRequest }) => {
   return (
     <>
       <Helmet>
-        <title>The Homies Hub — Home</title>
-        <meta name="description" content="The Homies Hub — a community for men to connect, share, and grow." />
+        <title>The Homies | Live Streams, Clips, Merch &amp; Community</title>
+        <meta name="description" content="The Homies is a community app for live boxing streams, short clips, music, streetwear merch and chat. Join free at thehomies.app." />
+        <link rel="canonical" href="https://www.thehomies.app/" />
       </Helmet>
 
       <div className="min-h-full bg-background">
@@ -288,6 +289,16 @@ const LandingPage = ({ onLoginRequest }) => {
                       <DollarSign className="h-3 w-3" /> Donate
                     </a>
                   </li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <h5 className="text-sm font-semibold">Learn more</h5>
+                {/* Plain anchors on purpose: these are static pages, not SPA routes. */}
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  <li><a href="/about" className="hover:text-primary">About The Homies</a></li>
+                  <li><a href="/live-boxing-stream-community" className="hover:text-primary">Live boxing streams</a></li>
+                  <li><a href="/streetwear-merch" className="hover:text-primary">Streetwear merch guide</a></li>
+                  <li><a href="/community-chat-and-membership" className="hover:text-primary">Chat and membership</a></li>
                 </ul>
               </div>
               <div className="space-y-2">

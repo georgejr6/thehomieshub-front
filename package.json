@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "vite --host :: --port 3000",
-    "build": "vite build",
+    "build": "vite build && node tools/seo/prerender.mjs",
     "preview": "vite preview --host :: --port 3000",
     "eslint": "eslint src --ext .js,.jsx",
     "lint": "eslint src --ext .js,.jsx",
