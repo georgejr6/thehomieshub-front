@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Ruler } from 'lucide-react';
 import { useFocusTrap, Pill } from '@/shop/components/ui';
-import { tabsOf, tableOf, TAB_LABEL } from '@/shop/lib/sizeChart';
+import { tabsOf, tableOf, unitsOf, TAB_LABEL } from '@/shop/lib/sizeChart';
 
 // The chart comes from the product payload (`product.sizeChart`): Printful's real
 // size tables, inches + cm, garment + body, with its measuring diagram. Until
@@ -19,11 +19,13 @@ const ONE_SIZE_NOTE = {
 
 function ChartView({ chart, kind }) {
   const tabs = tabsOf(chart);
-  const [unit, setUnit] = useState('in');
+  const [wantUnit, setUnit] = useState('in');
   const [tab, setTab] = useState(tabs[0]);
   const active = tabs.includes(tab) ? tab : tabs[0];
-  const table = tableOf(chart, active, unit);
+  const table = tableOf(chart, active, wantUnit);
   if (!table) return null;
+  const unit = table.unit; // the unit actually shown
+  const units = unitsOf(chart, active);
   const oneSize = !!chart.oneSize;
   return (
     <>
@@ -33,13 +35,12 @@ function ChartView({ chart, kind }) {
           ? <div className="flex gap-2" role="group" aria-label="Measurement type">{tabs.map((t) => <Pill key={t} selected={t === active} onClick={() => setTab(t)} className="h-8 min-w-0 px-3 text-xs">{TAB_LABEL[t]}</Pill>)}</div>
           : <span className="text-xs font-semibold uppercase tracking-wider text-white/45">{TAB_LABEL[active]} measurements</span>}
         <div className="flex gap-2" role="group" aria-label="Units">
-          <Pill selected={unit === 'in'} onClick={() => setUnit('in')} className="h-8 min-w-0 px-3 text-xs">in</Pill>
-          <Pill selected={unit === 'cm'} onClick={() => setUnit('cm')} className="h-8 min-w-0 px-3 text-xs">cm</Pill>
+          {['in', 'cm'].map((u) => <Pill key={u} selected={unit === u} disabled={!units.includes(u)} onClick={() => setUnit(u)} className="h-8 min-w-0 px-3 text-xs">{u}</Pill>)}
         </div>
       </div>
       {table.image && (
         <div className="mt-4 flex justify-center rounded-2xl bg-white p-2">
-          <img src={table.image} alt={`${TAB_LABEL[active]} measuring diagram`} loading="lazy" className="max-h-52 w-auto object-contain" />
+          <img src={table.image} alt={`${TAB_LABEL[active]} measuring diagram`} loading="lazy" className="max-h-52 w-auto min-w-0 max-w-full object-contain" />
         </div>
       )}
       <div className="mt-4 overflow-x-auto">

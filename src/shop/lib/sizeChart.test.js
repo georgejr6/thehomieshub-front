@@ -23,4 +23,12 @@ describe('sizeChart', () => {
     expect(tableOf(chart, 'body', 'in').image).toBe('https://x/in.png');
     expect(tableOf(chart, 'nope', 'in')).toBeNull();
   });
+  it('treats an empty-rows unit as missing and blank cells as dashes', () => {
+    const c = { sizes: ['S', 'M'], body: { in: { rows: [], image: null }, cm: { rows: [{ label: 'L', values: { S: '70', M: '' } }], image: null } } };
+    expect(tabsOf(c)).toEqual(['body']);
+    const tb = tableOf(c, 'body', 'in');
+    expect(tb.unit).toBe('cm');
+    expect(tb.rows.map((r) => r.size)).toEqual(['S']);
+    expect(tabsOf({ body: { in: { rows: [] }, cm: null } })).toEqual([]);
+  });
 });
