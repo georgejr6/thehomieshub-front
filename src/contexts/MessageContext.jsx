@@ -59,6 +59,9 @@ export const MessageProvider = ({ children }) => {
   const { user } = useAuth();
   const [threads, setThreads] = useState([]);
   const [requests, setRequests] = useState([]);
+  // Automated DMs you sent (promos, shop notices, broadcasts) — kept out of
+  // the inbox until the other person replies.
+  const [promos, setPromos] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   // True once the first /messages fetch finished — lets a /messages/<id> deep
   // link tell "not loaded yet" apart from "no such thread".
@@ -73,6 +76,7 @@ export const MessageProvider = ({ children }) => {
       if (data.status) {
         setThreads((data.result.threads || []).map((t) => normalizeThread(t, user.username)));
         setRequests((data.result.requests || []).map((t) => normalizeThread(t, user.username)));
+        setPromos((data.result.promos || []).map((t) => normalizeThread(t, user.username)));
         setHasLoaded(true);
       }
     } catch (err) {
@@ -86,6 +90,7 @@ export const MessageProvider = ({ children }) => {
   useEffect(() => {
     setThreads([]);
     setRequests([]);
+    setPromos([]);
     setMessagesByThread({});
     setHasLoaded(false);
   }, [user?._id, user?.username]);
@@ -169,19 +174,17 @@ export const MessageProvider = ({ children }) => {
   // Message requests (from people you don't follow) are real threads too —
   // a link to one must open it, not a blank new chat.
   const getThread = (username, threadId) => {
-    const byId = threadId
-      ? threads.find((t) => String(t.id) === String(threadId)) || requests.find((t) => String(t.id) === String(threadId))
-      : null;
-    const thread = byId
-      || threads.find((t) => t.participants?.includes(username))
-      || requests.find((t) => t.participants?.includes(username));
+    const lists = [threads, requests, promos];
+    const thread = (threadId ? getThreadById(threadId) : null)
+      || lists.reduce((found, list) => found || list.find((t) => t.participants?.includes(username)), null);
     if (!thread) return null;
-    return { ...thread, isRequest: !threads.includes(thread), messages: messagesByThread[thread.id] || [] };
+    return { ...thread, isRequest: requests.includes(thread), messages: messagesByThread[thread.id] || [] };
   };
 
   const getThreadById = (threadId) =>
     threads.find((t) => String(t.id) === String(threadId))
     || requests.find((t) => String(t.id) === String(threadId))
+    || promos.find((t) => String(t.id) === String(threadId))
     || null;
 
   const createThread = (username) => {
@@ -233,6 +236,7 @@ export const MessageProvider = ({ children }) => {
         );
       setThreads(markOne);
       setRequests(markOne);
+      setPromos(markOne);
     } catch (err) {
       console.error('Failed to mark as read', err);
     }
@@ -242,7 +246,9 @@ export const MessageProvider = ({ children }) => {
     if (!threadId || threadId === 'temp') return;
     try {
       await api.post(`/messages/${threadId}/mute`, { muted });
-      setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, muted } : t)));
+      const set = (prev) => prev.map((t) => (t.id === threadId ? { ...t, muted } : t));
+      setThreads(set);
+      setPromos(set);
     } catch (err) {
       console.error('Failed to mute thread', err);
     }
@@ -252,7 +258,9 @@ export const MessageProvider = ({ children }) => {
     if (!threadId || threadId === 'temp') return;
     try {
       await api.post(`/messages/${threadId}/archive`, { archived: true });
-      setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, archived: true } : t)));
+      const set = (prev) => prev.map((t) => (t.id === threadId ? { ...t, archived: true } : t));
+      setThreads(set);
+      setPromos(set);
     } catch (err) {
       console.error('Failed to archive thread', err);
     }
@@ -263,6 +271,7 @@ export const MessageProvider = ({ children }) => {
     try {
       await api.delete(`/messages/${threadId}`);
       setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      setPromos((prev) => prev.filter((t) => t.id !== threadId));
     } catch (err) {
       console.error('Failed to delete thread', err);
     }
@@ -288,6 +297,7 @@ export const MessageProvider = ({ children }) => {
   const value = {
     threads,
     requests,
+    promos,
     isLoading,
     hasLoaded,
     getThreadById,

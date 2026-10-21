@@ -36,6 +36,74 @@ const GIFTS = [
   { emoji: '🎉', label: 'Party',   coins: 5 },
 ];
 
+// ── Links ─────────────────────────────────────────────────────────────────────
+// Same idea as the backend's LINK_RE (homieshub-backend utils/linkPreview.js):
+// full URLs, www. hosts and bare domains (subdomains too) on common TLDs.
+// A match right after "@" is an email address, not a link.
+const LINK_RE = /(https?:\/\/[^\s<>]+)|(\bwww\.[^\s<>]+)|(\b(?:[a-z0-9][a-z0-9-]*\.)+(?:com|net|org|io|gg|co|app|me|tv|gov|edu|biz|info|xyz|link|live|store|shop|online|site|club|stream|fans|cash|page|bio|to|ly|sh|fm|gl)\b(?:\/[^\s<>]*)?)/gi;
+const TRAILING_PUNCT = /[.,!?;:)\]}'"]+$/;
+
+const toHref = (raw) => (/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+
+// Splits text into plain strings and { link } parts; trailing punctuation stays text.
+function splitLinks(text) {
+  const parts = [];
+  let last = 0;
+  for (const m of String(text || '').matchAll(LINK_RE)) {
+    const link = m[0].replace(TRAILING_PUNCT, '');
+    if (!link || (m.index > 0 && text[m.index - 1] === '@')) continue;
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    parts.push({ link });
+    last = m.index + link.length;
+  }
+  if (last < String(text || '').length) parts.push(text.slice(last));
+  return parts;
+}
+
+const firstLink = (text) => splitLinks(text).find((p) => typeof p === 'object')?.link || null;
+
+const LinkifiedText = ({ text }) => (
+  <span className="whitespace-pre-wrap break-words">
+    {splitLinks(text).map((p, i) => (typeof p === 'string' ? p : (
+      <a key={i} href={toHref(p.link)} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2 break-all hover:opacity-80">
+        {p.link}
+      </a>
+    )))}
+  </span>
+);
+
+// Open Graph card from GET /messages/link-preview (SSRF-guarded server-side).
+// Cached per URL so the 5 s message poll doesn't refetch it; a failed
+// request isn't cached, so a blip doesn't hide the preview for good.
+const previewCache = new Map();
+const LinkPreviewCard = ({ url }) => {
+  const href = toHref(url);
+  const [preview, setPreview] = useState(previewCache.get(href));
+  useEffect(() => {
+    if (previewCache.has(href)) { setPreview(previewCache.get(href)); return undefined; }
+    let cancelled = false;
+    api.get('/messages/link-preview', { params: { url: href } })
+      .then(({ data }) => {
+        const p = data?.result?.preview || null;
+        previewCache.set(href, p);
+        if (!cancelled) setPreview(p);
+      })
+      .catch(() => { if (!cancelled) setPreview(null); });
+    return () => { cancelled = true; };
+  }, [href]);
+  if (!preview) return null;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer nofollow" className="mt-1 block w-64 max-w-full overflow-hidden rounded-xl border border-border bg-background text-foreground hover:bg-muted/60">
+      {preview.image && <img src={preview.image} alt="" referrerPolicy="no-referrer" className="h-32 w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+      <div className="p-2">
+        <p className="text-sm font-semibold line-clamp-2">{preview.title}</p>
+        {preview.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{preview.description}</p>}
+        <p className="text-[11px] text-muted-foreground mt-1 truncate">{preview.siteName || href}</p>
+      </div>
+    </a>
+  );
+};
+
 // ── Message bubble renderer ───────────────────────────────────────────────────
 const MessageBubble = ({ msg, isMe }) => {
   const base = cn(
@@ -84,7 +152,8 @@ const MessageBubble = ({ msg, isMe }) => {
       {msg.type === 'video' && msg.mediaUrl && (
         <video src={msg.mediaUrl} controls className="rounded-xl max-w-full h-auto mb-1 max-h-[300px]" />
       )}
-      {msg.content}
+      <LinkifiedText text={msg.content} />
+      {firstLink(msg.content) && <LinkPreviewCard url={firstLink(msg.content)} />}
     </div>
   );
 };
@@ -176,7 +245,7 @@ const InboxPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { threads, requests, hasLoaded, getThreadById, messagesByThread, sendMessage, getThread, createThread, acceptRequest, archiveRequest, searchUsers, markAsRead, muteThread, archiveThread, deleteThread, loadMessages, pollMessages } = useMessages();
+  const { threads, requests, promos, hasLoaded, getThreadById, messagesByThread, sendMessage, getThread, createThread, acceptRequest, archiveRequest, searchUsers, markAsRead, muteThread, archiveThread, deleteThread, loadMessages, pollMessages } = useMessages();
   const { threadId: threadIdParam } = useParams();
 
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -211,8 +280,9 @@ const InboxPage = () => {
     }
     const other = t.participants.find((p) => p !== user.username);
     if (requests.some((r) => r.id === t.id)) setActiveTab('requests');
+    else if (promos.some((r) => r.id === t.id)) setActiveTab('promo');
     navigate(other ? `/inbox?user=${encodeURIComponent(other)}&thread=${encodeURIComponent(t.id)}` : '/inbox', { replace: true });
-  }, [threadIdParam, hasLoaded, threads, requests]);
+  }, [threadIdParam, hasLoaded, threads, requests, promos]);
 
   useEffect(() => {
     if (activeUserParam) {
@@ -226,7 +296,7 @@ const InboxPage = () => {
     } else {
       setActiveThread(null);
     }
-  }, [activeUserParam, activeThreadParam, threads, requests]);
+  }, [activeUserParam, activeThreadParam, threads, requests, promos]);
 
   // Live DM into the open conversation: show it now, not on the next 5s poll.
   useEffect(() => {
@@ -403,7 +473,7 @@ const InboxPage = () => {
     };
   };
 
-  const filteredThreads = threads.filter(t => {
+  const filteredThreads = (activeTab === 'promo' ? promos : threads).filter(t => {
     if (t.archived) return false;
     const other = t.participants.find(p => p !== user.username) || '';
     return other.toLowerCase().includes(searchQuery.toLowerCase());
@@ -558,16 +628,17 @@ const InboxPage = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="px-2 mt-2">
             <Tabs defaultValue="primary" value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="w-full grid grid-cols-2">
+              <TabsList className={cn('w-full grid', promos.length > 0 || activeTab === 'promo' ? 'grid-cols-3' : 'grid-cols-2')}>
                 <TabsTrigger value="primary">Primary</TabsTrigger>
                 <TabsTrigger value="requests">Requests {requests.length > 0 && `(${requests.length})`}</TabsTrigger>
+                {(promos.length > 0 || activeTab === 'promo') && <TabsTrigger value="promo">Promo</TabsTrigger>}
               </TabsList>
             </Tabs>
           </div>
           <ScrollArea className="flex-1">
-            {activeTab === 'primary' ? (
+            {activeTab !== 'requests' ? (
               <div className="flex flex-col p-2 gap-1">
-                {filteredThreads.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No messages yet.</p>}
+                {filteredThreads.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">{activeTab === 'promo' ? 'No promo messages.' : 'No messages yet.'}</p>}
                 {filteredThreads.map(thread => {
                   const participant = getOtherParticipant(thread);
                   const isActive = activeThread?.id === thread.id;
