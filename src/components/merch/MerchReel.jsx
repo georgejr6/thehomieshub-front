@@ -72,10 +72,13 @@ export function useMerchReelProducts(enabled = true) {
       const ok = (d.products || []).filter((p) => p?.slug && p.name && Number(p.minPriceCents) > 0 && !p.soldOut && !snoozed[p.slug] && isHouseImage(p.thumbnail));
       const bySlug = new Map(ok.map((p) => [p.slug, p]));
       const featured = shuffle(FEATURED.map((s) => bySlug.get(s)).filter(Boolean));
+      // Corruption On De Groundd hats lead (owner 2026-10-21)
+      const cor = shuffle(ok.filter((p) => /^corruption/i.test(p.name) && !FEATURED.includes(p.slug)));
       const lxv = shuffle(ok.filter((p) => p.brand === 'lxvemore'));
-      const rest = shuffle(ok.filter((p) => !FEATURED.includes(p.slug) && p.brand !== 'lxvemore'));
+      const rest = shuffle(ok.filter((p) => !FEATURED.includes(p.slug) && p.brand !== 'lxvemore' && !/^corruption/i.test(p.name)));
       // two featured, one LXVEMORE, repeat; then the rest
-      const out = [];
+      const out = cor.splice(0, 2);
+      featured.unshift(...cor);
       while (featured.length || lxv.length) {
         out.push(...featured.splice(0, 2));
         if (lxv.length) out.push(lxv.shift());

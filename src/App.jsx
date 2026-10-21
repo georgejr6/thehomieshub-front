@@ -320,6 +320,11 @@ const JOIN_INVITE_KEY = 'hh_join_invite_last_shown';
 const JOIN_INVITE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't nag more than once/day
 const JOIN_INVITE_DELAY_MS = 45 * 1000; // "eventually" — after a bit of browsing, not on arrival
 
+function StoreRedirect() {
+    const { pathname, search, hash } = useLocation();
+    return <Navigate to={pathname.replace(/^\/store/i, '/shop') + search + hash} replace />;
+}
+
 const AppContent = React.memo(() => {
   const [authModalState, setAuthModalState] = useState({ isOpen: false, view: 'main', tab: 'signin' });
   const [isPostModalOpen, setPostModalOpen] = useState(false);
@@ -486,6 +491,8 @@ const AppContent = React.memo(() => {
                 <Route path="liked" element={<MediaApp musicOnly />} />
             </Route>
 
+            {/* /store is an alias of the shop (owner 2026-10-21); vercel.json 301s it too */}
+            <Route path="/store/*" element={<StoreRedirect />} />
             {/* --- Homies Shop mode: its own full-screen app at /shop (public, signed out too) --- */}
             <Route path="/shop" element={<ShopLayout />}>
                 <Route index element={<ShopHome />} />

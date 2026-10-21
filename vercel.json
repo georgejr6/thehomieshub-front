@@ -1,5 +1,9 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
+  "redirects": [
+    { "source": "/store", "destination": "/shop", "permanent": true },
+    { "source": "/store/:path*", "destination": "/shop/:path*", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/", "destination": "/home.html" },
     { "source": "/shop", "destination": "/shop-index.html" },

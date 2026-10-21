@@ -18,7 +18,7 @@ const GARMENTS = [
   { key: 'all', label: 'All' }, { key: 'tee', label: 'Tees' }, { key: 'hoodie', label: 'Hoodies' }, { key: 'crewneck', label: 'Crewnecks' },
   { key: 'longsleeve', label: 'Long Sleeves' }, { key: 'jogger', label: 'Joggers' }, { key: 'shorts', label: 'Shorts' }, { key: 'hat', label: 'Hats' }, { key: 'beanie', label: 'Beanies' },
 ];
-const RAILS = ['lxvemore', 'must', 'travel', 'espanol', 'hats'];
+const RAILS = ['corruption', 'lxvemore', 'must', 'travel', 'espanol', 'hats'];
 
 export default function ShopHome() {
   const { loading, enabled, products, error, reload } = useShop();
@@ -114,10 +114,11 @@ function Hero({ fams, loading }) {
   // Products whose clean Printful render is ready, must-haves first.
   const slides = useMemo(() => {
     const out = [];
-    // LXVEMORE first (owner 2026-10-06), then the must-haves
+    // Corruption On De Groundd first (owner 2026-10-21), then LXVEMORE (2026-10-06), then the must-haves
+    const cor = fams.filter((f) => f.corruption);
     const lxv = fams.filter((f) => f.lxvemore);
-    const rest = fams.filter((f) => !f.lxvemore);
-    const order = [...lxv, ...rest.filter((f) => HERO_IDS.includes(f.design?.id)), ...rest.filter((f) => !HERO_IDS.includes(f.design?.id))];
+    const rest = fams.filter((f) => !f.lxvemore && !f.corruption);
+    const order = [...cor, ...lxv, ...rest.filter((f) => HERO_IDS.includes(f.design?.id)), ...rest.filter((f) => !HERO_IDS.includes(f.design?.id))];
     for (const f of order) {
       const ready = KINDS.map((k) => f.products[k]).filter((x) => x && productImage(x));
       const p = ready[hashOf(f.key) % Math.max(1, ready.length)];

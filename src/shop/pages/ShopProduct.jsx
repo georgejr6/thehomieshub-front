@@ -9,7 +9,7 @@ import { ShopButton, Swatch, Pill, Skeleton, ShopImage, Tip, Eyebrow } from '@/s
 import { FamilyCard } from '@/shop/components/ProductCard';
 import AddonsPanel, { toCartAddons } from '@/shop/components/AddonsPanel';
 import SizeGuide from '@/shop/components/SizeGuide';
-import { lookupSlug, kindOf, siblings, families, KIND_LABEL, colorHex, productImage, productAltImage, artUrl, displayName, isLightColor, isLxvemore, threadPaletteFor, withKind } from '@/shop/lib/catalog';
+import { lookupSlug, kindOf, siblings, families, KIND_LABEL, colorHex, productImage, productAltImage, artUrl, displayName, isLightColor, isLxvemore, isCorruption, threadPaletteFor, withKind } from '@/shop/lib/catalog';
 import { usd, addonsTotal } from '@/shop/lib/pricing';
 import { MAX_QTY } from '@/shop/lib/cart';
 import { startCheckout, apiError } from '@/shop/lib/api';
@@ -71,6 +71,7 @@ export default function ShopProduct() {
   const unit = (selected?.priceCents || product?.minPriceCents || 0) + addonsTotal(cartAddons);
   const sibs = siblings(product, products);
   const related = useMemo(() => {
+    if (!hit && isCorruption(product)) return families(products).filter((f) => f.corruption && f.key !== `p:${slug}`).slice(0, 4);
     if (!hit) return isLxvemore(product) ? families(products).filter((f) => f.lxvemore && f.key !== `p:${slug}`).slice(0, 4) : [];
     const fams = families(products).filter((f) => f.design?.id !== designId);
     const same = fams.filter((f) => f.collections.some((c) => hit.design.collections.includes(c)));

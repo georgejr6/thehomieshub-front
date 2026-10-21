@@ -7,6 +7,7 @@ import { DESIGNS } from '@/shop/data/designs';
 export const MEDIA = 'https://homieshub-media.nyc3.cdn.digitaloceanspaces.com/merch/v1';
 
 export const COLLECTIONS = [
+  { key: 'corruption', label: 'Corruption On De Groundd', blurb: 'Embroidered dad hats, every colourway. Corruption on de groundd, mehnn.' },
   { key: 'lxvemore', label: 'LXVEMORE', blurb: 'In stock now. The teddy, printed and embroidered. Make any piece yours.' },
   { key: 'must', label: 'Must-Haves', blurb: 'The ones the chat keeps asking for.' },
   { key: 'travel', label: 'Travel', blurb: 'Passport stamped. Colombia, Brazil, repeat.' },
@@ -19,6 +20,8 @@ export const KIND_LABEL = { tee: 'Tee', hoodie: 'Hoodie', hat: 'Dad Hat', beanie
 export const KINDS = ['tee', 'hoodie', 'hat', 'beanie', 'crewneck', 'longsleeve', 'jogger', 'shorts'];
 // LXVEMORE pieces (backend brand "lxvemore") lead the shop.
 export const isLxvemore = (product) => product?.brand === 'lxvemore';
+// Corruption On De Groundd / Corruption Mehnn pieces are featured first (owner 2026-10-21).
+export const isCorruption = (product) => /^corruption/i.test(product?.name || '');
 
 const bySlug = new Map();
 for (const d of DESIGNS) for (const [kind, slug] of Object.entries(d.slugs)) bySlug.set(slug, { design: d, kind });
@@ -139,7 +142,8 @@ export function families(products = []) {
         design: hit?.design || null,
         phrase: hit?.design.phrase || p.name,
         products: {},
-        collections: hit ? [...hit.design.collections] : isLxvemore(p) ? ['lxvemore'] : [],
+        collections: hit ? [...hit.design.collections] : isCorruption(p) ? ['corruption'] : isLxvemore(p) ? ['lxvemore'] : [],
+        corruption: isCorruption(p),
         lxvemore: isLxvemore(p),
         minPriceCents: Infinity,
         soldOut: true,
@@ -153,7 +157,7 @@ export function families(products = []) {
   const order = new Map(DESIGNS.map((d, i) => [d.id, i]));
   return [...map.values()]
     .map((f) => ({ ...f, minPriceCents: Number.isFinite(f.minPriceCents) ? f.minPriceCents : 0, collections: f.products.hat ? [...f.collections, 'hats'] : f.collections }))
-    .sort((a, b) => (b.lxvemore - a.lxvemore) || (order.get(a.design?.id) ?? 999) - (order.get(b.design?.id) ?? 999));
+    .sort((a, b) => (b.corruption - a.corruption) || (b.lxvemore - a.lxvemore) || (order.get(a.design?.id) ?? 999) - (order.get(b.design?.id) ?? 999));
 }
 
 /** Products (not families) matching a filter chip and search query. */
