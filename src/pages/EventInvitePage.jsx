@@ -20,6 +20,16 @@ import { captureGeo, getCachedGeo, flushNow } from '@/lib/tracker';
 // Where to send a visitor who won't share location.
 const BOUNCE_URL = 'https://www.google.com/';
 
+// Was the page opened inside an in-app webview (so they came from the IG/FB
+// post), or in a normal browser (link copied / shared elsewhere)? The only
+// reliable tell is the webview's user-agent string.
+function detectSource() {
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  if (/instagram/i.test(ua)) return 'instagram';
+  if (/FBAN|FBAV|FB_IAB/i.test(ua)) return 'facebook';
+  return 'other';
+}
+
 const EVENTS = {
   'rumble-in-paradise': {
     slug: 'rumble-in-paradise',
@@ -39,19 +49,27 @@ export default function EventInvitePage({ slug }) {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState('');
 
-  // On open: ask for location. Allowed → unblur the card. Denied, or the
-  // prompt can't run → send the visitor away. The card is blurred until then.
+  // On open: ask for location, then fire the special "link opened" alert to the
+  // owner (source = IG/FB/other, whether they shared location). Allowed → unblur
+  // the card. Denied, or the prompt can't run → send the visitor away.
   useEffect(() => {
     let alive = true;
     (async () => {
+      const source = detectSource();
       let ok = false;
       try { ok = await captureGeo({ force: true }); } catch { ok = false; }
+      if (!alive) return;
+      // Best-effort open ping (never block the flow on it). Awaited so it lands
+      // before we navigate away on the deny path.
+      try {
+        await api.post('/event-interest/open', { event: event.slug, source, located: ok }, { timeout: 4000 });
+      } catch { /* notification only — ignore */ }
       if (!alive) return;
       if (ok) { setVerified(true); flushNow(); }
       else { window.location.replace(BOUNCE_URL); }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [event.slug]);
 
   const submitEmail = async (e) => {
     e?.preventDefault?.();
