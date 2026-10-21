@@ -139,6 +139,9 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-10-21 - Shop size guide is data-driven (real Printful size charts)
+- `shop/components/SizeGuide.jsx` renders `product.sizeChart` (backend `utils/merch/sizeCharts.js`, Printful `/products/{id}/sizes`): in/cm toggle, Body + Garment tabs, Printful measuring diagram, only the sizes the product sells; hats/beanies say one size. Pure helpers in `shop/lib/sizeChart.js`. Call site: `ShopProduct.jsx` passes `chart={product?.sizeChart}`. Without the payload (old API / no Printful chart) it falls back to the old approximate tee/hoodie table or a plain note. Tests: `sizeChart.test.js`, `SizeGuide.test.jsx`.
+
 ### 2026-10-21 — DMs: Promo tab, clickable links, link previews
 - `MessageContext` keeps `promos` (backend `GET /messages` → `promos`: automated DMs you sent with no reply yet); InboxPage shows a Promo tab only when there are any; deep links / getThread / mute / archive / delete / markRead cover them.
 - DM bubbles: `LinkifiedText` (LINK_RE incl. subdomains, trailing punctuation trimmed, emails skipped) opens links in a new tab; the first link gets an OG card from `GET /messages/link-preview` (cached per URL, failures not cached).

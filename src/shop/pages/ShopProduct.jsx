@@ -287,7 +287,7 @@ export default function ShopProduct() {
           </div>
         </div>
       )}
-      <SizeGuide open={guide} onClose={() => setGuide(false)} kind={kind} />
+      <SizeGuide open={guide} onClose={() => setGuide(false)} kind={kind} chart={product?.sizeChart} />
     </div>
   );
 }
