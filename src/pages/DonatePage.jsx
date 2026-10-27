@@ -18,6 +18,13 @@ const MIN = 1;
 const MAX = 2500;
 const CASHTAG = '$Homieshub';
 const cashUrl = (dollars) => `https://cash.app/${CASHTAG}${dollars ? `/${dollars}` : ''}`;
+// Apple Pay / Google Pay don't show inside apps' built-in browsers (iOS: no
+// "Safari/" token in a WebView's user agent).
+const IN_APP_UA = /Instagram|FBAN|FBAV|FB_IAB|TikTok|musical_ly|BytedanceWebview|Snapchat|Twitter|LinkedInApp|Pinterest|MicroMessenger|Line\//i;
+const inAppBrowser = () => {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+  return IN_APP_UA.test(ua) || (/iPhone|iPad/.test(ua) && /AppleWebKit/.test(ua) && !/Safari\//.test(ua));
+};
 const fmt = (n) => `$${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
 function CashApp({ dollars }) {
@@ -181,8 +188,13 @@ export default function DonatePage() {
           {busy ? 'Opening secure checkout…' : `Donate ${valid ? fmt(dollars) : ''}`}
         </button>
         {error && <p role="alert" className="mt-2 text-center text-sm text-red-400">{error}</p>}
+        {inAppBrowser() && (
+          <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-center text-sm text-amber-200">
+            Want Apple Pay or Google Pay? Open this page in Safari or Chrome from this app's menu. Its built-in browser hides them.
+          </p>
+        )}
         <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-gray-500">
-          <Lock className="h-3.5 w-3.5" /> Card, Apple Pay or Google Pay · Secure checkout by Stripe · No account needed
+          <Lock className="h-3.5 w-3.5" /> Card, Apple Pay, Google Pay or Cash App Pay · Secure checkout by Stripe · No account needed
         </p>
       </section>
 
