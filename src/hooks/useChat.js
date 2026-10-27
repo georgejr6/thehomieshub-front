@@ -31,6 +31,13 @@ const liveShoutouts = (list) => list.filter((m) => m.special?.pinnedUntil && new
   .sort((a, b) => (b.special.points - a.special.points) || (a.id < b.id ? 1 : -1));
 
 const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
+// Author + everyone it @mentions (server sends their cards in mentionUsers),
+// so mentions of people we haven't loaded still show their names.
+const addMessageUsers = (users, m) => {
+  if (m.author?.id) users[m.author.id] = m.author;
+  for (const u of m.mentionUsers || []) if (u?.id && !users[u.id]) users[u.id] = u;
+  return users;
+};
 const cmpId = (a, b) => (a < b ? -1 : a > b ? 1 : 0); // ObjectId hex sorts by time
 
 // Link previews arrive later as message.updated, which is authoritative
@@ -84,7 +91,7 @@ function reducer(state, a) {
       const merged = a.replace ? incoming : [...incoming, ...cur.list.filter((m) => !incoming.some((x) => x.id === m.id))];
       merged.sort((x, y) => (x.pending ? 1 : y.pending ? -1 : cmpId(x.id, y.id)));
       const users = { ...state.users };
-      for (const m of incoming) if (m.author?.id) users[m.author.id] = m.author;
+      for (const m of incoming) addMessageUsers(users, m);
       return {
         ...state,
         users,
@@ -114,7 +121,7 @@ function reducer(state, a) {
       const typing = state.typing[m.channelId]?.[m.author?.id]
         ? { ...state.typing, [m.channelId]: Object.fromEntries(Object.entries(state.typing[m.channelId]).filter(([u]) => u !== m.author.id)) }
         : state.typing;
-      return { ...state, messages, channels, typing, users: m.author?.id ? { ...state.users, [m.author.id]: m.author } : state.users };
+      return { ...state, messages, channels, typing, users: m.author?.id || m.mentionUsers?.length ? addMessageUsers({ ...state.users }, m) : state.users };
     }
     case 'patchMessage': {
       const cur = state.messages[a.channelId];
@@ -189,7 +196,7 @@ function reducer(state, a) {
     case 'wallet':
       return { ...state, wallet: { balance: a.balance ?? state.wallet.balance, pulse: a.change ? { change: a.change, label: a.label, earned: !!a.earned, at: Date.now() } : state.wallet.pulse } };
     case 'shoutouts':
-      return { ...state, shoutouts: { ...state.shoutouts, [a.channelId]: liveShoutouts(a.list) } };
+      return { ...state, users: (a.list || []).reduce(addMessageUsers, { ...state.users }), shoutouts: { ...state.shoutouts, [a.channelId]: liveShoutouts(a.list) } };
     case 'celebrate':
       return { ...state, celebration: a.celebration };
     case 'notice':
