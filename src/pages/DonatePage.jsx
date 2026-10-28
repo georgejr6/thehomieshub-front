@@ -98,10 +98,20 @@ export default function DonatePage() {
   const [showMessage, setShowMessage] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [pot, setPot] = useState(null);
 
   useEffect(() => {
     if (params.get('thanks') === '1') { setThanks(true); setParams({}, { replace: true }); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live running total (Stripe donations + Cash App logged by hand). Polls while the page is open; hidden until there is money.
+  useEffect(() => {
+    let alive = true;
+    const load = () => api.get('/tips/pot').then(({ data }) => { if (alive && data && typeof data.totalUsd === 'number') setPot(data); }).catch(() => {});
+    load();
+    const t = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   const customNum = Number(custom);
   const dollars = custom !== '' ? (Number.isFinite(customNum) ? Math.round(customNum * 100) / 100 : 0) : preset;
@@ -146,6 +156,11 @@ export default function DonatePage() {
         <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-gray-400">
           The Homies Hub is 100% community-funded. Every donation goes into streams, the app and new features.
         </p>
+        {pot && pot.totalUsd > 0 && (
+          <p className="mx-auto mt-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-semibold text-white" aria-live="polite">
+            Raised so far: {fmt(pot.totalUsd)}
+          </p>
+        )}
       </header>
 
       <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
