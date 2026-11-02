@@ -174,7 +174,7 @@ export default function JoinGatePage() {
   // Coming back via the browser Back button (bfcache) after leaving for
   // Discord/Google: un-stick the buttons.
   useEffect(() => {
-    const onShow = (e) => { if (e.persisted) setBusy(false); };
+    const onShow = (e) => { if (e.persisted) { setBusy(false); setYtBusy(false); } };
     window.addEventListener('pageshow', onShow);
     return () => window.removeEventListener('pageshow', onShow);
   }, []);
