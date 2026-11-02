@@ -43,6 +43,7 @@ import FeedItem from '@/components/FeedItem';
 import VideoPost from '@/components/VideoPost';
 import EditProfileModal from '@/components/EditProfileModal';
 import GiftDialog from '@/components/GiftDialog';
+import YouTubeBadge from '@/components/YouTubeBadge';
 
 
 const RealUserProfilePage = () => {
@@ -444,6 +445,7 @@ const RealUserProfilePage = () => {
                 <div className="flex items-center flex-wrap gap-2">
                   <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{profileUser.name}</h1>
                   {getBadge(profileUser)}
+                  <YouTubeBadge youtube={profileUser.youtube} size={22} />
                 </div>
                 <p className="text-muted-foreground text-base">@{profileUser.username}</p>
               </div>

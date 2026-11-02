@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import { openChatUserCard } from './UserCard';
 import Avatar from './Avatar';
+import YouTubeBadge from '@/components/YouTubeBadge';
 import { openUserMenu } from './ContextMenu';
 
 // Member rows + search results for /chat. Every row opens the member card
@@ -34,7 +35,7 @@ export function MemberRow({ m, status, dim, extra }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[15px] font-medium leading-5" style={{ color: m.color ? roleColor(m.color) : '#949BA4' }}>{m.displayName}</div>
+        <div className="flex items-center gap-1.5 text-[15px] font-medium leading-5" style={{ color: m.color ? roleColor(m.color) : '#949BA4' }}><span className="truncate">{m.displayName}</span><YouTubeBadge youtube={m.youtube} size={13} /></div>
         {extra}
       </div>
     </button>

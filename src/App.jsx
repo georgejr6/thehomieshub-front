@@ -727,7 +727,7 @@ const AppContent = React.memo(() => {
         <DiscordConnectPrompt open={showDiscordPrompt && !showOnboarding && !location.pathname.startsWith('/chat')} onDismiss={dismissDiscordPrompt} />
         {showJoinInvite && <JoinInviteModal onClose={() => setShowJoinInvite(false)} />}
         <SignupPrompt onLoginRequest={handleLoginRequest} />
-        {location.pathname.startsWith('/chat') && <ChatUserCard onLoginRequest={handleLoginRequest} />}
+        {(location.pathname.startsWith('/chat') || location.pathname.startsWith('/live')) && <ChatUserCard onLoginRequest={handleLoginRequest} />}
         <PlaceView />
         {/* The chat composer owns the bottom-right corner on /chat. */}
         {!location.pathname.startsWith('/chat') && location.pathname !== '/live' && <HelpAssistant />}

@@ -9,6 +9,7 @@ import api from '@/api/homieshub';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import Avatar from './Avatar';
+import YouTubeBadge from '@/components/YouTubeBadge';
 
 // Click a name/avatar/member row in Homies Chat → this card (Discord's
 // profile popout). Everyone gets Message / Profile / Mention. Staff also get
@@ -483,7 +484,7 @@ export default function UserCard({ onLoginRequest }) {
           </div>
         </div>
         <div className="mt-2 min-w-0">
-          <div className="truncate text-xl font-bold" style={{ color: color || '#F2F3F5' }}>{name}</div>
+          <div className="flex items-center gap-1.5 text-xl font-bold" style={{ color: color || '#F2F3F5' }}><span className="truncate">{name}</span><YouTubeBadge youtube={u.youtube} size={18} /></div>
           <div className="truncate text-sm text-[#B5BAC1]">@{u.username}</div>
           {u.discordUsername && (
             <div className="mt-0.5 flex items-center gap-1 truncate text-xs text-[#949BA4]">

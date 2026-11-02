@@ -18,6 +18,8 @@ import Embed, { embedImageUrl, EmbedPlaceholder } from './Embed';
 import { openImageViewer, ImageViewerHost } from './ImageViewer';
 import SpecialMessage from './perks/SpecialMessage';
 import { openChatUserCard } from './UserCard';
+import YouTubeBadge, { PlatformPill } from '@/components/YouTubeBadge';
+import { externalText, openLinkedUserCard, safeAvatar } from '@/lib/externalAuthor';
 import ReactionsModal from './ReactionsModal';
 import EmojiPicker, { recentReactions, rememberReaction } from './EmojiPicker';
 import ContextMenu, { openUserMenu } from './ContextMenu';
@@ -26,6 +28,9 @@ import Avatar from './Avatar';
 const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches;
 
 const GROUP_MS = 7 * 60 * 1000;
+// Relayed YouTube/Kick lines all share one bot author: group by the real
+// external author, or different viewers' lines merge under the first name.
+const authorKey = (m) => (m?.external ? `ext:${m.external.platform}:${m.external.authorId || m.external.name}` : m?.author?.id);
 // A link the server may preview (utils/chat/unfurl.js); how long to show the
 // placeholder before giving up on one arriving. "<https://…>" opts out of a
 // preview, as on Discord.
@@ -365,9 +370,25 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         <span className="absolute left-0 top-1 w-[72px] text-center text-[11px] leading-[22px] text-[#949BA4] opacity-0 group-hover:opacity-100">{fmtTime(m.createdAt)}</span>
       ) : (
         <>
+          {m.external ? (
+            <>
+              <div className={cn('absolute left-4 mt-0.5', m.external.linkedUserId && 'cursor-pointer')} onClick={m.external.linkedUserId ? (e) => openLinkedUserCard(m.external.linkedUserId, e) : undefined}><AuthorAvatar author={{ avatarUrl: safeAvatar(m.external.avatarUrl), displayName: m.external.name }} size={40} /></div>
+              <div className="flex items-baseline gap-2 leading-[22px]">
+                {m.external.linkedUserId ? (
+                  <button type="button" className="min-w-0 truncate font-medium text-[#F2F3F5] hover:underline" aria-label={`Open ${m.external.name}'s card`} onClick={(e) => openLinkedUserCard(m.external.linkedUserId, e)}>{m.external.name}</button>
+                ) : (
+                  <span className="min-w-0 truncate font-medium text-[#F2F3F5]">{m.external.name}</span>
+                )}
+                <PlatformPill platform={m.external.platform} className="self-center" />
+                <span className="text-xs text-[#949BA4]">{fmtStamp(m.createdAt)}</span>
+              </div>
+            </>
+          ) : (
+            <>
           <div className="absolute left-4 mt-0.5 cursor-pointer" onClick={(e) => openChatUserCard(m.author, e)} onContextMenu={(e) => openUserMenu(m.author, e)}><AuthorAvatar author={m.author} size={40} /></div>
           <div className="flex items-baseline gap-2 leading-[22px]">
             <span className="cursor-pointer font-medium hover:underline" onClick={(e) => openChatUserCard(m.author, e)} onContextMenu={(e) => openUserMenu(m.author, e)} style={{ color: nameColor(m.author) }}>{m.author?.displayName || m.author?.username}</span>
+            <YouTubeBadge youtube={m.author?.youtube} className="self-center" />
             {m.author?.bot && <span className="rounded bg-[#5865F2] px-1 text-[10px] font-semibold uppercase leading-4 text-white">Bot</span>}
             {m.source?.platform === 'discord' && <span className="rounded bg-[#5865F2]/30 px-1 text-[10px] font-semibold uppercase text-[#C9CDFB]">via Discord</span>}
             <span className="text-xs text-[#949BA4]">{fmtStamp(m.createdAt)}</span>
@@ -377,6 +398,8 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
               </a>
             )}
           </div>
+            </>
+          )}
         </>
       )}
 
@@ -399,7 +422,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         <SpecialMessage m={m} ctx={ctx} live={m.live} />
       ) : m.embeds?.length === 1 && (m.embeds[0].type === 'image' || m.embeds[0].type === 'gifv') && m.content?.trim() === m.embeds[0].url && !m.editedAt ? null : (
         <div className="text-[15px] leading-[1.375rem] text-[#DBDEE1]">
-          <ChatMarkdown text={m.content} ctx={ctx} />
+          <ChatMarkdown text={externalText(m.content, m.external)} ctx={ctx} />
           {m.editedAt && <span className="ml-1 text-[10px] text-[#949BA4]">(edited)</span>}
         </div>
       )}
@@ -569,7 +592,7 @@ export default function MessageList({ channel, data, state, ctx, actions, onRepl
         out.push({ kind: 'new', key: `new-${m.id}` });
         newShown = isNew = true;
       }
-      const grouped = !!prev && !isNew && !m.replyTo && !m.special && !prev.special && prev.author?.id === m.author?.id && t - new Date(prev.createdAt) < GROUP_MS && isSameDay(new Date(prev.createdAt), t) && !!prev.source === !!m.source;
+      const grouped = !!prev && !isNew && !m.replyTo && !m.special && !prev.special && authorKey(prev) === authorKey(m) && t - new Date(prev.createdAt) < GROUP_MS && isSameDay(new Date(prev.createdAt), t) && !!prev.source === !!m.source;
       out.push({ kind: 'msg', key: m.nonce || m.id, m, grouped });
       prev = m;
     }

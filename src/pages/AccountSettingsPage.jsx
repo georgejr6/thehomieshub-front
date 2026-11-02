@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2, CreditCard, Mail, AlertCircle } from 'lucide-react';
+import { Bell, Shield, Wallet, User, Lock, AlertTriangle, LogOut, Trash2, FileText, Heart, Link2, Loader2, CheckCircle2, CreditCard, Mail, AlertCircle, Youtube } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import BundleSegment from '@/components/BundleSegment';
 import api from '@/api/homieshub';
@@ -145,6 +145,87 @@ const AccountSettingsPage = () => {
 
   const isDiscordOnly = user?.sub?.startsWith('discord:') && !user?.email;
   const isEmailVerified = user?.emailVerified;
+
+  // YouTube link state (row hidden if the server says it isn't configured)
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytUnavailable, setYtUnavailable] = useState(false);
+  const [ytConfirm, setYtConfirm] = useState(false);
+
+  // Back from YouTube connect: ?youtube=pending&yt=<code> | no_channel | error.
+  // The code is stashed so it survives a sign-in, then POSTed to finish linking.
+  const ytCompleting = React.useRef(false);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const yt = params.get('youtube');
+    if (!yt) return;
+    if (yt === 'pending' && params.get('yt')) {
+      try { sessionStorage.setItem('hh_yt_pending', params.get('yt')); } catch { /* private mode */ }
+    } else if (yt === 'no_channel') {
+      toast({ title: 'No channel found', description: 'No YouTube channel on that Google account.', variant: 'destructive' });
+    } else {
+      toast({ title: 'YouTube', description: "Couldn't connect YouTube.", variant: 'destructive' });
+    }
+    params.delete('youtube');
+    params.delete('yt');
+    const qs = params.toString();
+    navigate({ pathname: location.pathname, search: qs ? `?${qs}` : '' }, { replace: true });
+  }, []);
+
+  useEffect(() => {
+    let code = null;
+    try { code = sessionStorage.getItem('hh_yt_pending'); } catch { /* ignore */ }
+    if (!code || ytCompleting.current) return;
+    if (!user) {
+      toast({ title: 'Sign in to finish connecting YouTube', description: 'Sign in, then your YouTube link will complete.' });
+      return;
+    }
+    ytCompleting.current = true;
+    (async () => {
+      try {
+        await api.post('/auth/youtube/complete', { code });
+        await refreshMe();
+        toast({ title: 'YouTube connected', description: 'Your YouTube channel is now linked.' });
+      } catch (err) {
+        const st = err.response?.status;
+        toast({
+          title: st === 409 ? 'Already linked' : "Couldn't connect YouTube",
+          description: err.response?.data?.message || (st === 400 ? 'That connection expired. Try again.' : st === 403 ? 'This YouTube connection was started from a different account.' : st === 409 ? 'That YouTube channel is already linked to another account.' : 'Something went wrong.'),
+          variant: 'destructive',
+        });
+      } finally {
+        try { sessionStorage.removeItem('hh_yt_pending'); } catch { /* ignore */ }
+        ytCompleting.current = false;
+      }
+    })();
+  }, [user?.id, user?._id]);
+
+  const handleConnectYouTube = async () => {
+    setYtLoading(true);
+    try {
+      const { data } = await api.get('/auth/youtube/connect', { params: { return: '/settings' } });
+      const url = data?.result?.url;
+      if (!url) throw new Error('no url');
+      window.location.assign(url);
+    } catch (err) {
+      if (err.response?.status === 503) setYtUnavailable(true);
+      else toast({ title: 'Error', description: "Couldn't connect YouTube.", variant: 'destructive' });
+      setYtLoading(false);
+    }
+  };
+
+  const handleDisconnectYouTube = async () => {
+    setYtLoading(true);
+    try {
+      await api.delete('/auth/youtube');
+      await refreshMe();
+      toast({ title: 'YouTube disconnected', description: 'Your YouTube channel has been unlinked.' });
+      setYtConfirm(false);
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to disconnect YouTube.', variant: 'destructive' });
+    } finally {
+      setYtLoading(false);
+    }
+  };
 
   // Handle redirect back from Discord connect
   useEffect(() => {
@@ -656,7 +737,7 @@ const AccountSettingsPage = () => {
             <Link2 className="w-5 h-5 text-primary" />
             <CardTitle>Connected Accounts</CardTitle>
           </div>
-          <CardDescription>Link your Discord so others can find you.</CardDescription>
+          <CardDescription>Link your accounts so others can find you.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -701,6 +782,53 @@ const AccountSettingsPage = () => {
               </Button>
             )}
           </div>
+
+          {!ytUnavailable && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  {user?.youtube?.thumbnail ? (
+                    <img src={user.youtube.thumbnail} alt="" className="h-9 w-9 flex-shrink-0 rounded-lg object-cover" />
+                  ) : (
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#ff0033]">
+                      <Youtube className="h-5 w-5 text-white" aria-hidden="true" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">YouTube</p>
+                    {user?.youtube ? (
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-green-500" />
+                        <span className="truncate text-xs text-muted-foreground">
+                          {user.youtube.title}{user.youtube.handle ? ` · ${String(user.youtube.handle).startsWith('@') ? '' : '@'}${user.youtube.handle}` : ''}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Not connected</p>
+                    )}
+                  </div>
+                </div>
+                {user?.youtube ? (
+                  ytConfirm ? (
+                    <div className="flex flex-shrink-0 items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setYtConfirm(false)} disabled={ytLoading}>Cancel</Button>
+                      <Button variant="destructive" size="sm" onClick={handleDisconnectYouTube} disabled={ytLoading} aria-label="Confirm disconnect YouTube">
+                        {ytLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Disconnect?'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button variant="outline" size="sm" className="flex-shrink-0" onClick={() => setYtConfirm(true)} aria-label="Disconnect YouTube">Disconnect</Button>
+                  )
+                ) : (
+                  <Button size="sm" className="flex-shrink-0 bg-[#ff0033] text-white hover:bg-[#cc0029]" onClick={handleConnectYouTube} disabled={ytLoading} aria-label="Connect YouTube">
+                    {ytLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                    Connect YouTube
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
 
           {user?.discordUsername && (
             <>

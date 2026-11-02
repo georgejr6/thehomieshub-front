@@ -10,6 +10,8 @@ import { roleColor } from '@/components/chat/ChatMarkdown';
 import { cn } from '@/lib/utils';
 import PaySheet, { fmtUsd } from '@/components/live/PaySheet';
 import LiveOwnerPanel from '@/components/live/LiveOwnerPanel';
+import YouTubeBadge from '@/components/YouTubeBadge';
+import { externalText, openLinkedUserCard, safeAvatar } from '@/lib/externalAuthor';
 
 // /live — watch Mwosa's stream (YouTube or Kick embed) and chat without
 // leaving the app. The chat is the same conversation as the stream's
@@ -53,7 +55,8 @@ function PlatformDot({ platform }) {
 
 function LiveMessage({ m, fresh }) {
   const s = m.special;
-  const name = m.author?.name || 'Homie';
+  const ext = m.external;
+  const name = ext?.name || m.author?.name || 'Homie';
   const color = m.author?.owner ? '#ffd166' : m.author?.color ? roleColor(m.author.color) : '#e8e8ea';
   if (s && (s.kind === 'donation' || s.kind === 'shoutout')) {
     const c = s.color || '#1E88E5';
@@ -83,12 +86,19 @@ function LiveMessage({ m, fresh }) {
   return (
     <div className={cn('group rounded-md px-1.5 py-[3px] text-[14px] leading-[1.45] hover:bg-white/[0.03]', fresh && 'live-msg-in')}>
       <span className="mr-1.5 inline-flex translate-y-[2px] items-center gap-1 align-baseline">
-        <PlatformDot platform={m.platform} />
+        <PlatformDot platform={ext?.platform || m.platform} />
+        {safeAvatar(ext?.avatarUrl) && <img src={safeAvatar(ext.avatarUrl)} alt="" loading="lazy" className="h-4 w-4 shrink-0 rounded-full bg-white/10 object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
         {m.author?.owner && <Crown className="h-3.5 w-3.5 text-[#ffd166]" aria-label="Host" />}
       </span>
-      <span className="font-semibold" style={{ color }}>{name}</span>
+      {ext?.linkedUserId ? (
+        <button type="button" aria-label={`Open ${name}'s card`} className="font-semibold hover:underline" style={{ color }} onClick={(e) => openLinkedUserCard(ext.linkedUserId, e)}>{name}</button>
+      ) : (
+        <span className="font-semibold" style={{ color }}>{name}</span>
+      )}
+      {ext && <span className="ml-1 rounded px-1 text-[9px] font-bold uppercase leading-4 text-white/80 bg-white/10 align-middle">{PLATFORM[ext.platform]?.label || ext.platform}</span>}
+      <YouTubeBadge youtube={m.author?.youtube} size={12} className="ml-1" />
       <span className="text-white/40">: </span>
-      <span className="break-words text-white/90"><Linkified text={m.content} /></span>
+      <span className="break-words text-white/90"><Linkified text={externalText(m.content, ext)} /></span>
       {m.attachments?.map((a) => <a key={a.url} href={a.url} target="_blank" rel="noopener noreferrer" className="mt-1 block"><img src={a.url} alt="" className="max-h-40 rounded-lg" loading="lazy" /></a>)}
       {m.reactions?.length > 0 && (
         <span className="ml-1.5 inline-flex gap-1 align-middle">
