@@ -139,6 +139,10 @@ Videos in the feed start at a random position to keep the feed feeling fresh on 
 
 ## Recent Changes Log
 
+### 2026-11-02 — The Homies Spaces (live audio rooms) + YouTube live chat pieces
+- `/spaces` (inside MainLayout) + `/spaces/:id` (full-screen room, lazy chunk with livekit-client 2.23). API in `src/lib/spaces.js` (backend `/api/spaces`, self-hosted LiveKit `wss://138-197-133-229.sslip.io`). Circular avatars, speaking rings, ✋ hands via `POST /spaces/:id/hand` (clients can't edit their own LiveKit attributes/metadata — the server sets names and roles), reactions as data messages topic `reaction`, host sheet (invite / move to listeners / cohost / mute / remove / end). "🎙 Live Space" pill in the chat channel sidebar (`useLiveSpaces`, 60 s). `SheetContent` takes `overlayClassName`.
+- Live chat: `liveChat` channel flag → LIVE pill + "shows in the YouTube chat" banner; Super Chat highlight; staff "Block from the app"; Settings YouTube privacy + use-YouTube-name; /join optional Connect YouTube card; admin users show linked YouTube.
+
 ### 2026-10-21 - Shop size guide is data-driven (real Printful size charts)
 - `shop/components/SizeGuide.jsx` renders `product.sizeChart` (backend `utils/merch/sizeCharts.js`, Printful `/products/{id}/sizes`): in/cm toggle, Body + Garment tabs, Printful measuring diagram, only the sizes the product sells; hats/beanies say one size. Pure helpers in `shop/lib/sizeChart.js`. Call site: `ShopProduct.jsx` passes `chart={product?.sizeChart}`. Without the payload (old API / no Printful chart) it falls back to the old approximate tee/hoodie table or a plain note. Tests: `sizeChart.test.js`, `SizeGuide.test.jsx`.
 

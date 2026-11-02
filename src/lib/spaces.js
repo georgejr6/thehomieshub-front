@@ -109,5 +109,7 @@ export const joinSpace = (id) => api.post(`/spaces/${id}/join`).then(unwrap);
 export const startSpace = (id) => api.post(`/spaces/${id}/start`).then(unwrap);
 export const endSpace = (id) => api.post(`/spaces/${id}/end`).then(unwrap);
 export const speakerAction = (id, userId, action) => api.post(`/spaces/${id}/speakers`, { userId, action }).then(unwrap);
+// Hands go through the server: clients can't edit their own LiveKit attributes.
+export const setHandInSpace = (id, raised) => api.post(`/spaces/${id}/hand`, { raised: !!raised }).then(unwrap);
 export const muteInSpace = (id, userId) => api.post(`/spaces/${id}/mute`, { userId }).then(unwrap);
 export const removeFromSpace = (id, userId) => api.post(`/spaces/${id}/remove`, { userId }).then(unwrap);

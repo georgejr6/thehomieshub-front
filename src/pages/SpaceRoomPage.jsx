@@ -9,6 +9,7 @@ import {
   actionsFor, deriveRole, encodeReaction, endSpace, getSpace, isHandRaised, isMod, isSpeakerRole,
   joinSpace, limitListeners, muteInSpace, parseMetadata, parseReaction, removeFromSpace,
   sortByRole, speakerAction, spacesError, startSpace,
+  setHandInSpace,
 } from '@/lib/spaces';
 import SpaceAvatar from '@/components/spaces/SpaceAvatar';
 import { Button } from '@/components/ui/button';
@@ -206,7 +207,7 @@ export default function SpaceRoomPage({ onLoginRequest }) {
     const lp = roomRef.current?.localParticipant;
     if (!lp) return;
     if (isSpeakerRole(myRole) && !isSpeakerRole(was)) {
-      lp.setAttributes({ hand: '' }).catch(() => {});
+      setHandInSpace(id, false).catch(() => {});
       toast({ title: 'You can speak now', description: 'Tap the mic when you are ready.' });
     } else if (!isSpeakerRole(myRole) && isSpeakerRole(was)) {
       lp.setMicrophoneEnabled(false).catch(() => {});
@@ -229,7 +230,7 @@ export default function SpaceRoomPage({ onLoginRequest }) {
   };
   const toggleHand = async () => {
     if (!lp) return;
-    try { await lp.setAttributes({ hand: isHandRaised(lp.attributes) ? '' : '1' }); } catch { toast({ title: 'Could not raise your hand', variant: 'destructive' }); }
+    try { await setHandInSpace(id, !isHandRaised(lp.attributes)); } catch { toast({ title: 'Could not raise your hand', variant: 'destructive' }); }
     bump();
   };
   const react = async (emoji) => {
@@ -244,7 +245,7 @@ export default function SpaceRoomPage({ onLoginRequest }) {
     try { await fn(); if (okMsg) toast({ title: okMsg }); setSheet(null); } catch (err) { toast({ title: spacesError(err).message, variant: 'destructive' }); } finally { setBusy(false); }
   };
   const doAction = (p, action) => {
-    if (action === 'mute') return run(() => muteInSpace(id, p.id), `${p.name} muted`);
+    if (action === 'mute') return run(async () => { const r = await muteInSpace(id, p.id); if (!r?.muted) throw new Error(`${p.name}'s mic is already off`); }, `${p.name} muted`);
     if (action === 'remove') return run(() => removeFromSpace(id, p.id), `${p.name} removed`);
     return run(() => speakerAction(id, p.id, SPEAKER_API_ACTION[action]));
   };
@@ -347,7 +348,7 @@ export default function SpaceRoomPage({ onLoginRequest }) {
       </footer>
 
       <Sheet open={!!sheet} onOpenChange={(o) => { if (!o) setSheet(null); }}>
-        <SheetContent side="bottom" className="z-[70] mx-auto max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <SheetContent side="bottom" overlayClassName="z-[65]" className="z-[70] mx-auto max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
           {target && (
             <>
               <SheetHeader><SheetTitle className="flex items-center justify-center gap-3 sm:justify-start"><SpaceAvatar name={target.name} url={target.avatarUrl} size={40} />{target.name}</SheetTitle></SheetHeader>

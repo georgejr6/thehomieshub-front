@@ -537,7 +537,6 @@ const AppContent = React.memo(() => {
                  logged-out visitors (owner decision 2026-09-25), no location gate. --- */}
             <Route path="/live" element={<Suspense fallback={<RouteFallback full dark />}><LiveWatchPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', '/live'); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
             {/* --- The Homies Spaces (live audio rooms). Room is a full-screen overlay; livekit-client only loads with it. --- */}
-            <Route path="/spaces" element={<Suspense fallback={<RouteFallback full dark />}><SpacesPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', '/spaces'); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
             <Route path="/spaces/:id" element={<Suspense fallback={<RouteFallback full dark />}><SpaceRoomPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', location.pathname); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
             <Route path="/discord/*" element={<Navigate to="/chat" replace />} />
             <Route path="/community/*" element={<Navigate to="/chat" replace />} />
@@ -613,6 +612,7 @@ const AppContent = React.memo(() => {
                 handleLoginRequest={handleLoginRequest}
                 handleOpenPostModal={handleOpenPostModal}
             />}>
+            <Route path="/spaces" element={<Suspense fallback={<RouteFallback full dark />}><SpacesPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', '/spaces'); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
                 <Route path="/" element={<LandingPage onLoginRequest={handleLoginRequest} />} />
                 {/* Inside MainLayout so the header/sidebar stay available. Fight sponsorship (Oct 29): fans back Mwosa in USDC via the DIGITVL x402 gateway (was /fight). */}
                 <Route path="/sponsor" element={<SponsorPage />} />
