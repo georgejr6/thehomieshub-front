@@ -52,6 +52,7 @@ function normalizeMessage(msg, myUsername) {
       typeof msg.sender === 'object' ? msg.sender?.username : msg.sender,
     timestamp: msg.createdAt || msg.timestamp,
     mediaUrl: msg.attachmentUrl || null,
+    attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
   };
 }
 
@@ -135,17 +136,19 @@ export const MessageProvider = ({ children }) => {
     return [];
   }, [user]);
 
-  const sendMessage = async (recipientUsername, content, type = 'text', attachment = null) => {
+  const sendMessage = async (recipientUsername, content, type = 'text', attachment = null, attachments = null, opts = {}) => {
     // Optimistic update
     const existing = threads.find((t) => t.participants.includes(recipientUsername));
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const tempMsg = {
-      id: `temp_${Date.now()}`,
+      id: tempId,
       content: content || '',
       sender: user.username,
       timestamp: new Date().toISOString(),
       read: true,
       type,
       mediaUrl: typeof attachment === 'string' ? attachment : null,
+      attachments: attachments || [],
     };
     if (existing) {
       setMessagesByThread((prev) => ({
@@ -159,15 +162,43 @@ export const MessageProvider = ({ children }) => {
         recipientUsername,
         content,
         type,
-        attachmentUrl: typeof attachment === 'string' ? attachment : null,
+        ...(attachments?.length
+          ? { attachments }
+          : { attachmentUrl: typeof attachment === 'string' ? attachment : null }),
       });
       if (data.status) {
         await loadThreads();
         return data.result;
       }
+      // 200 with status:false is still a failed send: let the caller toast
+      // the server's reason and restore the draft (the catch below drops
+      // the optimistic bubble and rethrows).
+      if (opts.throwOnError) {
+        const soft = new Error(data?.message || 'Message not sent');
+        soft.response = { data };
+        throw soft;
+      }
     } catch (err) {
       console.error('Failed to send message', err);
+      // Drop the stuck optimistic bubble.
+      setMessagesByThread((prev) => {
+        const out = {};
+        for (const [k, list] of Object.entries(prev)) out[k] = list.filter((m) => m.id !== tempId);
+        return out;
+      });
+      if (opts.throwOnError) throw err;
     }
+    // A non-ok body (no throw) also leaves the bubble stuck; clear it.
+    setMessagesByThread((prev) => {
+      const out = {};
+      let changed = false;
+      for (const [k, list] of Object.entries(prev)) {
+        const f = list.filter((m) => m.id !== tempId);
+        if (f.length !== list.length) changed = true;
+        out[k] = f;
+      }
+      return changed ? out : prev;
+    });
     return null;
   };
 

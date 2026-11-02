@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import Avatar from './Avatar';
+import DmSection from './DmSection';
 
 const ICONS = { text: Hash, announcement: Megaphone, forum: MessagesSquare, thread: CornerDownRight };
 
@@ -104,6 +105,7 @@ export default function ChannelSidebar({ state, actions, onToast, activeChannelI
         <span className="truncate text-[15px] font-semibold text-white">{state.server?.name || 'The Homies'}</span>
       </div>
       <div className="hh-chat-scroll min-h-0 flex-1 overflow-y-auto py-2 [scrollbar-width:thin]">
+        <DmSection onNavigate={onClose} />
         {groups.map((g) => {
           const isCollapsed = collapsed[g.name];
           return (

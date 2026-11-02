@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Send, MessageSquarePlus, MoreVertical, Archive, Check, ArrowLeft, Image as ImageIcon, Smile, Gift, Mic, BellOff, Bell, Trash2, Flag, X, Square, Loader2 } from 'lucide-react';
+import { Search, Send, MessageSquarePlus, MoreVertical, Archive, Check, ArrowLeft, Image as ImageIcon, Smile, Gift, Mic, BellOff, Bell, Trash2, Flag, X, Square, Loader2, Plus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -17,6 +17,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/components/ui/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import api from '@/api/homieshub';
+import { GifPanel } from '@/components/GifPicker';
+import { useGifsEnabled, gifToAttachment } from '@/lib/gifs';
+import { messageAttachments, isHttps, isVideoLike, messagePreview, MAX_DM_PHOTOS, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES } from '@/lib/dmAttachments';
 
 // ── Stickers ──────────────────────────────────────────────────────────────────
 const STICKERS = [
@@ -104,6 +107,68 @@ const LinkPreviewCard = ({ url }) => {
   );
 };
 
+// ── Attachments (new `attachments` array; legacy type + attachmentUrl) ────────
+// Only https URLs are rendered/opened (see lib/dmAttachments). Formats a browser
+// can't show (HEIC, 3GP from iOS) fall back to an "Open file" link.
+const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+const OpenFileLink = ({ url }) => (
+  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[40px] items-center rounded-lg border border-border/60 px-3 py-2 text-xs font-medium underline underline-offset-2 hover:opacity-80">
+    Open file
+  </a>
+);
+
+// GIF as a looping muted video: plays only while on screen, doesn't preload
+// until needed, and doesn't autoplay at all under prefers-reduced-motion.
+const GifVideo = ({ a, className, onFail }) => {
+  const ref = useRef(null);
+  const reduced = prefersReducedMotion();
+  const poster = a.poster || a.preview || a.still || undefined;
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || reduced || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) v.play?.().catch(() => {}); else v.pause?.();
+    }, { threshold: 0.25 });
+    io.observe(v);
+    return () => io.disconnect();
+  }, [reduced]);
+  return (
+    <video ref={ref} src={a.url} poster={poster} loop muted playsInline controls={reduced} preload={poster ? 'none' : 'metadata'}
+      aria-label="GIF" className={className} onError={onFail} />
+  );
+};
+
+const AttachmentItem = ({ a, single }) => {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <OpenFileLink url={a.url} />;
+  const mediaCls = cn('rounded-xl max-w-full', single ? 'h-auto max-h-[300px]' : 'h-full w-full object-cover');
+  if (a.kind === 'video') {
+    return <video src={a.url} controls playsInline preload="metadata" className={mediaCls} onError={() => setFailed(true)} />;
+  }
+  if (a.kind === 'gif' && isVideoLike(a)) {
+    return <GifVideo a={a} className={mediaCls} onFail={() => setFailed(true)} />;
+  }
+  return (
+    <a href={a.url} target="_blank" rel="noopener noreferrer" aria-label="Open image in a new tab" className="block">
+      <img src={a.url} alt={a.name || 'Shared content'} loading="lazy" onError={() => setFailed(true)}
+        className={cn('rounded-xl max-w-full object-cover', single ? 'h-auto max-h-[300px]' : 'h-full w-full')} />
+    </a>
+  );
+};
+
+const AttachmentGrid = ({ attachments }) => {
+  if (!attachments.length) return null;
+  if (attachments.length === 1) return <div className="mb-1"><AttachmentItem a={attachments[0]} single /></div>;
+  return (
+    <div className="grid grid-cols-2 gap-1 mb-1 w-64 max-w-full">
+      {attachments.slice(0, 4).map((a, i) => (
+        <div key={i} className="aspect-square overflow-hidden rounded-xl bg-black/20"><AttachmentItem a={a} /></div>
+      ))}
+    </div>
+  );
+};
+
 // ── Message bubble renderer ───────────────────────────────────────────────────
 const MessageBubble = ({ msg, isMe }) => {
   const base = cn(
@@ -131,7 +196,7 @@ const MessageBubble = ({ msg, isMe }) => {
     );
   }
 
-  if (msg.type === 'voice' && msg.mediaUrl) {
+  if (msg.type === 'voice' && isHttps(msg.mediaUrl)) {
     return (
       <div className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
         <div className={cn('rounded-2xl px-3 py-2 flex items-center gap-2', isMe ? 'bg-primary' : 'bg-muted')}>
@@ -144,15 +209,8 @@ const MessageBubble = ({ msg, isMe }) => {
 
   return (
     <div className={base}>
-      {msg.type === 'image' && msg.mediaUrl && (
-        <div className="cursor-pointer" onClick={() => window.open(msg.mediaUrl, '_blank')}>
-          <img src={msg.mediaUrl} alt="Shared content" className="rounded-xl max-w-full h-auto mb-1 max-h-[300px] object-cover" />
-        </div>
-      )}
-      {msg.type === 'video' && msg.mediaUrl && (
-        <video src={msg.mediaUrl} controls className="rounded-xl max-w-full h-auto mb-1 max-h-[300px]" />
-      )}
-      <LinkifiedText text={msg.content} />
+      <AttachmentGrid attachments={messageAttachments(msg)} />
+      {msg.content ? <LinkifiedText text={msg.content} /> : null}
       {firstLink(msg.content) && <LinkPreviewCard url={firstLink(msg.content)} />}
     </div>
   );
@@ -162,79 +220,145 @@ const MessageBubble = ({ msg, isMe }) => {
 const previewText = (msg, isMe) => {
   if (!msg) return '';
   const prefix = isMe ? 'You: ' : '';
-  switch (msg.type) {
-    case 'image':   return prefix + 'Sent an image';
-    case 'video':   return prefix + 'Sent a video';
-    case 'sticker': return prefix + `${msg.content || '🎭'} Sticker`;
-    case 'gift':    return prefix + '🎁 Gift';
-    case 'voice':   return prefix + '🎙 Voice message';
-    default:        return prefix + (msg.content || '');
-  }
+  if (msg.type === 'image' && !msg.content) return prefix + '📷 Photo';
+  if (msg.type === 'video' && !msg.content) return prefix + '🎥 Video';
+  return prefix + messagePreview(msg);
 };
 
-// ── Toolbar: sticker / gift / voice / attachment ──────────────────────────────
-const MessageToolbar = ({ onStickerSend, onGiftSend, onFileClick, onVoiceToggle, isRecording, isUploadingVoice, disabled }) => {
+// ── Toolbar: attachment / GIF / sticker / gift ────────────────────────────────
+const StickerGrid = ({ onPick }) => (
+  <div className="grid grid-cols-6 gap-1">
+    {STICKERS.map(s => (
+      <button key={s} type="button" aria-label={`Send sticker ${s}`}
+        className="text-2xl leading-none min-h-[40px] p-1.5 rounded hover:bg-accent transition-colors"
+        onClick={() => onPick(s)}>
+        {s}
+      </button>
+    ))}
+  </div>
+);
+
+const GiftGrid = ({ onPick }) => (
+  <div className="grid grid-cols-3 gap-2">
+    {GIFTS.map(g => (
+      <button key={g.label} type="button"
+        className="flex flex-col items-center gap-1 p-2 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        onClick={() => onPick(g)}>
+        <span className="text-3xl">{g.emoji}</span>
+        <span className="text-xs font-medium">{g.label}</span>
+        <span className="text-[10px] text-muted-foreground">{g.coins} coins</span>
+      </button>
+    ))}
+  </div>
+);
+
+const ghostBtn = 'shrink-0 text-muted-foreground hover:text-foreground h-10 w-10 sm:h-9 sm:w-9';
+
+const MessageToolbar = ({ onGifSend, onStickerSend, onGiftSend, onFileClick, onVoiceToggle, isRecording, isUploadingVoice, disabled }) => {
+  const compact = useMediaQuery('(max-width: 639px)');
+  const gifsEnabled = useGifsEnabled();
   const [stickerOpen, setStickerOpen] = useState(false);
   const [giftOpen, setGiftOpen] = useState(false);
+  const [gifOpen, setGifOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [panel, setPanel] = useState(null); // compact "+" menu: null | 'sticker' | 'gift' | 'gif'
+
+  const attach = (
+    <Button type="button" variant="ghost" size="icon" className={ghostBtn} onClick={onFileClick} disabled={disabled} aria-label="Attach photos or a video">
+      <ImageIcon className="h-5 w-5" />
+    </Button>
+  );
+
+  const voice = (
+    <Button type="button" variant="ghost" size="icon"
+      className={cn(ghostBtn, 'transition-colors', isRecording && 'text-red-500 hover:text-red-400 animate-pulse')}
+      onClick={onVoiceToggle} disabled={isUploadingVoice || disabled}
+      aria-label={isRecording ? 'Stop recording' : 'Record a voice message'}
+      title={isRecording ? 'Stop recording' : 'Voice message'}>
+      {isUploadingVoice ? <Loader2 className="h-4 w-4 animate-spin" /> : isRecording ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-4 w-4" />}
+    </Button>
+  );
+
+  if (compact) {
+    return (
+      <div className="flex items-center">
+        {attach}
+        <Popover open={moreOpen} onOpenChange={(o) => { setMoreOpen(o); if (!o) setPanel(null); }}>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" className={ghostBtn} disabled={disabled} aria-label="More: GIF, stickers, gifts">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[min(20rem,calc(100vw-1.5rem))] p-3" align="start" side="top">
+            {!panel && (
+              <div className="grid gap-1">
+                {gifsEnabled && (
+                  <button type="button" onClick={() => setPanel('gif')} className="flex min-h-[44px] items-center gap-3 rounded-lg px-2 text-sm hover:bg-accent">
+                    <span className="flex h-6 w-6 items-center justify-center text-[11px] font-bold">GIF</span> GIF
+                  </button>
+                )}
+                <button type="button" onClick={() => setPanel('sticker')} className="flex min-h-[44px] items-center gap-3 rounded-lg px-2 text-sm hover:bg-accent"><Smile className="h-5 w-5" /> Stickers</button>
+                <button type="button" onClick={() => setPanel('gift')} className="flex min-h-[44px] items-center gap-3 rounded-lg px-2 text-sm hover:bg-accent"><Gift className="h-5 w-5" /> Send a gift</button>
+              </div>
+            )}
+            {panel && (
+              <div>
+                <button type="button" onClick={() => setPanel(null)} className="mb-2 flex min-h-[40px] items-center gap-1 text-xs font-semibold text-muted-foreground">
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </button>
+                {panel === 'sticker' && <StickerGrid onPick={(s) => { onStickerSend(s); setMoreOpen(false); }} />}
+                {panel === 'gift' && <GiftGrid onPick={(g) => { onGiftSend(g); setMoreOpen(false); }} />}
+                {panel === 'gif' && <GifPanel className="h-72" onPick={(g) => { onGifSend(g); setMoreOpen(false); }} />}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+        {voice}
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-0.5">
-      {/* Attachment */}
-      <Button type="button" variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground h-9 w-9" onClick={onFileClick} disabled={disabled}>
-        <ImageIcon className="h-5 w-5" />
-      </Button>
+      {attach}
 
-      {/* Sticker picker */}
+      {gifsEnabled && (
+        <Popover open={gifOpen} onOpenChange={setGifOpen}>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" className={cn(ghostBtn, 'text-[11px] font-bold')} disabled={disabled} aria-label="Send a GIF" title="GIF">
+              GIF
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-3" align="start">
+            <GifPanel className="h-80" onPick={(g) => { onGifSend(g); setGifOpen(false); }} />
+          </PopoverContent>
+        </Popover>
+      )}
+
       <Popover open={stickerOpen} onOpenChange={setStickerOpen}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground h-9 w-9" disabled={disabled}>
+          <Button type="button" variant="ghost" size="icon" className={ghostBtn} disabled={disabled} aria-label="Stickers">
             <Smile className="h-5 w-5" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-3" align="start">
           <p className="text-xs font-semibold text-muted-foreground mb-2">Stickers</p>
-          <div className="grid grid-cols-6 gap-1">
-            {STICKERS.map(s => (
-              <button key={s} type="button"
-                className="text-2xl leading-none p-1.5 rounded hover:bg-accent transition-colors"
-                onClick={() => { onStickerSend(s); setStickerOpen(false); }}>
-                {s}
-              </button>
-            ))}
-          </div>
+          <StickerGrid onPick={(s) => { onStickerSend(s); setStickerOpen(false); }} />
         </PopoverContent>
       </Popover>
 
-      {/* Gift picker */}
       <Popover open={giftOpen} onOpenChange={setGiftOpen}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground h-9 w-9" disabled={disabled}>
+          <Button type="button" variant="ghost" size="icon" className={ghostBtn} disabled={disabled} aria-label="Send a gift">
             <Gift className="h-5 w-5" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-3" align="start">
           <p className="text-xs font-semibold text-muted-foreground mb-2">Send a Gift</p>
-          <div className="grid grid-cols-3 gap-2">
-            {GIFTS.map(g => (
-              <button key={g.label} type="button"
-                className="flex flex-col items-center gap-1 p-2 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors"
-                onClick={() => { onGiftSend(g); setGiftOpen(false); }}>
-                <span className="text-3xl">{g.emoji}</span>
-                <span className="text-xs font-medium">{g.label}</span>
-                <span className="text-[10px] text-muted-foreground">{g.coins} coins</span>
-              </button>
-            ))}
-          </div>
+          <GiftGrid onPick={(g) => { onGiftSend(g); setGiftOpen(false); }} />
         </PopoverContent>
       </Popover>
-
-      {/* Voice message */}
-      <Button type="button" variant="ghost" size="icon"
-        className={cn('shrink-0 h-9 w-9 transition-colors', isRecording ? 'text-red-500 hover:text-red-400 animate-pulse' : 'text-muted-foreground hover:text-foreground')}
-        onClick={onVoiceToggle} disabled={isUploadingVoice || disabled}
-        title={isRecording ? 'Stop recording' : 'Voice message'}>
-        {isUploadingVoice ? <Loader2 className="h-4 w-4 animate-spin" /> : isRecording ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-4 w-4" />}
-      </Button>
+      {voice}
     </div>
   );
 };
@@ -262,8 +386,8 @@ const InboxPage = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [activeTab, setActiveTab] = useState('primary');
 
-  const [selectedMedia, setSelectedMedia] = useState(null);
-  const [mediaType, setMediaType] = useState(null);
+  const [media, setMedia] = useState([]); // uploaded attachments waiting to send: up to 4 photos, or 1 video
+  const textInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
@@ -337,59 +461,102 @@ const InboxPage = () => {
     setSearchResults([]);
   };
 
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if ((!messageInput.trim() && !selectedMedia) || !activeThread) return;
-    const recipient = getRecipient();
-    if (selectedMedia) {
-      sendMessage(recipient, messageInput || (mediaType === 'image' ? 'Sent an image' : 'Sent a video'), mediaType, selectedMedia);
-    } else {
-      sendMessage(recipient, messageInput);
+  const errText = (err, fallback) => err?.response?.data?.message || err?.message || fallback;
+  const focusInput = () => { setTimeout(() => textInputRef.current?.focus(), 0); };
+
+  // Content and media are only gone for good once the server accepts the
+  // message; on failure they come back (unless you have started typing again)
+  // and a toast says why (links paywall, block, rate limit...).
+  const deliver = async (text, type, attachment, attachments, restore) => {
+    try {
+      await sendMessage(getRecipient(), text, type, attachment, attachments, { throwOnError: true });
+      return true;
+    } catch (err) {
+      toast({ title: 'Message not sent', description: errText(err, 'Please try again.'), variant: 'destructive' });
+      restore?.();
+      return false;
     }
-    setMessageInput('');
-    setSelectedMedia(null);
-    setMediaType(null);
   };
 
-  const handleFileSelect = (e) => uploadMedia(e.target.files[0]);
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if ((!messageInput.trim() && !media.length) || !activeThread) return;
+    const text = messageInput;
+    const sentMedia = media;
+    setMessageInput('');
+    setMedia([]);
+    deliver(sentMedia.length ? text.trim() : text, 'text', null, sentMedia.length ? sentMedia : null, () => {
+      setMessageInput((cur) => cur || text);
+      setMedia((cur) => (cur.length ? cur : sentMedia));
+    });
+    focusInput();
+  };
 
-  // One image/video per DM: from the picker, a drag from the desktop, or a
-  // pasted screenshot.
-  const uploadMedia = async (file) => {
-    if (!file) return;
-    if (!/^(image|video)\//.test(file.type || '') || file.type === 'image/svg+xml') {
-      toast({ title: 'Images and videos only', description: `${file.name || 'That file'} can't be sent here.`, variant: 'destructive' });
+  const handleFileSelect = (e) => uploadMedia(Array.from(e.target.files || []));
+
+  // Up to 4 photos or 1 video per DM: from the picker, a drag from the
+  // desktop, or a pasted screenshot. One upload request for the batch.
+  const uploadMedia = async (input) => {
+    const files = (Array.isArray(input) ? input : [input]).filter(Boolean);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!files.length || !activeThread || isUploading) return;
+    const bad = files.find((f) => !/^(image|video)\//.test(f.type || '') || f.type === 'image/svg+xml');
+    if (bad) {
+      toast({ title: 'Images and videos only', description: `${bad.name || 'That file'} can't be sent here.`, variant: 'destructive' });
       return;
     }
-    if (!activeThread || isUploading) return;
+    const videos = files.filter((f) => f.type.startsWith('video/'));
+    if (videos.length > 1 || (videos.length === 1 && (files.length > 1 || media.length))) {
+      toast({ title: 'One video at a time', description: 'Send a single video on its own, or up to 4 photos.', variant: 'destructive' });
+      return;
+    }
+    if (videos.length === 0 && media.some((m) => m.kind === 'video')) {
+      toast({ title: 'Remove the video first', description: 'A message can have one video or up to 4 photos.', variant: 'destructive' });
+      return;
+    }
+    const room = MAX_DM_PHOTOS - media.length;
+    const batch = videos.length ? files : files.slice(0, Math.max(room, 0));
+    if (!batch.length) {
+      toast({ title: 'Photo limit reached', description: `Up to ${MAX_DM_PHOTOS} photos per message.`, variant: 'destructive' });
+      return;
+    }
+    if (files.length > batch.length) toast({ title: `Only ${MAX_DM_PHOTOS} photos per message`, description: `Added the first ${batch.length}.` });
+    const tooBig = batch.find((f) => f.size > (f.type.startsWith('video/') ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES));
+    if (tooBig) {
+      toast({ title: 'File too large', description: `${tooBig.name || 'That file'} is over ${tooBig.type.startsWith('video/') ? '100' : '25'} MB.`, variant: 'destructive' });
+      return;
+    }
     setIsUploading(true);
     try {
       const fd = new FormData();
-      fd.append('file', file);
-      fd.append('folder', 'messages');
-      const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      const url = data?.result?.url || data?.url;
-      if (url) {
-        setSelectedMedia(url);
-        setMediaType(file.type.startsWith('video') ? 'video' : 'image');
-      }
+      batch.forEach((f) => fd.append('files', f));
+      const { data } = await api.post('/messages/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const got = (data?.result?.attachments || []).filter((a) => a?.url);
+      if (got.length) setMedia((cur) => [...cur, ...got].slice(0, videos.length ? 1 : MAX_DM_PHOTOS));
     } catch (err) {
-      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Upload failed', description: errText(err, 'Please try again.'), variant: 'destructive' });
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      focusInput();
     }
+  };
+
+  const handleGifSend = (g) => {
+    const att = gifToAttachment(g);
+    if (!activeThread || !att) return;
+    deliver('', 'text', null, [att]);
   };
 
   const handleStickerSend = (emoji) => {
     if (!activeThread) return;
-    sendMessage(getRecipient(), emoji, 'sticker', null);
+    deliver(emoji, 'sticker', null, null);
   };
 
   const handleGiftSend = (gift) => {
     if (!activeThread) return;
-    sendMessage(getRecipient(), `${gift.emoji} Sent a ${gift.label}`, 'gift', null);
-    toast({ title: `${gift.emoji} Gift sent!`, description: `You sent a ${gift.label} (${gift.coins} coins)` });
+    deliver(`${gift.emoji} Sent a ${gift.label}`, 'gift', null, null).then((ok) => {
+      if (ok) toast({ title: `${gift.emoji} Gift sent!`, description: `You sent a ${gift.label} (${gift.coins} coins)` });
+    });
   };
 
   const handleVoiceToggle = async () => {
@@ -416,11 +583,12 @@ const InboxPage = () => {
           fd.append('folder', 'voice_messages');
           const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
           const url = data?.result?.url || data?.url;
-          if (url && activeThread) sendMessage(getRecipient(), '🎙 Voice message', 'voice', url);
+          if (url && activeThread) await deliver('🎙 Voice message', 'voice', url, null);
         } catch (err) {
-          toast({ title: 'Voice upload failed', description: err.message, variant: 'destructive' });
+          toast({ title: 'Voice upload failed', description: errText(err, 'Please try again.'), variant: 'destructive' });
         } finally {
           setIsUploadingVoice(false);
+          focusInput();
         }
       };
 
@@ -432,9 +600,8 @@ const InboxPage = () => {
     }
   };
 
-  const handleRemoveMedia = () => {
-    setSelectedMedia(null);
-    setMediaType(null);
+  const handleRemoveMedia = (i) => {
+    setMedia((cur) => cur.filter((_, j) => j !== i));
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -500,14 +667,14 @@ const InboxPage = () => {
   const pickDropped = (e) => {
     if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
     e.preventDefault();
-    const file = Array.from(e.dataTransfer.files || [])[0];
-    if (file) uploadMedia(file);
+    const list = Array.from(e.dataTransfer.files || []);
+    if (list.length) uploadMedia(list);
   };
   const pastedMedia = (e) => {
-    const file = Array.from(e.clipboardData?.files || [])[0];
-    if (!file || (e.clipboardData.getData('text/plain') || '').trim()) return;
+    const list = Array.from(e.clipboardData?.files || []);
+    if (!list.length || (e.clipboardData.getData('text/plain') || '').trim()) return;
     e.preventDefault();
-    uploadMedia(file);
+    uploadMedia(list);
   };
 
   const ChatInput = ({ mobile = false }) => (
@@ -516,20 +683,30 @@ const InboxPage = () => {
       onDragOver={(e) => { if (Array.from(e.dataTransfer?.types || []).includes('Files')) e.preventDefault(); }}
       onDrop={pickDropped}
     >
-      {selectedMedia && (
-        <div className="mb-2 flex items-center gap-3 bg-muted/30 rounded-xl px-3 py-2">
-          <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-black/50 shrink-0">
-            {mediaType === 'image'
-              ? <img src={selectedMedia} alt="Preview" className="h-full w-full object-cover" />
-              : <video src={selectedMedia} className="h-full w-full object-cover" />}
-          </div>
-          <p className="text-xs text-muted-foreground flex-1">{mediaType === 'image' ? 'Image' : 'Video'} ready to send</p>
-          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleRemoveMedia}><X className="h-4 w-4" /></Button>
+      {media.length > 0 && (
+        <div className="mb-2 flex items-center gap-2 bg-muted/30 rounded-xl px-3 py-2 overflow-x-auto">
+          {media.map((m, i) => (
+            <div key={m.url} className="relative h-14 w-14 shrink-0 rounded-lg bg-black/50">
+              <div className="h-full w-full overflow-hidden rounded-lg">
+                {m.kind === 'video'
+                  ? <video src={m.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  : <img src={m.url} alt={`Attachment ${i + 1} preview`} className="h-full w-full object-cover" />}
+              </div>
+              <button type="button" onClick={() => handleRemoveMedia(i)} aria-label={`Remove ${m.kind === 'video' ? 'video' : `photo ${i + 1}`}`}
+                className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-background text-foreground shadow ring-1 ring-border before:absolute before:-inset-2 before:content-['']">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground pl-1 shrink-0">
+            {media[0].kind === 'video' ? 'Video' : `${media.length} photo${media.length === 1 ? '' : 's'}`} ready to send
+          </p>
         </div>
       )}
-      <form onSubmit={handleSendMessage} className={cn('flex items-center gap-2', !mobile && 'max-w-3xl mx-auto')}>
-        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileSelect} />
+      <form onSubmit={handleSendMessage} className={cn('flex items-center gap-1 sm:gap-2', !mobile && 'max-w-3xl mx-auto')}>
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" multiple onChange={handleFileSelect} />
         <MessageToolbar
+          onGifSend={handleGifSend}
           onStickerSend={handleStickerSend}
           onGiftSend={handleGiftSend}
           onFileClick={() => fileInputRef.current?.click()}
@@ -538,8 +715,9 @@ const InboxPage = () => {
           isUploadingVoice={isUploadingVoice}
           disabled={!activeThread || isUploading}
         />
-        <div className="flex-1 relative">
+        <div className="flex-1 min-w-0 relative">
           <Input
+            ref={textInputRef}
             value={messageInput}
             onChange={e => setMessageInput(e.target.value)}
             onPaste={pastedMedia}
@@ -549,7 +727,8 @@ const InboxPage = () => {
           />
         </div>
         <Button type="submit" size="icon" className="rounded-full shrink-0"
-          disabled={(!messageInput.trim() && !selectedMedia) || isUploading || isRecording}>
+          aria-label="Send message"
+          disabled={(!messageInput.trim() && !media.length) || isUploading || isRecording}>
           <Send className="h-4 w-4" />
         </Button>
       </form>
@@ -593,7 +772,7 @@ const InboxPage = () => {
           </div>
         </ScrollArea>
         <RequestBar />
-        <ChatInput mobile />
+        {ChatInput({ mobile: true })}
       </div>
     );
   }
@@ -731,7 +910,7 @@ const InboxPage = () => {
             </ScrollArea>
 
             <RequestBar />
-            <ChatInput />
+            {ChatInput({})}
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">

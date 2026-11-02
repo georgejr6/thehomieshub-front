@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import { PollDialog, EventDialog } from './CreateDialogs';
 import EmojiPicker from './EmojiPicker';
+import { GifPanel } from '@/components/GifPicker';
+import { useGifsEnabled } from '@/lib/gifs';
 import { fileKind, formatBytes, renamePasted, validateFiles } from './attachments';
 
 const SHORTCODES = {
@@ -133,6 +135,8 @@ const Composer = forwardRef(function Composer({ channel, state, actions, replyTo
   const [mention, setMention] = useState(null); // { query, start, results, index }
   const [uploading, setUploading] = useState(0); // files in the current upload
   const [plusMenu, setPlusMenu] = useState(false);
+  const [gifOpen, setGifOpen] = useState(false);
+  const gifsEnabled = useGifsEnabled();
   const [dialog, setDialog] = useState(null); // 'poll' | 'event'
   const [cmdIndex, setCmdIndex] = useState(0);
   const mentionMap = useRef({}); // "@username" (as typed) -> userId
@@ -147,6 +151,17 @@ const Composer = forwardRef(function Composer({ channel, state, actions, replyTo
   const can = channel?.can || {};
   const mutedUntil = state.me?.mutedUntil && new Date(state.me.mutedUntil) > new Date() ? new Date(state.me.mutedUntil) : null;
   const disabled = !can.send || !!mutedUntil;
+  // GIFs go out as a bare GIPHY .gif link; the server unfurls it into the embed.
+  const sendGif = async (g) => {
+    setGifOpen(false);
+    const url = g.gif || g.mp4;
+    if (!url || disabled || !channel) return;
+    const reply = replyTo;
+    clearReply();
+    const res = await actions.sendMessage({ channelId: channel.id, content: url, replyTo: reply });
+    if (res?.error) onError(res.error.message);
+    input.current?.focus();
+  };
 
   // Drafts are per channel, like Discord. Mentions in a restored draft are
   // re-resolved so they still ping (the name → id map lives in memory only).
@@ -169,6 +184,7 @@ const Composer = forwardRef(function Composer({ channel, state, actions, replyTo
     try { localStorage.setItem(`hh_chat_draft_${channel?.id}`, text); } catch { /* private mode */ }
   }, [text, channel?.id]);
   useEffect(() => { if (replyTo) input.current?.focus(); }, [replyTo]);
+  useEffect(() => { setGifOpen(false); }, [channel?.id]);
 
   // Auto-grow up to ~50% of the viewport.
   useEffect(() => {
@@ -543,6 +559,11 @@ const Composer = forwardRef(function Composer({ channel, state, actions, replyTo
               <button onClick={() => openCreate('event')} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white">
                 <CalendarDays className="h-5 w-5" /> Create Event
               </button>
+              {gifsEnabled && (
+                <button disabled={disabled} onClick={() => { setPlusMenu(false); setGifOpen(true); }} className="flex w-full items-center gap-3 rounded px-2.5 py-2 text-left text-sm text-[#DBDEE1] transition-colors hover:bg-[#5865F2] hover:text-white disabled:opacity-40 disabled:hover:bg-transparent max-sm:min-h-[44px]">
+                  <span className="flex h-5 w-5 items-center justify-center rounded border border-current text-[9px] font-bold leading-none">GIF</span> Send a GIF
+                </button>
+              )}
               {onSendMoney && (
                 <>
                   <div className="mx-2 my-1 h-px bg-white/10" />
@@ -553,11 +574,20 @@ const Composer = forwardRef(function Composer({ channel, state, actions, replyTo
               )}
             </div>
           )}
+          {gifOpen && (
+            <>
+              <div className="fixed inset-0 z-30 bg-black/50 sm:bg-transparent" onClick={() => setGifOpen(false)} />
+              <div role="dialog" aria-label="GIF picker" onKeyDown={(e) => { if (e.key === 'Escape') setGifOpen(false); }}
+                className="chat-fade-up fixed inset-x-0 bottom-0 z-40 flex h-[70dvh] max-h-[560px] flex-col rounded-t-xl border border-[#1E1F22] bg-[#2B2D31] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-full sm:left-4 sm:mb-2 sm:h-[26rem] sm:w-[22rem] sm:rounded-lg">
+                <GifPanel theme="chat" className="min-h-0 flex-1" onPick={sendGif} onClose={() => setGifOpen(false)} />
+              </div>
+            </>
+          )}
           <button
             disabled={disabled}
             onClick={(e) => { e.stopPropagation(); setPlusMenu((v) => !v); }}
             title="Upload a file, create a poll or event, or send money"
-            className={cn('px-4 py-[11px] transition-[color,transform] duration-200 hover:text-[#DBDEE1] disabled:opacity-30', plusMenu ? 'rotate-45 text-[#DBDEE1]' : 'text-[#B5BAC1]')}
+            className={cn('px-3 py-[11px] sm:px-4 transition-[color,transform] duration-200 hover:text-[#DBDEE1] disabled:opacity-30', plusMenu ? 'rotate-45 text-[#DBDEE1]' : 'text-[#B5BAC1]')}
           >
             {progress !== null ? <Loader2 className="h-6 w-6 animate-spin" /> : <PlusCircle className="h-6 w-6" />}
           </button>
@@ -606,7 +636,7 @@ const Composer = forwardRef(function Composer({ channel, state, actions, replyTo
               disabled={disabled}
               onClick={() => onOpenPerks({ tab: 'gift' })}
               title="Gift a membership or send a shoutout"
-              className="group px-3 py-[11px] text-[#B5BAC1] transition-colors hover:text-[#F0B94D] disabled:opacity-30"
+              className="group px-2 py-[11px] text-[#B5BAC1] transition-colors hover:text-[#F0B94D] disabled:opacity-30 sm:px-3"
             >
               <Gift className="h-6 w-6 transition-transform duration-200 group-hover:-rotate-12 group-hover:scale-110" />
             </button>
