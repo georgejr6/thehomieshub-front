@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { roleColor } from './ChatMarkdown';
 import Avatar from './Avatar';
 import DmSection from './DmSection';
+import useLiveSpaces from '@/hooks/useLiveSpaces';
 
 const ICONS = { text: Hash, announcement: Megaphone, forum: MessagesSquare, thread: CornerDownRight };
 
@@ -38,6 +39,7 @@ function ChannelRow({ c, active, onOpen, muted, depth = 0, onMenu }) {
 }
 
 export default function ChannelSidebar({ state, actions, onToast, activeChannelId, onOpen, onClose, onDeleteHistory, onToggleDiscoverable, onOpenSettings }) {
+  const spaces = useLiveSpaces({ enabled: true, intervalMs: 60000 });
   const [menu, setMenu] = useState(null); // { x, y, sheet, channel } | { x, y, sheet, category }
   const activeName = state.channels.find((c) => c.id === activeChannelId)?.name;
   const [collapsed, setCollapsed] = useState(() => {
@@ -106,6 +108,13 @@ export default function ChannelSidebar({ state, actions, onToast, activeChannelI
         <span className="truncate text-[15px] font-semibold text-white">{state.server?.name || 'The Homies'}</span>
       </div>
       <div className="hh-chat-scroll min-h-0 flex-1 overflow-y-auto py-2 [scrollbar-width:thin]">
+        {spaces.live.length > 0 && (
+          <Link to={spaces.live.length === 1 ? `/spaces/${spaces.live[0].id}` : '/spaces'} onClick={onClose}
+            className="mx-2 mb-2 flex items-center gap-2 rounded-md bg-[#248046]/25 px-2.5 py-2 text-sm font-semibold text-white ring-1 ring-[#248046]/60 transition-colors hover:bg-[#248046]/40">
+            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+            <span className="min-w-0 flex-1 truncate">🎙 Live Space{spaces.live.length === 1 ? `: ${spaces.live[0].title}` : `s (${spaces.live.length})`}</span>
+          </Link>
+        )}
         <DmSection onNavigate={onClose} />
         {groups.map((g) => {
           const isCollapsed = collapsed[g.name];

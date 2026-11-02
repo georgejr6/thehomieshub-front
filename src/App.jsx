@@ -26,6 +26,8 @@ const TripsPage = lazyWithReload(() => import('@/pages/TripsPage'));
 const AccountSettingsPage = lazyWithReload(() => import('@/pages/AccountSettingsPage'));
 const InboxPage = lazyWithReload(() => import('@/pages/InboxPage'));
 const ChatPage = lazyWithReload(() => import('@/pages/ChatPage'));
+const SpacesPage = lazyWithReload(() => import('@/pages/SpacesPage'));
+const SpaceRoomPage = lazyWithReload(() => import('@/pages/SpaceRoomPage'));
 const LiveWatchPage = lazyWithReload(() => import('@/pages/LiveWatchPage'));
 const MyAIPage = lazyWithReload(() => import('@/pages/MyAIPage'));
 const MyClipsPage = lazyWithReload(() => import('@/pages/MyClipsPage'));
@@ -534,6 +536,9 @@ const AppContent = React.memo(() => {
             {/* --- /live: watch the stream (YouTube/Kick embed) + live chat. Open to
                  logged-out visitors (owner decision 2026-09-25), no location gate. --- */}
             <Route path="/live" element={<Suspense fallback={<RouteFallback full dark />}><LiveWatchPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', '/live'); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
+            {/* --- The Homies Spaces (live audio rooms). Room is a full-screen overlay; livekit-client only loads with it. --- */}
+            <Route path="/spaces" element={<Suspense fallback={<RouteFallback full dark />}><SpacesPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', '/spaces'); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
+            <Route path="/spaces/:id" element={<Suspense fallback={<RouteFallback full dark />}><SpaceRoomPage onLoginRequest={() => { try { localStorage.setItem('post_auth_redirect', location.pathname); localStorage.setItem('post_auth_redirect_ts', String(Date.now())); } catch { /* private mode */ } setAuthModalState({ isOpen: true, view: 'main' }); }} /></Suspense>} />
             <Route path="/discord/*" element={<Navigate to="/chat" replace />} />
             <Route path="/community/*" element={<Navigate to="/chat" replace />} />
 
