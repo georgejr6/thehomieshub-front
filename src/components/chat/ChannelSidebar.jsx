@@ -28,6 +28,7 @@ function ChannelRow({ c, active, onOpen, muted, depth = 0, onMenu }) {
       {unread && <span className="chat-pop absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r bg-white" />}
       <Icon className="h-[18px] w-[18px] shrink-0 opacity-70" />
       <span className={cn('truncate', (unread || active) && 'font-semibold')}>{c.name}</span>
+      {c.liveChat?.live && <span className="shrink-0 rounded bg-[#F23F43] px-1 text-[10px] font-bold uppercase leading-4 text-white">Live</span>}
       {c.discoverable && <Globe className="h-3 w-3 shrink-0 opacity-50" title="Posts here can become discoverable Homies posts" />}
       {c.mentions > 0 && !active && (
         <span key={c.mentions} className="chat-pop ml-auto rounded-full bg-[#F23F43] px-1.5 text-[11px] font-bold leading-4 text-white">{c.mentions > 99 ? '99+' : c.mentions}</span>

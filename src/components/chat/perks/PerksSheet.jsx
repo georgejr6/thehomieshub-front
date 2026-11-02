@@ -243,6 +243,7 @@ function PointsTab({ balance, need, actions, onBought, onCheckout, busy, setBusy
         <div className="mt-2 space-y-0.5 text-xs leading-relaxed text-[#C9B27A]">
           <div>Earn free points by showing up — here or on our Discord:</div>
           <div>• +1 per message (up to 10 a day; Discord counts for 5) · +5 for your first message of the day</div>
+          <div>• Connected YouTube: +1 per message in Mwosa's YouTube live chat (up to 5 a day, within the 10) · +25 per Super Chat, Super Sticker or new membership (up to 100 a day)</div>
           <div>• +25 every 7 days in a row · +2 when someone replies to you · +1 when someone reacts</div>
           <div className="text-[#9C8A5E]">Up to 150 a week. Earned points cover one free month every 3 months; points you buy work anytime.</div>
         </div>

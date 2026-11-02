@@ -213,6 +213,19 @@ const AccountSettingsPage = () => {
     }
   };
 
+  const setYtPref = async (body, okMsg) => {
+    setYtLoading(true);
+    try {
+      await api.patch('/auth/youtube', body);
+      await refreshMe();
+      if (okMsg) toast({ title: okMsg });
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || "Couldn't update YouTube.", variant: 'destructive' });
+    } finally {
+      setYtLoading(false);
+    }
+  };
+
   const handleDisconnectYouTube = async () => {
     setYtLoading(true);
     try {
@@ -827,6 +840,17 @@ const AccountSettingsPage = () => {
                   </Button>
                 )}
               </div>
+              {user?.youtube && (
+                <div className="space-y-3 pl-12">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="yt-show" className="text-sm font-normal">Show my YouTube on my profile</Label>
+                    <Switch id="yt-show" checked={!user.youtube.hidden} disabled={ytLoading} onCheckedChange={(on) => setYtPref({ hidden: !on })} />
+                  </div>
+                  <Button variant="outline" size="sm" disabled={ytLoading} onClick={() => setYtPref({ useYoutubeName: true }, 'Display name updated')}>Use my YouTube name as my display name</Button>
+                  <p className="text-xs text-muted-foreground">Chatting in Mwosa's YouTube live earns points once your channel is connected.</p>
+                </div>
+              )}
+              {!user?.youtube && <p className="pl-12 text-xs text-muted-foreground">Chatting in Mwosa's YouTube live earns points once your channel is connected.</p>}
             </>
           )}
 

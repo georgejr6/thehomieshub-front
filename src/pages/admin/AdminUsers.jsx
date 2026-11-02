@@ -606,6 +606,12 @@ const UserActivityDialog = ({ user, isOpen, onOpenChange }) => {
                 <Fact label="Real name (OAuth)" value={p?.name} />
                 <Fact label="Email" value={p?.email} />
                 <Fact label="Discord handle" value={p?.discordUsername} />
+                {p?.youtube?.channelId && (
+                  <Fact label="YouTube" value={<>
+                    <a href={`https://www.youtube.com/channel/${p.youtube.channelId}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{p.youtube.title || p.youtube.channelId}{p.youtube.handle ? ` (${String(p.youtube.handle).startsWith('@') ? '' : '@'}${p.youtube.handle})` : ''}</a>
+                    {p.youtube.hidden && <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">private</span>}
+                  </>} />
+                )}
                 <Fact label="Member since" value={fmtD(p?.createdAt)} />
               </div>
             </div>
@@ -989,6 +995,11 @@ const AdminUsers = () => {
                           )}
                           {user.discordUsername && (
                             <span className="text-xs text-[#5865F2] font-medium">· @{user.discordUsername}</span>
+                          )}
+                          {user.youtube?.channelId && (
+                            <a href={`https://www.youtube.com/channel/${user.youtube.channelId}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-[#ff0033] font-medium hover:underline">
+                              · YouTube: {user.youtube.title || user.youtube.channelId}{user.youtube.handle ? ` (${String(user.youtube.handle).startsWith('@') ? '' : '@'}${user.youtube.handle})` : ''}{user.youtube.hidden ? ' · private' : ''}
+                            </a>
                           )}
                         </div>
                         {user.linkedCount > 0 && (

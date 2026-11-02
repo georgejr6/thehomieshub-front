@@ -157,6 +157,19 @@ export default function JoinGatePage() {
   // can't resume, and location is often blocked). null = can't tell → allowed.
   const [privateMode, setPrivateMode] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [ytBusy, setYtBusy] = useState(false);
+  const connectYouTube = async () => {
+    setYtBusy(true);
+    try {
+      const { data } = await api.get('/auth/youtube/connect', { params: { return: '/settings' } });
+      const url = data?.result?.url;
+      if (!url) throw new Error('no url');
+      window.location.assign(url);
+    } catch {
+      toast({ title: 'Error', description: "Couldn't connect YouTube. You can do it later in Settings.", variant: 'destructive' });
+      setYtBusy(false);
+    }
+  };
 
   // Coming back via the browser Back button (bfcache) after leaving for
   // Discord/Google: un-stick the buttons.
@@ -539,6 +552,15 @@ export default function JoinGatePage() {
             </button>
           )}
           </motion.div>
+
+          <div className="mt-6 rounded-xl border border-border bg-card/50 p-4 text-left">
+            <p className="text-sm font-semibold text-foreground">Watching on YouTube?</p>
+            <p className="mt-1 text-xs text-muted-foreground">Connect your channel so your YouTube live chat earns points here too.</p>
+            <button type="button" onClick={connectYouTube} disabled={busy || ytBusy} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#ff0033] px-3 py-2 text-sm font-semibold text-white hover:bg-[#cc0029] disabled:opacity-50">
+              {ytBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Connect YouTube
+            </button>
+            <span className="ml-3 text-xs text-muted-foreground">Optional</span>
+          </div>
 
           {/* Upsell — only shown to free members */}
           {(!admittedTier || admittedTier === 'free') && (

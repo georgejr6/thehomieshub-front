@@ -301,6 +301,14 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
   const togglePin = async () => {
     try { const r = await actions.pin(m.id, !m.pinned); onError(`${m.pinned ? 'Unpinned' : 'Pinned'}${discordNote(r?.data?.result)}`); } catch (err) { onError(err.response?.data?.message || "Couldn't pin."); }
   };
+  const [blockAsk, setBlockAsk] = useState(false);
+  const blockExternal = async () => {
+    setBlockAsk(false);
+    try {
+      const r = await actions.blockExternal(m.id);
+      onError(`Blocked ${r?.name || m.external?.name}. Hid ${r?.hidden ?? 0} messages.`);
+    } catch (err) { onError(err.response?.data?.message || "Couldn't block."); }
+  };
   const startEdit = () => { setDraft(m.content); setEditing(true); };
   const canEdit = mine && !m.source && !m.special;
   const who = m.author?.displayName || m.author?.username;
@@ -326,6 +334,10 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
       { label: 'Ban', icon: Ban, danger: true, onClick: () => moderate('ban') },
       { note: 'Applies here and on the real Discord.' },
     ] : []),
+    ...(isStaff && m.external?.platform && !m.pending ? [
+      { divider: true },
+      { label: 'Block from the app', icon: Ban, danger: true, onClick: () => setBlockAsk(true) },
+    ] : []),
     // Admins: turn this message into a push notification (admin/push campaigns).
     ...(onSendAsPush && !m.special && !m.pending ? [
       { divider: true },
@@ -349,6 +361,7 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         menu && 'bg-[#2E3035]',
         fresh && 'chat-msg-in',
         grouped ? 'py-0.5' : 'mt-[17px] py-0.5',
+        m.external?.support && 'border-l-2 border-[#F0B232] bg-[#F0B232]/[0.10] pl-[70px] hover:bg-[#F0B232]/[0.14]',
         pinged && 'border-l-2 border-[#F0B232] bg-[#F0B232]/[0.08] pl-[70px] hover:bg-[#F0B232]/[0.12]',
         highlight && 'bg-[#5865F2]/10',
         m.pending && 'opacity-50'
@@ -424,6 +437,14 @@ function MessageItem({ m, grouped, ctx, me, can, isStaff, onReply, actions, onEr
         <div className="text-[15px] leading-[1.375rem] text-[#DBDEE1]">
           <ChatMarkdown text={externalText(m.content, m.external)} ctx={ctx} />
           {m.editedAt && <span className="ml-1 text-[10px] text-[#949BA4]">(edited)</span>}
+        </div>
+      )}
+
+      {blockAsk && (
+        <div className="my-1 flex flex-wrap items-center gap-2 rounded-lg bg-[#2B2D31] px-3 py-2 text-sm text-[#DBDEE1]" onClick={(e) => e.stopPropagation()}>
+          <span className="min-w-0 flex-1">Block {m.external?.name} from showing in the app? Their messages here will be hidden.</span>
+          <button type="button" onClick={() => setBlockAsk(false)} className="rounded px-2 py-1 text-[#B5BAC1] hover:text-white">Cancel</button>
+          <button type="button" onClick={blockExternal} className="rounded bg-[#F23F43] px-2 py-1 font-semibold text-white hover:bg-[#D83C3E]">Block</button>
         </div>
       )}
 

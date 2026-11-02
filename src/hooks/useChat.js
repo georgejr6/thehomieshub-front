@@ -507,6 +507,9 @@ export function useChat({ enabled, activeChannelId }) {
     timeout: async (userId, minutes, reason) => (await api.post('/chat/mod/timeout', { userId, minutes, reason })).data.result,
     kick: async (userId, reason) => (await api.post('/chat/mod/kick', { userId, reason })).data.result,
     ban: async (userId, reason, deleteMessageHours) => (await api.post('/chat/mod/ban', { userId, reason, deleteMessageHours })).data.result,
+    blockExternal: async (messageId) => (await api.post('/livechat/mod/block-external', { messageId })).data.result,
+    listBlockedExternal: async () => (await api.get('/livechat/mod/blocked-external')).data.result?.blocked || [],
+    unblockExternal: async (id) => api.delete(`/livechat/mod/blocked-external/${id}`),
     searchMembers: async (query) => (await api.get('/chat/members', { params: { query, limit: 8 } })).data.result || [],
     // Polls/events are real Homies posts (same endpoints as the app feed),
     // then shared into the channel as a live card.

@@ -394,6 +394,13 @@ export default function ChatPage({ onLoginRequest }) {
                   onSendAsPush={canSendPush ? setPushFrom : undefined}
                 />
                 </div>
+                {channel.liveChat && (
+                  <div className="shrink-0 truncate px-4 pb-1 text-xs text-[#949BA4]" title="Stream chat">
+                    {channel.liveChat.live && channel.liveChat.relaying
+                      ? `🔴 Live now. What you send here shows in the YouTube${channel.liveChat.platforms?.includes('kick') ? ' and Kick' : ''} chat.`
+                      : 'The stream chat. It stays open after the stream. While Mwosa is live, messages here also show in the YouTube chat.'}
+                  </div>
+                )}
                 <Composer
                   ref={composerRef}
                   channel={channel}
