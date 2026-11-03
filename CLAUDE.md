@@ -15,6 +15,11 @@
 
 ## Key Architecture
 
+### 2026-11-03 - Spaces: mic picker, share links, replays
+- Room (`SpaceRoomPage.jsx`): mic permission asked as soon as you can speak; mic sheet (gear next to the mic) lists inputs, remembers the pick (`localStorage hh_spaces_mic`, `savedMic/saveMic`), switches via `room.switchActiveDevice`, live level bar (`components/spaces/MicMeter.jsx`; never opens a second capture while a muted mic track exists); unplugged pick falls back to default; friendly getUserMedia errors (`micErrorText`). Share button (`shareSpace`: navigator.share, else copy). REC tag + toast only when `space.recordReplay === true`.
+- Ended Space: `/spaces/:id` shows `components/spaces/SpaceReplay.jsx` (GET /spaces/:id/replay, one `<audio>` swapping parts, speeds, signed-link refresh resumes position, polls while the file is saved, host/admin delete with 4 s confirm). `/spaces` lists Replays; Start sheet has "Record for replay" (body `record`).
+- The "Reconnecting..." loop was the LiveKit server (1.8 vs client 2.23), fixed server side (1.10).
+
 ### API Layer
 - `src/api/homieshub.js` — Axios instance pointing to `https://backend.thehomies.app/api`. Attaches `Bearer` token from `localStorage.access_token` on every request.
 - `src/lib/frogzApi.js` — External "Freaky Frogz" clip API. Only loads for users with `freakyfrogz_fan` or `freakyfrogz` tag.

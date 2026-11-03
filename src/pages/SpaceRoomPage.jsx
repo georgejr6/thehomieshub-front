@@ -1,17 +1,19 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Room, RoomEvent, ConnectionState, DisconnectReason } from 'livekit-client';
-import { Mic, MicOff, Hand, SmilePlus, PhoneOff, Headphones, Volume2, Lock } from 'lucide-react';
+import { Room, RoomEvent, ConnectionState, DisconnectReason, Track } from 'livekit-client';
+import { Mic, MicOff, Hand, SmilePlus, PhoneOff, Headphones, Volume2, Lock, Share2, Settings2, Check } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   REACTION_EMOJIS, REACTION_TOPIC, ACTION_LABELS, SPEAKER_API_ACTION,
   actionsFor, deriveRole, encodeReaction, endSpace, getSpace, isHandRaised, isMod, isSpeakerRole,
   joinSpace, limitListeners, muteInSpace, parseMetadata, parseReaction, removeFromSpace,
   sortByRole, speakerAction, spacesError, startSpace,
-  setHandInSpace,
+  setHandInSpace, shareSpace, savedMic, saveMic, micErrorText,
 } from '@/lib/spaces';
 import SpaceAvatar from '@/components/spaces/SpaceAvatar';
+import SpaceReplay from '@/components/spaces/SpaceReplay';
+import MicMeter from '@/components/spaces/MicMeter';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from '@/components/ui/use-toast';
@@ -94,6 +96,11 @@ export default function SpaceRoomPage({ onLoginRequest }) {
   const [sheet, setSheet] = useState(null); // { type: 'target', p } | 'hands' | 'end'
   const [showReactions, setShowReactions] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [mics, setMics] = useState([]);
+  const [activeMic, setActiveMic] = useState(savedMic() || 'default');
+  const [devTick, setDevTick] = useState(0);
+  const warmedRef = useRef(false);
+  const recToastRef = useRef(false);
   const roomRef = useRef(null);
   const audioBox = useRef(null);
   const leftRef = useRef(false);
@@ -142,7 +149,8 @@ export default function SpaceRoomPage({ onLoginRequest }) {
         setPhase('connecting');
         const j = await joinSpace(id);
         if (cancelled) return;
-        theRoom = new Room({ adaptiveStream: true, dynacast: true, audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        const mic = savedMic();
+        theRoom = new Room({ adaptiveStream: true, dynacast: true, audioCaptureDefaults: { ...(mic ? { deviceId: mic } : {}), echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
         const refresh = () => { if (!cancelled) bump(); };
         theRoom
           .on(RoomEvent.ParticipantConnected, refresh).on(RoomEvent.ParticipantDisconnected, refresh)
@@ -151,6 +159,8 @@ export default function SpaceRoomPage({ onLoginRequest }) {
           .on(RoomEvent.ParticipantMetadataChanged, refresh).on(RoomEvent.ParticipantAttributesChanged, refresh)
           .on(RoomEvent.ParticipantPermissionsChanged, refresh).on(RoomEvent.AudioPlaybackStatusChanged, refresh)
           .on(RoomEvent.ParticipantNameChanged, refresh)
+          .on(RoomEvent.MediaDevicesChanged, () => { if (!cancelled) setDevTick((n) => n + 1); })
+          .on(RoomEvent.ActiveDeviceChanged, (kind, deviceId) => { if (!cancelled && kind === 'audioinput' && deviceId) { setActiveMic(deviceId); bump(); } })
           .on(RoomEvent.ConnectionStateChanged, (s) => { if (!cancelled) setConn(s); })
           .on(RoomEvent.TrackSubscribed, (track) => {
             if (track.kind === 'audio' && audioBox.current) audioBox.current.appendChild(track.attach());
@@ -215,6 +225,42 @@ export default function SpaceRoomPage({ onLoginRequest }) {
     }
   }, [myRole, phase]);
 
+  // Microphones: asked for once as soon as you can speak, so one is picked and
+  // unmuting starts right away. The choice is remembered per browser.
+  const loadMics = useCallback(async (ask) => {
+    try {
+      const list = (await Room.getLocalDevices('audioinput', ask)).filter((d) => d.deviceId);
+      setMics(list);
+      const cur = roomRef.current?.getActiveDevice('audioinput') || savedMic();
+      const ok = cur && list.some((d) => d.deviceId === cur);
+      setActiveMic(ok ? cur : (list.find((d) => d.deviceId === 'default') || list[0])?.deviceId || 'default');
+      return list;
+    } catch (err) {
+      if (ask) toast({ title: 'Microphone blocked', description: micErrorText(err), variant: 'destructive' });
+      return [];
+    }
+  }, []);
+  useEffect(() => {
+    if (phase !== 'live' || !isSpeakerRole(myRole) || warmedRef.current) return;
+    warmedRef.current = true;
+    loadMics(true);
+  }, [phase, myRole, loadMics]);
+  useEffect(() => { if (devTick) loadMics(false); }, [devTick, loadMics]);
+  const pickMic = async (deviceId) => {
+    const prev = activeMic;
+    setActiveMic(deviceId);
+    let ok = true;
+    try { ok = (await roomRef.current?.switchActiveDevice('audioinput', deviceId)) !== false; } catch (err) { ok = false; toast({ title: 'Could not switch mic', description: micErrorText(err), variant: 'destructive' }); }
+    if (ok) saveMic(deviceId); else setActiveMic(prev);
+    bump(); // the published track object changes on a switch; re-read it for the meter
+  };
+  useEffect(() => {
+    if (phase !== 'live' || recToastRef.current || space?.recordReplay !== true) return;
+    recToastRef.current = true;
+    toast({ title: 'This Space is recorded', description: 'People can listen back after it ends.' });
+  }, [phase, space?.recordReplay]);
+  const share = async () => { if ((await shareSpace({ id, title: space?.title })) === 'copied') toast({ title: 'Link copied', description: 'Send it to anyone. It opens this Space (or its replay).' }); };
+
   const leave = () => {
     leftRef.current = true;
     const r = roomRef.current;
@@ -225,7 +271,24 @@ export default function SpaceRoomPage({ onLoginRequest }) {
   const lp = roomRef.current?.localParticipant;
   const toggleMic = async () => {
     if (!lp) return;
-    try { await lp.setMicrophoneEnabled(!lp.isMicrophoneEnabled); } catch { toast({ title: 'Could not use the microphone', description: 'Check your browser mic permission.', variant: 'destructive' }); }
+    const turningOn = !lp.isMicrophoneEnabled;
+    try {
+      await lp.setMicrophoneEnabled(turningOn);
+      if (turningOn && !mics.length) loadMics(false);
+    } catch (err) {
+      // The picked mic was unplugged: fall back to the default one once.
+      let fixed = false;
+      if (turningOn && ['OverconstrainedError', 'NotFoundError'].includes(err?.name)) {
+        try {
+          saveMic('');
+          await roomRef.current?.switchActiveDevice('audioinput', 'default');
+          await lp.setMicrophoneEnabled(true);
+          setActiveMic('default'); fixed = true;
+          toast({ title: 'Switched to your default mic', description: 'The one you picked is not plugged in.' });
+        } catch { /* fall through */ }
+      }
+      if (!fixed) toast({ title: 'Could not use the microphone', description: micErrorText(err), variant: 'destructive' });
+    }
     bump();
   };
   const toggleHand = async () => {
@@ -264,7 +327,7 @@ export default function SpaceRoomPage({ onLoginRequest }) {
   if (authLoading) return wrap(<Notice emoji="🎙" title="Loading..." />);
   if (!user) return wrap(<Notice emoji="🎙" title="Sign in to join" body="Spaces are live audio rooms for The Homies."><Button onClick={() => onLoginRequest?.()}>Sign in</Button><Button variant="outline" onClick={() => navigate('/spaces')}>Back</Button></Notice>);
   if (phase === 'loading' || phase === 'connecting') return wrap(<Notice emoji="🎧" title={phase === 'loading' ? 'Loading Space...' : 'Joining the room...'} />);
-  if (phase === 'ended') return wrap(<Notice emoji="👋" title="This Space has ended" body={space?.title}><Button onClick={() => navigate('/spaces')}>Back to Spaces</Button></Notice>);
+  if (phase === 'ended') return wrap(<SpaceReplay id={id} space={space} canDelete={me?.role === 'host' || !!user?.isAdmin} onBack={() => navigate('/spaces')} />);
   if (phase === 'lost') return wrap(<Notice emoji="📡" title="Connection lost" body="We could not stay connected to the room."><Button onClick={() => { setPhase('connecting'); setTick((n) => n + 1); }}>Rejoin</Button><Button variant="outline" onClick={() => navigate('/spaces')}>Leave</Button></Notice>);
   if (phase === 'error') {
     return wrap(failure?.kind === 'off'
@@ -293,13 +356,16 @@ export default function SpaceRoomPage({ onLoginRequest }) {
       <header className="shrink-0 border-b border-border px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />LIVE{space?.membersOnly && <Lock className="h-3 w-3 text-muted-foreground" />}</div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />LIVE{space?.membersOnly && <Lock className="h-3 w-3 text-muted-foreground" />}{space?.recordReplay === true && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-red-400">● REC</span>}</div>
             <h1 className="break-words text-lg font-bold leading-tight">{title}</h1>
             {space?.topic && <p className="break-words text-sm text-muted-foreground">{space.topic}</p>}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Headphones className="h-3.5 w-3.5" />{listeners.length} listening</span>
-            {canEnd && <Button size="sm" variant="outline" className="h-8 border-red-500/50 text-red-400" onClick={() => setSheet('end')}>End</Button>}
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="outline" className="h-8 gap-1 px-2.5" onClick={share} aria-label="Share"><Share2 className="h-3.5 w-3.5" />Share</Button>
+              {canEnd && <Button size="sm" variant="outline" className="h-8 border-red-500/50 text-red-400" onClick={() => setSheet('end')}>End</Button>}
+            </div>
           </div>
         </div>
         {conn !== ConnectionState.Connected && <div className="mt-2 rounded-md bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300">Reconnecting...</div>}
@@ -331,12 +397,15 @@ export default function SpaceRoomPage({ onLoginRequest }) {
       )}
       <footer className="shrink-0 border-t border-border bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
         <div className="mx-auto flex max-w-md items-center justify-between gap-2">
-          <button type="button" onClick={leave} className="flex h-12 items-center gap-2 rounded-full bg-red-600 px-5 text-sm font-semibold text-white active:scale-95"><PhoneOff className="h-4 w-4" />Leave</button>
+          <button type="button" onClick={leave} aria-label="Leave" className="flex h-12 shrink-0 items-center gap-2 rounded-full bg-red-600 px-4 text-sm font-semibold text-white active:scale-95"><PhoneOff className="h-4 w-4" /><span className="hidden min-[400px]:inline">Leave</span></button>
           {isMod(myRole) && (
             <button type="button" onClick={() => setSheet('hands')} className="relative flex h-12 w-12 items-center justify-center rounded-full bg-muted active:scale-95" aria-label="Raised hands">
               <Hand className="h-5 w-5" />
               {hands.length > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">{hands.length}</span>}
             </button>
+          )}
+          {canSpeak && (
+            <button type="button" onClick={() => { setSheet('mic'); loadMics(true); }} aria-label="Mic settings" className="flex h-12 w-12 items-center justify-center rounded-full bg-muted active:scale-95"><Settings2 className="h-5 w-5" /></button>
           )}
           {canSpeak ? (
             <button type="button" onClick={toggleMic} aria-label={micOn ? 'Mute' : 'Unmute'} className={`flex h-12 w-12 items-center justify-center rounded-full active:scale-95 ${micOn ? 'bg-emerald-500 text-white' : 'bg-muted'}`}>{micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}</button>
@@ -372,6 +441,31 @@ export default function SpaceRoomPage({ onLoginRequest }) {
                   </div>
                 ))}
                 {!hands.length && <p className="text-sm text-muted-foreground">Nobody has a hand up.</p>}
+              </div>
+            </>
+          )}
+          {sheet === 'mic' && (
+            <>
+              <SheetHeader><SheetTitle>Microphone</SheetTitle></SheetHeader>
+              <div className="mt-4 space-y-2">
+                {mics.map((d, i) => (
+                  <button key={d.deviceId} type="button" onClick={() => pickMic(d.deviceId)}
+                    className={`flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm ${activeMic === d.deviceId ? 'border-primary bg-primary/10' : 'border-border'}`}>
+                    <Mic className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 flex-1 break-words">{d.label || `Microphone ${i + 1}`}</span>
+                    {activeMic === d.deviceId && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                  </button>
+                ))}
+                {!mics.length && <p className="text-sm text-muted-foreground">No microphones yet. Allow mic access when your browser asks, or plug one in.</p>}
+              </div>
+              {mics.length > 0 && (() => {
+                const pubTrack = lp?.getTrackPublication(Track.Source.Microphone)?.track?.mediaStreamTrack || null;
+                if (micOn && pubTrack) return <div className="mt-4"><MicMeter key={pubTrack.id} deviceId={activeMic} liveTrack={pubTrack} /></div>;
+                if (pubTrack) return <p className="mt-4 text-xs text-muted-foreground">Unmute to test your mic.</p>;
+                return <div className="mt-4"><MicMeter key={activeMic} deviceId={activeMic} liveTrack={null} /></div>;
+              })()}
+              <div className="mt-4 flex gap-2">
+                <Button className="h-12 flex-1" onClick={async () => { if (!micOn) await toggleMic(); setSheet(null); }}>{micOn ? 'Done' : 'Unmute and talk'}</Button>
               </div>
             </>
           )}

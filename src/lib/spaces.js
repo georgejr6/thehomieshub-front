@@ -113,3 +113,44 @@ export const speakerAction = (id, userId, action) => api.post(`/spaces/${id}/spe
 export const setHandInSpace = (id, raised) => api.post(`/spaces/${id}/hand`, { raised: !!raised }).then(unwrap);
 export const muteInSpace = (id, userId) => api.post(`/spaces/${id}/mute`, { userId }).then(unwrap);
 export const removeFromSpace = (id, userId) => api.post(`/spaces/${id}/remove`, { userId }).then(unwrap);
+
+export const getReplay = (id) => api.get(`/spaces/${id}/replay`).then(unwrap);
+export const deleteReplay = (id) => api.delete(`/spaces/${id}/replay`).then(unwrap);
+
+export const spaceUrl = (id) => `${typeof window !== 'undefined' ? window.location.origin : 'https://thehomies.app'}/spaces/${id}`;
+
+// Native share sheet where there is one, else copy the link. Returns 'shared' | 'copied' | null.
+export async function shareSpace(space) {
+  const url = spaceUrl(space.id);
+  const title = space.title ? `${space.title} | The Homies Spaces` : 'The Homies Spaces';
+  try {
+    if (navigator.share) { await navigator.share({ title, text: space.title || 'Join this Space', url }); return 'shared'; }
+  } catch (e) { if (e?.name === 'AbortError') return null; }
+  try { await navigator.clipboard.writeText(url); return 'copied'; } catch { /* old browser */ }
+  try { window.prompt('Copy this link', url); } catch { /* blocked */ }
+  return null;
+}
+
+export function formatDuration(secs) {
+  const s = Math.max(0, Math.round(secs || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}` : `${m}:${String(r).padStart(2, '0')}`;
+}
+export const durationLabel = (secs) => {
+  const m = Math.round((secs || 0) / 60);
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${Math.max(1, m)} min`;
+};
+
+// The mic someone picked last time (per browser).
+const MIC_KEY = 'hh_spaces_mic';
+export function savedMic() { try { return localStorage.getItem(MIC_KEY) || ''; } catch { return ''; } }
+export function saveMic(id) { try { if (id) localStorage.setItem(MIC_KEY, id); else localStorage.removeItem(MIC_KEY); } catch { /* private mode */ } }
+
+// Friendly text for getUserMedia failures.
+export function micErrorText(err) {
+  const n = err?.name || '';
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'Allow microphone access for thehomies.app (tap the lock icon next to the address), then try again.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'No microphone found. Plug one in, then pick it in Mic settings.';
+  if (n === 'NotReadableError' || n === 'AbortError') return 'Another app is using your mic. Close it and try again.';
+  return err?.message || 'Could not use the microphone.';
+}

@@ -3,14 +3,14 @@ import { listSpaces, spacesError } from '@/lib/spaces';
 
 // GET /api/spaces, optionally polled (the chat sidebar pill uses 60 s).
 export default function useLiveSpaces({ enabled = true, intervalMs = 0 } = {}) {
-  const [data, setData] = useState({ live: [], scheduled: [], canHost: false });
+  const [data, setData] = useState({ live: [], scheduled: [], replays: [], canHost: false });
   const [status, setStatus] = useState('loading'); // loading | ready | off | error
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
       const r = await listSpaces();
-      setData({ live: r?.live || [], scheduled: r?.scheduled || [], canHost: !!r?.canHost });
+      setData({ live: r?.live || [], scheduled: r?.scheduled || [], replays: r?.replays || [], canHost: !!r?.canHost });
       setStatus('ready');
       setError(null);
     } catch (err) {
