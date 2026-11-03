@@ -41,7 +41,14 @@ export const isHandRaised = (attributes) => attributes?.hand === '1';
 
 // Actions the viewer may take on a tapped avatar (spec: host/cohost only; only
 // the host can cohost/uncohost; nobody acts on the host or on themselves).
-export function actionsFor(myRole, targetRole, isSelf = false) {
+export function actionsFor(myRole, targetRole, isSelf = false, isAdmin = false) {
+  if (isAdmin && !isSelf) {
+    // Site admins can run any Space, including on the host (only mute: the host can't be removed).
+    if (targetRole === 'host') return ['mute'];
+    if (targetRole === 'listener') return ['invite', 'remove'];
+    if (targetRole === 'speaker') return ['mute', 'remove-speaker', 'cohost', 'remove'];
+    if (targetRole === 'cohost') return ['mute', 'uncohost', 'remove'];
+  }
   if (!isMod(myRole) || isSelf || targetRole === 'host') return [];
   if (targetRole === 'listener') return ['invite', 'remove'];
   if (targetRole === 'speaker') return myRole === 'host' ? ['mute', 'remove-speaker', 'cohost', 'remove'] : ['mute', 'remove-speaker', 'remove'];
@@ -88,8 +95,11 @@ export function spacesError(err) {
   if (status === 503 && (code === 'spaces_off' || !code)) return { kind: 'off', message: 'Spaces are coming soon' };
   if (code === 'spaces_off') return { kind: 'off', message: 'Spaces are coming soon' };
   if (status === 410 || code === 'ended') return { kind: 'ended', message: 'This Space has ended.' };
+  if (code === 'sign_in_required') return { kind: 'signin', message: 'Sign in to keep listening.' };
+  if (code === 'not_live') return { kind: 'not_live', message: 'This Space is not live right now.' };
+  if (code === 'is_host') return { kind: 'error', message: "The host can't be removed. End the Space instead." };
   if (code === 'removed') return { kind: 'removed', message: 'The host removed you from this Space.' };
-  if (code === 'no_permission') return { kind: 'no_permission', message: "You can't start Spaces yet. Hosting is for admins and paid members." };
+  if (code === 'no_permission') return { kind: 'no_permission', message: "You can't start a Space right now." };
   if (code === 'already_live') {
     const d = err?.response?.data || {};
     const id = d.spaceId || d.id || d.space?.id || d.result?.id || d.result?.spaceId || d.error?.spaceId || null;
@@ -104,7 +114,9 @@ export function spacesError(err) {
 
 export const listSpaces = () => api.get('/spaces').then(unwrap);
 export const createSpace = (body) => api.post('/spaces', body).then(unwrap);
-export const getSpace = (id) => api.get(`/spaces/${id}`).then(unwrap);
+const guestCfg = (guest) => (guest ? { noAuth: true } : undefined);
+export const getSpace = (id, guest = false) => api.get(`/spaces/${id}`, guestCfg(guest)).then(unwrap);
+export const guestJoinSpace = (id) => api.post(`/spaces/${id}/guest-join`, {}, { noAuth: true }).then(unwrap);
 export const joinSpace = (id) => api.post(`/spaces/${id}/join`).then(unwrap);
 export const startSpace = (id) => api.post(`/spaces/${id}/start`).then(unwrap);
 export const endSpace = (id) => api.post(`/spaces/${id}/end`).then(unwrap);
@@ -114,7 +126,63 @@ export const setHandInSpace = (id, raised) => api.post(`/spaces/${id}/hand`, { r
 export const muteInSpace = (id, userId) => api.post(`/spaces/${id}/mute`, { userId }).then(unwrap);
 export const removeFromSpace = (id, userId) => api.post(`/spaces/${id}/remove`, { userId }).then(unwrap);
 
-export const getReplay = (id) => api.get(`/spaces/${id}/replay`).then(unwrap);
+export const getReplay = (id, guest = false) => api.get(`/spaces/${id}/replay`, guestCfg(guest)).then(unwrap);
+export const postSpeaking = (id, segments) => api.post(`/spaces/${id}/speaking`, { segments, sentAt: Date.now() }).then(unwrap);
+// For page close / leaving: fetch with keepalive so the last stretch still gets there.
+export function postSpeakingKeepalive(id, segments) {
+  try {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    fetch(`${api.defaults.baseURL}/spaces/${id}/speaking`, {
+      method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ segments, sentAt: Date.now() }),
+    }).catch(() => { /* silent */ });
+  } catch { /* silent */ }
+}
+
+export const isGuestIdentity = (id) => String(id || '').startsWith('guest_');
+export const isStripeUrl = (u) => typeof u === 'string' && u.startsWith('https://checkout.stripe.com/');
+const HANDLE_HOSTS = { cashapp: ['cash.app'], instagram: ['instagram.com'], youtube: ['youtube.com'], tiktok: ['tiktok.com'], x: ['x.com'] };
+// Only https links to the expected site for that handle.
+export function safeHandleUrl(key, url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return null;
+    const host = u.hostname.replace(/^www\./, '');
+    return (HANDLE_HOSTS[key] || []).includes(host) ? u.toString() : null;
+  } catch { return null; }
+}
+export const getMyProfile = () => api.get('/spaces/me/profile').then(unwrap);
+export const saveMyProfile = (body) => api.patch('/spaces/me/profile', body).then(unwrap);
+export const getPerson = (id, userId) => api.get(`/spaces/${id}/people/${userId}`).then(unwrap);
+export const giftPoints = (id, toUserId, points) => api.post(`/spaces/${id}/gift`, { toUserId, points }).then(unwrap);
+export const tipPerson = (id, toUserId, amountCents) => api.post(`/spaces/${id}/tip`, { toUserId, amountCents }).then(unwrap);
+
+// Who is talking at a replay position. wall = parts[i].startMs + time*1000.
+export function speakingIdsAt(speech, wall) {
+  const out = new Set();
+  if (!Array.isArray(speech) || !Number.isFinite(wall)) return out;
+  for (const r of speech) {
+    if (r.s - 800 > wall) break; // sorted by s
+    if (wall <= r.e + 250) out.add(String(r.u));
+  }
+  return out;
+}
+
+// Plain-words errors for gifts and tips.
+export function personError(err) {
+  const code = apiErrorCode(err);
+  const msg = err?.response?.data?.message;
+  if (code === 'insufficient_points') return { kind: 'points', message: "You don't have enough points for that." };
+  if (code === 'earned_points_not_tippable') return { kind: 'earned', message: msg || 'Only points you bought can be sent as gifts.' };
+  if (code === 'not_member') return { kind: 'error', message: 'Only paying members can get gifts and tips.' };
+  if (code === 'blocked') return { kind: 'error', message: "You can't send to this person." };
+  if (code === 'self') return { kind: 'error', message: "You can't send to yourself." };
+  if (code === 'not_in_space') return { kind: 'error', message: 'They are not in this Space.' };
+  if (code === 'payouts_not_ready') return { kind: 'error', message: "They haven't set up payouts yet." };
+  return { kind: 'error', message: msg || spacesError(err).message };
+}
 export const deleteReplay = (id) => api.delete(`/spaces/${id}/replay`).then(unwrap);
 
 export const spaceUrl = (id) => `${typeof window !== 'undefined' ? window.location.origin : 'https://thehomies.app'}/spaces/${id}`;
@@ -156,11 +224,9 @@ export function micErrorText(err) {
 }
 
 // Public: Spaces live right now (no account needed), for the stories row and /live.
-export const listLiveNow = () => api.get('/spaces/live-now').then(unwrap).then((r) => r?.live || []);
+// Returns { live, replays }. Always sent without a token so it is the same for everyone.
+export const listLiveNowFeed = () => api.get('/spaces/live-now', { noAuth: true }).then(unwrap).then((r) => ({ live: r?.live || [], replays: r?.replays || [] }));
+export const listLiveNow = () => listLiveNowFeed().then((r) => r.live);
 
-// Open a Space; signed-out visitors sign in first and land back on it.
-export function openSpace(navigate, id, user, onLoginRequest) {
-  if (user) { navigate(`/spaces/${id}`); return; }
-  // The login handlers store their own redirect; pass ours so it wins.
-  if (onLoginRequest) onLoginRequest({ redirect: `/spaces/${id}` }); else navigate(`/spaces/${id}`);
-}
+// Open a Space. Signed-out visitors can open it too (they listen as guests).
+export function openSpace(navigate, id) { navigate(`/spaces/${id}`); }

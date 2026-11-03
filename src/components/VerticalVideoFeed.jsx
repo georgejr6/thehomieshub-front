@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import VerticalVideo from '@/components/VerticalVideo';
 import MusicFeedCard from '@/components/music/MusicFeedCard';
+import SpacesFeedCards from '@/components/spaces/SpacesFeedCards';
+import { useLiveSpacesFeed } from '@/hooks/useLiveSpacesNow';
 import { useVideoPlaybackDisabled } from '@/lib/videoPlaybackStatus';
 import { MerchReelCard, useMerchReelProducts, merchReelsLeft, FEED_EVERY } from '@/components/merch/MerchReel';
 
@@ -26,7 +28,7 @@ function wrapPosts(posts, loopIndex) {
   }));
 }
 
-const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, initialIndex = 0, merch = false }) => {
+const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, initialIndex = 0, merch = false, spaces = false }) => {
   const playbackDisabled = useVideoPlaybackDisabled();
   const containerRef = useRef(null);
   const [visibleIndex, setVisibleIndex] = useState(initialIndex);
@@ -54,17 +56,25 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
     const first = Math.max(FEED_EVERY, visibleIndexRef.current + 4);
     setMerchSlots(Array.from({ length: Math.min(merchReelsLeft(), merchProducts.length) }, (_, k) => first + k * FEED_EVERY));
   }, [merch, merchSlots, merchProducts]);
+  // Spaces card (spaces prop, For You only): one card with live Spaces and recent replays.
+  const spacesFeed = useLiveSpacesFeed(30000, spaces);
+  const [spacesSlot, setSpacesSlot] = useState(null);
+  useEffect(() => {
+    if (!spaces || spacesSlot != null || !(spacesFeed.live.length || spacesFeed.replays.length)) return;
+    setSpacesSlot(Math.max(3, visibleIndexRef.current + 3));
+  }, [spaces, spacesSlot, spacesFeed]);
   const displayItems = useMemo(() => {
-    if (!merchSlots) return items;
+    if (!merchSlots && spacesSlot == null) return items;
     const out = [];
     items.forEach((it, i) => {
       out.push(it);
-      const k = merchSlots.indexOf(i + 1);
+      if (spacesSlot === i + 1) out.push({ post: { type: 'spaces', id: 'spaces-card' }, instanceKey: 'spaces-card' });
+      const k = merchSlots ? merchSlots.indexOf(i + 1) : -1;
       const product = k >= 0 ? merchProducts[k] : null;
       if (product && !merchHidden.has(product.slug)) out.push({ post: { type: 'merch', id: `merch-${product.slug}`, product }, instanceKey: `merch-${k}-${product.slug}` });
     });
     return out;
-  }, [items, merchSlots, merchProducts, merchHidden]);
+  }, [items, merchSlots, merchProducts, merchHidden, spacesSlot]);
   const hideMerch = useCallback((slug) => setMerchHidden((prev) => new Set(prev).add(slug)), []);
 
   // Scroll to initialIndex once the feed container has mounted (it only
@@ -146,7 +156,9 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
       className="h-[100svh] w-full overflow-y-scroll snap-y snap-mandatory bg-black [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
       style={{ scrollBehavior: 'smooth' }}
     >
-      {displayItems.map(({ post, instanceKey }, index) => post.type === 'merch' ? (
+      {displayItems.map(({ post, instanceKey }, index) => post.type === 'spaces' ? (
+        <SpacesFeedCards key={instanceKey} live={spacesFeed.live} replays={spacesFeed.replays} index={index} />
+      ) : post.type === 'merch' ? (
         <MerchReelCard
           key={instanceKey}
           product={post.product}

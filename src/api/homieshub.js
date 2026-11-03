@@ -12,7 +12,9 @@ const api = axios.create({
 
 // attach token automatically
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
+  // noAuth: signed-out callers (guest Spaces) must never send a stale token.
+  const token = config.noAuth ? null : localStorage.getItem('access_token');
+  if (config.noAuth) delete config.headers.Authorization;
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });

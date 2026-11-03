@@ -4,10 +4,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Headphones, Mic, Plus, Lock, CalendarClock, Play, Share2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import useLiveSpaces from '@/hooks/useLiveSpaces';
+import { useLiveSpacesFeed } from '@/hooks/useLiveSpacesNow';
 import { createSpace, spacesError, shareSpace, durationLabel } from '@/lib/spaces';
 import SpaceAvatar from '@/components/spaces/SpaceAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import ProfileEditSheet from '@/components/spaces/ProfileEditSheet';
 import { Switch } from '@/components/ui/switch';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from '@/components/ui/use-toast';
@@ -59,7 +61,6 @@ function StartSheet({ open, onOpenChange }) {
   const [later, setLater] = useState(false);
   const [when, setWhen] = useState('');
   const [membersOnly, setMembersOnly] = useState(false);
-  const [record, setRecord] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {
@@ -68,7 +69,7 @@ function StartSheet({ open, onOpenChange }) {
     if (later && (!when || Number.isNaN(new Date(when).getTime()))) { toast({ title: 'Pick a date and time.', variant: 'destructive' }); return; }
     setBusy(true);
     try {
-      const body = { title: title.trim(), membersOnly, record };
+      const body = { title: title.trim(), membersOnly };
       if (topic.trim()) body.topic = topic.trim();
       if (later) body.scheduledFor = new Date(when).toISOString();
       const r = await createSpace(body);
@@ -106,10 +107,7 @@ function StartSheet({ open, onOpenChange }) {
             <span><span className="font-medium">Members only</span><span className="block text-muted-foreground">Only paid members can join.</span></span>
             <Switch checked={membersOnly} onCheckedChange={setMembersOnly} />
           </label>
-          <label className="flex items-center justify-between gap-3 text-sm">
-            <span><span className="font-medium">Record for replay</span><span className="block text-muted-foreground">People can listen back after it ends. Everyone in the room sees a REC tag.</span></span>
-            <Switch checked={record} onCheckedChange={setRecord} />
-          </label>
+          <p className="text-xs text-muted-foreground">Recording for replay, so people can listen back after it ends.</p>
           <Button type="submit" className="h-12 w-full text-base" disabled={!title.trim() || busy}>{busy ? 'Starting...' : later ? 'Schedule Space' : 'Start Space'}</Button>
         </form>
       </SheetContent>
@@ -121,6 +119,8 @@ export default function SpacesPage({ onLoginRequest }) {
   const { user } = useAuth();
   const { live, scheduled, replays, canHost, status, error, refresh } = useLiveSpaces({ enabled: !!user, intervalMs: 30000 });
   const [sheet, setSheet] = useState(false);
+  const pub = useLiveSpacesFeed(30000, !user);
+  const [editProfile, setEditProfile] = useState(false);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 pb-28">
@@ -136,10 +136,24 @@ export default function SpacesPage({ onLoginRequest }) {
       </div>
 
       {!user ? (
-        <div className="mt-10 text-center">
-          <p className="text-muted-foreground">Sign in to listen in and join the conversation.</p>
-          <Button className="mt-4" onClick={() => onLoginRequest?.()}>Sign in</Button>
-        </div>
+        <>
+          <div className="mt-4 rounded-2xl border border-border p-4 text-center">
+            <p className="text-sm text-muted-foreground">Listen free for 2 minutes. Sign in to stay, speak and start your own Space.</p>
+            <Button className="mt-3" onClick={() => onLoginRequest?.()}>Sign in</Button>
+          </div>
+          {pub.live.length > 0 && (
+            <>
+              <h2 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Live now</h2>
+              <div className="space-y-3">{pub.live.map((s) => <SpaceCard key={s.id} s={s} />)}</div>
+            </>
+          )}
+          {pub.replays.length > 0 && (
+            <>
+              <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Replays</h2>
+              <div className="space-y-3">{pub.replays.map((s) => <SpaceCard key={s.id} s={s} replay />)}</div>
+            </>
+          )}
+        </>
       ) : status === 'loading' ? (
         <div className="mt-6 space-y-3">{[0, 1].map((i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-muted" />)}</div>
       ) : status === 'off' ? (
@@ -165,6 +179,8 @@ export default function SpacesPage({ onLoginRequest }) {
           )}
         </>
       )}
+      {user && <button type="button" onClick={() => setEditProfile(true)} className="mt-8 w-full text-center text-sm text-muted-foreground underline">Edit my Spaces profile</button>}
+      <ProfileEditSheet open={editProfile} onClose={() => setEditProfile(false)} />
       <StartSheet open={sheet} onOpenChange={setSheet} />
     </div>
   );
