@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store, Wallet, Package, Smartphone, MapPin, MessagesSquare, Shirt, Mic } from 'lucide-react';
+import { Home, Compass, Users, Clapperboard, PanelLeft, PanelRight, Plus, Radio, Library, ShieldCheck, LayoutDashboard, FolderKanban, Zap, Crown, Menu, Music, ChevronLeft, ChevronRight, Bot, X, Maximize, Swords, DollarSign, Settings, UserPlus, Play, CreditCard, LayoutGrid, ShoppingBag, Store, Wallet, Package, Smartphone, MapPin, MessagesSquare, Shirt } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -184,7 +184,6 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
       label: null, // primary
       items: [
         { to: '/chat', icon: MessagesSquare, label: 'Homies Chat', highlight: true },
-        { to: '/spaces', icon: Mic, label: 'Spaces' },
         { to: '/browse', icon: Play, label: 'Browse' },
         { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
         { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },

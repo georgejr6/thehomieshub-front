@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Settings, Globe, CheckCheck, Bell, BellOff, Link2, Copy, Timer, Check } from 'lucide-react';
+import { Hash, Megaphone, MessagesSquare, ChevronDown, CornerDownRight, Home, Settings, Globe, CheckCheck, Bell, BellOff, Link2, Copy, Timer, Check, Mic } from 'lucide-react';
 import ContextMenu from './ContextMenu';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -108,11 +108,19 @@ export default function ChannelSidebar({ state, actions, onToast, activeChannelI
         <span className="truncate text-[15px] font-semibold text-white">{state.server?.name || 'The Homies'}</span>
       </div>
       <div className="hh-chat-scroll min-h-0 flex-1 overflow-y-auto py-2 [scrollbar-width:thin]">
-        {spaces.live.length > 0 && (
+        {/* Spaces live here (not in the site nav): a green pill while one is live, else a plain row. */}
+        {spaces.live.length > 0 ? (
           <Link to={spaces.live.length === 1 ? `/spaces/${spaces.live[0].id}` : '/spaces'} onClick={onClose}
             className="mx-2 mb-2 flex items-center gap-2 rounded-md bg-[#248046]/25 px-2.5 py-2 text-sm font-semibold text-white ring-1 ring-[#248046]/60 transition-colors hover:bg-[#248046]/40">
             <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-400" />
             <span className="min-w-0 flex-1 truncate">🎙 Live Space{spaces.live.length === 1 ? `: ${spaces.live[0].title}` : `s (${spaces.live.length})`}</span>
+          </Link>
+        ) : spaces.status !== 'off' && (
+          <Link to="/spaces" onClick={onClose}
+            className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-[15px] font-medium text-[#949BA4] transition-colors hover:bg-[#35373C] hover:text-[#DBDEE1]">
+            <Mic className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">Spaces</span>
+            {spaces.replays?.length > 0 && <span className="shrink-0 text-[11px] text-[#80848E]">Replays</span>}
           </Link>
         )}
         <DmSection onNavigate={onClose} />
