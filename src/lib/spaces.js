@@ -154,3 +154,13 @@ export function micErrorText(err) {
   if (n === 'NotReadableError' || n === 'AbortError') return 'Another app is using your mic. Close it and try again.';
   return err?.message || 'Could not use the microphone.';
 }
+
+// Public: Spaces live right now (no account needed), for the stories row and /live.
+export const listLiveNow = () => api.get('/spaces/live-now').then(unwrap).then((r) => r?.live || []);
+
+// Open a Space; signed-out visitors sign in first and land back on it.
+export function openSpace(navigate, id, user, onLoginRequest) {
+  if (user) { navigate(`/spaces/${id}`); return; }
+  // The login handlers store their own redirect; pass ours so it wins.
+  if (onLoginRequest) onLoginRequest({ redirect: `/spaces/${id}` }); else navigate(`/spaces/${id}`);
+}

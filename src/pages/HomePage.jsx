@@ -120,7 +120,7 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
                         >
                             {/* Inner container for styling consistency */}
                             <div className="bg-black/20 backdrop-blur-sm border-b border-white/5">
-                                <StoryFeed />
+                                <StoryFeed onLoginRequest={onLoginRequest} />
                             </div>
                         </motion.div>
                     )}

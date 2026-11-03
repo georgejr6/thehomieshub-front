@@ -12,6 +12,7 @@ import PaySheet, { fmtUsd } from '@/components/live/PaySheet';
 import LiveOwnerPanel from '@/components/live/LiveOwnerPanel';
 import YouTubeBadge from '@/components/YouTubeBadge';
 import { externalText, openLinkedUserCard, safeAvatar } from '@/lib/externalAuthor';
+import LiveSpacesStrip from '@/components/spaces/LiveSpacesStrip';
 
 // /live — watch Mwosa's stream (YouTube or Kick embed) and chat without
 // leaving the app. The chat is the same conversation as the stream's
@@ -465,6 +466,7 @@ export default function LiveWatchPage({ onLoginRequest }) {
             </div>
           )}
         </div>
+        <LiveSpacesStrip onLoginRequest={onLoginRequest} className="border-b border-white/[0.06]" />
       </div>
 
       {/* ── Chat column ── */}

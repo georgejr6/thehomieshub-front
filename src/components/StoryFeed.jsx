@@ -5,9 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useStory } from '@/contexts/StoryContext';
 import { cn } from '@/lib/utils';
 import UploadStoryModal from '@/components/UploadStoryModal';
+import { useNavigate } from 'react-router-dom';
+import useLiveSpacesNow from '@/hooks/useLiveSpacesNow';
+import { openSpace } from '@/lib/spaces';
 
-const StoryFeed = () => {
+const StoryFeed = ({ onLoginRequest }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const liveSpaces = useLiveSpacesNow();
   const { orderedStories, filteredStories, openStory } = useStory();
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
@@ -40,6 +45,22 @@ const StoryFeed = () => {
           </div>
           <span className="text-xs text-white/90 truncate max-w-[72px] text-center font-semibold">The Homies</span>
         </div>
+
+        {/* Live Spaces: host's circle with a green ring, tap to listen in */}
+        {liveSpaces.map((s) => (
+          <div key={`space-${s.id}`} className="flex flex-col items-center gap-1 min-w-[72px] cursor-pointer group" onClick={() => openSpace(navigate, s.id, user, onLoginRequest)} title={`Live Space: ${s.title}`}>
+            <div className="relative">
+              <div className="p-[3px] rounded-full bg-emerald-400 transition-transform duration-200 group-hover:scale-105">
+                <Avatar className="h-16 w-16 border-2 border-black">
+                  <AvatarImage src={s.host?.avatarUrl} alt={s.host?.username} />
+                  <AvatarFallback>{(s.host?.displayName || s.host?.username || '?')[0]}</AvatarFallback>
+                </Avatar>
+              </div>
+              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-black bg-emerald-500 px-1.5 text-[9px] font-black tracking-wider text-black">🎙 LIVE</span>
+            </div>
+            <span className="text-xs text-white/90 truncate max-w-[72px] text-center font-semibold">{s.title}</span>
+          </div>
+        ))}
 
         {/* Your Story */}
         {user && (
