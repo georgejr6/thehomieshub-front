@@ -12,16 +12,23 @@ export default function OAuthCallbackPage() {
   useEffect(() => {
     const token = params.get('token');
     const error = params.get('error');
+    // "Continue with YouTube" hands back the page they started from (same-site paths only).
+    const ret = params.get('return');
+    const safeRet = ret && ret.startsWith('/') && !ret.startsWith('//') && !ret.includes('\\') && !/[\r\n]/.test(ret) && ret.length <= 200 ? ret : null;
 
     if (error || !token) {
-      toast({ title: 'Sign in failed', description: 'Please try again.', variant: 'destructive' });
+      toast({
+        title: 'Sign in failed',
+        description: error === 'youtube_no_channel' ? 'No YouTube channel was found on that Google account.' : 'Please try again.',
+        variant: 'destructive',
+      });
       navigate('/');
       return;
     }
 
     // Where to land after sign-in (set when they clicked an announcement link).
     // Read + clear synchronously so nothing else races to redirect.
-    const dest = localStorage.getItem('post_auth_redirect') || '/';
+    const dest = localStorage.getItem('post_auth_redirect') || safeRet || '/';
     localStorage.removeItem('post_auth_redirect');
     localStorage.removeItem('post_auth_redirect_ts');
 

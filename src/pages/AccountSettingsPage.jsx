@@ -33,6 +33,25 @@ const TABS = [
   { key: 'billing',       label: 'Billing',        icon: CreditCard },
 ];
 
+const ytCount = (n) => {
+  const v = Number(n);
+  if (!Number.isFinite(v) || n == null) return null;
+  if (v < 1000) return String(v);
+  if (v < 1e6) return `${(Math.floor(v / 100) / 10).toString().replace(/\.0$/, '')}K`;
+  return `${(Math.floor(v / 1e5) / 10).toString().replace(/\.0$/, '')}M`;
+};
+const ytAgo = (d) => {
+  const t = d ? new Date(d).getTime() : NaN;
+  if (!Number.isFinite(t)) return null;
+  const days = Math.max(0, Math.floor((Date.now() - t) / 864e5));
+  if (days === 0) return 'posted today';
+  if (days === 1) return 'posted yesterday';
+  if (days < 60) return `posted ${days} days ago`;
+  if (days < 365) return `posted ${Math.floor(days / 30)} months ago`;
+  return `posted ${Math.floor(days / 365)}y ago`;
+};
+const ytAt = (h) => (h ? `${String(h).startsWith('@') ? '' : '@'}${h}` : '');
+
 const AccountSettingsPage = () => {
   const { user, refreshMe } = useAuth();
   const { walletMode, exitWalletMode, connectedWallet, linkedAddress, linkToAccount, disconnectWallet } = useWallet();
@@ -149,7 +168,9 @@ const AccountSettingsPage = () => {
   // YouTube link state (row hidden if the server says it isn't configured)
   const [ytLoading, setYtLoading] = useState(false);
   const [ytUnavailable, setYtUnavailable] = useState(false);
-  const [ytConfirm, setYtConfirm] = useState(false);
+  const [ytConfirm, setYtConfirm] = useState(null); // channelId awaiting "Remove?" confirmation
+  const [ytChannels, setYtChannels] = useState([]);
+  const [ytSuggestion, setYtSuggestion] = useState(null);
 
   // Back from YouTube connect: ?youtube=pending&yt=<code> | no_channel | error.
   // The code is stashed so it survives a sign-in, then POSTed to finish linking.
@@ -199,6 +220,33 @@ const AccountSettingsPage = () => {
     })();
   }, [user?.id, user?._id]);
 
+  const applyYtList = (d) => {
+    setYtChannels(d?.channels || []);
+    setYtSuggestion(d?.suggestion || null);
+  };
+  useEffect(() => {
+    if (!user?.youtube?.channelId) { setYtChannels([]); setYtSuggestion(null); return; }
+    let live = true;
+    api.get('/auth/youtube/channels')
+      .then(({ data }) => { if (live) applyYtList(data?.result); })
+      .catch(() => { /* list is a nicety; the single-channel row below still works */ });
+    return () => { live = false; };
+  }, [user?.youtube?.channelId, user?.youtubeChannels?.length]);
+
+  const handleMakePrimary = async (channelId) => {
+    setYtLoading(true);
+    try {
+      const { data } = await api.post('/auth/youtube/primary', { channelId });
+      applyYtList(data?.result);
+      await refreshMe();
+      toast({ title: 'Main channel updated' });
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.message || "Couldn't update your main channel.", variant: 'destructive' });
+    } finally {
+      setYtLoading(false);
+    }
+  };
+
   const handleConnectYouTube = async () => {
     setYtLoading(true);
     try {
@@ -226,15 +274,16 @@ const AccountSettingsPage = () => {
     }
   };
 
-  const handleDisconnectYouTube = async () => {
+  const handleRemoveChannel = async (channelId) => {
     setYtLoading(true);
     try {
-      await api.delete('/auth/youtube');
+      const { data } = await api.delete(`/auth/youtube/channels/${encodeURIComponent(channelId)}`);
+      applyYtList(data?.result);
       await refreshMe();
-      toast({ title: 'YouTube disconnected', description: 'Your YouTube channel has been unlinked.' });
-      setYtConfirm(false);
+      toast({ title: 'Channel removed', description: 'That YouTube channel has been unlinked.' });
+      setYtConfirm(null);
     } catch (err) {
-      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to disconnect YouTube.', variant: 'destructive' });
+      toast({ title: 'Error', description: err.response?.data?.message || 'Failed to remove that channel.', variant: 'destructive' });
     } finally {
       setYtLoading(false);
     }
@@ -801,52 +850,82 @@ const AccountSettingsPage = () => {
               <Separator />
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  {user?.youtube?.thumbnail ? (
-                    <img src={user.youtube.thumbnail} alt="" className="h-9 w-9 flex-shrink-0 rounded-lg object-cover" />
-                  ) : (
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#ff0033]">
-                      <Youtube className="h-5 w-5 text-white" aria-hidden="true" />
-                    </div>
-                  )}
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#ff0033]">
+                    <Youtube className="h-5 w-5 text-white" aria-hidden="true" />
+                  </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium">YouTube</p>
                     {user?.youtube ? (
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-green-500" />
-                        <span className="truncate text-xs text-muted-foreground">
-                          {user.youtube.title}{user.youtube.handle ? ` · ${String(user.youtube.handle).startsWith('@') ? '' : '@'}${user.youtube.handle}` : ''}
-                        </span>
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {ytChannels.length > 1 ? `${ytChannels.length} channels connected` : '1 channel connected'}
+                      </p>
                     ) : (
                       <p className="text-xs text-muted-foreground">Not connected</p>
                     )}
                   </div>
                 </div>
-                {user?.youtube ? (
-                  ytConfirm ? (
-                    <div className="flex flex-shrink-0 items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setYtConfirm(false)} disabled={ytLoading}>Cancel</Button>
-                      <Button variant="destructive" size="sm" onClick={handleDisconnectYouTube} disabled={ytLoading} aria-label="Confirm disconnect YouTube">
-                        {ytLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Disconnect?'}
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button variant="outline" size="sm" className="flex-shrink-0" onClick={() => setYtConfirm(true)} aria-label="Disconnect YouTube">Disconnect</Button>
-                  )
-                ) : (
-                  <Button size="sm" className="flex-shrink-0 bg-[#ff0033] text-white hover:bg-[#cc0029]" onClick={handleConnectYouTube} disabled={ytLoading} aria-label="Connect YouTube">
-                    {ytLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                    Connect YouTube
-                  </Button>
-                )}
+                <Button size="sm" variant={user?.youtube ? 'outline' : 'default'} className={user?.youtube ? 'flex-shrink-0' : 'flex-shrink-0 bg-[#ff0033] text-white hover:bg-[#cc0029]'} onClick={handleConnectYouTube} disabled={ytLoading} aria-label={user?.youtube ? 'Add another YouTube channel' : 'Connect YouTube'}>
+                  {ytLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  {user?.youtube ? 'Add channel' : 'Connect YouTube'}
+                </Button>
               </div>
+
+              {user?.youtube && ytSuggestion && (
+                <div className="ml-12 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 p-3">
+                  <p className="min-w-0 flex-1 text-xs text-foreground">{ytSuggestion.reason}</p>
+                  <Button size="sm" disabled={ytLoading} onClick={() => handleMakePrimary(ytSuggestion.suggestedChannelId)} aria-label="Make suggested channel primary">Make primary</Button>
+                </div>
+              )}
+
+              {user?.youtube && (
+                <ul className="ml-12 space-y-2">
+                  {(ytChannels.length ? ytChannels : [{ ...user.youtube, primary: true }]).map((c) => {
+                    const bits = [ytCount(c.subscriberCount) != null ? `${ytCount(c.subscriberCount)} subs` : null, ytAgo(c.lastUploadAt)].filter(Boolean);
+                    return (
+                      <li key={c.channelId} className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          {c.thumbnail ? (
+                            <img src={c.thumbnail} alt="" className="h-8 w-8 flex-shrink-0 rounded-lg object-cover" />
+                          ) : (
+                            <div className="h-8 w-8 flex-shrink-0 rounded-lg bg-muted" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm">
+                              {c.title}{c.handle ? ` · ${ytAt(c.handle)}` : ''}
+                              {c.primary && <span className="ml-2 rounded bg-green-500/15 px-1.5 py-0.5 text-[10px] font-medium text-green-500">Primary</span>}
+                            </p>
+                            {bits.length > 0 && <p className="truncate text-xs text-muted-foreground">{bits.join(' · ')}</p>}
+                          </div>
+                        </div>
+                        <div className="flex flex-shrink-0 items-center gap-2">
+                          {!c.primary && ytChannels.length > 1 && (
+                            <Button variant="ghost" size="sm" disabled={ytLoading} onClick={() => handleMakePrimary(c.channelId)}>Make primary</Button>
+                          )}
+                          {ytConfirm === c.channelId ? (
+                            <>
+                              <Button variant="ghost" size="sm" onClick={() => setYtConfirm(null)} disabled={ytLoading}>Cancel</Button>
+                              <Button variant="destructive" size="sm" onClick={() => handleRemoveChannel(c.channelId)} disabled={ytLoading} aria-label="Confirm remove YouTube channel">
+                                {ytLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove?'}
+                              </Button>
+                            </>
+                          ) : (
+                            <Button variant="outline" size="sm" onClick={() => setYtConfirm(c.channelId)} aria-label={`Remove ${c.title}`}>Remove</Button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                  <li className="text-xs text-muted-foreground">Google only lets us see the one channel you pick each time. Tap Add channel and choose a different one to link more.</li>
+                </ul>
+              )}
+
               {user?.youtube && (
                 <div className="space-y-3 pl-12">
                   <div className="flex items-center justify-between gap-3">
                     <Label htmlFor="yt-show" className="text-sm font-normal">Show my YouTube on my profile</Label>
                     <Switch id="yt-show" checked={!user.youtube.hidden} disabled={ytLoading} onCheckedChange={(on) => setYtPref({ hidden: !on })} />
                   </div>
-                  <Button variant="outline" size="sm" disabled={ytLoading} onClick={() => setYtPref({ useYoutubeName: true }, 'Display name updated')}>Use my YouTube name as my display name</Button>
+                  <Button variant="outline" size="sm" disabled={ytLoading} onClick={() => setYtPref({ useYoutubeName: true }, 'Display name updated')}>Use my primary channel name as my display name</Button>
                   <p className="text-xs text-muted-foreground">Chatting in Mwosa's YouTube live earns points once your channel is connected.</p>
                 </div>
               )}

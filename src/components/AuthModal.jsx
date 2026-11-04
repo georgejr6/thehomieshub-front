@@ -181,6 +181,21 @@ const OAuthButtons = ({ disabled = false, onBlocked }) => {
         Google
       </a>
     </div>
+    {/* Continue with YouTube: signs in (or creates the account for) the member who owns the channel. */}
+    <a
+      href={`${API_BASE}/auth/youtube/signin?redirect=1&return=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/')}`}
+      onClick={guard}
+      aria-disabled={disabled}
+      className={cn(
+        "flex items-center justify-center gap-2 h-10 w-full rounded-md border border-border bg-[#ff0033] hover:bg-[#cc0029] text-white text-sm font-medium transition-colors",
+        disabled && "opacity-50"
+      )}
+    >
+      <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z"/>
+      </svg>
+      Continue with YouTube
+    </a>
   </div>
   );
 };

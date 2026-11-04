@@ -15,6 +15,10 @@
 
 ## Key Architecture
 
+### 2026-11-04 - YouTube: multiple channels, suggestion, Continue with YouTube
+- `AuthModal.jsx` OAuthButtons: full-width "Continue with YouTube" under Discord/Google -> `GET {API}/auth/youtube/signin?redirect=1&return=<path>` (same terms guard). `OAuthCallbackPage.jsx` lands on `?return=` (same-site only; `post_auth_redirect` still wins) and explains `error=youtube_no_channel`.
+- `AccountSettingsPage.jsx` YouTube row: lists every linked channel (`GET /auth/youtube/channels`: subs, last upload, Primary badge), "Add channel" (Google shows its channel chooser each time), Make primary, Remove (inline confirm, `DELETE /auth/youtube/channels/:id`), and the server suggestion banner with a one-tap "Make primary" (`POST /auth/youtube/primary`).
+
 ### 2026-11-04 - Live v2 web
 - Re-enabled `/go-live`, `/studio/stream` (both GoLivePage), `/live-stream/:username` (LiveStreamPage), `/vod/:streamId` (VodPage); removed LiveComingSoon gates from App.jsx (component file still exists, unrouted).
 - GoLivePage software mode: persistent key (`persistentKey` from create/my-stream), "Reset key" (`POST /live/reset-key`, confirm; button hidden on 404), "Get my stream key", Restream Custom RTMP steps, End stream also shown when saved (navigates `/go-live`, keeps key if persistent). my-stream poll handles `disabled`.
