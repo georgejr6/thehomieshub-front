@@ -4,10 +4,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Share2, Loader2, PlayCircle, ArrowLeft } from 'lucide-react';
+import { Share2, Loader2, PlayCircle, ArrowLeft, Volume2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import MuxPlayer from '@mux/mux-player-react';
 import api from '@/api/homieshub';
+import { getVodParts, vodPollDelay } from '@/lib/liveVod';
 
 // A single past broadcast (VOD) — shareable by direct link, no login required
 // to watch. Distinct from LiveStreamPage/:username, which only ever shows a
@@ -20,23 +21,72 @@ const VodPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [partIndex, setPartIndex] = useState(0);
+  // One player for every part: the unmute choice survives part changes.
+  const [muted, setMuted] = useState(true);
 
+  // Load, then keep polling while the replay is processing or the stream ended
+  // under 30 min ago (late parts), until the part count settles. Paused in
+  // hidden tabs; a failed poll never drops a vod we already have.
   useEffect(() => {
-    if (!streamId) return;
+    if (!streamId) return undefined;
     setPartIndex(0);
+    setMuted(true);
     let cancelled = false;
-    (async () => {
-      setLoading(true);
+    let timer = null;
+    let inFlight = false;
+    let haveVod = false;
+    const mountedAt = Date.now();
+    const partsState = { count: -1, stable: 0 };
+
+    const schedule = (ms) => {
+      clearTimeout(timer);
+      if (cancelled || ms == null) return;
+      timer = setTimeout(load, ms);
+    };
+
+    async function load() {
+      if (cancelled || inFlight) return;
+      if (typeof document !== 'undefined' && document.hidden) return; // resumes on visibilitychange
+      inFlight = true;
+      let next = null;
       try {
         const { data } = await api.get(`/live/vod/${streamId}`);
-        if (!cancelled) setVod(data?.result?.vod || null);
+        if (cancelled) return;
+        const v = data?.result?.vod || null;
+        const processing = !!(v?.vodProcessing ?? data?.result?.vodProcessing);
+        setVod(v ? { ...v, vodProcessing: processing } : null);
+        setError(null);
+        haveVod = !!v;
+        if (v) {
+          next = vodPollDelay({ processing, endedAt: v.endedAt, parts: getVodParts(v) }, partsState);
+          // No endedAt and nothing playable: stop after 20 min rather than poll forever.
+          if (next != null && !v.endedAt && !processing && Date.now() - mountedAt > 20 * 60 * 1000) next = null;
+        }
       } catch (err) {
-        if (!cancelled) setError(err.response?.data?.message || 'Recording not found');
+        if (cancelled) return;
+        if (!haveVod) setError(err.response?.data?.message || 'Recording not found');
+        else next = 30000;
       } finally {
-        if (!cancelled) setLoading(false);
+        inFlight = false;
+        if (!cancelled) {
+          setLoading(false);
+          schedule(next);
+        }
       }
-    })();
-    return () => { cancelled = true; };
+    }
+
+    const onVisibility = () => {
+      if (document.hidden) clearTimeout(timer);
+      else load();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    setLoading(true);
+    load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [streamId]);
 
   const handleShare = () => {
@@ -66,9 +116,7 @@ const VodPage = () => {
 
   // Recordings can be several parts (stream reconnects); play them in order.
   // Old backends only send vodPlaybackId.
-  const parts = Array.isArray(vod.vodParts) && vod.vodParts.filter((p) => p && p.playbackId).length
-    ? vod.vodParts.filter((p) => p && p.playbackId)
-    : (vod.vodPlaybackId ? [{ playbackId: vod.vodPlaybackId }] : []);
+  const parts = getVodParts(vod);
   const idx = Math.min(partIndex, Math.max(parts.length - 1, 0));
   const part = parts[idx];
 
@@ -84,19 +132,29 @@ const VodPage = () => {
             <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
           </Button>
 
-          <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden">
+          <div className="relative aspect-video bg-zinc-900 rounded-xl overflow-hidden">
             {part ? (
             <MuxPlayer
-              key={`${idx}-${part.playbackId}`}
               playbackId={part.playbackId}
-              autoPlay={idx > 0}
+              autoPlay={idx > 0 ? true : "muted"}
+              muted={muted}
+              onVolumeChange={(e) => setMuted(!!e?.target?.muted)}
               onEnded={() => setPartIndex((i) => (i + 1 < parts.length ? i + 1 : i))}
               streamType="on-demand"
               style={{ width: '100%', height: '100%' }}
               metadata={{ video_title: vod.title }}
             />
             ) : (
-              <div className="flex h-full items-center justify-center text-sm text-white/60">Replay processing. Check back in a few minutes.</div>
+              <div className="flex h-full items-center justify-center text-sm text-white/60">Replay processing. It will appear here on its own.</div>
+            )}
+            {part && muted && (
+              <button
+                type="button"
+                onClick={() => setMuted(false)}
+                className="absolute bottom-16 left-4 z-10 flex items-center gap-2 rounded-full bg-white text-black text-sm font-semibold px-4 py-2 shadow-lg hover:bg-white/90"
+              >
+                <Volume2 className="h-4 w-4" /> Unmute
+              </button>
             )}
 
           </div>

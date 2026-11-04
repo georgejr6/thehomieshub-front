@@ -169,6 +169,10 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
   useEffect(() => { if (merchOpen) prefetchShopOnIdle(); }, [merchOpen]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   useEffect(() => {
+    // One poller: /live/active every 60 s (paused in hidden tabs, refreshed on
+    // return). /livechat/state is only asked when someone is live, and the
+    // answer is cached for the same window so it never doubles the traffic.
+    let ownerLiveCache = { at: 0, value: true };
     const check = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       try {
@@ -176,17 +180,26 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
         const streams = data?.result?.streams || [];
         setHasActiveLive(streams.length > 0);
         let ownerLive = false;
-        try {
-          const st = await api.get('/livechat/state');
-          ownerLive = !!(st?.data?.result?.state?.live);
-        } catch (_) { ownerLive = true; /* unknown: keep the /live default */ }
+        if (streams.length > 0) {
+          if (Date.now() - ownerLiveCache.at < 55000) {
+            ownerLive = ownerLiveCache.value;
+          } else {
+            try {
+              const st = await api.get('/livechat/state');
+              ownerLive = !!(st?.data?.result?.state?.live);
+            } catch (_) { ownerLive = true; /* unknown: keep the /live default */ }
+            ownerLiveCache = { at: Date.now(), value: ownerLive };
+          }
+        }
         const first = streams[0]?.creator?.username || streams[0]?.username;
         setLiveLink(streams.length > 0 && !ownerLive && first ? `/live-stream/${first}` : '/live');
       } catch (_) {}
     };
     check();
-    const interval = setInterval(check, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(check, 60000);
+    const onVisible = () => { if (!document.hidden) check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
   // Curated, grouped nav — keeps the most-used items in first line of sight and

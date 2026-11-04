@@ -15,6 +15,38 @@ const readToken = () => { try { return localStorage.getItem('access_token') || '
 // read-only guest; signed-in viewers send {type:"auth", token} as the first
 // frame and the server answers auth_ok (with the name it will show) or
 // auth_error. Identity never comes from the URL or from a username we send.
+const msgTime = (m) => {
+  const t = m && m.timestamp ? new Date(m.timestamp).getTime() : NaN;
+  return Number.isNaN(t) ? (m && m._at) || null : t;
+};
+const msgBody = (m) => `${m.type}|${m.username || m.fromUsername || ''}|${m.content || m.ttsMessage || ''}|${m.amount || ''}`;
+
+// True when `msg` is already in `list`: same id/_key, or (fuzzy, for old
+// frames without ids) same type+user+content within 2 s.
+function isDuplicate(list, msg) {
+  const key = msg.id || msg._key;
+  const body = msgBody(msg);
+  const t = msgTime(msg);
+  for (const m of list) {
+    if (key && (m.id === key || m._key === key)) return true;
+    if (m.id && msg.id && m.id !== msg.id) continue; // two real ids that differ = two messages
+    if (msgBody(m) !== body) continue;
+    const mt = msgTime(m);
+    if (t != null && mt != null && Math.abs(t - mt) <= 2000) return true;
+  }
+  return false;
+}
+
+// Append `incoming` to `base`, skipping duplicates (also within incoming).
+function mergeMessages(base, incoming) {
+  let out = base;
+  for (const msg of incoming) {
+    if (isDuplicate(out, msg)) continue;
+    out = out === base ? [...base, msg] : (out.push(msg), out);
+  }
+  return out;
+}
+
 export default function LiveChat({ streamId, isCollapsible = true, className, onGiftMessage, onLoginRequest, replay = false, replaySeconds = 0, streamStartMs = null }) {
   const { user } = useAuth();
   // 'guest' (read-only) | 'pending' | 'ok' | 'error'
@@ -64,9 +96,10 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
   const addMessage = useCallback((msg) => {
     noteTs(msg);
+    const stamped = msg.timestamp ? msg : { ...msg, _at: Date.now() };
     setMessages((prev) => {
-      if (msg.id && prev.some((m) => m.id === msg.id)) return prev;
-      const next = [...prev, msg];
+      const next = mergeMessages(prev, [stamped]);
+      if (next === prev) return prev;
       return next.length > 300 ? next.slice(-300) : next;
     });
   }, []);
@@ -88,10 +121,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
         if (history.length) {
           history.forEach(noteTs);
           // merge: socket messages may have arrived while history was loading
-          setMessages((prev) => {
-            const seen = new Set(history.map((m) => m.id).filter(Boolean));
-            return [...history, ...prev.filter((m) => !m.id || !seen.has(m.id))];
-          });
+          setMessages((prev) => mergeMessages([...history], prev));
         }
       })
       .catch(() => {});
@@ -107,10 +137,8 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
         if (!missed.length) return;
         missed.forEach(noteTs);
         setMessages((prev) => {
-          const seen = new Set(prev.map((m) => m.id).filter(Boolean));
-          const fresh = missed.filter((m) => !m.id || !seen.has(m.id));
-          if (!fresh.length) return prev;
-          const next = [...prev, ...fresh];
+          const next = mergeMessages(prev, missed);
+          if (next === prev) return prev;
           return next.length > 300 ? next.slice(-300) : next;
         });
       })
@@ -191,7 +219,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
   }, [streamId, addMessage, signedInAs, backfill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (replay) return; // VOD replay is read-only — no live socket
+    if (replay) return; // VOD replay is read-only, no live socket
     connect();
     return () => {
       clearTimeout(reconnectTimer.current);
@@ -346,7 +374,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/5 shrink-0">
         {replay ? (
-          <p className="text-white/30 text-xs text-center py-2">Chat replay — messages play back with the recording</p>
+          <p className="text-white/30 text-xs text-center py-2">Chat replay: messages play back with the recording</p>
         ) : user && authState !== 'error' ? (
           <form onSubmit={sendChat} className="flex gap-2">
             <Input
@@ -364,7 +392,7 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
         ) : (
           <div className="flex items-center justify-between gap-2 py-1">
             <p className="text-white/40 text-xs">
-              {user ? "Couldn't sign you into chat. Log in again to chat." : 'Watching as a guest — chat is read-only.'}
+              {user ? "Couldn't sign you into chat. Log in again to chat." : 'Watching as a guest: chat is read-only.'}
             </p>
             {onLoginRequest && (
               <Button type="button" size="sm" onClick={() => onLoginRequest()} className="h-8 shrink-0 rounded-full bg-primary px-4 text-xs hover:bg-primary/90">

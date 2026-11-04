@@ -17,6 +17,7 @@ import LiveChat from '@/components/LiveChat';
 import GiftDialogComponent from '@/components/GiftDialog';
 import MuxPlayer from '@mux/mux-player-react';
 import api from '@/api/homieshub';
+import { getVodParts, partOffsetSec, vodPollDelay, endedAgoMs } from '@/lib/liveVod';
 
 // Receiver gift overlay — shown to everyone in the stream room
 const GiftOverlay = ({ gift, onDone }) => (
@@ -46,16 +47,6 @@ const GiftOverlay = ({ gift, onDone }) => (
   </AnimatePresence>
 );
 
-// A replay is a list of recorded parts, played in order. Old backends only send
-// vodPlaybackId (one part).
-const getVodParts = (s) => {
-  if (Array.isArray(s?.vodParts) && s.vodParts.length) {
-    return s.vodParts.filter((p) => p && p.playbackId);
-  }
-  return s?.vodPlaybackId ? [{ playbackId: s.vodPlaybackId, durationSec: s.vodDurationSec || 0 }] : [];
-};
-const hasReplay = (s) => getVodParts(s).length > 0;
-
 const LiveStreamPage = ({ onLoginRequest }) => {
   const { username } = useParams();
   const navigate = useNavigate();
@@ -77,26 +68,32 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   const [playerGaveUp, setPlayerGaveUp] = useState(false);
   const retryTimerRef = useRef(null);
   const retryCountRef = useRef(0);
-  // Live audio: autoplay has to start muted (browsers block unmuted autoplay).
-  const [liveMuted, setLiveMuted] = useState(true);
+  const warmingRef = useRef(false);
+  // Audio: autoplay has to start muted (browsers block unmuted autoplay). One
+  // flag for live and replay, so an unmute survives moving between parts.
+  const [audioMuted, setAudioMuted] = useState(true);
   // Replay: which recorded part is playing (vodParts are played in order).
   const [partIndex, setPartIndex] = useState(0);
   const handlePlayerError = () => {
-    // While the stream is still LIVE, transient LL-HLS errors (encoder hiccup,
-    // brief buffer underrun) are normal — keep retrying indefinitely behind a
-    // "warming up" overlay. Only permanently give up (show "unavailable") once
-    // the stream is NOT active, so a still-live broadcast never looks dead.
-    // This is what caused "error every few seconds → Stream unavailable"
-    // despite the stream never ending.
-    const stillLive = stream?.status === 'active';
+    // Errors while a retry is already scheduled are the same outage: ignore.
+    if (warmingRef.current) return;
+    // While the stream is LIVE (or just blipped to idle after it had started),
+    // transient LL-HLS errors are normal: keep retrying indefinitely behind a
+    // "warming up" overlay. Only give up once the stream is really over.
+    const stillLive = stream?.status === 'active' || (stream?.status === 'idle' && !!stream?.startedAt);
     if (!stillLive && retryCountRef.current >= 6) {
       setIsWarmingUp(false);
       setPlayerGaveUp(true);
       return;
     }
     retryCountRef.current += 1;
+    warmingRef.current = true;
     setIsWarmingUp(true);
+    clearTimeout(retryTimerRef.current);
     retryTimerRef.current = setTimeout(() => {
+      warmingRef.current = false;
+      // A remount can't autoplay with sound; come back muted (Unmute button shows).
+      setAudioMuted(true);
       setPlayerKey((k) => k + 1);
       setIsWarmingUp(false);
     }, 5000);
@@ -105,6 +102,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
 
   // Current playback position of the VOD, so recorded chat can replay in sync.
   const [vodTime, setVodTime] = useState(0);
+  const lastTimeUpdateRef = useRef(0);
 
   // "3 minutes ago" style relative time for the ended-stream banner.
   const formatAgo = (d) => {
@@ -129,8 +127,9 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Load + poll the stream. A failed poll never drops a stream we already have.
-  // Polling: 5 s while idle (starting soon), 10 s while active, 15 s while the
-  // replay is processing, stops once a replay is ready; paused in hidden tabs.
+  // Polling: 5 s while idle (starting soon / reconnecting), 10 s while active,
+  // 15 s while the replay is processing, 30 s for 30 min after the end (late
+  // parts) until the part count settles; paused in hidden tabs.
   useEffect(() => {
     if (!username) return undefined;
     // New creator: start from a clean slate (no stale stream, player or replay state).
@@ -140,20 +139,26 @@ const LiveStreamPage = ({ onLoginRequest }) => {
     setPlayerKey(1);
     setIsWarmingUp(false);
     setPlayerGaveUp(false);
-    setLiveMuted(true);
+    setAudioMuted(true);
     setPartIndex(0);
     setVodTime(0);
     retryCountRef.current = 0;
+    warmingRef.current = false;
+    clearTimeout(retryTimerRef.current);
+    const partsState = { count: -1, stable: 0 };
 
     let cancelled = false;
     let timer = null;
     let inFlight = false;
 
     const nextDelay = (s) => {
-      if (s.status === 'idle') return 5000;
+      if (s.status === 'idle') return 5000; // starting soon / reconnecting
       if (s.status === 'active') return 10000;
-      if (s.status === 'disabled' && (s.vodProcessing || !hasReplay(s))) return 15000;
-      return null; // replay ready: nothing more to poll
+      if (s.status === 'disabled') {
+        // Replay still processing, or recently ended (late parts): keep polling.
+        return vodPollDelay({ processing: !!s.vodProcessing, endedAt: s.endedAt, parts: getVodParts(s) }, partsState);
+      }
+      return null;
     };
 
     const schedule = (ms) => {
@@ -299,7 +304,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   }
 
   // Stream is set up but not broadcasting yet
-  if (stream.status === 'idle') {
+  if (stream.status === 'idle' && !stream.startedAt) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-black text-white">
         <div className="flex flex-col items-center text-center gap-4 max-w-sm">
@@ -318,8 +323,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   // recorded, so say so honestly instead of "check back" forever.
   const vodParts = getVodParts(stream);
   if (stream.status === 'disabled' && vodParts.length === 0) {
-    const endedMs = stream.endedAt ? (Date.now() - new Date(stream.endedAt).getTime()) : Infinity;
-    const stillRendering = endedMs < 15 * 60 * 1000; // <15min → probably processing
+    const stillRendering = !!stream.vodProcessing || endedAgoMs(stream.endedAt) < 15 * 60 * 1000; // probably processing
     return (
       <div className="h-screen w-full flex items-center justify-center bg-black text-white">
         <div className="flex flex-col items-center text-center gap-4 max-w-md px-6">
@@ -341,9 +345,10 @@ const LiveStreamPage = ({ onLoginRequest }) => {
   const isVod = stream.status === 'disabled' && vodParts.length > 0;
   const safePartIndex = Math.min(partIndex, Math.max(vodParts.length - 1, 0));
   const currentPart = isVod ? vodParts[safePartIndex] : null;
-  const priorPartsSec = isVod
-    ? vodParts.slice(0, safePartIndex).reduce((sum, p) => sum + (Number(p.durationSec) || 0), 0)
-    : 0;
+  const streamStartMs = (stream.startedAt || stream.streamStartedAt) ? new Date(stream.startedAt || stream.streamStartedAt).getTime() : null;
+  const priorPartsSec = isVod ? partOffsetSec(vodParts, safePartIndex, streamStartMs) : 0;
+  // Encoder dropped after the broadcast had started: keep the player and chat up.
+  const reconnecting = stream.status === 'idle' && !!stream.startedAt;
   const sourcePlaybackId = isVod ? currentPart?.playbackId : stream.playbackId;
 
   return (
@@ -362,15 +367,20 @@ const LiveStreamPage = ({ onLoginRequest }) => {
             {sourcePlaybackId ? (
               <>
                 <MuxPlayer
-                  key={`${playerKey}-${isVod ? `vod-${safePartIndex}` : 'live'}`}
+                  key={`${playerKey}-${isVod ? 'vod' : 'live'}`}
                   streamType={isVod ? "on-demand" : "ll-live"}
                   playbackId={sourcePlaybackId}
                   autoPlay={isVod && safePartIndex > 0 ? true : "muted"}
-                  muted={isVod ? undefined : liveMuted}
-                  onVolumeChange={isVod ? undefined : (e) => setLiveMuted(!!e?.target?.muted)}
+                  muted={audioMuted}
+                  onVolumeChange={(e) => setAudioMuted(!!e?.target?.muted)}
                   onEnded={isVod ? () => setPartIndex((i) => (i + 1 < vodParts.length ? i + 1 : i)) : undefined}
                   onPlaying={() => { retryCountRef.current = 0; }}
-                  onTimeUpdate={isVod ? (e) => setVodTime(priorPartsSec + (e?.target?.currentTime || 0)) : undefined}
+                  onTimeUpdate={isVod ? (e) => {
+                    const now = Date.now();
+                    if (now - lastTimeUpdateRef.current < 1000) return;
+                    lastTimeUpdateRef.current = now;
+                    setVodTime(priorPartsSec + (e?.target?.currentTime || 0));
+                  } : undefined}
                   // BUG FIX: forcing aspectRatio:'16/9' here fought the parent's
                   // width/height:100% sizing and the player's own object-contain
                   // fit, making vertical (portrait) broadcasts render tiny and
@@ -387,10 +397,10 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                     viewer_user_id: user?._id || user?.id,
                   }}
                 />
-                {!isVod && liveMuted && !isWarmingUp && !playerGaveUp && (
+                {audioMuted && !isWarmingUp && !reconnecting && !playerGaveUp && (
                   <button
                     type="button"
-                    onClick={() => setLiveMuted(false)}
+                    onClick={() => setAudioMuted(false)}
                     className="absolute bottom-16 left-4 z-10 flex items-center gap-2 rounded-full bg-white text-black text-sm font-semibold px-4 py-2 shadow-lg hover:bg-white/90"
                   >
                     <Volume2 className="h-4 w-4" /> Unmute
@@ -401,11 +411,11 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                     Part {safePartIndex + 1} of {vodParts.length}
                   </div>
                 )}
-                {isWarmingUp && (
+                {(isWarmingUp || reconnecting) && !playerGaveUp && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 gap-3">
                     <Radio className="h-10 w-10 text-primary animate-pulse" />
-                    <p className="text-white/70 text-sm font-medium">Stream warming up…</p>
-                    <p className="text-white/30 text-xs">Retrying in a moment</p>
+                    <p className="text-white/70 text-sm font-medium">{reconnecting ? 'Reconnecting...' : 'Stream warming up…'}</p>
+                    <p className="text-white/30 text-xs">{reconnecting ? 'The stream dropped for a moment. It will resume on its own.' : 'Retrying in a moment'}</p>
                   </div>
                 )}
                 {playerGaveUp && (
@@ -432,8 +442,8 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                 </Badge>
               ) : (
                 <>
-                  <Badge className="bg-red-600 text-white animate-pulse font-bold px-2 py-1 text-xs tracking-widest">
-                    ● LIVE
+                  <Badge className={cn("text-white font-bold px-2 py-1 text-xs tracking-widest", reconnecting ? "bg-amber-600" : "bg-red-600 animate-pulse")}>
+                    {reconnecting ? 'RECONNECTING' : '● LIVE'}
                   </Badge>
                   <div className="bg-black/60 backdrop-blur-sm rounded px-2 py-1 flex items-center gap-1.5 text-xs text-white/80">
                     <Users className="h-3 w-3" />
@@ -580,7 +590,7 @@ const LiveStreamPage = ({ onLoginRequest }) => {
               isCollapsible
               replay
               replaySeconds={vodTime}
-              streamStartMs={(stream.startedAt || stream.streamStartedAt) ? new Date(stream.startedAt || stream.streamStartedAt).getTime() : null}
+              streamStartMs={streamStartMs}
             />
           ) : (
             <LiveChat
