@@ -68,6 +68,11 @@ The main feed is a TikTok-style vertical scroll. Data flows:
 4. `VerticalVideoFeed` auto-loops: appends reshuffled posts when within 3 of the end
 5. Merch reels (2026-10-07): HomePage (/browse For You) passes `merch`; `src/components/merch/MerchReel.jsx` cards go after every 10 posts, max 2 per browser session (sessionStorage), slots fixed ahead of the viewer; 'Not interested' snoozes a product 7 days (localStorage). `MerchReelRow` = reel row on the landing page. Cart: `PointsCard` in ShopCart.jsx = Homies Points slider (1 pt = 1c, up to 20% of items, server clamps; backend /api/merch/offers).
 
+### For You ranked feed, phase 1 (2026-11-04, branch `feat/feed-ranking`)
+- `ContentContext` now asks `GET /feed/for-you?limit=20&deviceId=&hour=&device=&muted=&sessionDepth=&skipStreak=` first (items = same Video/Reel docs as /user/videos + /user/reels, plus `feedType`). On 404/error/empty it falls back to the old `/user/reels` + `/user/videos` shuffle. Music cards are still interleaved by `interleaveMusic`; merch/Spaces insertion in `VerticalVideoFeed` is untouched.
+- Infinite loop: `ContentContext.loadMoreForYou()` (passed to `VerticalVideoFeed` as `onNeedMore` on HomePage) fetches the next cursor page when within 3 cards of the end; a null cursor starts a fresh ranking; null/empty result falls back to the old reshuffled loop. It does not touch `verticalPosts`, so the feed doesn't re-seed.
+- Impression logging: `src/lib/feedEvents.js` (tested in `feedEvents.test.js`). `VerticalVideo` calls `beginImpression` when it becomes the visible card, `trackProgress` from `timeupdate`, `markImpression(liked|commentsOpened|followed|shared)`, `endImpression` when it stops being visible. Batched to `POST /feed/events` every 10 s and on visibilitychange/pagehide (fetch keepalive, bearer token if signed in, anonymous device id in localStorage `hh_feed_dev`). skipped = left under 2 s, completed = 90% watched or looped.
+
 ### Key Video Components
 | Component | Role |
 |---|---|

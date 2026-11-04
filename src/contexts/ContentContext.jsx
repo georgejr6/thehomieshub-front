@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { verticalMockPosts as initialVerticalPosts } from '@/data/verticalMockPosts';
 import { mockCommunityPosts as initialCommunityPosts } from '@/data/mockCommunityPosts';
 import { mockUsers as initialUsers } from '@/data/mockUsers';
 import api from "@/api/homieshub";
 import { trackEvent } from "@/lib/tracker";
+import { forYouParams } from "@/lib/feedEvents";
 import { useAuth } from '@/contexts/AuthContext';
 
 const ContentContext = createContext();
@@ -148,6 +149,20 @@ function interleaveMusic(videos, songs, every = 6) {
   return out;
 }
 
+// Ranked For You feed (backend GET /feed/for-you). Items are the same Video/Reel docs
+// /user/videos and /user/reels return, plus feedType. Throws when the endpoint is
+// missing (404) or fails, so callers can fall back to the old shuffled feed.
+const isPlayablePost = (p) => p?.id && (p?.videoUrl || (p?.access && p.access !== 'full' && p?.thumbnail));
+async function fetchForYouPage(cursor) {
+  const resp = await api.get("/feed/for-you", { params: forYouParams({ limit: 20, ...(cursor ? { cursor } : {}) }) });
+  const result = resp?.data?.result;
+  if (!result || !Array.isArray(result.items)) throw new Error('bad for-you response');
+  const posts = result.items
+    .map((it) => (it?.feedType === 'reel' ? mapReelToVerticalPost(it) : mapVideoToVerticalPost(it)))
+    .filter(isPlayablePost);
+  return { posts, nextCursor: result.nextCursor || null };
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -242,6 +257,8 @@ export const ContentProvider = ({ children }) => {
   const { user } = useAuth();
 
   const [verticalPosts, setVerticalPosts] = useState([]);
+  // For You paging state: ok=false means the ranked endpoint is unavailable and the old shuffle loop runs.
+  const forYouRef = useRef({ ok: false, cursor: null, busy: false });
   const [communityPosts, setCommunityPosts] = useState([]);
   const [users, setUsers] = useState(initialUsers);
 
@@ -331,6 +348,20 @@ const loadMyLibrary = async () => {
     let cancelled = false;
 
     const loadVerticalFeed = async () => {
+      forYouRef.current = { ok: false, cursor: null, busy: false };
+      try {
+        const page = await fetchForYouPage(null);
+        if (page.posts.length) {
+          const musicResp = await api.get("/music/feed", { params: { limit: 12 } }).catch(() => null);
+          const songs = safeArray(musicResp?.data?.result?.tracks).map(mapTrackToFeedPost).filter(t => t.audioUrl);
+          if (cancelled) return;
+          forYouRef.current = { ok: true, cursor: page.nextCursor, busy: false };
+          setVerticalPosts(interleaveMusic(page.posts, songs));
+          return;
+        }
+      } catch (err) {
+        // 404 / error: fall through to the old shuffled feed below.
+      }
       try {
         const [reelsResp, videosResp, musicResp] = await Promise.all([
           api.get("/user/reels",  { params: { page: 1, limit: 50 } }),
@@ -371,6 +402,24 @@ const loadMyLibrary = async () => {
     };
     // Reload on sign-in/out: what each item plays (full vs preview) depends on who's watching.
   }, [user?._id]);
+
+  // Next ranked page for the infinite feed. Resolves to an array of posts, or null when the
+  // ranked feed isn't available (the feed then keeps its old reshuffle loop).
+  const loadMoreForYou = async () => {
+    const st = forYouRef.current;
+    if (!st.ok || st.busy) return null;
+    st.busy = true;
+    try {
+      const page = await fetchForYouPage(st.cursor); // null cursor = start a fresh ranking
+      st.cursor = page.nextCursor;
+      return page.posts;
+    } catch {
+      st.ok = false;
+      return null;
+    } finally {
+      st.busy = false;
+    }
+  };
 
   const addReel = (newReel) => setVerticalPosts(prev => [newReel, ...prev]);
   const addPost = (newPost) => {
@@ -661,6 +710,7 @@ const togglePostSave = async ({ targetType, targetId }) => {
 
   const value = {
     verticalPosts,
+    loadMoreForYou,
     communityPosts,
     users,
     liveStreams,

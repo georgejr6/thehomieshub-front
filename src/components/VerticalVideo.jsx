@@ -22,6 +22,7 @@ import MintedCollectibleModal from '@/components/MintedCollectibleModal';
 import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 import { useMedia } from '@/contexts/MediaContext';
 import { trackEvent } from '@/lib/tracker';
+import { beginImpression, trackProgress, markImpression, endImpression } from '@/lib/feedEvents';
 import MuxPlayer from '@mux/mux-player-react';
 import AppOnlyCard from '@/components/AppOnlyCard';
 import Watermark from '@/components/Watermark';
@@ -112,6 +113,7 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     const watchMsRef = useRef(0);
     const lastWatchTRef = useRef(0);
     const maxPctRef = useRef(0);
+    const impRef = useRef(null); // For You feed impression id while this card is the visible one (lib/feedEvents.js)
     const flushWatch = () => {
         const ms = watchMsRef.current;
         if (ms >= 1500) {
@@ -127,6 +129,15 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     };
     const flushWatchRef = useRef(flushWatch);
     flushWatchRef.current = flushWatch;
+
+    // Feed impression: this card became the visible one -> log it until it stops being visible.
+    useEffect(() => {
+        if (!isVisible || (post.backendType !== 'video' && post.backendType !== 'reel')) return undefined;
+        const id = beginImpression({ type: post.backendType, id: post.id, position: index, muted: globalIsMuted });
+        impRef.current = id;
+        return () => { endImpression(id); if (impRef.current === id) impRef.current = null; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isVisible, post.id]);
 
     // Flush on unmount (e.g. the feed's infinite-loop reshuffle removing old items).
     useEffect(() => () => flushWatchRef.current?.(), []);
@@ -320,6 +331,7 @@ useEffect(() => {
             const dt = video.currentTime - lastWatchTRef.current;
             if (dt > 0 && dt < 2) watchMsRef.current += dt * 1000;
             lastWatchTRef.current = video.currentTime;
+            if (isVisibleRef.current && impRef.current) trackProgress(impRef.current, video.currentTime, video.duration);
             if (video.duration > 0) {
                 const pct = (video.currentTime / video.duration) * 100;
                 if (pct > maxPctRef.current) maxPctRef.current = pct;
@@ -555,6 +567,7 @@ const togglePlayPause = () => {
             setIsLikeLoading(true);
             const currentlyLiked = isPostLiked(String(post.id));
             setLikeCount(prev => currentlyLiked ? Math.max(0, prev - 1) : prev + 1);
+            if (!currentlyLiked) markImpression(impRef.current, 'liked');
             await toggleContentLike({ targetType: commentTargetType, targetId: post.id });
             setTimeout(() => setIsLikeLoading(false), 500);
         } else if (action === 'save') {
@@ -565,6 +578,7 @@ const togglePlayPause = () => {
         } else if (action === 'follow') {
             if (isFollowLoading) return;
             setIsFollowLoading(true);
+            if (!isFollowing) markImpression(impRef.current, 'followed');
             setTimeout(() => { setIsFollowing(!isFollowing); setIsFollowLoading(false); }, 500);
         } else if (action === 'subscribe') {
             if (!isSubscribed) setIsSubscriptionDialogOpen(true);
@@ -791,7 +805,7 @@ const togglePlayPause = () => {
                     </button>
 
                     <CommentsSheet post={post} targetType={commentTargetType} onLoginRequest={onLoginRequest}>
-                        <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button className="flex flex-col items-center gap-1" onClick={(e) => { e.stopPropagation(); markImpression(impRef.current, 'commentsOpened'); }}>
                             <MessageCircle className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
                             <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.comments}</span>
                         </button>
@@ -803,7 +817,7 @@ const togglePlayPause = () => {
                     </button>
 
                     <ShareDialog postUrl={postUrl} postTitle={post.description} post={post}>
-                        <button className="flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button className="flex flex-col items-center gap-1" onClick={(e) => { e.stopPropagation(); markImpression(impRef.current, 'shared'); }}>
                             <Share2 className="h-9 w-9 text-white fill-white/10 drop-shadow-md" />
                             <span className="text-xs font-semibold text-white drop-shadow-md">{post.engagement.shares}</span>
                         </button>

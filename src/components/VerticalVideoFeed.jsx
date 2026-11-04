@@ -28,7 +28,9 @@ function wrapPosts(posts, loopIndex) {
   }));
 }
 
-const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, initialIndex = 0, merch = false, spaces = false }) => {
+// onNeedMore (optional, For You): async () => posts[] | null, the next ranked page. null/empty
+// falls back to the old reshuffled loop of `posts`.
+const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, initialIndex = 0, merch = false, spaces = false, onNeedMore }) => {
   const playbackDisabled = useVideoPlaybackDisabled();
   const containerRef = useRef(null);
   const [visibleIndex, setVisibleIndex] = useState(initialIndex);
@@ -88,8 +90,31 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
   }, [playbackDisabled, initialIndex, items.length]);
 
   // Append a shuffled loop when nearing the end
+  const onNeedMoreRef = useRef(onNeedMore);
+  onNeedMoreRef.current = onNeedMore;
+  const loadingMoreRef = useRef(false);
   const maybeRefill = useCallback((currentIndex, totalItems) => {
     if (totalItems - currentIndex <= REFILL_THRESHOLD && posts.length > 0) {
+      if (onNeedMoreRef.current) {
+        if (loadingMoreRef.current) return;
+        loadingMoreRef.current = true;
+        Promise.resolve(onNeedMoreRef.current()).catch(() => null).then((more) => {
+          if (Array.isArray(more) && more.length) {
+            // Ranked page: keep its order, drop a song in after every 6 videos.
+            const songs = shuffle(posts.filter(p => p.type === 'music'));
+            const mixed = [];
+            more.forEach((v, i) => { mixed.push(v); if ((i + 1) % 6 === 0 && songs.length) mixed.push(songs.shift()); });
+            loopCountRef.current += 1;
+            setItems(prev => [...prev, ...wrapPosts(mixed, loopCountRef.current)]);
+          } else {
+            appendShuffledLoop();
+          }
+        }).finally(() => { loadingMoreRef.current = false; });
+        return;
+      }
+      appendShuffledLoop();
+    }
+    function appendShuffledLoop() {
       loopCountRef.current += 1;
       // Reshuffle videos, keep songs spaced out (one after every 6 videos).
       const videos = shuffle(posts.filter(p => p.type !== 'music'));

@@ -10,7 +10,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 
 const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
-  const { verticalPosts } = useContent();
+  const { verticalPosts, loadMoreForYou } = useContent();
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Visibility State
@@ -140,6 +140,7 @@ const HomePage = ({ onLoginRequest, isImmersiveMode, toggleImmersiveMode }) => {
         >
             <VerticalVideoFeed
                 posts={verticalPosts}
+                onNeedMore={loadMoreForYou}
                 onLoginRequest={onLoginRequest}
                 aspectRatio="vertical"
                 merch
