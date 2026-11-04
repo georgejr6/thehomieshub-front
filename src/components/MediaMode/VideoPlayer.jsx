@@ -6,6 +6,7 @@ import {
   Volume2, VolumeX, Maximize, Minimize,
 } from 'lucide-react';
 import MuxPlayer from '@mux/mux-player-react';
+import AppOnlyCard from '@/components/AppOnlyCard';
 import Watermark from '@/components/Watermark';
 import { useMedia } from '@/contexts/MediaContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -307,7 +308,9 @@ const VideoPlayer = () => {
         </div>
       )}
       {/* ── MuxPlayer — pointer-events disabled so our overlay owns all clicks ── */}
-      {playbackDisabled ? (
+      {currentVideo.access === 'app_only' ? (
+        <AppOnlyCard poster={currentVideo.thumbnail || currentVideo.thumbnailUrl} title={currentVideo.title} videoId={currentVideo.id} surface="media_app_only" />
+      ) : playbackDisabled ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 gap-3">
           <X className="w-12 h-12 text-zinc-700" />
           <p className="text-lg">Video playback is temporarily unavailable.</p>

@@ -23,6 +23,7 @@ import MembershipUpgradeModal from '@/components/MembershipUpgradeModal';
 import { useMedia } from '@/contexts/MediaContext';
 import { trackEvent } from '@/lib/tracker';
 import MuxPlayer from '@mux/mux-player-react';
+import AppOnlyCard from '@/components/AppOnlyCard';
 import Watermark from '@/components/Watermark';
 import { useNavigate } from 'react-router-dom';
 
@@ -601,7 +602,9 @@ const togglePlayPause = () => {
                     onClick={togglePlayPause}
                 >
                     <Watermark />
-                    {isMux ? (
+                    {post.access === 'app_only' ? (
+                        <AppOnlyCard poster={post.thumbnail} title={post.title} videoId={post.id} videoType={post.backendType === 'reel' ? 'reel' : 'video'} surface="feed_app_only" />
+                    ) : isMux ? (
                         <MuxPlayer
                             ref={videoRef}
                             playbackId={playbackId}
