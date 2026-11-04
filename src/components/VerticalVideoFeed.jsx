@@ -93,17 +93,23 @@ const VerticalVideoFeed = ({ posts, onLoginRequest, aspectRatio, onTopChange, in
   const onNeedMoreRef = useRef(onNeedMore);
   onNeedMoreRef.current = onNeedMore;
   const loadingMoreRef = useRef(false);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const maybeRefill = useCallback((currentIndex, totalItems) => {
     if (totalItems - currentIndex <= REFILL_THRESHOLD && posts.length > 0) {
       if (onNeedMoreRef.current) {
         if (loadingMoreRef.current) return;
         loadingMoreRef.current = true;
         Promise.resolve(onNeedMoreRef.current()).catch(() => null).then((more) => {
-          if (Array.isArray(more) && more.length) {
+          if (more === false) return; // stale result (the viewer changed meanwhile): ignore it
+          // Never append an item that is already in the feed.
+          const have = new Set(itemsRef.current.map((it) => String(it.post.id)));
+          const fresh = Array.isArray(more) ? more.filter((p) => !have.has(String(p.id)) && have.add(String(p.id))) : [];
+          if (fresh.length) {
             // Ranked page: keep its order, drop a song in after every 6 videos.
             const songs = shuffle(posts.filter(p => p.type === 'music'));
             const mixed = [];
-            more.forEach((v, i) => { mixed.push(v); if ((i + 1) % 6 === 0 && songs.length) mixed.push(songs.shift()); });
+            fresh.forEach((v, i) => { mixed.push(v); if ((i + 1) % 6 === 0 && songs.length) mixed.push(songs.shift()); });
             loopCountRef.current += 1;
             setItems(prev => [...prev, ...wrapPosts(mixed, loopCountRef.current)]);
           } else {

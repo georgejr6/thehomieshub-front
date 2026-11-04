@@ -163,6 +163,16 @@ async function fetchForYouPage(cursor) {
   return { posts, nextCursor: result.nextCursor || null };
 }
 
+// A missing endpoint (404) turns ranking off. Any other error is treated as transient:
+// after 3 failures in a row ranking pauses for 60 s, then tries again.
+const FOR_YOU_MAX_FAILS = 3;
+const FOR_YOU_COOLDOWN_MS = 60 * 1000;
+function recordForYouFailure(st, err) {
+  if (err?.response?.status === 404) { st.ok = false; return; }
+  st.fails = (st.fails || 0) + 1;
+  if (st.fails >= FOR_YOU_MAX_FAILS) { st.until = Date.now() + FOR_YOU_COOLDOWN_MS; st.fails = 0; }
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -258,7 +268,8 @@ export const ContentProvider = ({ children }) => {
 
   const [verticalPosts, setVerticalPosts] = useState([]);
   // For You paging state: ok=false means the ranked endpoint is unavailable and the old shuffle loop runs.
-  const forYouRef = useRef({ ok: false, cursor: null, busy: false });
+  const forYouRef = useRef({ ok: false, cursor: null, busy: false, fails: 0, until: 0, ids: new Set() });
+  const forYouGenRef = useRef(0); // bumped when the viewer changes: late results from the old viewer are ignored
   const [communityPosts, setCommunityPosts] = useState([]);
   const [users, setUsers] = useState(initialUsers);
 
@@ -346,27 +357,35 @@ const loadMyLibrary = async () => {
   // ✅ Load real feed from backend (reels + videos)
   useEffect(() => {
     let cancelled = false;
+    forYouGenRef.current += 1;
 
     const loadVerticalFeed = async () => {
-      forYouRef.current = { ok: false, cursor: null, busy: false };
+      // Ranked feed stays enabled unless the endpoint is missing; see recordForYouFailure.
+      const st = { ok: true, cursor: null, busy: false, fails: 0, until: 0, ids: new Set() };
+      forYouRef.current = st;
+      // /music/feed runs in parallel with the ranked page (and is reused by the fallback).
+      const musicP = api.get("/music/feed", { params: { limit: 12 } }).catch(() => null);
       try {
         const page = await fetchForYouPage(null);
         if (page.posts.length) {
-          const musicResp = await api.get("/music/feed", { params: { limit: 12 } }).catch(() => null);
+          const musicResp = await musicP;
           const songs = safeArray(musicResp?.data?.result?.tracks).map(mapTrackToFeedPost).filter(t => t.audioUrl);
           if (cancelled) return;
-          forYouRef.current = { ok: true, cursor: page.nextCursor, busy: false };
+          page.posts.forEach((p) => st.ids.add(String(p.id)));
+          st.cursor = page.nextCursor;
           setVerticalPosts(interleaveMusic(page.posts, songs));
           return;
         }
+        st.ok = false; // nothing ranked: use the old feed
       } catch (err) {
         // 404 / error: fall through to the old shuffled feed below.
+        recordForYouFailure(st, err);
       }
       try {
         const [reelsResp, videosResp, musicResp] = await Promise.all([
           api.get("/user/reels",  { params: { page: 1, limit: 50 } }),
           api.get("/user/videos", { params: { page: 1, limit: 50 } }),
-          api.get("/music/feed", { params: { limit: 12 } }).catch(() => null),
+          musicP,
         ]);
 
         const reelsResult  = reelsResp?.data?.result;
@@ -405,16 +424,25 @@ const loadMyLibrary = async () => {
 
   // Next ranked page for the infinite feed. Resolves to an array of posts, or null when the
   // ranked feed isn't available (the feed then keeps its old reshuffle loop).
+  // Resolves to: an array of NEW posts (deduped by id), null when ranking is unavailable right now
+  // (the feed then reshuffles its loop), or false when the result is stale and must be ignored.
   const loadMoreForYou = async () => {
     const st = forYouRef.current;
+    const gen = forYouGenRef.current;
     if (!st.ok || st.busy) return null;
+    if (st.until && Date.now() < st.until) return null; // cooling down after repeated failures
     st.busy = true;
     try {
       const page = await fetchForYouPage(st.cursor); // null cursor = start a fresh ranking
+      if (gen !== forYouGenRef.current) return false; // viewer changed while in flight
+      st.fails = 0; st.until = 0;
       st.cursor = page.nextCursor;
-      return page.posts;
-    } catch {
-      st.ok = false;
+      const fresh = page.posts.filter((p) => !st.ids.has(String(p.id)));
+      fresh.forEach((p) => st.ids.add(String(p.id)));
+      return fresh;
+    } catch (err) {
+      if (gen !== forYouGenRef.current) return false;
+      recordForYouFailure(st, err);
       return null;
     } finally {
       st.busy = false;

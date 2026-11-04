@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   beginImpression, trackProgress, markImpression, endImpression, flush, forYouParams,
-  getDeviceId, _reset, _pending, FLUSH_MS,
+  getDeviceId, _reset, _pending, FLUSH_MS, MAX_STORED,
 } from './feedEvents';
 
 let calls;
@@ -115,5 +115,117 @@ describe('feedEvents', () => {
     expect(p).toMatchObject({ sessionDepth: 3, skipStreak: 3, muted: true });
     expect(['phone', 'desktop']).toContain(p.device);
     expect(p.deviceId).toBe(getDeviceId());
+  });
+
+  it('never begins an impression for an app_only item (no player)', async () => {
+    expect(beginImpression({ type: 'video', id: ID, access: 'app_only' })).toBeNull();
+    expect(_pending()).toBe(0);
+    await flush();
+    expect(calls).toHaveLength(0);
+    expect(beginImpression({ type: 'video', id: ID, access: 'sample' })).toBeTruthy();
+    expect(beginImpression({ type: 'video', id: ID, access: 'full' })).toBeTruthy();
+  });
+
+  it('401: retries once without Authorization; a second failure does not loop', async () => {
+    localStorage.setItem('access_token', 'stale');
+    beginImpression({ type: 'video', id: ID });
+    fetch.mockImplementationOnce((url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: false, status: 401 }); });
+    await flush();
+    expect(calls).toHaveLength(2);
+    expect(calls[0].init.headers.Authorization).toBe('Bearer stale');
+    expect(calls[1].init.headers.Authorization).toBeUndefined();
+    expect(JSON.parse(calls[1].init.body)).toEqual(JSON.parse(calls[0].init.body));
+    // anonymous retry accepted: nothing left to send
+    await flush();
+    expect(calls).toHaveLength(2);
+  });
+
+  it('401 on the anonymous retry too: dropped, not retried forever', async () => {
+    localStorage.setItem('access_token', 'stale');
+    const a = beginImpression({ type: 'video', id: ID });
+    fetch.mockImplementation((url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: false, status: 401 }); });
+    endImpression(a);
+    await flush();
+    expect(calls).toHaveLength(2);
+    expect(_pending()).toBe(0);
+  });
+
+  it('other 4xx: batch is dropped; 5xx and network errors: kept and retried', async () => {
+    const a = beginImpression({ type: 'video', id: ID });
+    endImpression(a);
+    fetch.mockImplementationOnce((url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: false, status: 400 }); });
+    await flush();
+    expect(_pending()).toBe(0);
+    await flush();
+    expect(calls).toHaveLength(1); // nothing to retry
+
+    const b = beginImpression({ type: 'video', id: ID });
+    endImpression(b);
+    fetch.mockImplementationOnce((url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: false, status: 503 }); });
+    await flush();
+    expect(_pending()).toBe(1);
+    await flush(); // retry succeeds
+    expect(calls).toHaveLength(3);
+    expect(_pending()).toBe(0);
+
+    const c = beginImpression({ type: 'video', id: ID });
+    endImpression(c);
+    fetch.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+    await flush();
+    expect(_pending()).toBe(1);
+    await flush();
+    expect(_pending()).toBe(0);
+
+    const d = beginImpression({ type: 'video', id: ID });
+    endImpression(d);
+    fetch.mockImplementationOnce((url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: false, status: 429 }); });
+    await flush();
+    expect(_pending()).toBe(0); // 429 is a 4xx: dropped
+  });
+
+  it('caps stored impressions at 300, dropping the oldest ended ones first', async () => {
+    fetch.mockImplementation(() => Promise.reject(new Error('offline'))); // nothing is ever delivered
+    const ids = [];
+    for (let i = 0; i < MAX_STORED + 50; i++) {
+      const id = beginImpression({ type: 'video', id: ID, position: i });
+      ids.push(id);
+      if (i < 200) endImpression(id); // the first 200 are finished
+    }
+    expect(_pending()).toBeLessThanOrEqual(MAX_STORED);
+    // the still-active (not ended) ones were never dropped
+    for (const id of ids.slice(200)) trackProgress(id, 0, 10), trackProgress(id, 1, 10);
+    fetch.mockImplementation((url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: true, status: 200 }); });
+    await flush();
+    const sent = calls.flatMap((c) => JSON.parse(c.init.body).events);
+    expect(sent.filter((e) => e.position >= 200)).toHaveLength(MAX_STORED + 50 - 200);
+    expect(sent.some((e) => e.position === 0)).toBe(false); // oldest ended dropped
+  });
+
+  it('hiding the page ends the active impression before flushing; coming back reopens it', async () => {
+    const a = beginImpression({ type: 'video', id: ID });
+    trackProgress(a, 0, 30); trackProgress(a, 0.5, 30);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(calls[0].init.body).events[0]).toMatchObject({ impressionId: a, skipped: true, watchMs: 500 });
+    expect(_pending()).toBe(1); // kept: may come back
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    // watching resumes on the same impression; the hidden gap isn't counted
+    trackProgress(a, 40, 60); trackProgress(a, 41, 60); trackProgress(a, 42, 60);
+    endImpression(a);
+    await flush();
+    const e = lastEvents()[0];
+    expect(e.impressionId).toBe(a);
+    expect(e.skipped).toBe(false);
+    expect(e.watchMs).toBe(2500);
+  });
+
+  it('pagehide also ends the active impression', async () => {
+    const a = beginImpression({ type: 'reel', id: ID });
+    window.dispatchEvent(new Event('pagehide'));
+    expect(calls).toHaveLength(1);
+    expect(calls[0].init.keepalive).toBe(true);
+    expect(JSON.parse(calls[0].init.body).events[0]).toMatchObject({ impressionId: a, skipped: true });
   });
 });

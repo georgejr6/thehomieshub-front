@@ -133,7 +133,9 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     // Feed impression: this card became the visible one -> log it until it stops being visible.
     useEffect(() => {
         if (!isVisible || (post.backendType !== 'video' && post.backendType !== 'reel')) return undefined;
-        const id = beginImpression({ type: post.backendType, id: post.id, position: index, muted: globalIsMuted });
+        if (post.access === 'app_only') return undefined; // app-only card has no player: nothing is watched
+        const id = beginImpression({ type: post.backendType, id: post.id, position: index, muted: globalIsMuted, access: post.access });
+        if (!id) return undefined;
         impRef.current = id;
         return () => { endImpression(id); if (impRef.current === id) impRef.current = null; };
         // eslint-disable-next-line react-hooks/exhaustive-deps

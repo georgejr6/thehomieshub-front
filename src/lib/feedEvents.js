@@ -18,6 +18,7 @@ export const FLUSH_MS = 10000;
 export const SKIP_UNDER_MS = 2000;
 export const COMPLETE_PCT = 0.9;
 const MAX_PER_REQUEST = 50;
+export const MAX_STORED = 300; // impressions kept in memory; oldest ended ones are dropped first
 
 let impressions = new Map(); // impressionId -> record
 let timer = null;
@@ -83,14 +84,43 @@ function ensureRunning() {
   if (!timer) timer = setInterval(() => flush(false), FLUSH_MS);
   if (!listenersOn && typeof document !== 'undefined') {
     listenersOn = true;
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(true); });
-    window.addEventListener('pagehide', () => flush(true));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { suspendActive(); flush(true); } else resumeSuspended();
+    });
+    window.addEventListener('pagehide', () => { suspendActive(); flush(true); });
+  }
+}
+
+// The page is going away or hidden: close the card that is on screen so its final
+// numbers (skipped, watch time) are in the flush. If the user comes back, it is reopened.
+function suspendActive() {
+  for (const r of impressions.values()) {
+    if (r.ended) continue;
+    endImpression(r.impressionId);
+    r.suspended = true;
+  }
+}
+function resumeSuspended() {
+  for (const r of impressions.values()) {
+    if (!r.suspended) continue;
+    r.suspended = false;
+    if (r.skipped) skipStreak = Math.max(0, skipStreak - 1);
+    r.ended = false; r.skipped = false; r.lastT = null; // don't count the time spent hidden
+  }
+}
+
+function enforceCap() {
+  if (impressions.size <= MAX_STORED) return;
+  for (const [id, r] of impressions) {
+    if (impressions.size <= MAX_STORED) break;
+    if (r.ended) impressions.delete(id);
   }
 }
 
 /** A card became the visible one. Returns the impression id to pass to the other calls. */
-export function beginImpression({ type, id, position = 0, muted = false }) {
+export function beginImpression({ type, id, position = 0, muted = false, access } = {}) {
   if ((type !== 'video' && type !== 'reel') || !id) return null;
+  if (access === 'app_only') return null; // no player on the web, nothing was watched
   lastMuted = !!muted;
   getFeedSessionId();
   const impressionId = rid('imp') + '_' + (++seq);
@@ -102,6 +132,7 @@ export function beginImpression({ type, id, position = 0, muted = false }) {
     ctx: { ...getFeedCtx(), sessionDepth },
     ended: false, dirty: true,
   });
+  enforceCap();
   ensureRunning();
   return impressionId;
 }
@@ -139,7 +170,8 @@ export function markImpression(impressionId, flag) {
 /** The card stopped being the visible one. */
 export function endImpression(impressionId) {
   const r = impressions.get(impressionId);
-  if (!r || r.ended) return;
+  if (!r) return;
+  if (r.ended) { r.suspended = false; return; } // the card left while the page was hidden: stays ended
   r.ended = true;
   r.dirty = true;
   r.skipped = r.watchMs < SKIP_UNDER_MS && !r.completed;
@@ -156,7 +188,17 @@ function payload(r) {
   };
 }
 
-/** Send everything that changed. keepalive=true for unload paths. */
+function postBatch(body, headers, keepalive) {
+  try {
+    return Promise.resolve(fetch(BASE + '/feed/events', { method: 'POST', headers, body, keepalive, credentials: 'omit' }));
+  } catch (e) { return Promise.reject(e); }
+}
+
+/**
+ * Send everything that changed. keepalive=true for unload paths.
+ * 401 (stale token): retried once without Authorization. Other 4xx: the batch is dropped
+ * (resending the same thing can't succeed). 5xx / network errors: kept for the next flush.
+ */
 export function flush(keepalive = false) {
   const dirty = [...impressions.values()].filter((r) => r.dirty);
   if (!dirty.length) return Promise.resolve();
@@ -170,15 +212,23 @@ export function flush(keepalive = false) {
     const chunk = dirty.slice(i, i + MAX_PER_REQUEST);
     chunk.forEach((r) => { r.dirty = false; });
     const body = JSON.stringify({ deviceId, sessionId, events: chunk.map(payload) });
-    let p;
-    try {
-      p = fetch(BASE + '/feed/events', { method: 'POST', headers, body, keepalive, credentials: 'omit' });
-    } catch { p = Promise.reject(new Error('fetch failed')); }
-    sends.push(Promise.resolve(p).then((res) => {
-      if (res && res.ok === false && res.status >= 500) throw new Error('server');
+    const requeue = () => { chunk.forEach((r) => { if (impressions.has(r.impressionId)) r.dirty = true; }); enforceCap(); };
+    const drop = () => { chunk.forEach((r) => impressions.delete(r.impressionId)); };
+    const done = () => {
       // finished impressions are done once the server has them
-      chunk.forEach((r) => { if (r.ended && !r.dirty) impressions.delete(r.impressionId); });
-    }).catch(() => { chunk.forEach((r) => { r.dirty = true; }); }));
+      chunk.forEach((r) => { if (r.ended && !r.dirty && !r.suspended) impressions.delete(r.impressionId); });
+    };
+    const handle = (res, retried) => {
+      const status = res && typeof res.status === 'number' ? res.status : 200;
+      if (!res || res.ok !== false) return done();
+      if (status === 401 && !retried && headers.Authorization) {
+        const anon = { ...headers }; delete anon.Authorization;
+        return postBatch(body, anon, keepalive).then((r2) => handle(r2, true));
+      }
+      if (status >= 500) return requeue();
+      return drop(); // 400/401/403/404/413/429...: the server won't take this batch
+    };
+    sends.push(postBatch(body, headers, keepalive).then((res) => handle(res, false)).catch(requeue));
   }
   return Promise.all(sends).then(() => {});
 }
