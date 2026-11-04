@@ -1,12 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings, Video, Mic, MicOff, Video as VideoIcon, VideoOff,
   MessageSquare, Radio, Share2, Copy, Check, Save,
   MonitorPlay, Laptop, AlertCircle, Signal, Info, HelpCircle,
-  Wifi, ShieldCheck, ShieldX, CheckCircle, Globe, Loader2, Clock, ExternalLink, ChevronDown, RotateCcw
+  Wifi, ShieldCheck, ShieldX, CheckCircle, Globe, Loader2, Clock, ExternalLink, ChevronDown, RotateCcw, KeyRound
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -119,7 +120,12 @@ const AudioLevelIndicator = ({ stream }) => {
 const GoLivePage = ({ onLoginRequest }) => {
     const { user } = useAuth();
     const { toast } = useToast();
-    
+    const navigate = useNavigate();
+    // Live v2: the creator has one persistent stream key (backend sends persistentKey:true).
+    const [persistentKey, setPersistentKey] = useState(false);
+    const [resetKeyAvailable, setResetKeyAvailable] = useState(true); // hidden if the endpoint 404s
+    const [isResettingKey, setIsResettingKey] = useState(false);
+
     // --- State ---
     const [streamMethod, setStreamMethod] = useState('webcam'); // 'webcam' | 'software'
     const [isLive, setIsLive] = useState(false);
@@ -195,7 +201,8 @@ const GoLivePage = ({ onLoginRequest }) => {
             try {
                 const { data } = await api.get('/live/my-stream');
                 const s = data?.result?.stream;
-                if (!s) return;
+                if (!s || s.status === 'disabled') return;
+                if (s.persistentKey) setPersistentKey(true);
                 setStreamData({ url: 'rtmps://global-live.mux.com:443/app', key: s.streamKey || '', whipUrl: s.whipEndpointUrl || '' });
                 setLiveStreamId(s.id);
                 setIsSaved(true);
@@ -283,6 +290,17 @@ const GoLivePage = ({ onLoginRequest }) => {
                 const { data } = await api.get('/live/my-stream');
                 const s = data?.result?.stream;
                 if (!s) return;
+                if (s.id) setLiveStreamId((cur) => (cur === s.id ? cur : s.id));
+                if (s.status === 'disabled') {
+                    // Session ended (encoder stopped for good, or ended elsewhere).
+                    setSoftwareStreamStatus('idle');
+                    if (wentLiveRef.current) {
+                        wentLiveRef.current = false;
+                        setIsLive(false);
+                        toast({ title: 'Stream ended', description: 'Your broadcast has finished.' });
+                    }
+                    return;
+                }
                 setSoftwareStreamStatus(s.status);
                 setSoftwarePlaybackId(s.playbackId || null);
                 if (s.status === 'active' && !wentLiveRef.current) {
@@ -406,6 +424,7 @@ const GoLivePage = ({ onLoginRequest }) => {
             const streamMode = streamMethod === 'webcam' ? 'browser' : 'software';
             const { data } = await api.post('/live/create', { title: title.trim() || '', description, streamMode, discordAnnounce, notifyFollowers });
             if (data.status) {
+                if (data.result.persistentKey) setPersistentKey(true);
                 setStreamData({
                     url: data.result.rtmpUrl,
                     key: data.result.streamKey,
@@ -540,6 +559,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                     return;
                 }
                 streamId = data.result.id;
+                if (data.result.persistentKey) setPersistentKey(true);
                 setStreamData({ url: data.result.rtmpUrl, key: data.result.streamKey, whipUrl: data.result.whipEndpointUrl || '' });
                 setLiveStreamId(streamId);
                 setIsSaved(true);
@@ -644,9 +664,35 @@ const GoLivePage = ({ onLoginRequest }) => {
             try { await api.delete(`/live/${liveStreamId}`); } catch (_) {}
             setLiveStreamId(null);
         }
-        setStreamData({ url: '', key: '', whipUrl: '' });
+        wentLiveRef.current = false;
+        setSoftwareStreamStatus('idle');
+        setSoftwarePlaybackId(null);
+        // The key is persistent now: keep showing it so the next broadcast needs no new setup.
+        if (!persistentKey) setStreamData({ url: '', key: '', whipUrl: '' });
         setIsSaved(false);
         toast({ title: "Stream Ended", description: "Your broadcast has finished." });
+        navigate('/go-live');
+    };
+
+    const handleResetKey = async () => {
+        if (!window.confirm('Reset your stream key? The old key stops working right away. You must paste the new key into Restream (or OBS) before your next stream.')) return;
+        setIsResettingKey(true);
+        try {
+            const { data } = await api.post('/live/reset-key');
+            const newKey = data?.result?.streamKey || data?.streamKey;
+            if (newKey) {
+                setStreamData((prev) => ({ ...prev, key: newKey }));
+                setShowStreamKey(true);
+                toast({ title: 'Stream key reset', description: 'Update the key in Restream or OBS now.' });
+            } else {
+                toast({ title: 'Could not reset key', description: data?.message || 'Try again.', variant: 'destructive' });
+            }
+        } catch (err) {
+            if (err.response?.status === 404) setResetKeyAvailable(false);
+            toast({ title: 'Could not reset key', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
+        } finally {
+            setIsResettingKey(false);
+        }
     };
 
     const copyToClipboard = (text) => {
@@ -657,7 +703,7 @@ const GoLivePage = ({ onLoginRequest }) => {
     return (
         <TooltipProvider>
             <Helmet>
-                <title>Go Live Studio - The Homies Hub</title>
+                <title>Go Live Studio - The Homies</title>
             </Helmet>
 
             <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -670,7 +716,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                             {isLive ? <span className="text-red-500 tracking-wide">ON AIR</span> : "Creator Studio"}
                         </h1>
                     </div>
-                    {isLive && (
+                    {(isLive || (streamMethod === 'software' && isSaved)) && (
                         <div className="flex items-center gap-2">
                             <Button
                                 variant="secondary"
@@ -984,7 +1030,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                                         </div>
                                         <div className="flex items-start gap-2">
                                             <Globe className="h-4 w-4 mt-0.5 text-purple-500" />
-                                            <p>Broadcasts directly to all Homies Hub platforms instantly.</p>
+                                            <p>Broadcasts directly to The Homies instantly.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1008,7 +1054,7 @@ const GoLivePage = ({ onLoginRequest }) => {
                                             ? "🔴 Connected — You're Live"
                                             : isSaved
                                                 ? "Waiting for Restream/OBS to connect..."
-                                                : "Save stream info to get your RTMP key"}
+                                                : "Get your stream key to begin"}
                                     </div>
 
                                     {/* Live preview — shows your own stream once Restream connects */}
@@ -1085,6 +1131,21 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                             <Copy className="h-4 w-4" />
                                                         </Button>
                                                     </div>
+                                                    {persistentKey && (
+                                                        <p className="text-xs text-zinc-500">This key is permanent. Set it up once in Restream or OBS and reuse it for every stream.</p>
+                                                    )}
+                                                    {streamData.key && resetKeyAvailable && (
+                                                        <Button size="sm" variant="outline" onClick={handleResetKey} disabled={isResettingKey} className="gap-2">
+                                                            {isResettingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                                                            Reset key
+                                                        </Button>
+                                                    )}
+                                                    {!streamData.key && (
+                                                        <Button size="sm" onClick={handleSaveInfo} disabled={isCreatingStream} className="gap-2">
+                                                            {isCreatingStream ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                                                            Get my stream key
+                                                        </Button>
+                                                    )}
                                                     <div className="flex items-start gap-2 mt-2 p-3 bg-red-900/20 rounded-md border border-red-900/30">
                                                         <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
                                                         <p className="text-xs text-red-300">
@@ -1108,13 +1169,22 @@ const GoLivePage = ({ onLoginRequest }) => {
                                                     <li>Paste the <span className="text-white font-medium">Server URL</span> and <span className="text-white font-medium">Stream Key</span> provided here.</li>
                                                     <li>Click <span className="text-white font-medium">Start Streaming</span> in OBS.</li>
                                                 </ol>
+                                                <h4 className="font-semibold text-white mt-6 mb-3 text-sm">Using Restream</h4>
+                                                <ol className="space-y-3 text-sm text-zinc-400 list-decimal list-inside">
+                                                    <li>In Restream, add a destination and choose <span className="text-white font-medium">Custom RTMP</span>.</li>
+                                                    <li>Server URL: <span className="text-white font-mono text-xs">rtmps://global-live.mux.com:443/app</span></li>
+                                                    <li>Stream key: paste the key from this page.</li>
+                                                    <li>Encoder settings: keyframe interval <span className="text-white font-medium">2 seconds</span>, video <span className="text-white font-medium">H.264</span>, audio <span className="text-white font-medium">AAC</span>.</li>
+                                                    <li>Start your stream in Restream. It goes live in The Homies automatically and ends when you stop.</li>
+                                                </ol>
+                                                <p className="text-xs text-zinc-500 mt-4">If you reset your key, update it in Restream before your next stream.</p>
                                             </div>
                                             
                                             <Alert className="bg-blue-950/30 border-blue-900/50">
                                                 <Info className="h-4 w-4 text-blue-400" />
                                                 <AlertTitle className="text-blue-400">Powered by Mux</AlertTitle>
                                                 <AlertDescription className="text-blue-300/80 text-xs mt-1">
-                                                    Your stream key is generated via Mux Live Streams. The RTMP ingest URL and stream key update each time you save a new stream.
+                                                    Your stream key is generated via Mux Live Streams and stays the same until you reset it.
                                                 </AlertDescription>
                                             </Alert>
                                         </div>

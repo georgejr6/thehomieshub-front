@@ -13,6 +13,7 @@ import LiveOwnerPanel from '@/components/live/LiveOwnerPanel';
 import YouTubeBadge from '@/components/YouTubeBadge';
 import { externalText, openLinkedUserCard, safeAvatar } from '@/lib/externalAuthor';
 import LiveSpacesStrip from '@/components/spaces/LiveSpacesStrip';
+import MuxPlayer from '@mux/mux-player-react';
 
 // /live — watch Mwosa's stream (YouTube or Kick embed) and chat without
 // leaving the app. The chat is the same conversation as the stream's
@@ -110,10 +111,39 @@ function LiveMessage({ m, fresh }) {
   );
 }
 
+// The owner's stream inside The Homies app (Mux). Autoplays muted with an Unmute button.
+function MuxLive({ app }) {
+  const [muted, setMuted] = useState(true);
+  return (
+    <div className="relative h-full w-full bg-black">
+      <MuxPlayer
+        key={app.playbackId}
+        streamType="ll-live"
+        playbackId={app.playbackId}
+        autoPlay="muted"
+        muted={muted}
+        onVolumeChange={(e) => setMuted(!!e?.target?.muted)}
+        style={{ width: '100%', height: '100%' }}
+        metadata={{ video_id: app.streamId, video_title: state_title(app) }}
+      />
+      {muted && (
+        <button type="button" onClick={() => setMuted(false)}
+          className="absolute bottom-14 left-3 z-10 flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black shadow-lg hover:bg-white/90">
+          <Volume2 className="h-4 w-4" /> Unmute
+        </button>
+      )}
+    </div>
+  );
+}
+const state_title = (app) => `@${app.username || 'homies'} live`;
+
 function Player({ state, source }) {
   if (!state) return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-white/40" /></div>;
   const yt = state.youtube || {};
   const kick = state.kick || {};
+  if (source === 'mux' && state.app?.live && state.app.playbackId) {
+    return <MuxLive app={state.app} />;
+  }
   if (source === 'kick') {
     return <iframe key="kick" title="Kick stream" src={`https://player.kick.com/${kick.slug}?autoplay=true&muted=true`} className="h-full w-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
   }
@@ -162,6 +192,7 @@ export default function LiveWatchPage({ onLoginRequest }) {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [me, setMe] = useState(null);
   const [source, setSource] = useState(null);
+  const userPickedRef = useRef(false);
   const [pay, setPay] = useState(null); // { tab, preset }
   const [toast, setToast] = useState(null);
   const [alert, setAlert] = useState(null);
@@ -239,8 +270,17 @@ export default function LiveWatchPage({ onLoginRequest }) {
   // Default player: whichever platform is live (YouTube first).
   useEffect(() => {
     if (!state || source) return;
-    setSource(state.kick?.live && !state.youtube?.live ? 'kick' : 'youtube');
+    if (state.app?.live && state.app.playbackId) setSource('mux');
+    else setSource(state.kick?.live && !state.youtube?.live ? 'kick' : 'youtube');
   }, [state, source]);
+
+  // Owner's app stream starts or stops while we watch: follow it.
+  const appLive = !!(state?.app?.live && state.app.playbackId);
+  useEffect(() => {
+    if (!state) return;
+    if (appLive && source !== 'mux' && !userPickedRef.current) setSource('mux');
+    else if (!appLive && source === 'mux') setSource(state.kick?.live && !state.youtube?.live ? 'kick' : 'youtube');
+  }, [appLive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // After a gap (reconnect), replace the list so deletions during the gap disappear too.
   const reloadMessages = useCallback(async () => {
@@ -452,11 +492,11 @@ export default function LiveWatchPage({ onLoginRequest }) {
         </div>
 
         <div className="flex items-center gap-2 border-b border-white/[0.06] px-3 py-2 lg:px-5">
-          {['youtube', 'kick'].map((p) => (
-            <button key={p} type="button" onClick={() => setSource(p)}
+          {[...(appLive ? ['mux'] : []), 'youtube', 'kick'].map((p) => (
+            <button key={p} type="button" onClick={() => { userPickedRef.current = true; setSource(p); }}
               className={cn('flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-colors', source === p ? 'bg-white text-black' : 'bg-white/[0.06] text-white/70 hover:bg-white/10')}>
-              <PlatformDot platform={p} /> {p === 'youtube' ? 'YouTube' : 'Kick'}
-              {state?.[p]?.live && <span className="h-1.5 w-1.5 rounded-full bg-[#ff0033]" />}
+              <PlatformDot platform={p === 'mux' ? 'homies' : p} /> {p === 'mux' ? 'The Homies' : p === 'youtube' ? 'YouTube' : 'Kick'}
+              {(p === 'mux' ? appLive : state?.[p]?.live) && <span className="h-1.5 w-1.5 rounded-full bg-[#ff0033]" />}
             </button>
           ))}
           {supporters.length > 0 && (

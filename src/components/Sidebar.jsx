@@ -41,12 +41,12 @@ const GetAppSidebarButton = () => (
   </Popover>
 );
 
-const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot, highlight, onIntent }) => {
+const NavItem = ({ to, icon: Icon, label, isCollapsed, featureKey, onClick, liveDot, highlight, onIntent, activeFor }) => {
   const location = useLocation();
   const { checkAccess } = useFeatures();
   const [toPath, toQuery] = to ? to.split('?') : [to, ''];
   const isActive = (location.pathname === toPath && (!toQuery || location.search.includes(toQuery)))
-    || (to === '/live' && location.pathname.startsWith('/live-stream'))
+    || ((to === '/live' || activeFor === '/live') && (location.pathname === '/live' || location.pathname.startsWith('/live-stream')))
     || (to === '/chat' && location.pathname.startsWith('/chat/'))
     || (to === '/spaces' && location.pathname.startsWith('/spaces/'))
     || (to === '/admin/dashboard' && location.pathname.startsWith('/admin'));
@@ -160,6 +160,9 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
   const isLivestreamPage = location.pathname.startsWith('/live-stream');
 
   const [hasActiveLive, setHasActiveLive] = useState(false);
+  // Where the Live item goes: /live when the owner is live (any platform, incl. the
+  // app stream), else the live creator's own page when only a Mux stream is live.
+  const [liveLink, setLiveLink] = useState('/live');
   // Merch shows only once the shop is open with products (lib/merch.js).
   const merchOpen = useMerchAvailable();
   // Warm the shop (chunks + catalog) while the browser is idle so opening it is instant.
@@ -167,9 +170,18 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   useEffect(() => {
     const check = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const { data } = await api.get('/live/active');
-        setHasActiveLive((data?.result?.streams?.length || 0) > 0);
+        const streams = data?.result?.streams || [];
+        setHasActiveLive(streams.length > 0);
+        let ownerLive = false;
+        try {
+          const st = await api.get('/livechat/state');
+          ownerLive = !!(st?.data?.result?.state?.live);
+        } catch (_) { ownerLive = true; /* unknown: keep the /live default */ }
+        const first = streams[0]?.creator?.username || streams[0]?.username;
+        setLiveLink(streams.length > 0 && !ownerLive && first ? `/live-stream/${first}` : '/live');
       } catch (_) {}
     };
     check();
@@ -186,7 +198,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, isCollapsed, setIsCollapsed, onP
         { to: '/chat', icon: MessagesSquare, label: 'Homies Chat', highlight: true },
         { to: '/browse', icon: Play, label: 'Browse' },
         { to: '/explore', icon: Compass, label: 'Explore', featureKey: 'explore' },
-        { to: '/live', icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive },
+        { to: liveLink, icon: Radio, label: 'Live', featureKey: 'live_streaming', liveDot: hasActiveLive, activeFor: '/live' },
         { to: '/library', icon: Library, label: 'Library', featureKey: 'library' },
         ...(merchOpen ? [{ to: '/shop', icon: Shirt, label: 'Merch', onIntent: prefetchShop }] : []),
       ],

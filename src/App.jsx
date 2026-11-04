@@ -18,7 +18,6 @@ const ExplorePage = lazyWithReload(() => import('@/pages/ExplorePage'));
 const SubscriptionsPage = lazyWithReload(() => import('@/pages/SubscriptionsPage'));
 const SearchResultsPage = lazyWithReload(() => import('@/pages/SearchResultsPage'));
 const UserProfilePage = lazyWithReload(() => import('@/pages/UserProfilePage'));
-import LiveComingSoon from '@/components/LiveComingSoon';
 const LibraryPage = lazyWithReload(() => import('@/pages/LibraryPage'));
 // Re-enabled 2026-08-10 -- Creator Studio (content mgmt + analytics + ecommerce) is live again.
 const CreatorStudioPage = lazyWithReload(() => import('@/pages/CreatorStudioPage'));
@@ -29,6 +28,9 @@ const ChatPage = lazyWithReload(() => import('@/pages/ChatPage'));
 const SpacesPage = lazyWithReload(() => import('@/pages/SpacesPage'));
 const SpaceRoomPage = lazyWithReload(() => import('@/pages/SpaceRoomPage'));
 const LiveWatchPage = lazyWithReload(() => import('@/pages/LiveWatchPage'));
+const GoLivePage = lazyWithReload(() => import('@/pages/GoLivePage'));
+const LiveStreamPage = lazyWithReload(() => import('@/pages/LiveStreamPage'));
+const VodPage = lazyWithReload(() => import('@/pages/VodPage'));
 const MyAIPage = lazyWithReload(() => import('@/pages/MyAIPage'));
 const MyClipsPage = lazyWithReload(() => import('@/pages/MyClipsPage'));
 const MyAppsPage = lazyWithReload(() => import('@/pages/MyAppsPage'));
@@ -560,13 +562,9 @@ const AppContent = React.memo(() => {
                 home instead of 404ing so old bookmarks/links don't break oddly. Reserved for when
                 it's actually fixed -- don't re-enable without addressing those two issues first. */}
             <Route path="/studio" element={<Navigate to="/" />} />
-            {/* Live streaming paused 2026-08-15 (George) -- music is the priority right now,
-                broadcasting stays gated behind a Coming Soon notice until it's reworked.
-                GoLivePage itself is untouched, just not routed to. */}
-            <Route path="/studio/stream" element={user ? <LiveComingSoon /> : <Navigate to="/" />} />
-            <Route path="/go-live" element={
-                user ? <LiveComingSoon /> : <Navigate to="/" />
-            } />
+            {/* Live streaming re-enabled 2026-11-04 (Homies Live v2). */}
+            <Route path="/studio/stream" element={user ? <GoLivePage /> : <Navigate to="/" />} />
+            <Route path="/go-live" element={user ? <GoLivePage /> : <Navigate to="/" />} />
 
             {/* Standalone payment page for the mobile app's in-app browser sheet
                 (see src/pages/PayPage.jsx) -- deliberately NOT gated on `user`,
@@ -641,9 +639,9 @@ const AppContent = React.memo(() => {
                 } />
                 
 
-                <Route path="/live-stream/:username" element={<LiveComingSoon />} />
+                <Route path="/live-stream/:username" element={<LiveStreamPage onLoginRequest={handleLoginRequest} />} />
 
-                <Route path="/vod/:streamId" element={<LiveComingSoon />} />
+                <Route path="/vod/:streamId" element={<VodPage />} />
 
                 <Route path="/library" element={
                     <FeatureGuard feature="library">

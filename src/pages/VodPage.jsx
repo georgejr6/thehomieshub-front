@@ -19,9 +19,11 @@ const VodPage = () => {
   const [vod, setVod] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [partIndex, setPartIndex] = useState(0);
 
   useEffect(() => {
     if (!streamId) return;
+    setPartIndex(0);
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -62,10 +64,18 @@ const VodPage = () => {
     );
   }
 
+  // Recordings can be several parts (stream reconnects); play them in order.
+  // Old backends only send vodPlaybackId.
+  const parts = Array.isArray(vod.vodParts) && vod.vodParts.filter((p) => p && p.playbackId).length
+    ? vod.vodParts.filter((p) => p && p.playbackId)
+    : (vod.vodPlaybackId ? [{ playbackId: vod.vodPlaybackId }] : []);
+  const idx = Math.min(partIndex, Math.max(parts.length - 1, 0));
+  const part = parts[idx];
+
   return (
     <>
       <Helmet>
-        <title>{vod.title} — {vod.creator?.displayName || vod.creator?.name || vod.creator?.username} on The Homies Hub</title>
+        <title>{vod.title} | {vod.creator?.displayName || vod.creator?.name || vod.creator?.username} on The Homies</title>
       </Helmet>
 
       <div className="min-h-screen bg-black text-white">
@@ -75,13 +85,25 @@ const VodPage = () => {
           </Button>
 
           <div className="aspect-video bg-zinc-900 rounded-xl overflow-hidden">
+            {part ? (
             <MuxPlayer
-              playbackId={vod.vodPlaybackId}
+              key={`${idx}-${part.playbackId}`}
+              playbackId={part.playbackId}
+              autoPlay={idx > 0}
+              onEnded={() => setPartIndex((i) => (i + 1 < parts.length ? i + 1 : i))}
               streamType="on-demand"
               style={{ width: '100%', height: '100%' }}
               metadata={{ video_title: vod.title }}
             />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-white/60">Replay processing. Check back in a few minutes.</div>
+            )}
+
           </div>
+
+          {parts.length > 1 && (
+            <div className="mt-2 text-xs text-white/50">Part {idx + 1} of {parts.length}, playing in order</div>
+          )}
 
           <div className="mt-4 flex items-start justify-between gap-4">
             <div className="min-w-0">

@@ -29,8 +29,11 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
   const ttsEnabledRef = useRef(true);
   const wsRef = useRef(null);
   const reconnectTimer = useRef(null);
-  const reconnectDelay = useRef(3000);
-  const historyLoadedRef = useRef(false);
+  const reconnectAttempt = useRef(0);
+  const serverDelayRef = useRef(null); // delayMs from a {type:"reconnect"} frame
+  const historyLoadedRef = useRef(null); // streamId whose history is loaded
+  const lastTsRef = useRef(null); // newest message timestamp seen (for backfill)
+  const hasConnectedRef = useRef(false);
 
   useEffect(() => { ttsEnabledRef.current = ttsEnabled; }, [ttsEnabled]);
 
@@ -52,8 +55,17 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
   const bottomRef = useRef(null);
 
+  const noteTs = useCallback((msg) => {
+    const t = msg && msg.timestamp ? new Date(msg.timestamp).getTime() : NaN;
+    if (!Number.isNaN(t) && (!lastTsRef.current || t > new Date(lastTsRef.current).getTime())) {
+      lastTsRef.current = msg.timestamp;
+    }
+  }, []);
+
   const addMessage = useCallback((msg) => {
+    noteTs(msg);
     setMessages((prev) => {
+      if (msg.id && prev.some((m) => m.id === msg.id)) return prev;
       const next = [...prev, msg];
       return next.length > 300 ? next.slice(-300) : next;
     });
@@ -62,15 +74,48 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
   // Load chat history once on mount. In replay mode, pull the FULL recorded
   // log (?replay=1) instead of just the live tail.
   useEffect(() => {
-    if (!streamId || historyLoadedRef.current) return;
-    historyLoadedRef.current = true;
+    if (!streamId) return;
+    const histKey = `${streamId}:${replay ? 'r' : 'l'}`;
+    if (historyLoadedRef.current === histKey) return;
+    historyLoadedRef.current = histKey;
+    setMessages([]);
+    lastTsRef.current = null;
+    hasConnectedRef.current = false;
     api.get(`/live/${streamId}/chat${replay ? '?replay=1' : ''}`)
       .then(({ data }) => {
+        if (historyLoadedRef.current !== histKey) return;
         const history = data?.result?.messages || [];
-        if (history.length) setMessages(history);
+        if (history.length) {
+          history.forEach(noteTs);
+          // merge: socket messages may have arrived while history was loading
+          setMessages((prev) => {
+            const seen = new Set(history.map((m) => m.id).filter(Boolean));
+            return [...history, ...prev.filter((m) => !m.id || !seen.has(m.id))];
+          });
+        }
       })
       .catch(() => {});
-  }, [streamId, replay]);
+  }, [streamId, replay, noteTs]);
+
+  // After a reconnect, fetch what we missed while the socket was down.
+  const backfill = useCallback(() => {
+    const after = lastTsRef.current;
+    if (!streamId || !after) return;
+    api.get(`/live/${streamId}/chat`, { params: { after } })
+      .then(({ data }) => {
+        const missed = data?.result?.messages || [];
+        if (!missed.length) return;
+        missed.forEach(noteTs);
+        setMessages((prev) => {
+          const seen = new Set(prev.map((m) => m.id).filter(Boolean));
+          const fresh = missed.filter((m) => !m.id || !seen.has(m.id));
+          if (!fresh.length) return prev;
+          const next = [...prev, ...fresh];
+          return next.length > 300 ? next.slice(-300) : next;
+        });
+      })
+      .catch(() => {});
+  }, [streamId, noteTs]);
 
   const connect = useCallback(() => {
     if (!streamId) return;
@@ -82,8 +127,11 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
 
     ws.onopen = () => {
       setConnected(true);
-      reconnectDelay.current = 3000;
+      reconnectAttempt.current = 0;
+      serverDelayRef.current = null;
       clearTimeout(reconnectTimer.current);
+      if (hasConnectedRef.current) backfill();
+      hasConnectedRef.current = true;
       const token = signedInAs ? readToken() : '';
       if (token) {
         setAuthState('pending');
@@ -101,6 +149,9 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
           setAuthState('error');
         } else if (msg.type === 'system' && msg.code === 'auth_required') {
           setAuthState((st) => (st === 'pending' ? st : 'guest'));
+        } else if (msg.type === 'reconnect') {
+          const d = Number(msg.delayMs);
+          serverDelayRef.current = Number.isFinite(d) ? Math.min(Math.max(d, 0), 60000) : null;
         } else if (msg.type === 'viewer_count') {
           setViewerCount(msg.count);
         } else if (msg.type === 'gift') {
@@ -123,14 +174,21 @@ export default function LiveChat({ streamId, isCollapsible = true, className, on
       if (wsRef.current !== ws) return;
       setConnected(false);
       setAuthState('guest');
+      // Full jitter: random in [0, min(30 s, 1 s * 2^attempt)]; the server's
+      // drain hint ({type:"reconnect", delayMs}) wins when present.
+      const cap = Math.min(30000, 1000 * 2 ** reconnectAttempt.current);
+      const delay = serverDelayRef.current != null
+        ? serverDelayRef.current
+        : Math.max(250, Math.random() * cap);
+      serverDelayRef.current = null;
+      reconnectAttempt.current += 1;
       reconnectTimer.current = setTimeout(() => {
         if (wsRef.current === ws) connect();
-      }, reconnectDelay.current);
-      reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
+      }, delay);
     };
 
     ws.onerror = () => ws.close();
-  }, [streamId, addMessage, signedInAs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [streamId, addMessage, signedInAs, backfill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (replay) return; // VOD replay is read-only — no live socket

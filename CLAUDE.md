@@ -15,6 +15,14 @@
 
 ## Key Architecture
 
+### 2026-11-04 - Live v2 web
+- Re-enabled `/go-live`, `/studio/stream` (both GoLivePage), `/live-stream/:username` (LiveStreamPage), `/vod/:streamId` (VodPage); removed LiveComingSoon gates from App.jsx (component file still exists, unrouted).
+- GoLivePage software mode: persistent key (`persistentKey` from create/my-stream), "Reset key" (`POST /live/reset-key`, confirm; button hidden on 404), "Get my stream key", Restream Custom RTMP steps, End stream also shown when saved (navigates `/go-live`, keeps key if persistent). my-stream poll handles `disabled`.
+- LiveStreamPage: autoplay muted + Unmute button; poll failures never drop the stream; state reset per username; poll 5 s idle / 10 s active / 15 s replay processing, paused in hidden tabs; replay plays `vodParts` in order (fallback `vodPlaybackId`), chat replay offset adds prior part durations.
+- LiveWatchPage `/live`: `state.app.live` + `app.playbackId` -> MuxPlayer default source, picker "The Homies / YouTube / Kick". Sidebar Live link goes to `/live` unless only a Mux stream is live (then `/live-stream/<user>`).
+- LiveChat: full-jitter reconnect (cap 30 s), `{type:"reconnect",delayMs}`, id-deduped history + `GET /live/:id/chat?after=` backfill on reconnect, history reloads per stream.
+- VodPage plays `vodParts` sequentially. Copy: "The Homies" (no Hub).
+
 ### 2026-11-03 (later) - Spaces v3 (web)
 - Anyone can start a Space (`canHost` from the list); no "Record for replay" switch (every Space is recorded; room shows a small "Recording for replay" note). Signed-out users open `/spaces/:id` (route is not gated): `getSpace/getReplay/guestJoinSpace` pass `{noAuth:true}` (api interceptor skips the token), listen 2 min via `POST /:id/guest-join` with a countdown, then a sign-in wall; signed-out replay stops at `previewSec` with the same wall.
 - Replay (`SpaceReplay.jsx`): "On stage" avatars (`SpaceTile.jsx`, shared with the live room incl. `SPACES_CSS` speaking ring) lit by `speakingIdsAt(speech, parts[i].startMs + t*1000)`, polled 150 ms. Live room reports the local speaker's segments to `POST /:id/speaking` (IsSpeakingChanged, merged <400 ms, flush 10 s / unmount / pagehide).
