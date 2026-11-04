@@ -50,7 +50,8 @@ const VideoPlayer = () => {
   const { currentVideo, closeVideo, isLiked, toggleLike, setGatedVideo } = useMedia();
   // Server sent a preview clip instead of the full video (homieshub-backend
   // utils/mediaAccess.js) — when it ends, show the members/sign-in gate.
-  const isPreview = !!currentVideo?.access && currentVideo.access !== 'full';
+  const isAppOnly = currentVideo?.access === 'app_only';
+  const isPreview = !!currentVideo?.access && currentVideo.access !== 'full' && !isAppOnly;
   const { user } = useAuth();
   const playbackDisabled = useVideoPlaybackDisabled();
 
@@ -289,6 +290,16 @@ const VideoPlayer = () => {
 
   if (!currentVideo) return null;
 
+  // App-only (phone app only): just the card and a close button, no player or controls.
+  if (isAppOnly) {
+    return (
+      <motion.div key="video-player" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[120] bg-black">
+        <AppOnlyCard poster={currentVideo.cover || currentVideo.thumbnail || currentVideo.thumbnailUrl} title={currentVideo.title} videoId={currentVideo.id} videoType={currentVideo.backendType === 'reel' ? 'reel' : 'video'} surface="media_app_only" />
+        <button type="button" onClick={closeVideo} aria-label="Close" className="absolute right-4 top-4 z-20 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"><X className="h-5 w-5" /></button>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       ref={containerRef}
@@ -309,7 +320,7 @@ const VideoPlayer = () => {
       )}
       {/* ── MuxPlayer — pointer-events disabled so our overlay owns all clicks ── */}
       {currentVideo.access === 'app_only' ? (
-        <AppOnlyCard poster={currentVideo.thumbnail || currentVideo.thumbnailUrl} title={currentVideo.title} videoId={currentVideo.id} surface="media_app_only" />
+        <AppOnlyCard poster={currentVideo.cover || currentVideo.thumbnail || currentVideo.thumbnailUrl} title={currentVideo.title} videoId={currentVideo.id} surface="media_app_only" />
       ) : playbackDisabled ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 gap-3">
           <X className="w-12 h-12 text-zinc-700" />

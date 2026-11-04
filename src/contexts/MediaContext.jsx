@@ -181,14 +181,15 @@ export const MediaProvider = ({ children }) => {
   // ── Fetch HomieshHub videos + reels for media mode library ────────────────
   const normalizeHhItem = useCallback((item, backendType) => {
     const playbackId = item.muxPlaybackId || null;
-    if (!playbackId) return null;
+    const appOnly = item.access === 'app_only'; // shows as a card that points to the phone app
+    if (!playbackId && !appOnly) return null;
     return {
       id:            item._id || item.id,
       title:         item.title || item.caption || 'Untitled',
       description:   item.description || item.caption || '',
       muxPlaybackId: playbackId,
-      cover:         item.thumbnailUrl || item.thumbnail || `https://image.mux.com/${playbackId}/thumbnail.png?width=400`,
-      backdropUrl:   `https://image.mux.com/${playbackId}/thumbnail.png?width=1280`,
+      cover:         item.thumbnailUrl || item.thumbnail || (playbackId ? `https://image.mux.com/${playbackId}/thumbnail.png?width=400` : ''),
+      backdropUrl:   playbackId ? `https://image.mux.com/${playbackId}/thumbnail.png?width=1280` : (item.thumbnailUrl || item.thumbnail || ''),
       backdropImages: Array.isArray(item.backdropImages) ? item.backdropImages : [],
       mediaKind:     'video',
       backendType,
@@ -411,7 +412,9 @@ export const MediaProvider = ({ children }) => {
     const videoId = video?.id || video?._id;
     // The server already decided what this viewer gets: a preview clip plays
     // (VideoPlayer shows the gate when it ends); full access plays as normal.
-    const isPreview = !!video?.access && video.access !== 'full';
+    const isAppOnly = video?.access === 'app_only';
+    const isPreview = !!video?.access && video.access !== 'full' && !isAppOnly;
+    if (isAppOnly) { setCurrentVideo(video); return; } // VideoPlayer shows the app card, nothing plays
     if (isPreview ? !!video.muxPlaybackId : (isPremium || isAdmin || hasPurchased(videoId))) {
       if (audioRef.current && isPlayingRef.current) {
         audioRef.current.pause();

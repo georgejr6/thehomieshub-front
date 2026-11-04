@@ -15,6 +15,9 @@
 
 ## Key Architecture
 
+### 2026-11-04 - App-only videos on the web
+- Backend `access: "app_only"` (no playback ID): `components/AppOnlyCard.jsx` (Watch in the app + store badges + Unlock for $4.99 for signed-in non-members via `POST /purchases/video/:id`, Stripe URL allowlisted) replaces the player in `VerticalVideo` and Media Mode `VideoPlayer` (early return, close button). `isPreview` excludes app_only; MediaContext keeps app_only items in the library and `playVideo` opens the card.
+
 ### 2026-11-04 - Live: 2-min guest preview
 - `lib/guestPreview.js` `useGuestPreview(id, guest, counting)`: signed-out viewers get 120 s per broadcast (key `ls:<streamId>`, localStorage `homies_guest_watch_v1`, shared by /live Mux source, /live-stream/:username, /vod/:streamId), counted only while video is on screen and the tab is visible; then a "Sign in to keep watching" wall replaces the player (redirects back after sign-in). YouTube/Kick embeds on /live stay unlimited. MembershipWall PUBLIC + OPEN prefixes include `/live-stream` and `/vod`. Test: `lib/guestPreview.test.jsx`.
 

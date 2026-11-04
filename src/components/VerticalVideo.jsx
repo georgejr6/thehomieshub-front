@@ -173,7 +173,8 @@ const VerticalVideo = ({ post, index, isVisible, onLoginRequest, startFraction }
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [localIsNSFW, setLocalIsNSFW] = useState(post.isNSFW);
     const isBlurred = localIsNSFW && !isUnlocked;
-    const isPreview = !!post.access && post.access !== 'full';
+    const isAppOnly = post.access === 'app_only';
+    const isPreview = !!post.access && post.access !== 'full' && !isAppOnly;
     const [previewEnded, setPreviewEnded] = useState(false);
     // Signed out: count this toward the every-3rd full sign-up screen.
     useEffect(() => {

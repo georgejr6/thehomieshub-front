@@ -245,7 +245,7 @@ const MediaApp = ({ musicOnly = false }) => {
       access:        post.access || 'full',
       previewSeconds: post.previewSeconds || null,
     };
-    if (video.muxPlaybackId) playVideo(video);
+    if (video.muxPlaybackId || video.access === 'app_only') playVideo(video);
   }, [postId]); // eslint-disable-line
 
   const TABS = musicOnly ? MUSIC_TABS : [
