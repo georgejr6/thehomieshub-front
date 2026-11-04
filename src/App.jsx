@@ -641,7 +641,7 @@ const AppContent = React.memo(() => {
 
                 <Route path="/live-stream/:username" element={<LiveStreamPage onLoginRequest={handleLoginRequest} />} />
 
-                <Route path="/vod/:streamId" element={<VodPage />} />
+                <Route path="/vod/:streamId" element={<VodPage onLoginRequest={handleLoginRequest} />} />
 
                 <Route path="/library" element={
                     <FeatureGuard feature="library">

@@ -14,6 +14,7 @@ import YouTubeBadge from '@/components/YouTubeBadge';
 import { externalText, openLinkedUserCard, safeAvatar } from '@/lib/externalAuthor';
 import LiveSpacesStrip from '@/components/spaces/LiveSpacesStrip';
 import MuxPlayer from '@mux/mux-player-react';
+import { useGuestPreview } from '@/lib/guestPreview';
 
 // /live — watch Mwosa's stream (YouTube or Kick embed) and chat without
 // leaving the app. The chat is the same conversation as the stream's
@@ -112,8 +113,21 @@ function LiveMessage({ m, fresh }) {
 }
 
 // The owner's stream inside The Homies app (Mux). Autoplays muted with an Unmute button.
-function MuxLive({ app }) {
+// Signed out: 2 minutes per broadcast (shared with /live-stream, lib/guestPreview.js).
+function MuxLive({ app, onLoginRequest }) {
   const [muted, setMuted] = useState(true);
+  const { user } = useAuth();
+  const { walled, left } = useGuestPreview(app.streamId ? `ls:${app.streamId}` : null, !user, true);
+  if (walled) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-black px-6 text-center">
+        <Radio className="h-10 w-10 text-primary" />
+        <div className="text-lg font-bold text-white">Sign in to keep watching</div>
+        <p className="max-w-xs text-sm text-white/60">Guests can watch for 2 minutes. Sign in free to watch the whole stream, or pick YouTube or Kick above.</p>
+        <button type="button" onClick={() => onLoginRequest?.({ redirect: '/live' })} className="rounded-full bg-white px-5 py-2 text-sm font-bold text-black">Sign in</button>
+      </div>
+    );
+  }
   return (
     <div className="relative h-full w-full bg-black">
       <MuxPlayer
@@ -132,17 +146,23 @@ function MuxLive({ app }) {
           <Volume2 className="h-4 w-4" /> Unmute
         </button>
       )}
+      {left != null && (
+        <button type="button" onClick={() => onLoginRequest?.({ redirect: '/live' })}
+          className="absolute top-3 right-3 z-10 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white/90 backdrop-blur-sm">
+          Watching as a guest · {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')} left · <span className="font-semibold underline">Sign in</span>
+        </button>
+      )}
     </div>
   );
 }
 const state_title = (app) => `@${app.username || 'homies'} live`;
 
-function Player({ state, source }) {
+function Player({ state, source, onLoginRequest }) {
   if (!state) return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-white/40" /></div>;
   const yt = state.youtube || {};
   const kick = state.kick || {};
   if (source === 'mux' && state.app?.live && state.app.playbackId) {
-    return <MuxLive app={state.app} />;
+    return <MuxLive app={state.app} onLoginRequest={onLoginRequest} />;
   }
   if (source === 'kick') {
     return <iframe key="kick" title="Kick stream" src={`https://player.kick.com/${kick.slug}?autoplay=true&muted=true`} className="h-full w-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
@@ -475,7 +495,7 @@ export default function LiveWatchPage({ onLoginRequest }) {
         </header>
 
         <div className="relative aspect-video w-full bg-black lg:aspect-auto lg:flex-1">
-          <Player state={state} source={source} />
+          <Player state={state} source={source} onLoginRequest={onLoginRequest} />
           {alert && (
             <div key={alert.key} className="live-alert pointer-events-none absolute inset-x-3 top-3 z-10 mx-auto max-w-lg overflow-hidden rounded-2xl shadow-2xl" style={{ background: alert.color || '#F0B94D' }}>
               <div className="flex items-center gap-3 px-4 py-3 text-white">

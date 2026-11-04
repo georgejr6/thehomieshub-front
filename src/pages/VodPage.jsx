@@ -9,12 +9,15 @@ import { useToast } from '@/components/ui/use-toast';
 import MuxPlayer from '@mux/mux-player-react';
 import api from '@/api/homieshub';
 import { getVodParts, vodPollDelay } from '@/lib/liveVod';
+import { useAuth } from '@/contexts/AuthContext';
+import { useGuestPreview } from '@/lib/guestPreview';
 
-// A single past broadcast (VOD) — shareable by direct link, no login required
-// to watch. Distinct from LiveStreamPage/:username, which only ever shows a
+// A single past broadcast (VOD) — shareable by direct link; signed-out
+// visitors watch 2 minutes, then sign in (lib/guestPreview.js). Distinct from LiveStreamPage/:username, which only ever shows a
 // creator's MOST RECENT recording; this page links a SPECIFIC one by id.
-const VodPage = () => {
+const VodPage = ({ onLoginRequest }) => {
   const { streamId } = useParams();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [vod, setVod] = useState(null);
@@ -30,6 +33,8 @@ const VodPage = () => {
   useEffect(() => {
     if (!streamId) return undefined;
     setPartIndex(0);
+    setVod(null);
+    setLoading(true);
     setMuted(true);
     let cancelled = false;
     let timer = null;
@@ -94,6 +99,10 @@ const VodPage = () => {
     toast({ title: 'Link copied!', description: 'Share it with your friends.' });
   };
 
+  const { walled: guestWalled, left: guestLeft } = useGuestPreview(
+    streamId ? `ls:${streamId}` : null, !user, !!vod && getVodParts(vod).length > 0,
+  );
+
   if (loading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-black text-white">
@@ -133,7 +142,14 @@ const VodPage = () => {
           </Button>
 
           <div className="relative aspect-video bg-zinc-900 rounded-xl overflow-hidden">
-            {part ? (
+            {guestWalled ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                <PlayCircle className="h-12 w-12 text-primary" />
+                <h2 className="text-lg font-bold">Sign in to keep watching</h2>
+                <p className="text-white/60 text-sm max-w-xs">Guests can watch 2 minutes of a replay. Sign in free to watch the whole thing.</p>
+                <Button onClick={() => onLoginRequest?.({ redirect: `/vod/${streamId}` })}>Sign in</Button>
+              </div>
+            ) : part ? (
             <MuxPlayer
               playbackId={part.playbackId}
               autoPlay={idx > 0 ? true : "muted"}
@@ -147,7 +163,16 @@ const VodPage = () => {
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-white/60">Replay processing. It will appear here on its own.</div>
             )}
-            {part && muted && (
+            {part && !guestWalled && guestLeft != null && (
+              <button
+                type="button"
+                onClick={() => onLoginRequest?.({ redirect: `/vod/${streamId}` })}
+                className="absolute top-3 right-3 z-10 rounded-full bg-black/70 backdrop-blur-sm px-3 py-1.5 text-xs text-white/90"
+              >
+                Guest preview · {Math.floor(guestLeft / 60)}:{String(guestLeft % 60).padStart(2, '0')} left · <span className="font-semibold underline">Sign in</span>
+              </button>
+            )}
+            {part && !guestWalled && muted && (
               <button
                 type="button"
                 onClick={() => setMuted(false)}

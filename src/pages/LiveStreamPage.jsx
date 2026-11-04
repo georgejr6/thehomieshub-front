@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Heart, Gift, Share2, CheckCircle, Loader2, Radio, Users, ShieldX, StopCircle, Pencil, Settings, Diamond, Clock, PlayCircle, Volume2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useGuestPreview } from '@/lib/guestPreview';
 import LiveChat from '@/components/LiveChat';
 import GiftDialogComponent from '@/components/GiftDialog';
 import MuxPlayer from '@mux/mux-player-react';
@@ -277,6 +278,12 @@ const LiveStreamPage = ({ onLoginRequest }) => {
     }
   };
 
+  // Signed-out viewers get 2 minutes per broadcast (live or replay), then a sign-in wall.
+  const guestId = stream ? `ls:${stream._id || stream.id}` : null;
+  const guestCounting = !!stream && !isWarmingUp && !playerGaveUp
+    && (stream.status === 'active' || (stream.status === 'disabled' && getVodParts(stream).length > 0));
+  const { walled: guestWalled, left: guestLeft } = useGuestPreview(guestId, !user, guestCounting);
+
   // Loading state
   if (loading) {
     return (
@@ -364,7 +371,14 @@ const LiveStreamPage = ({ onLoginRequest }) => {
 
           {/* Video player */}
           <div className="relative bg-black flex-1 min-h-0">
-            {sourcePlaybackId ? (
+            {guestWalled ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 gap-4 px-6 text-center">
+                <Radio className="h-12 w-12 text-primary" />
+                <h2 className="text-xl font-bold">Sign in to keep watching</h2>
+                <p className="text-white/60 text-sm max-w-xs">Guests can watch for 2 minutes. Sign in free to watch the whole {isVod ? 'replay' : 'stream'} and join the chat.</p>
+                <Button onClick={() => onLoginRequest?.({ redirect: `/live-stream/${username}` })}>Sign in</Button>
+              </div>
+            ) : sourcePlaybackId ? (
               <>
                 <MuxPlayer
                   key={`${playerKey}-${isVod ? 'vod' : 'live'}`}
@@ -404,6 +418,15 @@ const LiveStreamPage = ({ onLoginRequest }) => {
                     className="absolute bottom-16 left-4 z-10 flex items-center gap-2 rounded-full bg-white text-black text-sm font-semibold px-4 py-2 shadow-lg hover:bg-white/90"
                   >
                     <Volume2 className="h-4 w-4" /> Unmute
+                  </button>
+                )}
+                {guestLeft != null && (
+                  <button
+                    type="button"
+                    onClick={() => onLoginRequest?.({ redirect: `/live-stream/${username}` })}
+                    className="absolute bottom-16 right-4 z-10 rounded-full bg-black/70 backdrop-blur-sm px-3 py-1.5 text-xs text-white/90"
+                  >
+                    Watching as a guest · {Math.floor(guestLeft / 60)}:{String(guestLeft % 60).padStart(2, '0')} left · <span className="font-semibold underline">Sign in</span>
                   </button>
                 )}
                 {isVod && vodParts.length > 1 && (
