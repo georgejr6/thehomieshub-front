@@ -3,6 +3,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 
+// Friendly text for the error codes the backend can send back to /auth/callback.
+const ERROR_TEXT = {
+  youtube_no_channel: { title: 'No YouTube channel', description: 'No YouTube channel was found on that Google account.' },
+  youtube_channel_taken: { title: 'Channel already linked', description: 'That channel is linked to another The Homies account.' },
+  email_exists_unverified: {
+    title: 'Account already exists',
+    description: 'An account with this email exists. Sign in with your password, then connect YouTube (or Google) in Settings.',
+  },
+};
+
 export default function OAuthCallbackPage() {
   const [params] = useSearchParams();
   const { setAccessToken } = useAuth();
@@ -14,14 +24,11 @@ export default function OAuthCallbackPage() {
     const error = params.get('error');
     // "Continue with YouTube" hands back the page they started from (same-site paths only).
     const ret = params.get('return');
-    const safeRet = ret && ret.startsWith('/') && !ret.startsWith('//') && !ret.includes('\\') && !/[\r\n]/.test(ret) && ret.length <= 200 ? ret : null;
+    const safeRet = ret && ret.startsWith('/') && !ret.startsWith('//') && !ret.startsWith('/\\') && !ret.includes('\\') && !/[\u0000-\u001f\u007f]/.test(ret) && ret.length <= 200 ? ret : null;
 
     if (error || !token) {
-      toast({
-        title: 'Sign in failed',
-        description: error === 'youtube_no_channel' ? 'No YouTube channel was found on that Google account.' : 'Please try again.',
-        variant: 'destructive',
-      });
+      const msg = ERROR_TEXT[error] || { title: 'Sign in failed', description: 'Please try again.' };
+      toast({ ...msg, variant: 'destructive' });
       navigate('/');
       return;
     }

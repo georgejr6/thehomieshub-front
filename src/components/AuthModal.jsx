@@ -132,7 +132,34 @@ const ForgotPasswordView = ({ setAuthView }) => {
 
 const API_BASE = "https://backend.thehomies.app/api";
 
+// Is "Continue with YouTube" configured on the server? Asked once per page load; hidden until known.
+let ytSigninConfigured = null;
+let ytSigninPromise = null;
+const loadYtSigninConfigured = () => {
+  if (!ytSigninPromise) {
+    ytSigninPromise = fetch(`${API_BASE}/auth/youtube/status`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { ytSigninConfigured = !!j?.result?.configured; return ytSigninConfigured; })
+      .catch(() => { ytSigninPromise = null; return false; });
+  }
+  return ytSigninPromise;
+};
+// Same-site return target: pathname + search of the page they were on (never the OAuth landing page).
+const ytReturnPath = () => {
+  if (typeof window === 'undefined') return '/';
+  const { pathname, search } = window.location;
+  if (pathname.startsWith('/auth/')) return '/';
+  const p = `${pathname}${search}`;
+  return p.length <= 200 && !/[\u0000-\u001f\u007f]/.test(p) ? p : pathname;
+};
+
 const OAuthButtons = ({ disabled = false, onBlocked }) => {
+  const [ytOn, setYtOn] = useState(ytSigninConfigured === true);
+  useEffect(() => {
+    let live = true;
+    loadYtSigninConfigured().then((on) => { if (live) setYtOn(!!on); });
+    return () => { live = false; };
+  }, []);
   // When disabled (sign-up before terms accepted) we keep the link clickable so
   // we can intercept and nudge — preventDefault stops the actual OAuth redirect.
   const guard = (e) => {
@@ -181,9 +208,9 @@ const OAuthButtons = ({ disabled = false, onBlocked }) => {
         Google
       </a>
     </div>
-    {/* Continue with YouTube: signs in (or creates the account for) the member who owns the channel. */}
-    <a
-      href={`${API_BASE}/auth/youtube/signin?redirect=1&return=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/')}`}
+    {/* Continue with YouTube: signs in (or creates the account for) the member who owns the channel. Hidden unless the server has it configured. */}
+    {ytOn && <a
+      href={`${API_BASE}/auth/youtube/signin?redirect=1&return=${encodeURIComponent(ytReturnPath())}`}
       onClick={guard}
       aria-disabled={disabled}
       className={cn(
@@ -195,7 +222,7 @@ const OAuthButtons = ({ disabled = false, onBlocked }) => {
         <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z"/>
       </svg>
       Continue with YouTube
-    </a>
+    </a>}
   </div>
   );
 };
