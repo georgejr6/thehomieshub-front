@@ -252,7 +252,7 @@ const AccountSettingsPage = () => {
   const handleConnectYouTube = async () => {
     setYtLoading(true);
     try {
-      const { data } = await api.get('/auth/youtube/connect', { params: { return: '/settings' } });
+      const { data } = await api.get('/auth/youtube/connect', { params: { return: '/settings?tab=connections' } });
       const url = data?.result?.url;
       if (!url) throw new Error('no url');
       window.location.assign(url);
