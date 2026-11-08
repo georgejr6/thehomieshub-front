@@ -858,7 +858,7 @@ const AccountSettingsPage = () => {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium">YouTube</p>
-                    {user?.youtube ? (
+                    {user?.youtube?.channelId ? (
                       <p className="text-xs text-muted-foreground">
                         {(ytChannels.length || user?.youtubeChannels?.length || 1) > 1 ? `${ytChannels.length || user?.youtubeChannels?.length} channels connected` : '1 channel connected'}
                       </p>
@@ -867,20 +867,20 @@ const AccountSettingsPage = () => {
                     )}
                   </div>
                 </div>
-                <Button size="sm" variant={user?.youtube ? 'outline' : 'default'} className={user?.youtube ? 'flex-shrink-0' : 'flex-shrink-0 bg-[#ff0033] text-white hover:bg-[#cc0029]'} onClick={handleConnectYouTube} disabled={ytLoading} aria-label={user?.youtube ? 'Add another YouTube channel' : 'Connect YouTube'}>
+                <Button size="sm" variant={user?.youtube?.channelId ? 'outline' : 'default'} className={user?.youtube?.channelId ? 'flex-shrink-0' : 'flex-shrink-0 bg-[#ff0033] text-white hover:bg-[#cc0029]'} onClick={handleConnectYouTube} disabled={ytLoading} aria-label={user?.youtube?.channelId ? 'Add another YouTube channel' : 'Connect YouTube'}>
                   {ytLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                  {user?.youtube ? 'Add channel' : 'Connect YouTube'}
+                  {user?.youtube?.channelId ? 'Add channel' : 'Connect YouTube'}
                 </Button>
               </div>
 
-              {user?.youtube && ytSuggestion && (
+              {user?.youtube?.channelId && ytSuggestion && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg sm:ml-12 border border-border bg-muted/40 p-3">
                   <p className="min-w-0 flex-1 text-xs text-foreground">{ytSuggestion.reason}</p>
                   <Button size="sm" disabled={ytLoading} onClick={() => handleMakePrimary(ytSuggestion.suggestedChannelId)} aria-label="Make suggested channel primary">Make primary</Button>
                 </div>
               )}
 
-              {user?.youtube && (
+              {user?.youtube?.channelId && (
                 <ul className="space-y-3 sm:ml-12 sm:space-y-2">
                   {(ytChannels.length ? ytChannels : [{ ...user.youtube, primary: true }]).map((c) => {
                     const bits = [ytCount(c.subscriberCount) != null ? `${ytCount(c.subscriberCount)} subs` : null, ytAgo(c.lastUploadAt)].filter(Boolean);
@@ -922,7 +922,7 @@ const AccountSettingsPage = () => {
                 </ul>
               )}
 
-              {user?.youtube && (
+              {user?.youtube?.channelId && (
                 <div className="space-y-3 sm:pl-12">
                   <div className="flex items-center justify-between gap-3">
                     <Label htmlFor="yt-show" className="text-sm font-normal">Show my YouTube on my profile</Label>
@@ -932,7 +932,7 @@ const AccountSettingsPage = () => {
                   <p className="text-xs text-muted-foreground">Chatting in Mwosa's YouTube live earns points once your channel is connected.</p>
                 </div>
               )}
-              {!user?.youtube && <p className="text-xs sm:pl-12 text-muted-foreground">Chatting in Mwosa's YouTube live earns points once your channel is connected.</p>}
+              {!user?.youtube?.channelId && <p className="text-xs sm:pl-12 text-muted-foreground">Chatting in Mwosa's YouTube live earns points once your channel is connected.</p>}
             </>
           )}
 
