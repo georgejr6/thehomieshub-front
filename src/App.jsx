@@ -82,6 +82,7 @@ import BackButton from '@/components/BackButton';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
 const PayPage = lazyWithReload(() => import('@/pages/PayPage'));
+const AskLoginPage = lazyWithReload(() => import('@/pages/AskLoginPage'));
 const SponsorPage = lazyWithReload(() => import('@/pages/SponsorPage'));
 const DonatePage = lazyWithReload(() => import('@/pages/DonatePage'));
 const PayXPage = lazyWithReload(() => import('@/pages/PayXPage'));
@@ -572,6 +573,8 @@ const AppContent = React.memo(() => {
                 web app's own session, and mobile opens this in a fresh browser
                 context with no session of its own yet. */}
             <Route path="/pay" element={<PayPage />} />
+            {/* Homies Ask (ask.thehomies.app) sign-in bridge: handoff code -> Ask */}
+            <Route path="/ask-login" element={<AskLoginPage />} />
 
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
