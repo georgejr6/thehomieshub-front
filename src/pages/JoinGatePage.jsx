@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Check, Mail, Crown, MessagesSquare, Globe, MapPin, EyeOff, Copy, RotateCcw, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { detectPrivateMode } from '@/lib/privateMode';
 import { captureFreshLocation, locationHelp } from '@/lib/joinGeo';
+import { getAskReturn } from '@/lib/askReturn';
 
 const API_BASE = 'https://backend.thehomies.app/api';
 const GUILD_ID = '1293582001840062525';
@@ -270,6 +271,13 @@ export default function JoinGatePage() {
     }
   };
   const openChat = () => navigate('/chat');
+  // Came from Homies Ask (ask.thehomies.app): once admitted, send them on to their cheat sheet.
+  const [askReturn] = useState(() => getAskReturn());
+  useEffect(() => {
+    if (step !== 'done' || !askReturn) return undefined;
+    const t = setTimeout(() => navigate(askReturn), 2500);
+    return () => clearTimeout(t);
+  }, [step, askReturn, navigate]);
 
   const sendCode = async () => {
     const email = (emailInput || status?.email || '').trim().toLowerCase();
@@ -536,6 +544,11 @@ export default function JoinGatePage() {
               ? `Welcome to The Homies as a ${admittedTier} member. Everything's unlocked.`
               : `Welcome to The Homies.`}
           </p>
+          {askReturn && (
+            <Button size="lg" onClick={() => navigate(askReturn)} className="w-full h-14 mb-4 text-base font-bold text-black bg-yellow-400 hover:bg-yellow-300">
+              Continue to Homies Ask: your cheat sheet <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          )}
           <NoDiscordNeeded delay={0.1} />
           <ChatPreview />
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
