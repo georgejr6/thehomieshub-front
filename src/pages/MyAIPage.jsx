@@ -113,6 +113,8 @@ const FormattedText = ({ text }) => {
     const h = line.match(/^\s*(#{1,3})\s+(.*)$/);
     const ul = line.match(/^\s*[-*•]\s+(.*)$/);
     const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+    // legal disclaimer from the knowledge base (sex-work topics): small, glowing red
+    if (/^\s*⚠️\s*Disclaimer:/.test(line)) { flush(); blocks.push({ type: 'disc', text: line.replace(/^\s*⚠️\s*/, '') }); return; }
     if (h)       { flush(); blocks.push({ type: 'h', text: h[2] }); }
     else if (ul) { if (!list || list.type !== 'ul') { flush(); list = { type: 'ul', items: [] }; } list.items.push(ul[1]); }
     else if (ol) { if (!list || list.type !== 'ol') { flush(); list = { type: 'ol', items: [] }; } list.items.push(ol[1]); }
@@ -124,6 +126,7 @@ const FormattedText = ({ text }) => {
   return (
     <div className="space-y-1.5">
       {blocks.map((b, i) => {
+        if (b.type === 'disc') return <p key={i} className="mt-2 text-[10px] leading-snug font-medium text-red-500" style={{ textShadow: '0 0 6px rgba(255,40,40,.8), 0 0 12px rgba(255,40,40,.45)' }}>{b.text}</p>;
         if (b.type === 'h') return <p key={i} className="font-bold mt-1">{parseInline(b.text)}</p>;
         if (b.type === 'ul') return <ul key={i} className="list-disc pl-5 space-y-1">{b.items.map((it, j) => <li key={j}>{parseInline(it)}</li>)}</ul>;
         if (b.type === 'ol') return <ol key={i} className="list-decimal pl-5 space-y-1">{b.items.map((it, j) => <li key={j}>{parseInline(it)}</li>)}</ol>;
