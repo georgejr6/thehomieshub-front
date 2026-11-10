@@ -15,6 +15,10 @@
 
 ## Key Architecture
 
+### 2026-11-09 - Homies AI chat bubble
+- `components/HomiesAIBubble.jsx` (mounted in App next to HelpAssistant): floating "Ask the Homies AI" button bottom-right (above MobileNav on phones, raised when the music bar is up). Desktop: hover X hides it for the visit; phones: swipe it away (70 px sideways/down). sessionStorage `hh_ai_bubble_off`. Hidden on /chat, /live, /ask-login, /join, /auth, /admin, /appeal, /pay and inside frames.
+- Open: desktop 420 px panel, phones full screen (swipe the header down to close, Esc too). Signed in: iframe of `VITE_ASK_URL` (default https://ask.thehomies.app) `?embed=1`; Ask signs them in silently via /ask-login (same-site, cookies work) and hides its own header. Signed out: "Sign in to ask" (handleLoginRequest) + open-in-new-tab (Google/Discord can't run in a frame). Ask sends `frame-ancestors` for thehomies.app only.
+
 ### 2026-11-04 - App-only videos on the web
 - Backend `access: "app_only"` (no playback ID): `components/AppOnlyCard.jsx` (Watch in the app + store badges + Unlock for $4.99 for signed-in non-members via `POST /purchases/video/:id`, Stripe URL allowlisted) replaces the player in `VerticalVideo` and Media Mode `VideoPlayer` (early return, close button). `isPreview` excludes app_only; MediaContext keeps app_only items in the library and `playVideo` opens the card.
 

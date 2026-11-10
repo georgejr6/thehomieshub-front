@@ -108,6 +108,7 @@ const ShopStudio = lazyWithReload(() => import('@/shop/studio/Studio'));
 import api from '@/api/homieshub';
 
 import { useAuth } from '@/contexts/AuthContext';
+import HomiesAIBubble from '@/components/HomiesAIBubble';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import FeatureGuard from '@/components/FeatureGuard';
 import { useStory } from '@/contexts/StoryContext';
@@ -737,6 +738,7 @@ const AppContent = React.memo(() => {
         <PlaceView />
         {/* The chat composer owns the bottom-right corner on /chat. */}
         {!location.pathname.startsWith('/chat') && location.pathname !== '/live' && <HelpAssistant />}
+        <HomiesAIBubble onLoginRequest={handleLoginRequest} />
         <Toaster />
 
         {/* Story viewer — fixed fullscreen, independent of all layout/feed lifecycle */}
