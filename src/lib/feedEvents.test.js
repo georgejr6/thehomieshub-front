@@ -193,7 +193,7 @@ describe('feedEvents', () => {
     }
     expect(_pending()).toBeLessThanOrEqual(MAX_STORED);
     // the still-active (not ended) ones were never dropped
-    for (const id of ids.slice(200)) trackProgress(id, 0, 10), trackProgress(id, 1, 10);
+    for (const id of ids.slice(200)) { trackProgress(id, 0, 10); trackProgress(id, 1, 10); }
     fetch.mockImplementation((url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: true, status: 200 }); });
     await flush();
     const sent = calls.flatMap((c) => JSON.parse(c.init.body).events);
