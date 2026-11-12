@@ -42,6 +42,11 @@ export default function ClaimPage() {
     catch (e) { setMsg(e.message); } finally { setBusy(false); }
   };
 
+  const forget = async (key) => {
+    if (!window.confirm('Delete everything we hold about this handle (messages, profile, points owed) and stop storing it?')) return;
+    try { await call('/forget', { method: 'POST', body: { chatterKey: key } }); setMsg('Deleted. We will not store this handle again.'); load(); } catch (e) { setMsg(e.message); }
+  };
+
   if (!user) return null;
   const pending = view?.pendingTotal || 0;
   return (
@@ -70,10 +75,12 @@ export default function ClaimPage() {
           ) : view.links.map((l) => (
             <div key={l.chatterKey} className="flex justify-between text-sm">
               <span>{l.handle} <span className="text-gray-500">({l.platform})</span></span>
-              <span className="text-yellow-400">{l.pending} pts</span>
+              <span className="text-yellow-400">{l.pending} pts <button type="button" className="ml-2 text-xs text-gray-500 underline" onClick={() => forget(l.chatterKey)}>delete my data</button></span>
             </div>
           ))}
         </div>
+
+        <p className="text-xs text-gray-500">We listen to public live chats of travel creators and keep the messages and a short interest profile per handle. Linking a handle proves it is yours, and you can delete everything we hold about it at any time.</p>
 
         <div className="rounded-xl border border-white/10 p-4 space-y-3">
           <div className="font-semibold">Link a handle</div>
