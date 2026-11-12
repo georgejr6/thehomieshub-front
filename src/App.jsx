@@ -83,6 +83,7 @@ import OnboardingFlow from '@/components/OnboardingFlow';
 import DiscordConnectPrompt from '@/components/DiscordConnectPrompt';
 const PayPage = lazyWithReload(() => import('@/pages/PayPage'));
 const AskLoginPage = lazyWithReload(() => import('@/pages/AskLoginPage'));
+const ClaimPage = lazyWithReload(() => import('@/pages/ClaimPage'));
 const SponsorPage = lazyWithReload(() => import('@/pages/SponsorPage'));
 const DonatePage = lazyWithReload(() => import('@/pages/DonatePage'));
 const PayXPage = lazyWithReload(() => import('@/pages/PayXPage'));
@@ -576,6 +577,8 @@ const AppContent = React.memo(() => {
             <Route path="/pay" element={<PayPage />} />
             {/* Homies Ask (ask.thehomies.app) sign-in bridge: handoff code -> Ask */}
             <Route path="/ask-login" element={<AskLoginPage />} />
+            {/* Claim pending points earned from tips in other creators' public chats (homies-chat-listener) */}
+            <Route path="/claim" element={<ClaimPage />} />
 
             {/* --- Admin Routes --- */}
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
